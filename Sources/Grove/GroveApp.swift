@@ -14,6 +14,10 @@ struct GroveApp: App {
         .windowStyle(.hiddenTitleBar)
         .defaultSize(width: 1280, height: 800)
         .commands {
+            CommandGroup(replacing: .newItem) {
+                Button("New Task") { store.requestQuickAdd() }
+                    .keyboardShortcut("n", modifiers: .command)
+            }
             CommandGroup(replacing: .undoRedo) {
                 Button(store.undoName.map { "Undo \($0)" } ?? "Undo") { store.undo() }
                     .keyboardShortcut("z", modifiers: .command)

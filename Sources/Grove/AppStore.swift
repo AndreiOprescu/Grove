@@ -22,6 +22,10 @@ final class AppStore {
     var selection: Set<String> = []
     var toast: String?
     var errorMessage: String?
+    /// The task shown in the inspector (M3d) and highlighted in the task list.
+    var selectedTaskId: String?
+    /// Bumped by ⌘N. The task list focuses its quick-add field when this changes.
+    var quickAddRequest = 0
     /// Set when a change takes a day past the daily limit. The planner shows it as an alert.
     var overloadWarning: String?
 
@@ -149,6 +153,12 @@ final class AppStore {
             if was == nil { try repos.refs.rebuildIncoming(to: ref) }
             if let was, was.title != now.title { try repos.refs.renamed(ref, to: now.title) }
         }
+    }
+
+    /// Opens the task list and puts the cursor in the quick-add field.
+    func requestQuickAdd() {
+        UserDefaults.standard.set(true, forKey: "shell.tasksOpen")
+        quickAddRequest += 1
     }
 
     func showToast(_ text: String) {

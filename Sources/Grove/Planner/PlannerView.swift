@@ -19,6 +19,7 @@ struct PlannerView: View {
     @AppStorage("planner.workStart") private var workStart = 9 * 60
     @AppStorage("planner.workEnd") private var workEnd = 18 * 60
     @AppStorage("planner.trayOpen") private var trayOpen = true
+    @AppStorage("shell.tasksOpen") private var tasksOpen = true
 
     @State private var geo = PlannerGeometry()
     @State private var dropToTray = false
@@ -74,6 +75,10 @@ struct PlannerView: View {
         let blocks = store.blocks(for: store.selectedDay...store.selectedDay)
         let totals = store.dayTotals(store.selectedDay, blocks: blocks, workStart: workStart, workEnd: workEnd)
         return HStack(spacing: 10) {
+            if !tasksOpen {
+                Button { tasksOpen = true } label: { Image(systemName: "checklist") }
+                    .help("Show the task list")
+            }
             Button { trayOpen.toggle() } label: { Image(systemName: "sidebar.left") }
                 .help("Show or hide the unscheduled tray")
             Button { move(-1) } label: { Image(systemName: "chevron.left") }.help("Previous")
