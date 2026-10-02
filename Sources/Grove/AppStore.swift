@@ -199,7 +199,7 @@ final class AppStore {
     }
 
     /// Keeps `[[mentions]]` in step with a change: links from a changed body, titles after a rename,
-    /// and links that point at a task that was just brought back.
+    /// and links that point at an item that was just brought back.
     private func updateReferences(_ m: Mutation, forward: Bool) throws {
         for t in m.tasks {
             guard let now = forward ? t.after : t.before else { continue }
@@ -212,6 +212,17 @@ final class AppStore {
             if was == nil { try repos.refs.rebuildIncoming(to: ref) }
             if let was, was.title != now.title { try repos.refs.renamed(ref, to: now.title) }
             if was == nil || was?.status != now.status { try syncBoxes(of: now) }
+        }
+        for e in m.events {
+            guard let now = forward ? e.after : e.before, now.kind == .event else { continue }   // task blocks hold no text
+            let was = forward ? e.before : e.after
+            let ref = ItemRef(.event, now.id)
+            if was == nil || was?.notes != now.notes {
+                let canonical = try repos.refs.reindex(ref, text: now.notes)
+                if canonical != now.notes { var fixed = now; fixed.notes = canonical; try repos.events.save(fixed) }
+            }
+            if was == nil { try repos.refs.rebuildIncoming(to: ref) }
+            if let was, was.title != now.title { try repos.refs.renamed(ref, to: now.title) }
         }
         for n in m.notes {
             guard let now = forward ? n.after : n.before else { continue }

@@ -22,10 +22,12 @@ enum NotesRules {
     /// "Friday"
     static func weekdayName(_ day: DayKey) -> String { weekdays[day.weekdayIndex - 1] }
 
+    /// "2 Oct"
+    static func shortDate(_ d: DayKey) -> String { "\(d.day) \(months[d.month - 1].prefix(3))" }
+
     /// "Week 40 · 28 Sep – 4 Oct"
     static func weeklyTitle(_ monday: DayKey) -> String {
-        func short(_ d: DayKey) -> String { "\(d.day) \(months[d.month - 1].prefix(3))" }
-        return "Week \(weekNumber(monday)) · \(short(monday)) – \(short(monday.adding(days: 6)))"
+        "Week \(weekNumber(monday)) · \(shortDate(monday)) – \(shortDate(monday.adding(days: 6)))"
     }
 
     /// The calendar week of the year (week 1 holds the first Thursday).

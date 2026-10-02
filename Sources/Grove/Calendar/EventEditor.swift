@@ -61,6 +61,7 @@ struct EventEditor: View {
             colourRow
             field("Location", text: $draft.location)
             notesField
+            linkedSection
             repeatSection
             if isDayOfSeries {
                 Text("When you save, Grove asks if the change is for this event only or all events.")
@@ -114,14 +115,74 @@ struct EventEditor: View {
     private var notesField: some View {
         VStack(alignment: .leading, spacing: 4) {
             Text("Notes").foregroundStyle(theme.muted)
-            TextEditor(text: $draft.notes)
-                .font(.system(size: 12, design: .rounded))
-                .scrollContentBackground(.hidden)
-                .padding(4)
-                .frame(height: 64)
-                .background(RoundedRectangle(cornerRadius: 6).fill(theme.bg))
-                .overlay(RoundedRectangle(cornerRadius: 6).strokeBorder(theme.line))
+            RichTextField(text: $draft.notes, services: services, placeholder: "Notes. Type [[ to link something.", minHeight: 64)
         }
+    }
+
+    /// The same editor as tasks and notes. A click on a link opens it only when nothing is unsaved here,
+    /// because opening a link closes this popover.
+    private var services: EditorServices {
+        var s = store.editorServices(excluding: linkRef)
+        s.open = { id, title in
+            guard !isDirty else { store.showToast("Save the event first. Then open the link."); return }
+            store.closeEditor()
+            store.openMention(id: id, title: title)
+        }
+        return s
+    }
+
+    // MARK: Meeting note and links
+
+    /// What other items link to. A day of a repeating event stands for the whole series.
+    private var linkRef: ItemRef { ItemRef(.event, MeetingNote.linkId(for: editing.item)) }
+    private var isDirty: Bool { draft != editing.item }
+
+    @ViewBuilder private var linkedSection: some View {
+        if !editing.isNew, let original {
+            let here = store.linkedItems(to: linkRef)
+            let meeting = store.meetingNote(for: original)
+            VStack(alignment: .leading, spacing: 6) {
+                Button { openMeetingNote(original) } label: {
+                    Label(meeting == nil ? "Create meeting note" : "Open meeting note", systemImage: "note.text.badge.plus")
+                }
+                .buttonStyle(.bordered).controlSize(.small)
+                .help(meeting == nil ? "Make a note for this event, with a place for the agenda and action items" : "Show the note of this event")
+                if !here.isEmpty {
+                    Text("Linked here").font(.system(size: 12, weight: .bold, design: .serif)).foregroundStyle(theme.ink).padding(.top, 4)
+                    ForEach(here) { item in
+                        Button { openLinked(item.ref) } label: {
+                            HStack(spacing: 8) {
+                                Image(systemName: icon(item.ref.type)).foregroundStyle(theme.accent)
+                                Text(item.title).foregroundStyle(theme.ink).lineLimit(1)
+                                Spacer(minLength: 0)
+                            }
+                            .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+            }
+        }
+    }
+
+    private func icon(_ type: ItemType) -> String {
+        switch type {
+        case .task: "checkmark.circle"
+        case .note: "note.text"
+        case .event: "calendar"
+        }
+    }
+
+    private func openMeetingNote(_ event: EventItem) {
+        guard !isDirty else { store.showToast("Save the event first. Then make the note."); return }
+        store.closeEditor()
+        store.createMeetingNote(for: event)
+    }
+
+    private func openLinked(_ ref: ItemRef) {
+        guard !isDirty else { store.showToast("Save the event first. Then open the link."); return }
+        store.closeEditor()
+        store.open(ref)
     }
 
     // MARK: Repeat
