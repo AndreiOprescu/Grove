@@ -1,0 +1,361 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Grove Layouts</title>
+<style>
+/* ---------- Theme tokens (these are the SAME tokens the Swift app uses, see PLAN.md §6) ---------- */
+:root, [data-theme="grove"] {
+  --bg:#F3EEE3; --surface:#FBF8F1; --surface2:#ECE5D4; --ink:#2F3A2C; --muted:#7D8574;
+  --accent:#5E7F4F; --accent2:#C77B4E; --accent3:#D9B44A; --line:#DDD3BF;
+  --radius:16px; --shadow:0 10px 30px rgba(60,72,40,.10);
+  --head: ui-serif, "New York", Georgia, serif; --body: ui-rounded, -apple-system, system-ui, sans-serif;
+  --mono: ui-monospace, "SF Mono", Menlo, monospace;
+  --blob1:#A9C79A; --blob2:#F2C6A0; --blob3:#E8DC9A; --blur:0px; --head-case:none; --head-track:0;
+}
+[data-theme="minimal"] {
+  --bg:#F7F7F5; --surface:#FFFFFF; --surface2:#F0F0ED; --ink:#1B1B1A; --muted:#8C8C88;
+  --accent:#1B1B1A; --accent2:#7C9A7E; --accent3:#B9B9B4; --line:#E6E6E2;
+  --radius:10px; --shadow:none;
+  --head: -apple-system, system-ui, sans-serif; --body: -apple-system, system-ui, sans-serif;
+  --blob1:#E9EEE6; --blob2:#F1EEE8; --blob3:#EDEDED;
+}
+[data-theme="futuristic"] {
+  --bg:#070B16; --surface:rgba(22,30,58,.55); --surface2:rgba(60,80,140,.22); --ink:#E4F0FF; --muted:#7F8DB4;
+  --accent:#46F0D2; --accent2:#A27BFF; --accent3:#FF6FB5; --line:rgba(120,160,255,.20);
+  --radius:14px; --shadow:0 0 0 1px rgba(70,240,210,.08), 0 10px 40px rgba(0,0,0,.5);
+  --head: -apple-system, system-ui, sans-serif; --body: -apple-system, system-ui, sans-serif;
+  --blob1:#1FD1B5; --blob2:#7B4DFF; --blob3:#FF4FA3; --blur:18px; --head-case:uppercase; --head-track:.14em;
+}
+[data-theme="vintage"] {
+  --bg:#E6D8BA; --surface:#F3E9D2; --surface2:#E7D8B6; --ink:#3A2A1B; --muted:#87705A;
+  --accent:#8C3B2E; --accent2:#3F5B4A; --accent3:#B8862B; --line:#C8B38D;
+  --radius:3px; --shadow:2px 3px 0 rgba(58,42,27,.18);
+  --head: Baskerville, "Hoefler Text", "Times New Roman", serif; --body: "American Typewriter", "Courier New", serif;
+  --blob1:#F0D9A8; --blob2:#E2B98A; --blob3:#F5E6C0;
+}
+/* Page chrome (outside the mock window) */
+:root { --page:#1d1f1b; --page-ink:#ECE9E1; --page-muted:#A3A398; }
+@media (prefers-color-scheme: light) { :root { --page:#EFEDE7; --page-ink:#22241F; --page-muted:#6B6D64; } }
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--page);color:var(--page-ink);font:15px/1.45 -apple-system,system-ui,sans-serif;padding:28px 16px 60px}
+.wrap{max-width:1180px;margin:0 auto}
+h1{font:600 26px/1.2 ui-serif,"New York",Georgia,serif;margin-bottom:6px}
+.sub{color:var(--page-muted);margin-bottom:20px}
+.controls{display:flex;flex-wrap:wrap;gap:18px;align-items:flex-start;margin-bottom:18px}
+.group{display:flex;flex-direction:column;gap:6px}
+.group label{font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:var(--page-muted)}
+.seg{display:flex;flex-wrap:wrap;gap:6px}
+.seg button{border:1px solid color-mix(in srgb,var(--page-ink) 20%,transparent);background:transparent;color:var(--page-ink);padding:7px 12px;border-radius:999px;font:inherit;cursor:pointer}
+.seg button.on{background:var(--page-ink);color:var(--page)}
+.desc{background:color-mix(in srgb,var(--page-ink) 6%,transparent);border-radius:12px;padding:12px 14px;margin-bottom:18px;max-width:900px}
+.desc b{font-weight:600}
+.desc .rec{display:inline-block;font-size:12px;background:#5E7F4F;color:#fff;border-radius:999px;padding:1px 8px;margin-left:6px}
+.stage{overflow-x:auto;padding-bottom:6px}
+
+/* ---------- Mock window ---------- */
+.win{position:relative;width:1120px;height:700px;border-radius:14px;overflow:hidden;background:var(--bg);color:var(--ink);
+  font-family:var(--body);font-size:13px;box-shadow:0 30px 80px rgba(0,0,0,.35);isolation:isolate}
+.titlebar{position:absolute;top:0;left:0;right:0;height:38px;display:flex;align-items:center;gap:8px;padding:0 14px;z-index:5}
+.dot{width:12px;height:12px;border-radius:50%}
+.dot:nth-child(1){background:#FF5F57}.dot:nth-child(2){background:#FEBC2E}.dot:nth-child(3){background:#28C840}
+.ambient{position:absolute;inset:-20%;z-index:-1;pointer-events:none;filter:blur(60px);opacity:.55}
+.ambient i{position:absolute;border-radius:50%;width:46%;height:46%;animation:drift 22s ease-in-out infinite alternate}
+.ambient i:nth-child(1){background:var(--blob1);left:5%;top:10%}
+.ambient i:nth-child(2){background:var(--blob2);right:5%;top:30%;animation-duration:28s;animation-delay:-6s}
+.ambient i:nth-child(3){background:var(--blob3);left:30%;bottom:0;animation-duration:34s;animation-delay:-12s}
+[data-theme="minimal"] .ambient{opacity:.35}
+[data-theme="futuristic"] .ambient{opacity:.35}
+[data-theme="vintage"] .ambient{opacity:.4}
+@keyframes drift{0%{transform:translate(0,0) scale(1)}50%{transform:translate(6%,-4%) scale(1.08)}100%{transform:translate(-5%,5%) scale(.95)}}
+body.still .ambient i, body.still .leaf, body.still .pulse{animation:none!important}
+[data-theme="vintage"] .win::after{content:"";position:absolute;inset:0;pointer-events:none;z-index:6;mix-blend-mode:multiply;opacity:.35;
+  background:radial-gradient(ellipse at center,transparent 55%,rgba(90,60,20,.35) 100%)}
+[data-theme="futuristic"] .win::before{content:"";position:absolute;inset:0;z-index:-1;opacity:.25;
+  background-image:linear-gradient(var(--line) 1px,transparent 1px),linear-gradient(90deg,var(--line) 1px,transparent 1px);background-size:32px 32px}
+
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow);
+  backdrop-filter:blur(var(--blur));-webkit-backdrop-filter:blur(var(--blur));overflow:hidden}
+.h{font-family:var(--head);text-transform:var(--head-case);letter-spacing:var(--head-track);font-weight:600}
+.h1{font-size:24px}.h2{font-size:17px}.h3{font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.09em;font-family:var(--body);font-weight:600}
+[data-theme="futuristic"] .h1{font-size:20px;color:var(--accent);text-shadow:0 0 18px rgba(70,240,210,.45)}
+[data-theme="vintage"] .h1{font-style:italic;font-size:26px}
+.muted{color:var(--muted)}
+.mono{font-family:var(--mono)}
+.chip{display:inline-flex;align-items:center;gap:4px;font-size:11px;padding:1px 7px;border-radius:999px;background:var(--surface2);color:var(--muted);white-space:nowrap}
+[data-theme="vintage"] .chip{border-radius:2px;border:1px dashed var(--line);background:transparent}
+.chip.acc{color:var(--accent);background:color-mix(in srgb,var(--accent) 14%,transparent)}
+.chip.warm{color:var(--accent2);background:color-mix(in srgb,var(--accent2) 14%,transparent)}
+
+.task{display:flex;gap:9px;align-items:flex-start;padding:8px 10px;border-radius:calc(var(--radius) - 6px)}
+.task:hover{background:var(--surface2)}
+.cb{flex:none;width:16px;height:16px;margin-top:1px;border:1.6px solid var(--muted);border-radius:50%}
+[data-theme="vintage"] .cb{border-radius:1px}
+[data-theme="futuristic"] .cb{border-radius:4px;border-color:var(--accent);box-shadow:0 0 8px rgba(70,240,210,.35)}
+.task.done .cb{background:var(--accent);border-color:var(--accent)}
+.task.done .t{text-decoration:line-through;color:var(--muted)}
+.task .t{line-height:1.3}
+.task .m{display:flex;gap:5px;flex-wrap:wrap;margin-top:4px}
+.prio{width:3px;border-radius:2px;align-self:stretch;flex:none}
+.event{border-left:3px solid var(--accent2);background:color-mix(in srgb,var(--accent2) 13%,transparent);border-radius:6px;padding:5px 8px;font-size:12px}
+.event.g{border-color:var(--accent);background:color-mix(in srgb,var(--accent) 13%,transparent)}
+.event.y{border-color:var(--accent3);background:color-mix(in srgb,var(--accent3) 16%,transparent)}
+.event.blk{border-style:dashed;background:transparent;border-width:1px 1px 1px 3px;border-color:var(--accent)}
+.notecard{padding:10px 12px;border-radius:calc(var(--radius) - 4px);background:var(--surface2)}
+.link{color:var(--accent);border-bottom:1px dotted var(--accent);cursor:pointer}
+.link.tk{color:var(--accent2);border-color:var(--accent2)}
+.side a{display:flex;justify-content:space-between;align-items:center;padding:6px 10px;border-radius:8px;color:inherit;text-decoration:none}
+.side a.on{background:color-mix(in srgb,var(--accent) 16%,transparent);color:var(--accent);font-weight:600}
+.side a span:last-child{color:var(--muted);font-size:11px}
+.plant{display:flex;align-items:flex-end;gap:10px}
+.leaf{transform-origin:bottom center;animation:sway 5s ease-in-out infinite}
+@keyframes sway{0%,100%{transform:rotate(-3deg)}50%{transform:rotate(3deg)}}
+.pulse{animation:pulse 3.2s ease-in-out infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.45}}
+.nowline{position:absolute;left:44px;right:8px;height:0;border-top:2px solid var(--accent2)}
+.nowline::before{content:"";position:absolute;left:-5px;top:-5px;width:8px;height:8px;border-radius:50%;background:var(--accent2)}
+.bar{height:6px;border-radius:999px;background:var(--surface2);overflow:hidden}
+.bar>i{display:block;height:100%;background:linear-gradient(90deg,var(--accent),var(--accent3))}
+.search{display:flex;align-items:center;gap:8px;padding:6px 10px;border-radius:999px;background:var(--surface2);color:var(--muted);font-size:12px}
+.kbd{font-family:var(--mono);font-size:10px;border:1px solid var(--line);border-radius:4px;padding:0 4px}
+.layout{display:none}.layout.on{display:block}
+.fineprint{color:var(--page-muted);font-size:13px;margin-top:14px;max-width:900px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Grove — pick a layout and a theme</h1>
+  <p class="sub">Click the buttons. The window below is a preview. Each layout works with every theme.</p>
+
+  <div class="controls">
+    <div class="group"><label>Layout</label>
+      <div class="seg" id="layoutSeg">
+        <button data-l="a">A · Garden</button>
+        <button data-l="b" class="on">B · Day Spread</button>
+        <button data-l="c">C · Week Board</button>
+        <button data-l="d">D · Journal</button>
+      </div></div>
+    <div class="group"><label>Theme</label>
+      <div class="seg" id="themeSeg">
+        <button data-t="grove" class="on">Grove (natural)</button>
+        <button data-t="minimal">Minimal</button>
+        <button data-t="futuristic">Futuristic</button>
+        <button data-t="vintage">Vintage</button>
+      </div></div>
+    <div class="group"><label>Motion</label>
+      <div class="seg"><button id="motionBtn" class="on">Alive</button></div></div>
+  </div>
+
+  <div class="desc" id="desc"></div>
+
+  <div class="stage"><div class="win" id="win" data-theme="grove">
+    <div class="ambient"><i></i><i></i><i></i></div>
+    <div class="titlebar"><span class="dot"></span><span class="dot"></span><span class="dot"></span></div>
+
+    <!-- ================= A · GARDEN (3-pane) ================= -->
+    <div class="layout" id="L-a" style="position:absolute;inset:0;padding:38px 12px 12px;display:none">
+      <div style="display:grid;grid-template-columns:210px 1fr 320px;gap:12px;height:100%">
+        <div class="panel side" style="padding:12px;display:flex;flex-direction:column;gap:2px">
+          <div class="search" style="margin-bottom:10px">⌕ Search everything <span class="kbd" style="margin-left:auto">⌘K</span></div>
+          <a class="on" href="#"><span>☀︎ Today</span><span>6</span></a>
+          <a href="#"><span>◫ This Week</span><span>14</span></a>
+          <a href="#"><span>▦ Calendar</span><span></span></a>
+          <a href="#"><span>✎ Notes</span><span>23</span></a>
+          <a href="#"><span>⊡ Inbox</span><span>3</span></a>
+          <div class="h3" style="margin:14px 10px 4px">Lists</div>
+          <a href="#"><span>🌿 Home</span><span>5</span></a>
+          <a href="#"><span>📚 Uni</span><span>8</span></a>
+          <a href="#"><span>💼 Work</span><span>4</span></a>
+          <div class="h3" style="margin:14px 10px 4px">Tags</div>
+          <div style="display:flex;flex-wrap:wrap;gap:5px;padding:0 8px"><span class="chip">#errands</span><span class="chip">#deep</span><span class="chip">#health</span></div>
+          <div style="margin-top:auto;padding:10px" class="plant">
+            <svg class="leaf" width="34" height="40" viewBox="0 0 34 40"><path d="M17 40V18" stroke="var(--accent)" stroke-width="2"/><path d="M17 22C6 20 3 10 4 4c9 1 14 7 13 18z" fill="var(--accent)" opacity=".8"/><path d="M17 26c9-2 13-9 13-15-8 0-13 6-13 15z" fill="var(--accent3)" opacity=".8"/></svg>
+            <div><div style="font-size:11px" class="muted">Today's garden</div><div class="bar" style="width:110px;margin-top:4px"><i style="width:58%"></i></div></div>
+          </div>
+        </div>
+        <div class="panel" style="padding:18px 16px;overflow:hidden">
+          <div style="display:flex;justify-content:space-between;align-items:baseline"><div class="h h1">Today</div><div class="muted">Fri, 2 Oct</div></div>
+          <div class="muted" style="margin:2px 0 14px">3 events · 6 tasks · 1 note</div>
+          <div class="event g" style="margin-bottom:6px">09:30 Standup <span class="muted">· 15m</span></div>
+          <div class="event" style="margin-bottom:14px">14:00 Dentist <span class="muted">· linked note: Questions for dentist</span></div>
+          <div class="h3" style="margin-bottom:4px">Tasks</div>
+          <div id="a-tasks"></div>
+          <div class="h3" style="margin:12px 0 4px">Overdue</div>
+          <div class="task"><span class="cb"></span><div><div class="t">Return library books</div><div class="m"><span class="chip warm">yesterday</span></div></div></div>
+          <div style="margin-top:10px" class="muted">＋ Add task — try “Call mum tomorrow 6pm #home”</div>
+        </div>
+        <div class="panel" style="padding:16px;display:flex;flex-direction:column;gap:10px">
+          <div class="h3">Inspector</div>
+          <div class="h h2">Finish lab report</div>
+          <div style="display:flex;gap:6px;flex-wrap:wrap"><span class="chip acc">📚 Uni</span><span class="chip">Due today 17:00</span><span class="chip">⏱ 90m</span><span class="chip warm">High</span></div>
+          <div class="h3" style="margin-top:6px">Subtasks</div>
+          <div class="task done" style="padding:3px 0"><span class="cb"></span><span class="t">Graphs</span></div>
+          <div class="task" style="padding:3px 0"><span class="cb"></span><span class="t">Discussion section</span></div>
+          <div class="h3" style="margin-top:6px">Time block</div>
+          <div class="event blk">15:00–16:30 · on calendar</div>
+          <div class="h3" style="margin-top:6px">Linked notes</div>
+          <div class="notecard"><b>Lab 4 — notes</b><div class="muted" style="font-size:12px">Error bars must use std dev, ask TA about…</div></div>
+          <div class="h3" style="margin-top:6px">Notes</div>
+          <div class="muted" style="font-size:12px">Use the template from week 2. Mention <span class="link">[[Lab 4 — notes]]</span>.</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ================= B · DAY SPREAD ================= -->
+    <div class="layout on" id="L-b" style="position:absolute;inset:0;padding:38px 14px 14px">
+      <div style="display:flex;align-items:center;gap:16px;margin:0 4px 12px">
+        <div style="white-space:nowrap"><div class="h h1">Friday, 2 October</div><div class="muted">Good morning, Andrei · 58% of today grown</div></div>
+        <div style="display:flex;gap:6px;margin-left:auto" id="weekstrip"></div>
+        <div class="search" style="width:200px">⌕ Search <span class="kbd" style="margin-left:auto">⌘K</span></div>
+      </div>
+      <div style="display:grid;grid-template-columns:300px 1fr 330px;gap:12px;height:calc(100% - 66px)">
+        <div class="panel" style="position:relative;padding:12px 8px 12px 0">
+          <div class="h3" style="padding-left:14px;margin-bottom:6px">Timeline</div>
+          <div id="timeline" style="position:relative;height:540px"></div>
+        </div>
+        <div class="panel" style="padding:16px">
+          <div style="display:flex;justify-content:space-between;align-items:center"><div class="h h2">Tasks</div><div class="seg" style="gap:4px"><span class="chip acc">Today</span><span class="chip">Week</span><span class="chip">Someday</span></div></div>
+          <div class="bar" style="margin:10px 0 8px"><i style="width:58%"></i></div>
+          <div id="b-tasks"></div>
+          <div class="h3" style="margin:12px 0 4px">Drag onto the timeline to time-block</div>
+          <div class="task"><span class="cb"></span><div><div class="t">Plan weekend hike</div><div class="m"><span class="chip">#home</span><span class="chip">⏱ 30m</span></div></div></div>
+          <div style="margin-top:10px" class="muted">＋ Add task</div>
+        </div>
+        <div class="panel" style="padding:16px;display:flex;flex-direction:column;gap:10px">
+          <div style="display:flex;justify-content:space-between"><div class="h h2">Today's note</div><span class="muted">✎</span></div>
+          <div style="line-height:1.6">
+            Slept well. Energy high in the morning — do the <span class="link tk">☐ Finish lab report</span> before lunch.<br>
+            Dentist at 14:00 → see <span class="link">[[Questions for dentist]]</span>.<br>
+            - [ ] buy oat milk <span class="muted" style="font-size:11px">→ becomes a task</span><br>
+            Idea: weekend hike on Saturday @sat 9am
+          </div>
+          <div class="h3" style="margin-top:auto">Linked here</div>
+          <div class="notecard" style="font-size:12px">📅 Dentist 14:00 · ☐ Finish lab report · ✎ Lab 4 — notes</div>
+          <div class="h3">Mood · Focus</div>
+          <div style="display:flex;gap:6px"><span class="chip">🌧</span><span class="chip">⛅</span><span class="chip acc">☀︎</span><span class="chip" style="margin-left:auto">Focus 25:00 ▶</span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ================= C · WEEK BOARD ================= -->
+    <div class="layout" id="L-c" style="position:absolute;inset:0;padding:38px 12px 12px">
+      <div style="display:flex;align-items:center;gap:14px;margin:0 4px 10px">
+        <div class="h h1">Week 40</div><div class="muted">28 Sep – 4 Oct · 14 tasks · 9 events</div>
+        <div style="margin-left:auto;display:flex;gap:6px"><span class="chip">‹</span><span class="chip acc">This week</span><span class="chip">›</span></div>
+      </div>
+      <div style="display:grid;grid-template-columns:170px repeat(7,1fr);gap:8px;height:calc(100% - 210px)" id="board"></div>
+      <div class="panel" style="margin-top:10px;height:148px;padding:12px 14px;display:grid;grid-template-columns:1.3fr 1fr 1fr;gap:12px">
+        <div><div class="h3">Weekly note · Week 40</div><div style="margin-top:6px;line-height:1.55">Goals: finish lab report, 3× gym, call grandma.<br>Review on Sunday → <span class="link">[[Weekly review template]]</span></div></div>
+        <div><div class="h3">Weekly goals</div><div class="task" style="padding:4px 0"><span class="cb"></span><span class="t">Gym ×3 <span class="muted">(1/3)</span></span></div><div class="task done" style="padding:4px 0"><span class="cb"></span><span class="t">Call grandma</span></div></div>
+        <div><div class="h3">Pinned notes</div><div class="notecard" style="margin-top:6px;font-size:12px">Groceries list · Lab 4 — notes</div></div>
+      </div>
+    </div>
+
+    <!-- ================= D · JOURNAL ================= -->
+    <div class="layout" id="L-d" style="position:absolute;inset:0;padding:46px 40px 22px">
+      <div style="position:relative;height:100%;display:grid;grid-template-columns:1fr 1fr">
+        <div style="position:absolute;right:-30px;top:30px;display:flex;flex-direction:column;gap:6px;z-index:2" id="ribbons"></div>
+        <div class="panel" style="border-radius:var(--radius) 0 0 var(--radius);padding:26px 30px;box-shadow:inset -18px 0 30px -18px rgba(0,0,0,.25),var(--shadow)">
+          <div class="muted" style="font-size:12px">Friday</div>
+          <div class="h h1" style="font-size:34px">2 October</div>
+          <div class="muted" style="margin-bottom:16px">Week 40 · Autumn</div>
+          <div class="h3">Agenda</div>
+          <div style="display:flex;flex-direction:column;gap:6px;margin:6px 0 16px">
+            <div class="event g">09:30 Standup</div><div class="event blk">11:00–12:30 ☐ Finish lab report</div><div class="event">14:00 Dentist</div><div class="event y">18:00 Gym</div>
+          </div>
+          <div class="h3">To do</div><div id="d-tasks"></div>
+        </div>
+        <div class="panel" style="border-radius:0 var(--radius) var(--radius) 0;padding:26px 30px;box-shadow:inset 18px 0 30px -18px rgba(0,0,0,.22),var(--shadow);
+          background-image:repeating-linear-gradient(transparent 0 27px,var(--line) 27px 28px);background-color:var(--surface);background-position:0 92px">
+          <div class="h h2" style="margin-bottom:24px">Dear diary · notes</div>
+          <div style="line-height:28px">
+            Slept well, woke before the alarm.<br>
+            Lab report first, then the dentist → <span class="link">[[Questions for dentist]]</span><br>
+            - [ ] buy oat milk<br>
+            Saturday hike idea — check weather. @sat 9am<br>
+            <span class="muted">Typing “@sat 9am” offers to make an event.</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div></div>
+
+  <p class="fineprint">These are previews in a web page. The real app is a native Mac app (SwiftUI). Fonts are the ones already on your Mac. “Alive” = slow drifting colour light, a swaying plant that grows as you finish tasks, soft check-off animations. You can turn motion off.</p>
+</div>
+
+<script>
+const tasks=[
+ {t:"Finish lab report",m:[["📚 Uni","acc"],["17:00",""],["⏱ 90m",""]],p:"var(--accent2)"},
+ {t:"Morning stretch",m:[["#health",""]],done:true,p:"var(--accent)"},
+ {t:"Water the monstera",m:[["🌿 Home","acc"],["🔁 every 4 days",""]],p:"var(--accent3)"},
+ {t:"Reply to Ana's email",m:[["💼 Work","acc"],["✎ 1 note",""]],p:"transparent"},
+ {t:"Book train tickets",m:[["#errands",""],["Sat",""]],done:true,p:"transparent"},
+];
+const taskHTML=(x,meta=true)=>`<div class="task${x.done?' done':''}"><span class="prio" style="background:${x.p}"></span><span class="cb"></span><div><div class="t">${x.t}</div>${meta?`<div class="m">${x.m.map(([a,c])=>`<span class="chip ${c}">${a}</span>`).join("")}</div>`:""}</div></div>`;
+document.getElementById("a-tasks").innerHTML=tasks.map(x=>taskHTML(x)).join("");
+document.getElementById("b-tasks").innerHTML=tasks.map(x=>taskHTML(x)).join("");
+document.getElementById("d-tasks").innerHTML=tasks.slice(0,4).map(x=>taskHTML(x,false)).join("");
+// week strip
+const days=["M","T","W","T","F","S","S"],nums=[28,29,30,1,2,3,4];
+document.getElementById("weekstrip").innerHTML=days.map((d,i)=>`<div style="text-align:center;padding:4px 7px;border-radius:10px;${i===4?'background:var(--accent);color:var(--bg)':''}"><div style="font-size:10px;opacity:.7">${d}</div><div style="font-weight:600">${nums[i]}</div><div style="display:flex;gap:2px;justify-content:center;margin-top:2px">${(`<i style="width:4px;height:4px;border-radius:50%;background:${i===4?'var(--bg)':'var(--accent)'};display:block"></i>`).repeat([2,3,1,2,3,1,0][i])}</div></div>`).join("");
+// timeline
+const tl=document.getElementById("timeline");let h="";
+for(let i=0;i<11;i++){h+=`<div style="position:absolute;top:${i*49}px;left:0;right:0;border-top:1px solid var(--line)"><span class="muted mono" style="font-size:10px;position:absolute;left:10px;top:-7px;background:var(--surface);padding-right:4px">${String(8+i).padStart(2,"0")}:00</span></div>`}
+h+=`<div class="nowline pulse" style="top:${(10.4-8)*49}px"></div><div id="blocks"></div>`;tl.innerHTML=h;
+// ---- Interactive day planner demo: drag to move, drag top/bottom edge to resize, overlaps go side by side ----
+// Same algorithm as PLAN.md §5.1 (snap 15 min, overlap clusters -> columns).
+const HPX=49/60, DAY0=8*60, SNAP=15;
+const blocks=[
+ {id:1,t:"Standup",s:570,d:15,c:"g"},
+ {id:2,t:"☐ Finish lab report",s:660,d:90,c:"blk"},
+ {id:3,t:"☐ Reply to Ana",s:690,d:30,c:"blk"},
+ {id:4,t:"Dentist · ✎ Questions",s:840,d:60,c:""},
+ {id:5,t:"Study group",s:960,d:60,c:"y"},
+];
+const fmt=m=>`${String(Math.floor(m/60)).padStart(2,"0")}:${String(m%60).padStart(2,"0")}`;
+function layoutCols(list){ // returns map id -> {col, cols}
+  const sorted=[...list].sort((a,b)=>a.s-b.s||b.d-a.d),out={};let cluster=[],end=-1;
+  const flush=()=>{const colsEnd=[];cluster.forEach(x=>{let c=colsEnd.findIndex(e=>e<=x.s);if(c<0){c=colsEnd.length;colsEnd.push(0)}colsEnd[c]=x.s+x.d;out[x.id]={col:c}});cluster.forEach(x=>out[x.id].cols=colsEnd.length);cluster=[]};
+  sorted.forEach(x=>{if(x.s>=end&&cluster.length)flush();cluster.push(x);end=Math.max(end,x.s+x.d)});flush();return out;}
+function renderBlocks(){const L=layoutCols(blocks),host=document.getElementById("blocks");
+  host.innerHTML=blocks.map(x=>{const {col,cols}=L[x.id],w=`(100% - 60px)/${cols}`;
+   return `<div class="event ${x.c}" data-id="${x.id}" style="position:absolute;cursor:grab;user-select:none;overflow:hidden;top:${(x.s-DAY0)*HPX+1}px;height:${Math.max(x.d*HPX-2,16)}px;white-space:nowrap;text-overflow:ellipsis;left:calc(50px + ${w} * ${col});width:calc(${w} - 3px);font-size:11px;padding:2px 6px">
+   <div data-h="top" style="position:absolute;left:0;right:0;top:0;height:5px;cursor:ns-resize"></div>
+   <b>${fmt(x.s)}</b> ${x.t}<span class="muted"> · ${x.d}m</span>
+   <div data-h="bot" style="position:absolute;left:0;right:0;bottom:0;height:6px;cursor:ns-resize"></div></div>`}).join("");}
+renderBlocks();
+tl.addEventListener("pointerdown",e=>{const el=e.target.closest("[data-id]");if(!el)return;e.preventDefault();
+  const x=blocks.find(b=>b.id==el.dataset.id),mode=e.target.dataset.h||"move",y0=e.clientY,s0=x.s,d0=x.d;
+  const mv=ev=>{const dm=Math.round((ev.clientY-y0)/HPX/SNAP)*SNAP;
+    if(mode==="move")x.s=Math.min(Math.max(s0+dm,DAY0),19*60-x.d);
+    else if(mode==="bot")x.d=Math.max(SNAP,d0+dm);
+    else{const ns=Math.min(s0+dm,s0+d0-SNAP);x.d=d0+(s0-ns);x.s=ns}
+    renderBlocks();};
+  const up=()=>{removeEventListener("pointermove",mv);removeEventListener("pointerup",up)};
+  addEventListener("pointermove",mv);addEventListener("pointerup",up);});
+// board
+const b=document.getElementById("board");
+const inbox=`<div class="panel" style="padding:10px"><div class="h3">Inbox · no date</div>${["Plan weekend hike","Read ch. 5","Fix bike light"].map(t=>`<div class="task" style="padding:6px 4px"><span class="cb"></span><span class="t">${t}</span></div>`).join("")}<div class="muted" style="font-size:11px;margin-top:6px">Drag onto a day →</div></div>`;
+const dayData=[[["g","09:30 Standup"]],[["","13:00 Lecture"],["y","18:00 Gym"]],[["g","09:30 Standup"]],[["","12:00 Lunch w/ Ana"]],[["g","09:30 Standup"],["","14:00 Dentist"],["y","18:00 Gym"]],[["y","09:00 Hike?"]],[]];
+const dayTasks=[["Groceries✓","Email prof✓"],["Problem set 3✓"],["Laundry"],["Reply to Ana"],["Finish lab report","Water monstera","Reply to Ana's email"],["Call grandma✓"],["Weekly review"]];
+b.innerHTML=inbox+days.map((d,i)=>`<div class="panel" style="padding:8px;${i===4?'outline:2px solid var(--accent);outline-offset:-2px':''}"><div style="display:flex;justify-content:space-between;margin-bottom:6px"><b>${["Mon","Tue","Wed","Thu","Fri","Sat","Sun"][i]}</b><span class="muted">${nums[i]}</span></div><div style="display:flex;flex-direction:column;gap:4px">${dayData[i].map(([c,t])=>`<div class="event ${c}" style="font-size:11px;padding:3px 6px">${t}</div>`).join("")}${dayTasks[i].map(t=>{const dn=t.endsWith("✓");return `<div class="task${dn?' done':''}" style="padding:4px 2px;gap:6px"><span class="cb" style="width:13px;height:13px"></span><span class="t" style="font-size:12px">${t.replace("✓","")}</span></div>`}).join("")}</div></div>`).join("");
+// ribbons
+document.getElementById("ribbons").innerHTML=[["Today","var(--accent)"],["Week","var(--accent2)"],["Month","var(--accent3)"],["Notes","var(--muted)"]].map(([t,c])=>`<div style="background:${c};color:var(--surface);padding:8px 10px 8px 14px;font-size:11px;border-radius:0 6px 6px 0;font-weight:600">${t}</div>`).join("");
+
+const descs={
+ a:"<b>A · Garden</b> — classic 3-pane Mac layout. Sidebar (Today, Week, Calendar, Notes, lists, tags) · main list · inspector on the right with subtasks, time block and linked notes. <i>Best for:</i> lots of lists and projects. Feels like Apple Reminders / Things, but warmer.",
+ b:"<b>B · Day Spread</b> — the day planner (timeline) on the left, tasks in the middle, today's note on the right. <b>Try it: drag a block to move it, drag its top or bottom edge to change its length. Overlapping blocks sit side by side.</b> Week strip on top jumps between days. <i>Best for:</i> seeing tasks, calendar and notes together every day.<span class='rec'>my pick</span>",
+ c:"<b>C · Week Board</b> — seven day columns with events and tasks. Inbox on the left; drag tasks onto days. Weekly note and goals drawer at the bottom. <i>Best for:</i> planning the whole week at once.",
+ d:"<b>D · Journal</b> — an open notebook. Left page: date, agenda and to-dos. Right page: lined notes for the day. Ribbon bookmarks switch to Week / Month / Notes. <i>Best for:</i> a calm, diary-like feel. Pairs beautifully with Vintage."
+};
+const win=document.getElementById("win"),descEl=document.getElementById("desc");
+function setLayout(l){document.querySelectorAll(".layout").forEach(e=>{e.style.display=e.id==="L-"+l?"block":"none"});
+ document.querySelectorAll("#layoutSeg button").forEach(x=>x.classList.toggle("on",x.dataset.l===l));descEl.innerHTML=descs[l];}
+document.querySelectorAll("#layoutSeg button").forEach(btn=>btn.onclick=()=>setLayout(btn.dataset.l));
+document.querySelectorAll("#themeSeg button").forEach(btn=>btn.onclick=()=>{win.dataset.theme=btn.dataset.t;document.querySelectorAll("#themeSeg button").forEach(x=>x.classList.toggle("on",x===btn))});
+document.getElementById("motionBtn").onclick=e=>{document.body.classList.toggle("still");e.target.classList.toggle("on");e.target.textContent=document.body.classList.contains("still")?"Still":"Alive"};
+setLayout("b");
+</script>
+</body>
+</html>
