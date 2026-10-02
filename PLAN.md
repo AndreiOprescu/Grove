@@ -284,6 +284,21 @@ Note: `tasks.source_note_id` references `notes` which is created later in the sa
 migration. That is fine in SQLite (references are checked at write time). Keep the
 statements in one migration string executed with `sqlite3_exec`.
 
+**Migration 2 — attachments** (added 2026-10-02 at the owner's request: images in task bodies and notes):
+
+```sql
+CREATE TABLE attachments (
+  id TEXT PRIMARY KEY, mime TEXT NOT NULL, data BLOB NOT NULL,
+  width INTEGER NOT NULL DEFAULT 0, height INTEGER NOT NULL DEFAULT 0,
+  created_at TEXT NOT NULL
+);
+```
+
+Images live in the database (not loose files) so the daily `VACUUM INTO` backup and the
+export both include them. Images are downscaled to at most 1600 px on the long side
+before they are stored. An image is referenced from text as `![alt](grove-image:ID)`.
+When a task or note is saved, any attachment that no text references any more is deleted.
+
 ### 4.2 Swift model structs (in GroveCore)
 
 Plain `struct`s, `Codable, Identifiable, Hashable, Sendable`. Fields mirror the columns.
@@ -517,9 +532,22 @@ Use `.focusable()` + `.onKeyPress`.
   "anytime" column sets bucket `week`).
 - **Row**: checkbox (spring + check-burst), title, chips: list, time block (if any),
   due, estimate, repeat icon, note icon, tags. Priority = coloured 3pt bar on the left.
-- **Inspector / detail popover**: title, notes, list, tags, priority, bucket/date,
-  due, estimate, repeat rule, subtasks (inline add), time blocks (list with "Add block"),
-  linked notes, "Created from note X" link.
+- **Inspector / detail popover**: title, body (rich, see below), list, tags, priority,
+  bucket/date, due, estimate, repeat rule, subtasks (inline add), time blocks (list with
+  "Add block"), "Linked here" (backlinks), "Created from note X" link.
+- **Rich task body** (owner request, 2026-10-02). `tasks.notes` holds the body as plain
+  Markdown text. The inspector edits it with the same `RichTextEditor` that notes use (M5
+  reuses it). It supports: `-` bullets and `1.` numbered lists (Return continues the list,
+  Tab / ⇧Tab indents), `- [ ]` checklists, `#`/`##` headings, **bold**, *italic*,
+  `inline code`, `[[mentions]]` with autocomplete, and images (paste, drop or "Add image";
+  stored per §4.1 migration 2). The row shows a small note icon when the body has text.
+- **Referenceable tasks** (owner request). Any task can be mentioned from a note, another
+  task's body, an event's notes or the command palette. Mention text is `[[Task title]]`,
+  stored as `[[Task title|ID]]` once resolved. The `|ID` part is hidden by the styler (same
+  way as the `⟦t:ID⟧` markers). A mention resolves by ID first, then by exact title
+  (case-insensitive). Mentions render as chips; click opens the task. If the target is
+  deleted, the chip shows struck-through. Renaming a task rewrites `[[Old|ID]]` in every body that links to it.
+  Dragging a task from any list into a note or body inserts a mention.
 - **Quick add** (`QuickAddField`, ⌘N anywhere, also in the menu bar) with live preview
   chips under the field showing what was parsed. Parser rules (`QuickAddParser`, tested):
   - dates: `today`, `tod`, `tomorrow`, `tmr`, `mon`…`sun` and full names (next
@@ -590,8 +618,10 @@ Use `.focusable()` + `.onKeyPress`.
 2. **@date → event/block.** When a line contains an `@date time` token, show a small inline
    "＋ Add to planner" button at the line end (or a context-menu item). Creates an event
    (or a task block if the line is a checkbox) and replaces the token with a link chip.
-3. **Wiki links + backlinks.** `[[Title]]` to notes/tasks/events. Every note, task and
-   event shows a **"Linked here"** section listing backlinks (from `links` table).
+3. **Wiki links + backlinks.** `[[Title]]` or `[[Title|ID]]` to notes/tasks/events (the
+   `|ID` form is what gets stored; see §5.2 "Referenceable tasks"). Every note, task and
+   event shows a **"Linked here"** section listing backlinks (from `links` table, by ID).
+   Task bodies, note bodies and event notes are all link sources.
 4. **Daily note ⇄ day.** The daily note's sidebar shows that day's events, blocks and tasks
    (live). The planner header has a "Today's note" button. Month cells show a leaf for days
    with notes.
@@ -606,7 +636,7 @@ Use `.focusable()` + `.onKeyPress`.
 8. **Drag between parts.** Drag a note from the notes list onto a day/time in the planner →
    creates a 30-min block "📝 <note title>" linked to the note. Drag a task into a note →
    inserts `[[Task title]]`.
-9. **Task/event notes field** supports `[[links]]` too (same styler, compact editor).
+9. **Task/event notes field** supports `[[links]]`, bullets, formatting and images too (same `RichTextEditor`, compact).
 10. **Weekly review.** The weekly note shows an auto panel: tasks done this week, tasks
     still open, hours planned vs. hours of done blocks, busiest day, and a button
     "Insert summary" that writes it as text into `## Review`.
@@ -912,7 +942,7 @@ Stage exact paths. No AI attribution in commit messages.
 | M0 | Package.swift, folder structure, `.gitignore`, empty SwiftUI window with hidden title bar, the three scripts, icon script. | `./scripts/install.sh` → app opens, custom icon visible on Desktop and Dock. |
 | M1 | GroveCore: DayKey/WallTime, models, Database, migrations, repositories, FTS, backup. | `./scripts/test.sh` — DatabaseTests green. |
 | M2 | **PlannerMath** + tests. Then **Planner UI** (day mode): grid, now line, blocks, layout columns, create-by-drag, double-click, move, resize both edges, snap, ⌥, live label, undo, keyboard, context menu, auto-scroll. Then 3-day/week mode with cross-day drag, ripple (⇧), Unscheduled tray, Fit, Plan my day. | Tests green. Manual: do every planner line of §1.1 in the running app. |
-| M3 | Tasks: list views, row, inspector, buckets, week columns, QuickAddParser (+tests), repeats, subtasks, reorder, drag task → planner. | Tests green. Manual: quick-add examples from §12 produce the right task + block. |
+| M3 | Tasks: list views, row, inspector, buckets, week columns, QuickAddParser (+tests), repeats, subtasks, reorder, drag task → planner. Split: **M3a** QuickAddParser · **M3b** `[[mention]]` parser/indexer/rename, `attachments` table · **M3c** task lists, quick add, buckets, week columns, drag to planner · **M3d** inspector with `RichTextEditor` (bullets, formatting, images, mentions). | Tests green. Manual: quick-add examples from §12 produce the right task + block. Manual: mention a task in another task's body, see it in "Linked here". |
 | M4 | Calendar: month view, week strip, event editor, recurrence engine (+tests), recurring edit dialog. | Tests green. Manual: weekly event shows every week; "only this" move works. |
 | M5 | Notes: notes home, NSTextView editor + styler, daily/weekly notes, `[[` autocomplete, backlinks, NoteParser + LinkIndexer (+tests). | Tests green. Manual: link two notes, backlink appears. |
 | M6 | Interconnections §5.5 items 1–12. | Manual: run through all 12. |
@@ -953,5 +983,6 @@ If a milestone is too big for one commit, split it, but keep the order.
 ## 15. Out of scope for v1 (do not build)
 
 iCloud sync, iPhone app, Apple Calendar / Google Calendar import (possible v2 via
-EventKit — needs the owner's OK first), collaboration, attachments/images in notes,
-global system-wide hotkey, App Store distribution / notarisation.
+EventKit — needs the owner's OK first), collaboration, file attachments other than
+images (images in task bodies and notes ARE in scope since 2026-10-02), global
+system-wide hotkey, App Store distribution / notarisation.

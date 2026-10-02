@@ -2,7 +2,7 @@ import Foundation
 import SQLite3
 
 public enum SQLValue {
-    case text(String), int(Int), real(Double), null
+    case text(String), int(Int), real(Double), blob(Data), null
 
     public init(_ s: String?) { self = s.map { .text($0) } ?? .null }
     public init(_ i: Int?) { self = i.map { .int($0) } ?? .null }
@@ -29,6 +29,10 @@ public struct Row {
         sqlite3_column_type(stmt, Int32(i)) == SQLITE_NULL ? nil : int(i)
     }
     public func double(_ i: Int) -> Double { sqlite3_column_double(stmt, Int32(i)) }
+    public func blob(_ i: Int) -> Data {
+        guard let p = sqlite3_column_blob(stmt, Int32(i)) else { return Data() }
+        return Data(bytes: p, count: Int(sqlite3_column_bytes(stmt, Int32(i))))
+    }
     public func bool(_ i: Int) -> Bool { int(i) != 0 }
 }
 
@@ -112,6 +116,9 @@ public final class Database {
             case .text(let s): sqlite3_bind_text(stmt, idx, s, -1, SQLITE_TRANSIENT)
             case .int(let n): sqlite3_bind_int64(stmt, idx, Int64(n))
             case .real(let d): sqlite3_bind_double(stmt, idx, d)
+            case .blob(let d):
+                if d.isEmpty { sqlite3_bind_zeroblob(stmt, idx, 0) }
+                else { d.withUnsafeBytes { _ = sqlite3_bind_blob(stmt, idx, $0.baseAddress, Int32(d.count), SQLITE_TRANSIENT) } }
             case .null: sqlite3_bind_null(stmt, idx)
             }
         }

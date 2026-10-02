@@ -143,4 +143,5 @@ public enum Stamp {
     }()
     /// Local timestamp for created/updated columns.
     public static func now() -> String { formatter.string(from: Date()) }
+    public static func string(from date: Date) -> String { formatter.string(from: date) }
 }

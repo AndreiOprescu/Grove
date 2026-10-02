@@ -87,6 +87,25 @@ enum Migrations {
         CREATE VIRTUAL TABLE search USING fts5(item_type UNINDEXED, item_id UNINDEXED, title, body,
           tokenize='unicode61 remove_diacritics 2');
         """,
+
+        // 2 — images in task bodies and notes; links are cleaned up when an item is deleted
+        """
+        CREATE TABLE attachments (
+          id TEXT PRIMARY KEY, mime TEXT NOT NULL, data BLOB NOT NULL,
+          width INTEGER NOT NULL DEFAULT 0, height INTEGER NOT NULL DEFAULT 0,
+          created_at TEXT NOT NULL
+        );
+
+        CREATE TRIGGER links_cleanup_task AFTER DELETE ON tasks BEGIN
+          DELETE FROM links WHERE (src_type = 'task' AND src_id = old.id) OR (dst_type = 'task' AND dst_id = old.id);
+        END;
+        CREATE TRIGGER links_cleanup_note AFTER DELETE ON notes BEGIN
+          DELETE FROM links WHERE (src_type = 'note' AND src_id = old.id) OR (dst_type = 'note' AND dst_id = old.id);
+        END;
+        CREATE TRIGGER links_cleanup_event AFTER DELETE ON events BEGIN
+          DELETE FROM links WHERE (src_type = 'event' AND src_id = old.id) OR (dst_type = 'event' AND dst_id = old.id);
+        END;
+        """,
     ]
 
     static func run(on db: Database) throws {

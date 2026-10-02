@@ -54,12 +54,18 @@ public final class TaskRepo {
                 .int(t.estimateMin), SQLValue(t.recurrence?.json()), SQLValue(t.sourceNoteId),
                 .real(t.sort), .text(t.createdAt), .text(t.updatedAt), SQLValue(t.completedAt),
             ])
-            try search.upsert(.task, id: t.id, title: t.title, body: t.notes)
+            try search.upsert(.task, id: t.id, title: t.title, body: ReferenceParser.searchText(t.notes))
         }
     }
 
     public func get(_ id: String) throws -> TaskItem? {
         try db.queryOne(Self.select + " WHERE id = ?", [.text(id)], map: Self.map)
+    }
+
+    /// Case-insensitive exact title match. Open tasks first, then the most recently edited.
+    public func byTitle(_ title: String) throws -> TaskItem? {
+        try db.queryOne(Self.select + " WHERE title = ? COLLATE NOCASE ORDER BY (status = 'open') DESC, updated_at DESC",
+                        [.text(title)], map: Self.map)
     }
 
     public func delete(_ id: String) throws {
@@ -187,13 +193,18 @@ public final class EventRepo {
                 SQLValue(e.originalDate?.string), .text(e.createdAt), .text(e.updatedAt),
             ])
             if e.kind == .event {
-                try search.upsert(.event, id: e.id, title: e.title, body: e.notes + " " + e.location)
+                try search.upsert(.event, id: e.id, title: e.title, body: ReferenceParser.searchText(e.notes) + " " + e.location)
             }
         }
     }
 
     public func get(_ id: String) throws -> EventItem? {
         try db.queryOne(Self.select + " WHERE id = ?", [.text(id)], map: Self.map)
+    }
+
+    /// Case-insensitive exact title match, most recently edited first.
+    public func byTitle(_ title: String) throws -> EventItem? {
+        try db.queryOne(Self.select + " WHERE title = ? COLLATE NOCASE ORDER BY updated_at DESC", [.text(title)], map: Self.map)
     }
 
     public func delete(_ id: String) throws {
@@ -270,7 +281,7 @@ public final class NoteRepo {
                 .text(n.id), .text(n.title), .text(n.body), .text(n.kind.rawValue), SQLValue(n.date?.string),
                 .int(n.pinned ? 1 : 0), SQLValue(n.mood), .text(n.createdAt), .text(n.updatedAt),
             ])
-            try search.upsert(.note, id: n.id, title: n.title, body: n.body)
+            try search.upsert(.note, id: n.id, title: n.title, body: ReferenceParser.searchText(n.body))
         }
     }
 
@@ -451,6 +462,8 @@ public final class Repos {
     public let tags: TagRepo
     public let links: LinkRepo
     public let settings: SettingsRepo
+    public let attachments: AttachmentRepo
+    public let refs: ReferenceIndexer
 
     public init(db: Database) {
         self.db = db
@@ -463,5 +476,7 @@ public final class Repos {
         self.tags = TagRepo(db: db)
         self.links = LinkRepo(db: db)
         self.settings = SettingsRepo(db: db)
+        self.attachments = AttachmentRepo(db: db)
+        self.refs = ReferenceIndexer(db: db, tasks: tasks, notes: notes, events: events, links: links, search: s)
     }
 }
