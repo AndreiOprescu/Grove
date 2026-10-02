@@ -1,0 +1,368 @@
+import SwiftUI
+import GroveCore
+
+/// One undoable change. Holds the before and after state of every task and event it touches.
+/// `nil` before means "created". `nil` after means "deleted".
+struct Mutation {
+    var name: String
+    var tasks: [(before: TaskItem?, after: TaskItem?)] = []
+    var events: [(before: EventItem?, after: EventItem?)] = []
+    var isEmpty: Bool { tasks.isEmpty && events.isEmpty }
+}
+
+@Observable @MainActor
+final class AppStore {
+    let repos: Repos
+    var selectedDay: DayKey = .today()
+    /// Bumped after every write so views reload.
+    var revision = 0
+    /// Selected planner block ids.
+    var selection: Set<String> = []
+    var toast: String?
+    var errorMessage: String?
+
+    private(set) var undoStack: [Mutation] = []
+    private(set) var redoStack: [Mutation] = []
+    private var toastTask: Task<Void, Never>?
+
+    init(repos: Repos? = nil) {
+        if let repos {
+            self.repos = repos
+        } else if let db = try? Database.openDefault() {
+            self.repos = Repos(db: db)
+            if let dir = try? Database.supportDirectory().appendingPathComponent("Backups") {
+                try? Backup.runDaily(db: db, directory: dir, today: .today())
+            }
+        } else {
+            self.repos = Repos(db: try! Database.inMemory())
+            self.errorMessage = "Grove could not open its database. Changes will not be saved."
+        }
+    }
+
+    // MARK: Undo
+
+    var undoName: String? { undoStack.last?.name }
+    var redoName: String? { redoStack.last?.name }
+
+    /// Applies a change, saves it, and records it for undo.
+    @discardableResult
+    func commit(_ m: Mutation) -> Bool {
+        guard !m.isEmpty else { return false }
+        guard apply(m, forward: true) else { return false }
+        undoStack.append(m)
+        redoStack.removeAll()
+        if undoStack.count > 200 { undoStack.removeFirst() }
+        return true
+    }
+
+    func undo() {
+        guard let m = undoStack.popLast() else { return }
+        if apply(m, forward: false) { redoStack.append(m); showToast("Undid \(m.name)") }
+    }
+
+    func redo() {
+        guard let m = redoStack.popLast() else { return }
+        if apply(m, forward: true) { undoStack.append(m); showToast("Redid \(m.name)") }
+    }
+
+    private func apply(_ m: Mutation, forward: Bool) -> Bool {
+        do {
+            try repos.db.transaction {
+                for t in m.tasks { if let x = forward ? t.after : t.before { try repos.tasks.save(x) } }
+                for e in m.events { if let x = forward ? e.after : e.before { try repos.events.save(x) } }
+                for e in m.events where (forward ? e.after : e.before) == nil {
+                    if let id = (forward ? e.before : e.after)?.id { try repos.events.delete(id) }
+                }
+                for t in m.tasks where (forward ? t.after : t.before) == nil {
+                    if let id = (forward ? t.before : t.after)?.id { try repos.tasks.delete(id) }
+                }
+            }
+            revision += 1
+            return true
+        } catch {
+            errorMessage = "Could not save: \(error)"
+            return false
+        }
+    }
+
+    func showToast(_ text: String) {
+        toast = text
+        toastTask?.cancel()
+        toastTask = Task { [weak self] in
+            try? await Task.sleep(for: .seconds(2.2))
+            if !Task.isCancelled { self?.toast = nil }
+        }
+    }
+
+    // MARK: Reading for the planner
+
+    func event(_ id: String) -> EventItem? { try? repos.events.get(id) }
+    func task(_ id: String) -> TaskItem? { try? repos.tasks.get(id) }
+
+    func blocks(for days: ClosedRange<DayKey>) -> [PlannerBlock] {
+        guard let events = try? repos.events.inRange(days.lowerBound, days.upperBound) else { return [] }
+        var tasks: [String: TaskItem] = [:]
+        var out: [PlannerBlock] = []
+        for e in events where !e.allDay {
+            var task: TaskItem?
+            if let tid = e.taskId {
+                if tasks[tid] == nil { tasks[tid] = try? repos.tasks.get(tid) }
+                task = tasks[tid]
+            }
+            let day = e.start.day
+            guard days.contains(day) else { continue }
+            let end = e.end.day == day ? e.end.minute : 1440
+            out.append(PlannerBlock(
+                id: e.id, title: task?.title ?? e.title, day: day, startMinute: e.start.minute,
+                endMinute: max(end, e.start.minute + 1), kind: e.kind, taskId: e.taskId,
+                isDone: task?.isDone ?? false, color: e.color, isRecurring: e.seriesId != nil))
+        }
+        return out
+    }
+
+    func allDayEvents(for days: ClosedRange<DayKey>) -> [EventItem] {
+        ((try? repos.events.inRange(days.lowerBound, days.upperBound)) ?? []).filter(\.allDay)
+    }
+
+    /// Open tasks for this day, then this week, then the inbox, that have no block on `day`.
+    func unscheduled(for day: DayKey) -> [TaskItem] {
+        let next = day.adding(days: 1)
+        let scheduledIds = Set((try? repos.db.query(
+            "SELECT DISTINCT task_id FROM events WHERE task_id IS NOT NULL AND start >= ? AND start < ?",
+            [.text(day.string + "T00:00"), .text(next.string + "T00:00")]) { $0.text(0) }) ?? [])
+        func open(_ list: [TaskItem]) -> [TaskItem] {
+            list.filter { $0.status == .open && $0.parentId == nil && !scheduledIds.contains($0.id) }
+        }
+        let byPriority: (TaskItem, TaskItem) -> Bool = { $0.priority != $1.priority ? $0.priority > $1.priority : $0.sort < $1.sort }
+        let dayTasks = open((try? repos.tasks.forDay(day)) ?? []).sorted(by: byPriority)
+        let weekTasks = open((try? repos.tasks.forWeek(day.weekStart())) ?? []).sorted(by: byPriority)
+        let inbox = open((try? repos.tasks.inbox()) ?? []).sorted(by: byPriority)
+        return dayTasks + weekTasks + inbox
+    }
+
+    /// Open tasks with a title that contains `text`, not yet blocked on `day`. For the "schedule existing" hint.
+    func matchingTasks(_ text: String, on day: DayKey) -> [TaskItem] {
+        let q = text.trimmingCharacters(in: .whitespaces).lowercased()
+        guard q.count >= 2 else { return [] }
+        return unscheduled(for: day).filter { $0.title.lowercased().contains(q) }.prefix(3).map { $0 }
+    }
+
+    /// Minutes of open time and planned time for a day's header.
+    func dayTotals(_ day: DayKey, blocks: [PlannerBlock], workStart: Int, workEnd: Int) -> (planned: Int, free: Int, done: Int, total: Int) {
+        let taskBlocks = blocks.filter { $0.day == day }
+        let planned = Set(taskBlocks.flatMap { Array($0.startMinute..<$0.endMinute) }).count
+        let busyInWork = Set(taskBlocks.flatMap { Array($0.startMinute..<$0.endMinute) }).filter { $0 >= workStart && $0 < workEnd }.count
+        let withTask = taskBlocks.filter(\.isTaskBlock)
+        return (planned, max(0, workEnd - workStart - busyInWork), withTask.filter(\.isDone).count, withTask.count)
+    }
+
+    // MARK: Writing from the planner
+
+    private func blockEvent(for task: TaskItem, day: DayKey, start: Int, end: Int) -> EventItem {
+        EventItem(title: task.title, start: WallTime(day: day, minute: start), end: WallTime(day: day, minute: end),
+                  kind: .block, taskId: task.id, color: "accent")
+    }
+
+    /// A task moved onto a day: bucket day, plan date set.
+    private func planned(_ task: TaskItem, on day: DayKey) -> TaskItem {
+        var t = task
+        t.bucket = .day
+        t.planDate = day
+        t.planWeek = nil
+        return t
+    }
+
+    /// New task and block together, or a plain event.
+    func createFromDraft(title: String, day: DayKey, start: Int, end: Int, asEvent: Bool) {
+        let name = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !name.isEmpty else { return }
+        var m = Mutation(name: "New Block")
+        if asEvent {
+            let e = EventItem(title: name, start: WallTime(day: day, minute: start), end: WallTime(day: day, minute: end))
+            m.events.append((nil, e))
+        } else {
+            let t = TaskItem(title: name, bucket: .day, planDate: day, estimateMin: end - start)
+            m.tasks.append((nil, t))
+            m.events.append((nil, blockEvent(for: t, day: day, start: start, end: end)))
+        }
+        if commit(m), let id = m.events.first?.after?.id { selection = [id] }
+    }
+
+    /// Puts an existing task on the grid. Length is `length`, or the task estimate.
+    func schedule(taskId: String, day: DayKey, start: Int, length: Int? = nil) {
+        guard let task = task(taskId) else { return }
+        let len = max(5, length ?? task.estimateMin)
+        let s = PlannerMath.clampMove(start: start, length: len)
+        var m = Mutation(name: "Schedule Task")
+        m.tasks.append((task, planned(task, on: day)))
+        let e = blockEvent(for: task, day: day, start: s, end: s + len)
+        m.events.append((nil, e))
+        if commit(m) { selection = [e.id] }
+    }
+
+    /// First free gap for a task: from now (today) or from work start (other days).
+    func fit(taskId: String, day: DayKey, workStart: Int, workEnd: Int, step: Int) {
+        guard let task = task(taskId) else { return }
+        let len = max(5, task.estimateMin)
+        let busy = blocks(for: day...day).map(\.span)
+        let from = day == .today() ? max(workStart, nowMinute()) : workStart
+        if let slot = PlannerMath.firstFreeSlot(length: len, busy: busy, from: from, until: 1440, step: step) {
+            schedule(taskId: taskId, day: day, start: slot, length: len)
+        } else {
+            showToast("No free gap of \(PlannerMath.duration(len)) on this day.")
+        }
+    }
+
+    /// The plan for "Plan my day": each unscheduled task gets a free working-hours slot, by priority.
+    func planMyDayPreview(day: DayKey, workStart: Int, workEnd: Int, step: Int) -> [(task: TaskItem, start: Int)] {
+        var busy = blocks(for: day...day).map(\.span)
+        var from = day == .today() ? max(workStart, nowMinute()) : workStart
+        from = PlannerMath.snap(from, step: step)
+        var out: [(TaskItem, Int)] = []
+        for t in unscheduled(for: day) {
+            let len = max(5, t.estimateMin)
+            guard let slot = PlannerMath.firstFreeSlot(length: len, busy: busy, from: from, until: workEnd, step: step) else { continue }
+            busy.append(Span(id: t.id, start: slot, end: slot + len))
+            out.append((t, slot))
+        }
+        return out.map { (task: $0.0, start: $0.1) }
+    }
+
+    func applyPlan(_ plan: [(task: TaskItem, start: Int)], day: DayKey) {
+        var m = Mutation(name: "Plan My Day")
+        for p in plan {
+            m.tasks.append((p.task, planned(p.task, on: day)))
+            m.events.append((nil, blockEvent(for: p.task, day: day, start: p.start, end: p.start + max(5, p.task.estimateMin))))
+        }
+        commit(m)
+    }
+
+    /// Moves and resizes. With `ripple`, later overlapping blocks on the same day are pushed down.
+    /// Returns how many other blocks were pushed.
+    @discardableResult
+    func applyEdits(_ edits: [BlockEdit], ripple: Bool, name: String) -> Int {
+        var all = edits
+        var pushed = 0
+        if ripple, let primary = edits.first {
+            let others = blocks(for: primary.day...primary.day)
+                .filter { b in !edits.contains { $0.id == b.id } }.map(\.span)
+            let moved = Span(id: primary.id, start: primary.start, end: primary.end)
+            for s in PlannerMath.ripple(moved: moved, others: others) {
+                all.append(BlockEdit(id: s.id, day: primary.day, start: s.start, end: s.end))
+                pushed += 1
+            }
+        }
+        var m = Mutation(name: name)
+        for edit in all {
+            guard let old = event(edit.id) else { continue }
+            var new = old
+            new.start = WallTime(day: edit.day, minute: edit.start)
+            new.end = WallTime(day: edit.day, minute: edit.end)
+            guard new != old else { continue }
+            m.events.append((old, new))
+            if let tid = old.taskId, edit.day != old.start.day, let task = task(tid) {
+                m.tasks.append((task, planned(task, on: edit.day)))
+            }
+        }
+        if commit(m), pushed > 0 { showToast("Pushed \(pushed) block\(pushed == 1 ? "" : "s")") }
+        return pushed
+    }
+
+    func rename(blockId: String, to title: String) {
+        let name = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !name.isEmpty, let old = event(blockId) else { return }
+        var m = Mutation(name: "Rename")
+        var new = old
+        new.title = name
+        m.events.append((old, new))
+        if let tid = old.taskId, let task = task(tid) {
+            var t = task
+            t.title = name
+            m.tasks.append((task, t))
+        }
+        commit(m)
+    }
+
+    func setDuration(blockIds: [String], minutes: Int) {
+        var m = Mutation(name: "Change Duration")
+        for id in blockIds {
+            guard let old = event(id) else { continue }
+            var new = old
+            let end = min(1440, old.start.minute + minutes)
+            new.end = WallTime(day: old.start.day, minute: end)
+            m.events.append((old, new))
+        }
+        commit(m)
+    }
+
+    func setColor(blockIds: [String], name: String) {
+        var m = Mutation(name: "Change Colour")
+        for id in blockIds {
+            guard let old = event(id) else { continue }
+            var new = old
+            new.color = name
+            m.events.append((old, new))
+        }
+        commit(m)
+    }
+
+    /// Removes blocks. The task stays and goes back to the unscheduled list.
+    func deleteBlocks(_ ids: [String], name: String = "Delete Block") {
+        var m = Mutation(name: name)
+        for id in ids { if let old = event(id) { m.events.append((old, nil)) } }
+        if commit(m) { selection.subtract(ids) }
+    }
+
+    func duplicate(blockIds: [String]) {
+        var m = Mutation(name: "Duplicate")
+        var newIds: Set<String> = []
+        for id in blockIds {
+            guard let old = event(id), old.seriesId == nil else { continue }
+            let len = old.end.minute - old.start.minute
+            let s = PlannerMath.clampMove(start: old.end.minute, length: len)
+            var copy = old
+            copy.id = UUID().uuidString
+            copy.start = WallTime(day: old.start.day, minute: s)
+            copy.end = WallTime(day: old.start.day, minute: s + len)
+            m.events.append((nil, copy))
+            newIds.insert(copy.id)
+        }
+        if commit(m) { selection = newIds }
+    }
+
+    func split(blockId: String) {
+        guard let old = event(blockId) else { return }
+        let len = old.end.minute - old.start.minute
+        guard len >= 10 else { showToast("Block is too short to split."); return }
+        let mid = max(old.start.minute + 5, min(old.end.minute - 5, PlannerMath.snap(old.start.minute + len / 2, step: 5)))
+        var first = old
+        first.end = WallTime(day: old.start.day, minute: mid)
+        var second = old
+        second.id = UUID().uuidString
+        second.start = WallTime(day: old.start.day, minute: mid)
+        var m = Mutation(name: "Split Block")
+        m.events.append((old, first))
+        m.events.append((nil, second))
+        commit(m)
+    }
+
+    func toggleDone(taskId: String) {
+        guard let old = task(taskId) else { return }
+        var t = old
+        if t.isDone { t.status = .open; t.completedAt = nil } else { t.status = .done; t.completedAt = Stamp.now() }
+        var m = Mutation(name: t.isDone ? "Complete Task" : "Reopen Task")
+        m.tasks.append((old, t))
+        commit(m)
+    }
+
+    func nextFreeSlot(day: DayKey, length: Int, workStart: Int, step: Int) -> Int? {
+        let busy = blocks(for: day...day).map(\.span)
+        let from = day == .today() ? max(nowMinute(), 0) : workStart
+        return PlannerMath.firstFreeSlot(length: length, busy: busy, from: from, until: 1440, step: step)
+    }
+
+    func nowMinute() -> Int {
+        let c = GroveCalendar.cal.dateComponents([.hour, .minute], from: Date())
+        return (c.hour ?? 0) * 60 + (c.minute ?? 0)
+    }
+}

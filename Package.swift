@@ -20,5 +20,10 @@ let package = Package(
             dependencies: ["GroveCore"],
             swiftSettings: [.swiftLanguageMode(.v5)]
         ),
+        .testTarget(
+            name: "GroveTests",
+            dependencies: ["Grove", "GroveCore"],
+            swiftSettings: [.swiftLanguageMode(.v5)]
+        ),
     ]
 )

@@ -1,8 +1,8 @@
 import Foundation
 
-enum GroveCalendar {
+public enum GroveCalendar {
     /// Gregorian calendar in the user's time zone. Stored dates are local wall-clock strings.
-    static let cal: Calendar = {
+    public static let cal: Calendar = {
         var c = Calendar(identifier: .gregorian)
         c.timeZone = .current
         c.firstWeekday = 2
