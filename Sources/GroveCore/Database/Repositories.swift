@@ -279,9 +279,10 @@ public final class NoteRepo {
         return n
     }
 
-    public func save(_ note: Note) throws {
+    /// `touch: false` keeps the edit time. Use it for changes the user did not make in the note itself.
+    public func save(_ note: Note, touch: Bool = true) throws {
         var n = note
-        n.updatedAt = Stamp.now()
+        if touch { n.updatedAt = Stamp.now() }
         try db.transaction {
             try db.execute(Self.upsert, [
                 .text(n.id), .text(n.title), .text(n.body), .text(n.kind.rawValue), SQLValue(n.date?.string),
@@ -305,6 +306,11 @@ public final class NoteRepo {
     /// Pinned first, then most recently edited.
     public func all() throws -> [Note] {
         try db.query(Self.select + " ORDER BY pinned DESC, updated_at DESC", map: Self.map)
+    }
+
+    /// Notes with a check box line that is tied to task `taskId`.
+    public func withTaskMarker(_ taskId: String) throws -> [Note] {
+        try db.query(Self.select + " WHERE instr(body, ?) > 0", [.text(NoteParser.marker(for: taskId))], map: Self.map)
     }
 
     public func daily(_ day: DayKey) throws -> Note? {

@@ -4,7 +4,8 @@ import GroveCore
 /// What the rich text editor reads and writes in the store.
 extension AppStore {
     /// `excluding` is the item whose text is being edited. It is left out of the `[[` list.
-    func editorServices(excluding: ItemRef? = nil) -> EditorServices {
+    /// `noteId` is set for the text of a note. Only then can the editor make tasks from words.
+    func editorServices(excluding: ItemRef? = nil, noteId: String? = nil) -> EditorServices {
         var s = EditorServices()
         s.suggest = { [unowned self] query in mentionSuggestions(for: query, excluding: excluding) }
         s.isLive = { [unowned self] id in (try? repos.refs.resolve(title: "", id: id)) != nil }
@@ -13,6 +14,7 @@ extension AppStore {
         s.storeImage = { [unowned self] data in (try? repos.attachments.addImage(data))?.id }
         s.loadImage = { [unowned self] id in image(id) }
         s.notify = { [unowned self] message in showToast(message) }
+        if let noteId { s.makeTask = { [unowned self] words in makeTask(from: words, inNote: noteId) } }
         return s
     }
 

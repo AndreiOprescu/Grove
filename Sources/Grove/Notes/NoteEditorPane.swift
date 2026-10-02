@@ -38,9 +38,9 @@ struct NoteEditorPane: View {
                 if n.title != title { title = n.title }
             }
         }
-        .onDisappear { flush(noteId) }
-        .onReceive(NotificationCenter.default.publisher(for: NSApplication.willResignActiveNotification)) { _ in flush(noteId) }
-        .onReceive(NotificationCenter.default.publisher(for: NSApplication.willTerminateNotification)) { _ in flush(noteId) }
+        .onDisappear { flush(noteId, creating: typing) }
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.willResignActiveNotification)) { _ in flush(noteId, creating: false) }
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.willTerminateNotification)) { _ in flush(noteId, creating: typing) }
     }
 
     // MARK: Loading and saving
@@ -53,14 +53,17 @@ struct NoteEditorPane: View {
         loadedId = id
     }
 
-    /// Writes any unsaved title and text of note `id` now.
-    private func flush(_ id: String) {
+    /// Writes any unsaved title and text of note `id` now. Then the tasks follow the boxes.
+    /// `creating` lets open boxes make tasks. Use it only when the user is done typing, and never for text they only looked at.
+    /// It adds hidden marks to the saved text, so the caller shows the saved text again after it.
+    private func flush(_ id: String, creating: Bool) {
         saveTask?.cancel()
         saveTask = nil
         guard loadedId == id, let n = store.note(id) else { return }
         if text != n.body { store.setNoteBody(id, text) }
         let name = title.trimmingCharacters(in: .whitespacesAndNewlines)
         if n.kind == .note, !name.isEmpty, name != n.title { store.renameNote(id, to: name) }
+        store.syncNoteTasks(id, creating: creating)
     }
 
     private func scheduleSave() {
@@ -69,12 +72,14 @@ struct NoteEditorPane: View {
         saveTask = Task {
             try? await Task.sleep(for: .milliseconds(500))
             guard !Task.isCancelled else { return }
-            if loadedId == id { store.setNoteBody(id, text) }
+            guard loadedId == id else { return }
+            store.setNoteBody(id, text)
+            store.syncNoteTasks(id, creating: false)   // a ticked box finishes its task now. New tasks wait until the user stops typing.
         }
     }
 
     private func bodyEnded() {
-        flush(noteId)
+        flush(noteId, creating: true)
         typing = false
         if let n = store.note(noteId), n.body != text { text = n.body }   // the saved text has the ids added
         chipToken += 1
@@ -94,7 +99,7 @@ struct NoteEditorPane: View {
                 header(note)
                 tagRow(note)
                 RichTextField(text: Binding(get: { text }, set: { text = $0; typing = true; scheduleSave() }),
-                              services: store.editorServices(excluding: ItemRef(.note, noteId)),
+                              services: store.editorServices(excluding: ItemRef(.note, noteId), noteId: noteId),
                               placeholder: "Write something. Type [[ to link a task, note or event.",
                               minHeight: 320, refreshToken: chipToken, onEnd: bodyEnded)
                 linked

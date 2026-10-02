@@ -96,9 +96,10 @@ enum MarkdownStyler {
             font { NSFont.monospacedSystemFont(ofSize: $0.pointSize * 0.92, weight: .regular) }
             set(.backgroundColor, s.surface2)
         case .syntax: set(.foregroundColor, s.muted.withAlphaComponent(0.55))
-        case .hidden:
+        case .hidden, .taskMark:
             set(.font, hiddenFont)
             set(.foregroundColor, NSColor.clear)
+            set(.strikethroughStyle, 0)
         case .mention(let id, _):
             font { NSFont.systemFont(ofSize: $0.pointSize, weight: .medium) }
             if let id, !isLive(id) {

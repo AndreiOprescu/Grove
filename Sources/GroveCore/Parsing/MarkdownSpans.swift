@@ -28,6 +28,8 @@ public enum SpanKind: Hashable, Sendable {
     case image(id: String)
     case tag
     case link(String)
+    /// The hidden ` ⟦t:ID⟧` that ties a check box line to its task. One unit, never shown.
+    case taskMark
 }
 
 public struct TextSpan: Equatable, Sendable {
@@ -67,7 +69,7 @@ public enum MarkdownSpans {
     public static func atoms(in spans: [TextSpan]) -> [NSRange] {
         spans.compactMap { span in
             switch span.kind {
-            case .mention, .image: span.range
+            case .mention, .image, .taskMark: span.range
             default: nil
             }
         }
@@ -103,12 +105,44 @@ public enum MarkdownSpans {
         return NSRange(location: start, length: end - start)
     }
 
+    /// What to do with a one-character delete that touches a hidden task mark.
+    public enum MarkDeletion: Equatable, Sendable {
+        /// Not next to a mark. Let the editor do its normal work.
+        case unchanged
+        /// Delete this range instead.
+        case redirect(NSRange)
+        /// Do nothing.
+        case swallow
+    }
+
+    /// Backspace after a mark and forward delete before it would remove the mark, which the user cannot see.
+    /// The mark stays. The key deletes the visible character on the other side.
+    public static func deletionBesideMark(_ change: NSRange, replacement: String, in spans: [TextSpan], text: NSString) -> MarkDeletion {
+        guard replacement.isEmpty, change.length == 1 else { return .unchanged }
+        for span in spans where span.kind == .taskMark {
+            let mark = span.range
+            if NSMaxRange(change) == NSMaxRange(mark) {
+                // Backspace at the end of the mark. The first character the user can reach is before it.
+                let line = text.lineRange(for: NSRange(location: mark.location, length: 0))
+                var floor = line.location
+                if let p = spans.first(where: { $0.kind == .listPrefix && $0.range.location == line.location }) { floor = NSMaxRange(p.range) }
+                return mark.location > floor ? .redirect(NSRange(location: mark.location - 1, length: 1)) : .swallow
+            }
+            if change.location == mark.location {
+                // Forward delete at the start of the mark. The next character is after it.
+                return NSMaxRange(mark) < text.length ? .redirect(NSRange(location: NSMaxRange(mark), length: 1)) : .swallow
+            }
+        }
+        return .unchanged
+    }
+
     // MARK: One line
 
     private static let prefixRegex = try! NSRegularExpression(pattern: MarkdownEdit.prefixPattern)
     private static let codeRegex = try! NSRegularExpression(pattern: "`([^`\\n]+)`")
     private static let uuid = "[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}"
     private static let imageRegex = try! NSRegularExpression(pattern: "!\\[([^\\]\\n]*)\\]\\(grove-image:(\(uuid))\\)")
+    private static let markRegex = try! NSRegularExpression(pattern: "\\s?⟦t:[^⟧\\s]+⟧")
     private static let linkRegex = try! NSRegularExpression(pattern: "https?://[^\\s<>\\[\\]]+")
     private static let tagRegex = try! NSRegularExpression(pattern: "(?<![\\p{L}\\p{N}_#&/])#[\\p{L}\\p{N}_][\\p{L}\\p{N}_-]*")
     private static let tripleRegex = try! NSRegularExpression(pattern: "(?<!\\*)\\*\\*\\*(?![\\s*])(.+?)(?<![\\s*])\\*\\*\\*(?!\\*)")
@@ -171,6 +205,13 @@ public enum MarkdownSpans {
                 add(.hidden, NSMaxRange(alt) + 1, NSMaxRange(r) - NSMaxRange(alt) - 1)
             }
             mask(r)
+        }
+
+        if line.contains("⟦t:") {
+            for m in markRegex.matches(in: masked as String, range: body()) {
+                add(.taskMark, m.range.location, m.range.length)
+                mask(m.range)
+            }
         }
 
         let text = masked as String

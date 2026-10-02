@@ -25,6 +25,10 @@ final class GroveTextView: NSTextView {
     var onOpenImage: ((String) -> Void)?
     var onImages: (([(data: Data, name: String)]) -> Void)?
     var onTaskDrop: ((String, Int) -> Void)?
+    /// Set when the field can make tasks (⇧⌘T and the "Make task" menu item).
+    var onMakeTask: (() -> Void)?
+    /// True when the selection, or the line with the caret, has words a task can take.
+    var canMakeTask: (() -> Bool)?
     var onAppearanceChange: (() -> Void)?
     /// Asked before a window-wide Esc shortcut. Return true when the editor used the key (it closed its list).
     var onEscape: (() -> Bool)?
@@ -113,11 +117,32 @@ final class GroveTextView: NSTextView {
         case ("b", [.command]): onFormat?(.bold); return true
         case ("i", [.command]): onFormat?(.italic); return true
         case ("e", [.command]): onFormat?(.code); return true
+        case ("t", [.command, .shift]) where onMakeTask != nil: onMakeTask?(); return true
         // The app's own undo is for tasks and blocks. While there is typing to undo, ⌘Z belongs to the text.
         case ("z", [.command]) where undoManager?.canUndo == true: undoManager?.undo(); return true
         case ("z", [.command, .shift]) where undoManager?.canRedo == true: undoManager?.redo(); return true
         default: return super.performKeyEquivalent(with: event)
         }
+    }
+
+    // MARK: Make task
+
+    override func menu(for event: NSEvent) -> NSMenu? {
+        let menu = super.menu(for: event)
+        guard onMakeTask != nil, let menu else { return menu }
+        let item = NSMenuItem(title: "Make task", action: #selector(makeTaskFromMenu(_:)), keyEquivalent: "t")
+        item.keyEquivalentModifierMask = [.command, .shift]
+        item.target = self
+        menu.insertItem(item, at: 0)
+        menu.insertItem(.separator(), at: 1)
+        return menu
+    }
+
+    @objc private func makeTaskFromMenu(_ sender: Any?) { onMakeTask?() }
+
+    override func validateMenuItem(_ item: NSMenuItem) -> Bool {
+        if item.action == #selector(makeTaskFromMenu(_:)) { return canMakeTask?() ?? false }
+        return super.validateMenuItem(item)
     }
 
     // MARK: Pasting and dropping

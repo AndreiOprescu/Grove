@@ -211,6 +211,7 @@ final class AppStore {
             }
             if was == nil { try repos.refs.rebuildIncoming(to: ref) }
             if let was, was.title != now.title { try repos.refs.renamed(ref, to: now.title) }
+            if was == nil || was?.status != now.status { try syncBoxes(of: now) }
         }
         for n in m.notes {
             guard let now = forward ? n.after : n.before else { continue }

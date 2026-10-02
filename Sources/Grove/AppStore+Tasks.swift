@@ -54,11 +54,18 @@ extension AppStore {
     /// `placement` is used when the text names no date. A clock time on a day makes a time block too.
     @discardableResult
     func quickAdd(_ text: String, default placement: TaskPlacement = .inbox) -> TaskItem? {
+        guard let made = quickAddChange(text, default: placement) else { return nil }
+        return commit(made.change) ? made.task : nil
+    }
+
+    /// The change that `quickAdd` would commit, and the task in it. Nil when the text has no words for a title.
+    /// `notes` is the text of the task's notes field.
+    func quickAddChange(_ text: String, default placement: TaskPlacement, notes: String = "") -> (task: TaskItem, change: Mutation)? {
         let lists = (try? repos.lists.all()) ?? []
         let r = QuickAddParser(today: .today(), lists: lists.map(\.name)).parse(text)
         guard !r.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return nil }
 
-        var t = TaskItem(title: r.title, priority: r.priority, due: r.due, estimateMin: r.blockMinutes,
+        var t = TaskItem(title: r.title, notes: notes, priority: r.priority, due: r.due, estimateMin: r.blockMinutes,
                          recurrence: r.recurrence, sort: nextSort())
         switch r.bucket {
         case .day: t = placed(t, in: .day(r.planDate ?? .today()))
@@ -76,7 +83,7 @@ extension AppStore {
         if t.bucket == .day, let day = t.planDate, let start = r.startMinute, let end = r.blockEnd {
             m.events.append((nil, blockEvent(for: t, day: day, start: start, end: end)))
         }
-        return commit(m) ? t : nil
+        return (t, m)
     }
 
     // MARK: Completing

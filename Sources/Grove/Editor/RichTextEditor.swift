@@ -143,6 +143,8 @@ struct RichTextEditor: NSViewRepresentable {
             view.onOpenImage = { [weak controller] in controller?.previewImageId = $0 }
             view.onImages = { [weak self] in self?.importImages($0) }
             view.onTaskDrop = { [weak self] id, index in self?.dropTask(id, at: index) }
+            view.onMakeTask = { [weak self] in self?.makeTask() }
+            view.canMakeTask = { [weak self] in self?.taskTarget() != nil }
             view.onAppearanceChange = { [weak self] in self?.appearanceChanged() }
             view.onEscape = { [weak self] in self?.closeList() ?? false }
         }
@@ -186,6 +188,16 @@ struct RichTextEditor: NSViewRepresentable {
 
         func textView(_ textView: NSTextView, shouldChangeTextIn range: NSRange, replacementString: String?) -> Bool {
             guard let replacement = replacementString, let view = textView as? GroveTextView else { return true }
+            if !view.hasMarkedText(), !stale {
+                // A key that would delete a hidden task mark deletes the visible character next to it.
+                switch MarkdownSpans.deletionBesideMark(range, replacement: replacement, in: spans, text: view.string as NSString) {
+                case .unchanged: break
+                case .swallow: return false
+                case .redirect(let other):
+                    view.apply(TextEdit(range: other, replacement: "", selection: NSRange(location: min(other.location, range.location), length: 0)))
+                    return false
+                }
+            }
             stale = true
             if !view.hasMarkedText() {
                 // A mention or image is one unit. A change that touches part of it takes all of it.
@@ -309,6 +321,27 @@ struct RichTextEditor: NSViewRepresentable {
             guard let view, let title = parent.services.title(id) else { return }
             view.window?.makeFirstResponder(view)
             view.apply(MarkdownEdit.insertMention(title: title, id: id, replacing: NSRange(location: index, length: 0)))
+        }
+
+        // MARK: Tasks
+
+        /// The words a task would take: the selection, or the line with the caret. Nil when the field cannot make tasks.
+        private func taskTarget() -> MarkdownEdit.TaskTarget? {
+            guard let view, parent.services.makeTask != nil else { return nil }
+            return MarkdownEdit.taskTarget(in: view.string, selection: view.selectedRange())
+        }
+
+        /// ⇧⌘T: makes a task from the words and turns the line into a check box tied to it.
+        private func makeTask() {
+            guard let view, let make = parent.services.makeTask else { return }
+            guard let target = taskTarget() else {
+                let line = (view.string as NSString).lineRange(for: view.selectedRange())
+                let isTask = (view.string as NSString).substring(with: line).contains("⟦t:")
+                parent.services.notify(isTask ? "That line is already a task." : "Put the caret on a line with words, or select some words.")
+                return
+            }
+            guard let id = make(target.title) else { return }
+            view.apply(MarkdownEdit.taskLine(for: target, in: view.string, taskId: id))
         }
 
         // MARK: Images

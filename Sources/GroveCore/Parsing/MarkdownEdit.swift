@@ -261,6 +261,60 @@ public enum MarkdownEdit {
                         selection: NSRange(location: location, length: 0))
     }
 
+    // MARK: Make a task
+
+    /// The line a "Make task" command works on, and the words the task is named after.
+    public struct TaskTarget: Equatable, Sendable {
+        /// The selected words, or the whole line when nothing is selected. No list marker, no task mark.
+        public var title: String
+        /// The line without its line break.
+        public var line: NSRange
+    }
+
+    /// The line to turn into a task. Nil when the selection runs over several lines, the line has no words,
+    /// or the line already has a task.
+    public static func taskTarget(in text: String, selection sel: NSRange) -> TaskTarget? {
+        let ns = text as NSString
+        guard sel.location >= 0, NSMaxRange(sel) <= ns.length else { return nil }
+        let full = ns.lineRange(for: NSRange(location: sel.location, length: 0))
+        var line = full
+        while line.length > 0, [10, 13].contains(ns.character(at: NSMaxRange(line) - 1)) { line.length -= 1 }
+        guard NSMaxRange(sel) <= NSMaxRange(line) else { return nil }
+        let lineText = ns.substring(with: line)
+        guard !lineText.contains("⟦t:") else { return nil }
+
+        var words: String
+        if sel.length > 0 {
+            words = ns.substring(with: sel)
+        } else {
+            words = String(lineText.dropFirst(prefix(of: lineText)?.length ?? 0))
+        }
+        words = words.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !words.isEmpty else { return nil }
+        return TaskTarget(title: words, line: line)
+    }
+
+    /// Turns the line into `- [ ] words ⟦t:ID⟧`. A line that is already a check box keeps its box and indent.
+    /// The caret ends at the end of the words, before the hidden mark.
+    public static func taskLine(for target: TaskTarget, in text: String, taskId: String) -> TextEdit {
+        let ns = text as NSString
+        let lineText = ns.substring(with: target.line)
+        let p = prefix(of: lineText)
+        var head = "- [ ] "
+        var indent = 0
+        if let p {
+            if p.isList { indent = p.indent }
+            if case .checklist(let bullet, let checked) = p.kind { head = "\(bullet) [\(checked ? "x" : " ")] " }
+        } else {
+            indent = lineText.prefix(while: { $0 == " " }).count
+        }
+        let words = String(lineText.dropFirst(p?.length ?? indent)).trimmingCharacters(in: .whitespaces)
+        let body = String(repeating: " ", count: indent) + head + words
+        let replacement = body + " " + NoteParser.marker(for: taskId)
+        return TextEdit(range: target.line, replacement: replacement,
+                        selection: NSRange(location: target.line.location + body.utf16.count, length: 0))
+    }
+
     // MARK: Mentions
 
     /// An open `[[` before the caret: the range from the brackets to the caret, and the text typed after them.

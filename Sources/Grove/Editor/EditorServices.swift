@@ -24,4 +24,6 @@ struct EditorServices {
     var storeImage: (_ data: Data) -> String? = { _ in nil }
     var loadImage: (_ id: String) -> NSImage? = { _ in nil }
     var notify: (_ message: String) -> Void = { _ in }
+    /// Makes a task from these words and returns its id. Nil when this field cannot make tasks (only notes can).
+    var makeTask: ((_ words: String) -> String?)?
 }
