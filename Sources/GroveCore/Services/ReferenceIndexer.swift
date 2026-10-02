@@ -94,7 +94,7 @@ public final class ReferenceIndexer {
                     let body = ReferenceParser.rewriting(t.notes, id: ref.id, to: newTitle)
                     guard body != t.notes else { continue }
                     try db.execute("UPDATE tasks SET notes = ? WHERE id = ?", [.text(body), .text(t.id)])
-                    try search.upsert(.task, id: t.id, title: t.title, body: ReferenceParser.searchText(body))
+                    try search.upsert(.task, id: t.id, title: t.title, body: t.summary + " " + ReferenceParser.searchText(body))
                 case .note:
                     guard let n = try notes.get(src.id) else { continue }
                     let body = ReferenceParser.rewriting(n.body, id: ref.id, to: newTitle)

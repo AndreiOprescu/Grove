@@ -7,7 +7,8 @@ public enum TaskBucket: String, Codable, Sendable { case inbox, day, week, somed
 public struct TaskItem: Identifiable, Codable, Hashable, Sendable {
     public var id: String
     public var title: String
-    public var notes: String
+    public var summary: String          // one short line; shows on the planner block
+    public var notes: String            // the long description (Markdown)
     public var listId: String?
     public var parentId: String?
     public var priority: Int            // 0 none … 3 high
@@ -24,13 +25,13 @@ public struct TaskItem: Identifiable, Codable, Hashable, Sendable {
     public var updatedAt: String
     public var completedAt: String?
 
-    public init(id: String = UUID().uuidString, title: String, notes: String = "", listId: String? = nil,
+    public init(id: String = UUID().uuidString, title: String, summary: String = "", notes: String = "", listId: String? = nil,
                 parentId: String? = nil, priority: Int = 0, status: TaskStatus = .open,
                 bucket: TaskBucket = .inbox, planDate: DayKey? = nil, planWeek: DayKey? = nil,
                 due: String? = nil, estimateMin: Int = 30, recurrence: RecurrenceRule? = nil,
                 sourceNoteId: String? = nil, sort: Double = 0) {
         let now = Stamp.now()
-        self.id = id; self.title = title; self.notes = notes; self.listId = listId
+        self.id = id; self.title = title; self.summary = summary; self.notes = notes; self.listId = listId
         self.parentId = parentId; self.priority = priority; self.status = status
         self.bucket = bucket; self.planDate = planDate; self.planWeek = planWeek
         self.due = due; self.estimateMin = estimateMin; self.recurrence = recurrence

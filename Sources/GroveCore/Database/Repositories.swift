@@ -17,7 +17,7 @@ public final class TaskRepo {
 
     private static let cols = ["id", "title", "notes", "list_id", "parent_id", "priority", "status", "bucket",
                                "plan_date", "plan_week", "due", "estimate_min", "recurrence", "source_note_id",
-                               "sort", "created_at", "updated_at", "completed_at"]
+                               "sort", "created_at", "updated_at", "completed_at", "summary"]
     private static let select = "SELECT \(cols.joined(separator: ",")) FROM tasks"
     private static let upsert = upsertSQL("tasks", cols)
 
@@ -39,6 +39,7 @@ public final class TaskRepo {
         t.createdAt = r.text(15)
         t.updatedAt = r.text(16)
         t.completedAt = r.optText(17)
+        t.summary = r.text(18)
         return t
     }
 
@@ -52,9 +53,9 @@ public final class TaskRepo {
                 .int(t.priority), .text(t.status.rawValue), .text(t.bucket.rawValue),
                 SQLValue(t.planDate?.string), SQLValue(t.planWeek?.string), SQLValue(t.due),
                 .int(t.estimateMin), SQLValue(t.recurrence?.json()), SQLValue(t.sourceNoteId),
-                .real(t.sort), .text(t.createdAt), .text(t.updatedAt), SQLValue(t.completedAt),
+                .real(t.sort), .text(t.createdAt), .text(t.updatedAt), SQLValue(t.completedAt), .text(t.summary),
             ])
-            try search.upsert(.task, id: t.id, title: t.title, body: ReferenceParser.searchText(t.notes))
+            try search.upsert(.task, id: t.id, title: t.title, body: t.summary + " " + ReferenceParser.searchText(t.notes))
         }
     }
 

@@ -2,6 +2,19 @@ import Foundation
 import GroveCore
 
 /// The repeat choices in the inspector. Anything else is shown as "Custom" and left alone.
+
+/// The short description of a task: one short line.
+enum SummaryText {
+    static let maxLength = 160
+
+    /// Turns any text into one trimmed line of at most `maxLength` characters.
+    static func clean(_ raw: String) -> String {
+        let oneLine = raw.components(separatedBy: .newlines).map { $0.trimmingCharacters(in: .whitespaces) }
+            .filter { !$0.isEmpty }.joined(separator: " ")
+        return String(oneLine.prefix(maxLength)).trimmingCharacters(in: .whitespaces)
+    }
+}
+
 enum RepeatPreset: String, CaseIterable, Identifiable {
     case none, daily, weekdays, weekly, biweekly, monthly, yearly, custom
     var id: String { rawValue }

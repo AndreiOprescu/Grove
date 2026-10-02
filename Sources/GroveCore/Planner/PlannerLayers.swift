@@ -29,7 +29,10 @@ extension PlannerMath {
     /// - minLength: the shortest length (minutes) a block is drawn at. A 5 minute block drawn 22 points tall
     ///   covers more than 5 minutes, so it counts as `minLength` minutes here.
     /// - tightWithin: a block that starts less than this many minutes after its parent is "tight".
-    public static func layoutLayers(_ spans: [Span], minLength: Int = 0, tightWithin: Int = 0) -> [String: Layer] {
+    /// - tightWithinById: a different limit for chosen parents, by id. A parent that shows a short description
+    ///   has one more text row to keep clear.
+    public static func layoutLayers(_ spans: [Span], minLength: Int = 0, tightWithin: Int = 0,
+                                    tightWithinById: [String: Int] = [:]) -> [String: Layer] {
         let sorted = spans.sorted {
             if $0.start != $1.start { return $0.start < $1.start }
             if $0.length != $1.length { return $0.length > $1.length }
@@ -46,7 +49,7 @@ extension PlannerMath {
             }
             var layer = Layer(order: order, depth: 0, parent: nil, tight: false, units: 0)
             if let p = parent {
-                let tight = s.start - p.start < tightWithin
+                let tight = s.start - p.start < (tightWithinById[p.id] ?? tightWithin)
                 layer.parent = p.id
                 layer.tight = tight
                 layer.depth = p.depth + 1

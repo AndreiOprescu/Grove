@@ -212,11 +212,23 @@ final class AppStore {
             guard days.contains(day) else { continue }
             let end = e.end.day == day ? e.end.minute : 1440
             out.append(PlannerBlock(
-                id: e.id, title: task?.title ?? e.title, day: day, startMinute: e.start.minute,
+                id: e.id, title: task?.title ?? e.title, summary: task?.summary ?? "", day: day, startMinute: e.start.minute,
                 endMinute: max(end, e.start.minute + 1), kind: e.kind, taskId: e.taskId,
                 isDone: task?.isDone ?? false, color: e.color, isRecurring: e.seriesId != nil))
         }
         return out
+    }
+
+
+    /// A click on a block. A click on a task block also opens that task in the panel at the right.
+    /// Command-click adds or removes a block and leaves the panel alone.
+    func selectBlock(_ block: PlannerBlock, extend: Bool) {
+        if extend {
+            if selection.contains(block.id) { selection.remove(block.id) } else { selection.insert(block.id) }
+        } else {
+            selection = [block.id]
+            if let taskId = block.taskId { selectedTaskId = taskId }
+        }
     }
 
     func allDayEvents(for days: ClosedRange<DayKey>) -> [EventItem] {

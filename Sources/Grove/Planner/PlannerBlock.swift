@@ -5,6 +5,7 @@ import GroveCore
 struct PlannerBlock: Identifiable, Equatable {
     var id: String              // event id
     var title: String
+    var summary: String = ""      // the short description of the task, if any
     var day: DayKey
     var startMinute: Int
     var endMinute: Int

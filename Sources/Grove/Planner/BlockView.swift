@@ -88,7 +88,8 @@ struct BlockView: View {
                 .onTapGesture(count: 2, perform: onDoubleTap)
                 .onTapGesture(perform: onTap)
                 .pointerStyle(.grabIdle)
-                .help("\(block.title) · \(PlannerMath.label(start: start, end: end))")
+                .help(block.summary.isEmpty ? "\(block.title) · \(PlannerMath.label(start: start, end: end))"
+                      : "\(block.title) · \(PlannerMath.label(start: start, end: end))\n\(block.summary)")
 
             handle(.top)
             handle(.bottom)
@@ -115,11 +116,19 @@ struct BlockView: View {
                         .fixedSize(horizontal: true, vertical: false)
                     timeRow("\(PlannerMath.clock(start))–\(PlannerMath.clock(end))")
                 }
+                let lines = PlannerLayoutRules.blockTextLines(height: size.height, hasSummary: !block.summary.isEmpty)
                 HStack(alignment: .top, spacing: 5) {
                     checkbox
-                    Text(block.title).font(.system(size: 12, weight: .semibold, design: .rounded))
-                        .lineLimit(max(1, Int((size.height - 28) / 15) + 1))
-                        .strikethrough(block.isDone)
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text(block.title).font(.system(size: 12, weight: .semibold, design: .rounded))
+                            .lineLimit(lines.title)
+                            .strikethrough(block.isDone)
+                        if lines.summary > 0 {
+                            Text(block.summary).font(.system(size: 11, design: .rounded))
+                                .foregroundStyle(theme.ink.opacity(0.7))
+                                .lineLimit(lines.summary)
+                        }
+                    }
                 }
             }
             .foregroundStyle(theme.ink)

@@ -169,6 +169,20 @@ extension AppStore {
         commit(m)
     }
 
+
+    /// Saves the short description of a task. Many saves in a row while typing make one undo step.
+    func setSummary(_ id: String, _ text: String, now: Date = Date()) {
+        let clean = SummaryText.clean(text)
+        guard let old = task(id), old.summary != clean else { return }
+        var t = old
+        t.summary = clean
+        var m = Mutation(name: "Edit Short Description")
+        m.tasks.append((old, t))
+        m.mergeKey = "summary:\(id)"
+        m.at = now
+        commit(m)
+    }
+
     func setTags(taskId: String, to names: [String]) {
         var seen = Set<String>()
         let clean = names.map { $0.trimmingCharacters(in: CharacterSet(charactersIn: "# ").union(.whitespacesAndNewlines)) }

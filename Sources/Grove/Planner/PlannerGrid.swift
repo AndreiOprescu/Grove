@@ -220,9 +220,16 @@ struct PlannerGrid: View {
         let base = min(150, max(56, colW * 0.45))
         // A one-row block shows only its title, so the block above it moves right by about the title's width.
         let tight: (String) -> Double = { id in
-            guard let b = byId[id], b.endMinute - b.startMinute < 25 || geo.y(forMinute: b.endMinute - b.startMinute) < 34
-            else { return base }
-            return min(colW * 0.5, max(base, 38 + 6 * Double(b.title.count)))
+            guard let b = byId[id] else { return base }
+            if b.endMinute - b.startMinute < 25 || geo.y(forMinute: b.endMinute - b.startMinute) < 34 {
+                return min(colW * 0.5, max(base, 38 + 6 * Double(b.title.count)))
+            }
+            // A block that shows a short description keeps the whole line readable, as far as the column allows.
+            let height = max(PlannerGeometry.minBlockHeight, geo.y(forMinute: b.endMinute - b.startMinute))
+            if !b.summary.isEmpty, PlannerLayoutRules.blockTextLines(height: height, hasSummary: true).summary > 0 {
+                return max(base, PlannerLayoutRules.textClearance(title: b.title, summary: b.summary, columnWidth: colW))
+            }
+            return base
         }
         return PlannerMath.indents(layerMap, far: min(16, max(8, colW * 0.10)), tight: tight, maxIndent: colW * 0.62)
     }
@@ -406,9 +413,16 @@ struct PlannerGrid: View {
     private func relayout() {
         var result: [String: Layer] = [:]
         for day in days {
-            result.merge(PlannerMath.layoutLayers(blocks.filter { $0.day == day }.map(\.span),
+            let dayBlocks = blocks.filter { $0.day == day }
+            var tightById: [String: Int] = [:]
+            for b in dayBlocks where !b.summary.isEmpty {
+                let height = max(PlannerGeometry.minBlockHeight, geo.y(forMinute: b.endMinute - b.startMinute))
+                tightById[b.id] = PlannerLayoutRules.tightMinutes(hourHeight: geo.hourHeight, blockHeight: height, hasSummary: true)
+            }
+            result.merge(PlannerMath.layoutLayers(dayBlocks.map(\.span),
                                                   minLength: geo.minDrawnMinutes,
-                                                  tightWithin: geo.tightMinutes)) { a, _ in a }
+                                                  tightWithin: geo.tightMinutes,
+                                                  tightWithinById: tightById)) { a, _ in a }
         }
         layerMap = result
     }
@@ -439,11 +453,7 @@ struct PlannerGrid: View {
     }
 
     private func selectBlock(_ block: PlannerBlock) {
-        if NSEvent.modifierFlags.contains(.command) {
-            if store.selection.contains(block.id) { store.selection.remove(block.id) } else { store.selection.insert(block.id) }
-        } else {
-            store.selection = [block.id]
-        }
+        store.selectBlock(block, extend: NSEvent.modifierFlags.contains(.command))
         draft = nil
         focused = true
     }

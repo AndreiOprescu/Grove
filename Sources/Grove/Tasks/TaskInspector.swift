@@ -10,15 +10,18 @@ struct TaskInspector: View {
 
     // What the fields show. The store is only written when the user changes something.
     @State private var title = ""
+    @State private var summary = ""
     @State private var notes = ""
     @State private var loadedId: String?
     /// True from the first key typed in the body until the body loses the keyboard.
     @State private var typing = false
     @State private var saveTask: Task<Void, Never>?
+    @State private var summaryTask: Task<Void, Never>?
     @State private var chipToken = 0
     @State private var newSubtask = ""
     @State private var newTag = ""
     @FocusState private var titleFocus: Bool
+    @FocusState private var summaryFocus: Bool
 
     var body: some View {
         let _ = store.revision
@@ -44,6 +47,7 @@ struct TaskInspector: View {
                 if t.notes != notes { notes = t.notes }
                 if t.title != title { title = t.title }
             }
+            if !summaryFocus, let t = store.task(taskId), t.summary != SummaryText.clean(summary) { summary = t.summary }
         }
         .onDisappear { flush(taskId) }
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.willResignActiveNotification)) { _ in flush(taskId) }
@@ -55,6 +59,7 @@ struct TaskInspector: View {
     private func load(_ id: String) {
         guard let t = store.task(id) else { return }
         title = t.title
+        summary = t.summary
         notes = t.notes
         typing = false
         loadedId = id
@@ -66,7 +71,10 @@ struct TaskInspector: View {
     private func flush(_ id: String) {
         saveTask?.cancel()
         saveTask = nil
+        summaryTask?.cancel()
+        summaryTask = nil
         guard loadedId == id, let t = store.task(id) else { return }
+        if SummaryText.clean(summary) != t.summary { store.setSummary(id, summary) }
         let name = title.trimmingCharacters(in: .whitespacesAndNewlines)
         if !name.isEmpty, name != t.title { store.editTask(id, name: "Rename Task") { $0.title = name } }
         if notes != t.notes { store.setNotes(id, notes) }
@@ -80,6 +88,32 @@ struct TaskInspector: View {
             guard !Task.isCancelled else { return }
             if loadedId == id { store.setNotes(id, notes) }
         }
+    }
+
+
+    private func summaryChanged(_ text: String) {
+        if text.contains(where: \.isNewline) {   // Return ends the line
+            summary = text.filter { !$0.isNewline }
+            commitSummary()
+            return
+        }
+        if text.count > SummaryText.maxLength {
+            summary = String(text.prefix(SummaryText.maxLength))
+            return
+        }
+        let id = taskId
+        summaryTask?.cancel()
+        summaryTask = Task {
+            try? await Task.sleep(for: .milliseconds(500))
+            guard !Task.isCancelled else { return }
+            if loadedId == id { store.setSummary(id, summary) }
+        }
+    }
+
+    private func commitSummary() {
+        summaryTask?.cancel()
+        summaryTask = nil
+        if loadedId == taskId { store.setSummary(taskId, summary) }
     }
 
     private func bodyEnded() {
@@ -102,11 +136,14 @@ struct TaskInspector: View {
         return ScrollView {
             VStack(alignment: .leading, spacing: 16) {
                 header(task)
-                RichTextField(text: Binding(get: { notes }, set: { notes = $0; typing = true; scheduleSave() }),
-                              services: store.editorServices(excluding: ItemRef(.task, taskId)),
-                              placeholder: "Notes. Type [[ to mention a task.",
-                              minHeight: 90, refreshToken: chipToken, onEnd: bodyEnded)
-                    .id(taskId)
+                section("Short description") { summaryField }
+                section("Description") {
+                    RichTextField(text: Binding(get: { notes }, set: { notes = $0; typing = true; scheduleSave() }),
+                                  services: store.editorServices(excluding: ItemRef(.task, taskId)),
+                                  placeholder: "The longer description. Type [[ to mention a task.",
+                                  minHeight: 90, refreshToken: chipToken, onEnd: bodyEnded)
+                        .id(taskId)
+                }
                 plan(task)
                 details(task, lists: lists)
                 tags(task)
@@ -142,6 +179,21 @@ struct TaskInspector: View {
                 .buttonStyle(.plain).foregroundStyle(theme.muted).help("Close  (Esc)")
                 .keyboardShortcut(.cancelAction)
         }
+    }
+
+
+    private var summaryField: some View {
+        TextField("One short line. It shows on the planner.", text: $summary, axis: .vertical)
+            .textFieldStyle(.plain)
+            .font(.system(size: 13, design: .rounded))
+            .lineLimit(1...3)
+            .focused($summaryFocus)
+            .padding(.horizontal, 8).padding(.vertical, 6)
+            .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(theme.surface2))
+            .overlay(RoundedRectangle(cornerRadius: 8, style: .continuous).strokeBorder(summaryFocus ? theme.accent : theme.line, lineWidth: 1))
+            .onChange(of: summary) { _, new in summaryChanged(new) }
+            .onSubmit { commitSummary() }
+            .onChange(of: summaryFocus) { _, now in if !now { commitSummary() } }
     }
 
     // MARK: Plan

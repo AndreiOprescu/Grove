@@ -106,6 +106,11 @@ enum Migrations {
           DELETE FROM links WHERE (src_type = 'event' AND src_id = old.id) OR (dst_type = 'event' AND dst_id = old.id);
         END;
         """,
+
+        // 3 — a short description on each task (the notes column stays the long description)
+        """
+        ALTER TABLE tasks ADD COLUMN summary TEXT NOT NULL DEFAULT '';
+        """,
     ]
 
     static func run(on db: Database) throws {
