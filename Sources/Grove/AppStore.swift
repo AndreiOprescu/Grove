@@ -7,9 +7,11 @@ struct Mutation {
     var name: String
     var tasks: [(before: TaskItem?, after: TaskItem?)] = []
     var events: [(before: EventItem?, after: EventItem?)] = []
+    /// Days taken out of (`add`) or put back into a repeating event. Undo does the opposite, in reverse order.
+    var exdates: [(eventId: String, day: DayKey, add: Bool)] = []
     /// Tag names of a task before and after. Tags live in their own table, so they are tracked here.
     var tags: [(taskId: String, before: [String], after: [String])] = []
-    var isEmpty: Bool { tasks.isEmpty && events.isEmpty && tags.isEmpty }
+    var isEmpty: Bool { tasks.isEmpty && events.isEmpty && tags.isEmpty && exdates.isEmpty }
     /// Typing makes many small changes. Changes with the same key, close in time, become one undo step.
     var mergeKey: String?
     var at = Date()
@@ -18,12 +20,20 @@ struct Mutation {
     func merged(with next: Mutation) -> Mutation? {
         guard let key = mergeKey, key == next.mergeKey, next.at.timeIntervalSince(at) < 60,
               tasks.count == 1, next.tasks.count == 1, events.isEmpty, next.events.isEmpty,
-              tags.isEmpty, next.tags.isEmpty,
+              tags.isEmpty, next.tags.isEmpty, exdates.isEmpty, next.exdates.isEmpty,
               tasks[0].after?.id == next.tasks[0].before?.id else { return nil }
         var m = self
         m.tasks[0] = (tasks[0].before, next.tasks[0].after)
         m.at = next.at
         return m
+    }
+
+    /// Adds everything in `other` to this change.
+    mutating func append(_ other: Mutation) {
+        tasks += other.tasks
+        events += other.events
+        tags += other.tags
+        exdates += other.exdates
     }
 }
 
@@ -43,6 +53,10 @@ final class AppStore {
     var quickAddRequest = 0
     /// Set when a change takes a day past the daily limit. The planner shows it as an alert.
     var overloadWarning: String?
+    /// Set when a change touches an event that repeats. The window asks "This event only / All events".
+    var recurringPrompt: RecurringPrompt?
+    /// The event the editor popover shows, or nil.
+    var editingEvent: EditingEvent?
 
     private(set) var undoStack: [Mutation] = []
     private(set) var redoStack: [Mutation] = []
@@ -142,6 +156,9 @@ final class AppStore {
                 func source(_ t: (before: TaskItem?, after: TaskItem?)) -> TaskItem? { forward ? t.before : t.after }
                 for t in m.tasks { if let x = target(t) { try repos.tasks.save(x) } }
                 for e in m.events { if let x = forward ? e.after : e.before { try repos.events.save(x) } }
+                for x in forward ? m.exdates : m.exdates.reversed() {
+                    if x.add == forward { try repos.events.addExdate(x.eventId, x.day) } else { try repos.events.removeExdate(x.eventId, x.day) }
+                }
                 let gone = Set(m.tasks.filter { target($0) == nil }.compactMap { source($0)?.id })
                 for c in m.tags where !gone.contains(c.taskId) {
                     try repos.tags.setTags(taskId: c.taskId, names: forward ? c.after : c.before)
@@ -195,11 +212,18 @@ final class AppStore {
 
     // MARK: Reading for the planner
 
-    func event(_ id: String) -> EventItem? { try? repos.events.get(id) }
+    /// A stored event, or one occurrence of a repeating event (its id is `OccurrenceID`). Nil when that day is not part of the series.
+    func event(_ id: String) -> EventItem? {
+        guard let p = OccurrenceID.parse(id) else { return try? repos.events.get(id) }
+        guard let series = try? repos.events.get(p.series), let rule = series.recurrence else { return nil }
+        let gone = Set((try? repos.events.exdates(series.id)) ?? [])
+        guard RecurrenceEngine.occurrences(rule: rule, seriesStart: series.start.day, in: p.day...p.day, exdates: gone).contains(p.day) else { return nil }
+        return RecurrenceEngine.occurrence(of: series, on: p.day)
+    }
     func task(_ id: String) -> TaskItem? { try? repos.tasks.get(id) }
 
     func blocks(for days: ClosedRange<DayKey>) -> [PlannerBlock] {
-        guard let events = try? repos.events.inRange(days.lowerBound, days.upperBound) else { return [] }
+        let events = eventItems(in: days)
         var tasks: [String: TaskItem] = [:]
         var out: [PlannerBlock] = []
         for e in events where !e.allDay {
@@ -232,7 +256,7 @@ final class AppStore {
     }
 
     func allDayEvents(for days: ClosedRange<DayKey>) -> [EventItem] {
-        ((try? repos.events.inRange(days.lowerBound, days.upperBound)) ?? []).filter(\.allDay)
+        eventItems(in: days).filter(\.allDay)
     }
 
     /// Open tasks for this day, then this week, then the inbox, that have no block on `day`.
@@ -350,13 +374,15 @@ final class AppStore {
 
     /// Moves and resizes. With `ripple`, later overlapping blocks on the same day are pushed down.
     /// Returns how many other blocks were pushed.
+    /// A block of a repeating event does not change until the user says "This event only" or "All events".
     @discardableResult
     func applyEdits(_ edits: [BlockEdit], ripple: Bool, name: String) -> Int {
         var all = edits
         var pushed = 0
         if ripple, let primary = edits.first {
+            // Occurrences of a repeating event stay where they are. Only stored blocks are pushed.
             let others = blocks(for: primary.day...primary.day)
-                .filter { b in !edits.contains { $0.id == b.id } }.map(\.span)
+                .filter { b in OccurrenceID.parse(b.id) == nil && !edits.contains { $0.id == b.id } }.map(\.span)
             let moved = Span(id: primary.id, start: primary.start, end: primary.end)
             for s in PlannerMath.ripple(moved: moved, others: others) {
                 all.append(BlockEdit(id: s.id, day: primary.day, start: s.start, end: s.end))
@@ -364,11 +390,16 @@ final class AppStore {
             }
         }
         var m = Mutation(name: name)
+        var repeating: [(old: EventItem, new: EventItem)] = []
         for edit in all {
             guard let old = event(edit.id) else { continue }
-            var new = old
+            var new = draft(for: old)
             new.start = WallTime(day: edit.day, minute: edit.start)
             new.end = WallTime(day: edit.day, minute: edit.end)
+            if OccurrenceID.parse(edit.id) != nil {
+                if new != draft(for: old) { repeating.append((old, new)) }
+                continue
+            }
             guard new != old else { continue }
             m.events.append((old, new))
             if let tid = old.taskId, edit.day != old.start.day, let task = task(tid) {
@@ -376,12 +407,19 @@ final class AppStore {
             }
         }
         if commit(m), pushed > 0 { showToast("Pushed \(pushed) block\(pushed == 1 ? "" : "s")") }
+        changeOccurrences(repeating, verb: name.hasPrefix("Resize") ? "Resize" : "Move", name: name)
         return pushed
     }
 
     func rename(blockId: String, to title: String) {
         let name = title.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !name.isEmpty, let old = event(blockId) else { return }
+        if OccurrenceID.parse(blockId) != nil {
+            var new = draft(for: old)
+            new.title = name
+            changeOccurrences([(old, new)], verb: "Rename", name: "Rename")
+            return
+        }
         var m = Mutation(name: "Rename")
         var new = old
         new.title = name
@@ -395,40 +433,61 @@ final class AppStore {
     }
 
     func setDuration(blockIds: [String], minutes: Int) {
-        var m = Mutation(name: "Change Duration")
-        for id in blockIds {
-            guard let old = event(id) else { continue }
-            var new = old
-            let end = min(1440, old.start.minute + minutes)
-            new.end = WallTime(day: old.start.day, minute: end)
-            m.events.append((old, new))
+        edit(blockIds, verb: "Change", name: "Change Duration") { e in
+            e.end = WallTime(day: e.start.day, minute: min(1440, e.start.minute + minutes))
         }
-        commit(m)
     }
 
     func setColor(blockIds: [String], name: String) {
-        var m = Mutation(name: "Change Colour")
-        for id in blockIds {
+        edit(blockIds, verb: "Change", name: "Change Colour") { $0.color = name }
+    }
+
+    /// Applies `change` to each block. Stored blocks change at once. Blocks of a repeating event ask first.
+    private func edit(_ ids: [String], verb: String, name: String, _ change: (inout EventItem) -> Void) {
+        var m = Mutation(name: name)
+        var repeating: [(old: EventItem, new: EventItem)] = []
+        for id in ids {
             guard let old = event(id) else { continue }
-            var new = old
-            new.color = name
-            m.events.append((old, new))
+            var new = draft(for: old)
+            change(&new)
+            if OccurrenceID.parse(id) != nil { repeating.append((old, new)) } else { m.events.append((old, new)) }
         }
         commit(m)
+        changeOccurrences(repeating, verb: verb, name: name)
     }
 
     /// Removes blocks. The task stays and goes back to the unscheduled list.
+    /// A block of a repeating event asks first: this day only, or the whole series.
     func deleteBlocks(_ ids: [String], name: String = "Delete Block") {
         var m = Mutation(name: name)
-        for id in ids { if let old = event(id) { m.events.append((old, nil)) } }
+        var repeating: [EventItem] = []
+        for id in ids {
+            guard let old = event(id) else { continue }
+            if OccurrenceID.parse(id) != nil { repeating.append(old) } else { m.events.append((old, nil)) }
+        }
         if commit(m) { selection.subtract(ids) }
+        guard !repeating.isEmpty else { return }
+        askScope("Delete") { [weak self] scope in
+            guard let self else { return }
+            var all = Mutation(name: name)
+            var seenSeries = Set<String>()
+            for old in repeating {
+                if scope == .all, let p = OccurrenceID.parse(old.id), !seenSeries.insert(p.series).inserted { continue }
+                all.append(self.deletion(of: old, scope: scope, name: name))
+            }
+            if self.commit(all) { self.selection.subtract(ids) }
+        }
     }
 
     func duplicate(blockIds: [String]) {
         var m = Mutation(name: "Duplicate")
         var newIds: Set<String> = []
         for id in blockIds {
-            guard let old = event(id), old.seriesId == nil else { continue }
+            guard let old = event(id) else { continue }
+            guard old.seriesId == nil else {
+                showToast("A repeating event cannot be copied here yet.")
+                continue
+            }
             let len = old.end.minute - old.start.minute
             let s = PlannerMath.clampMove(start: old.end.minute, length: len)
             var copy = old
@@ -443,6 +502,7 @@ final class AppStore {
 
     func split(blockId: String) {
         guard let old = event(blockId) else { return }
+        guard old.seriesId == nil else { showToast("A repeating event cannot be split."); return }
         let len = old.end.minute - old.start.minute
         guard len >= 10 else { showToast("Block is too short to split."); return }
         let mid = max(old.start.minute + 5, min(old.end.minute - 5, PlannerMath.snap(old.start.minute + len / 2, step: 5)))
