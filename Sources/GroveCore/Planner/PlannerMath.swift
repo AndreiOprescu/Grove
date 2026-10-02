@@ -1,0 +1,115 @@
+import Foundation
+
+/// A time range on one day, in minutes since midnight.
+public struct Span: Equatable, Sendable {
+    public var id: String
+    public var start: Int
+    public var end: Int
+    public init(id: String, start: Int, end: Int) { self.id = id; self.start = start; self.end = end }
+    public var length: Int { end - start }
+}
+
+/// Where a block sits when overlapping blocks share the width.
+public struct Placement: Equatable, Sendable {
+    public var column: Int
+    public var columns: Int
+    public init(column: Int, columns: Int) { self.column = column; self.columns = columns }
+}
+
+/// Pure planner maths. No UI, no database. All values are minutes since midnight.
+public enum PlannerMath {
+    public static let dayEnd = 1440
+
+    /// Round to the nearest step. Halves round up.
+    public static func snap(_ minute: Int, step: Int) -> Int {
+        guard step > 1 else { return minute }
+        return Int((Double(minute) / Double(step)).rounded(.toNearestOrAwayFromZero)) * step
+    }
+
+    /// Keep a block of `length` inside 00:00...24:00 when moving.
+    public static func clampMove(start: Int, length: Int) -> Int {
+        max(0, min(start, dayEnd - length))
+    }
+
+    /// Move the top edge. The end stays. The block keeps at least `minLen` minutes.
+    public static func resizeTop(start: Int, end: Int, newStart: Int, step: Int, minLen: Int = 5) -> (Int, Int) {
+        let s = max(0, min(snap(newStart, step: step), end - minLen))
+        return (s, end)
+    }
+
+    /// Move the bottom edge. The start stays. The block keeps at least `minLen` minutes.
+    public static func resizeBottom(start: Int, end: Int, newEnd: Int, step: Int, minLen: Int = 5) -> (Int, Int) {
+        let e = min(dayEnd, max(snap(newEnd, step: step), start + minLen))
+        return (start, e)
+    }
+
+    /// Side-by-side layout. Spans that only touch (end == start) do not overlap.
+    public static func layoutColumns(_ spans: [Span]) -> [String: Placement] {
+        let sorted = spans.sorted { $0.start != $1.start ? $0.start < $1.start : ($0.end - $0.start) > ($1.end - $1.start) }
+        var result: [String: Placement] = [:]
+        var cluster: [Span] = []
+        var clusterEnd = Int.min
+        func flush() {
+            var colEnds: [Int] = []
+            var cols: [String: Int] = [:]
+            for s in cluster {
+                if let c = colEnds.firstIndex(where: { $0 <= s.start }) { colEnds[c] = s.end; cols[s.id] = c }
+                else { colEnds.append(s.end); cols[s.id] = colEnds.count - 1 }
+            }
+            for s in cluster { result[s.id] = Placement(column: cols[s.id]!, columns: colEnds.count) }
+            cluster.removeAll()
+        }
+        for s in sorted {
+            if !cluster.isEmpty && s.start >= clusterEnd { flush(); clusterEnd = Int.min }
+            cluster.append(s)
+            clusterEnd = max(clusterEnd, s.end)
+        }
+        if !cluster.isEmpty { flush() }
+        return result
+    }
+
+    /// Push spans that overlap `moved` and start at or after `moved.start` down, cascading.
+    /// Returns only the spans whose start changed. Clamps at 24:00 (may overlap there).
+    public static func ripple(moved: Span, others: [Span]) -> [Span] {
+        let candidates = others
+            .filter { $0.id != moved.id && $0.start >= moved.start }
+            .sorted { $0.start != $1.start ? $0.start < $1.start : $0.id < $1.id }
+        var frontier = moved.end
+        var changed: [Span] = []
+        for s in candidates {
+            guard s.start < frontier else { break }
+            let newStart = min(frontier, dayEnd - s.length)
+            if newStart != s.start { changed.append(Span(id: s.id, start: newStart, end: newStart + s.length)) }
+            frontier = newStart + s.length
+        }
+        return changed
+    }
+
+    /// First start (on the step grid) with `length` free minutes before `until`. Nil if none.
+    public static func firstFreeSlot(length: Int, busy: [Span], from: Int, until: Int, step: Int) -> Int? {
+        let step = max(1, step)
+        func ceilStep(_ m: Int) -> Int { (m + step - 1) / step * step }
+        var candidate = ceilStep(max(0, from))
+        for b in busy.sorted(by: { $0.start < $1.start }) {
+            if b.end <= candidate { continue }
+            if b.start >= candidate + length { break }
+            candidate = ceilStep(b.end)
+        }
+        return candidate + length <= until ? candidate : nil
+    }
+
+    /// "11:15 – 12:45 · 1h 30m"
+    public static func label(start: Int, end: Int) -> String {
+        "\(clock(start)) – \(clock(end)) · \(duration(end - start))"
+    }
+
+    public static func clock(_ minute: Int) -> String {
+        String(format: "%02d:%02d", minute / 60, minute % 60)
+    }
+
+    public static func duration(_ minutes: Int) -> String {
+        let h = minutes / 60, m = minutes % 60
+        if h == 0 { return "\(m)m" }
+        return m == 0 ? "\(h)h" : "\(h)h \(m)m"
+    }
+}
