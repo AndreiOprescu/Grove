@@ -72,25 +72,17 @@ struct PlannerGrid: View {
 
     var body: some View {
         ScrollView(.vertical) {
-            ZStack(alignment: .topLeading) {
-                gridLines
-                ForEach(Array(days.enumerated()), id: \.element) { index, day in
-                    dayColumn(index: index, day: day)
+            // The layers are drawn in an overlay on purpose. They have fixed widths (from `gridWidth`),
+            // so as the scroll content they set a minimum width. That minimum never shrank, so the
+            // grid stayed wide after the tray opened and pushed the window content off screen.
+            // This base view only takes the width the scroll view offers; the layers cannot change it.
+            Color.clear
+                .frame(maxWidth: .infinity, minHeight: geo.totalHeight, maxHeight: geo.totalHeight)
+                .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { w in
+                    if abs(w - gridWidth) > 0.5 { gridWidth = w }
                 }
-                pastFade
-                ForEach(blocks) { block in blockView(block) }
-                createRect
-                draftView
-                nowLine
-                liveLabel
-            }
-            // Take the width the scroll view offers. A fixed width here made the scroll view grow
-            // by its scroller width on every pass (an endless layout loop).
-            .frame(maxWidth: .infinity, minHeight: geo.totalHeight, maxHeight: geo.totalHeight, alignment: .topLeading)
-            .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { w in
-                if abs(w - gridWidth) > 0.5 { gridWidth = w }
-            }
-            .coordinateSpace(name: "plannerGrid")
+                .overlay(alignment: .topLeading) { layers }
+                .coordinateSpace(name: "plannerGrid")
         }
         .scrollPosition($position)
         .scrollDisabled(isDragging)
@@ -119,6 +111,21 @@ struct PlannerGrid: View {
     }
 
     // MARK: Layers
+
+    private var layers: some View {
+        ZStack(alignment: .topLeading) {
+            gridLines
+            ForEach(Array(days.enumerated()), id: \.element) { index, day in
+                dayColumn(index: index, day: day)
+            }
+            pastFade
+            ForEach(blocks) { block in blockView(block) }
+            createRect
+            draftView
+            nowLine
+            liveLabel
+        }
+    }
 
     private var gridLines: some View {
         Canvas { ctx, size in

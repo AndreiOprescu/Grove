@@ -119,20 +119,20 @@ struct PlannerView: View {
 
     private var dayHeaders: some View {
         HStack(spacing: 0) {
-            Color.clear.frame(width: geo.gutterWidth)
+            Color.clear.frame(width: geo.gutterWidth, height: 0)
             ForEach(days, id: \.self) { day in
-                HStack(spacing: 3) {
-                    Text(day.date.formatted(.dateTime.weekday(.abbreviated)))
-                    Text(day.date.formatted(.dateTime.day())).fontWeight(.bold)
+                VStack(spacing: 0) {
+                    Text(day.date.formatted(.dateTime.weekday(.abbreviated))).font(.system(size: 11, design: .rounded))
+                    Text(day.date.formatted(.dateTime.day())).font(.system(size: 15, weight: .bold, design: .rounded))
                 }
-                .font(.system(size: 11, design: .rounded))
                 .foregroundStyle(day == .today() ? theme.accent : theme.ink)
                 .frame(maxWidth: .infinity)
-                .padding(.vertical, 3)
+                .padding(.vertical, 6)
                 .contentShape(Rectangle())
                 .onTapGesture { store.selectedDay = day; modeRaw = PlannerMode.day.rawValue }
             }
         }
+        .fixedSize(horizontal: false, vertical: true)   // the row is only as tall as its labels
         .overlay(alignment: .bottom) { Rectangle().fill(theme.line).frame(height: 1) }
     }
 
