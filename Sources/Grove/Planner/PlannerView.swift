@@ -44,7 +44,7 @@ struct PlannerView: View {
                 if trayOpen {
                     UnscheduledTray(day: store.selectedDay, isDropTarget: dropToTray,
                                     workStart: workStart, workEnd: workEnd, snapStep: snapStep)
-                        .transition(.move(edge: .leading).combined(with: .opacity))
+                        .transition(.opacity)
                 }
                 VStack(spacing: 0) {
                     if days.count > 1 { dayHeaders }
@@ -56,10 +56,14 @@ struct PlannerView: View {
                 .clipShape(RoundedRectangle(cornerRadius: theme.radius, style: .continuous))
             }
         }
-        .padding(16)
+        .padding(.horizontal, 16).padding(.bottom, 16)
+        .padding(.top, 34)   // the window buttons sit in this space (title bar is hidden)
         .overlay(alignment: .bottom) { toast }
         .onAppear { geo.hourHeight = CGFloat(hourHeight) }
         .onChange(of: geo.hourHeight) { _, new in hourHeight = Double(new) }
+        .alert("Busy day", isPresented: Binding(get: { store.overloadWarning != nil }, set: { if !$0 { store.overloadWarning = nil } })) {
+            Button("OK") { store.overloadWarning = nil }
+        } message: { Text(store.overloadWarning ?? "") }
         .sheet(isPresented: Binding(get: { plan != nil }, set: { if !$0 { plan = nil } })) { planSheet }
         .animation(.easeInOut(duration: 0.2), value: trayOpen)
     }
@@ -78,8 +82,10 @@ struct PlannerView: View {
             Button { move(1) } label: { Image(systemName: "chevron.right") }.help("Next")
             VStack(alignment: .leading, spacing: 0) {
                 Text(title).font(.system(.title2, design: .serif, weight: .semibold)).foregroundStyle(theme.ink)
-                Text("\(PlannerMath.duration(totals.planned)) planned · \(PlannerMath.duration(totals.free)) free · \(totals.done)/\(totals.total) done")
-                    .font(.system(size: 11, design: .rounded)).foregroundStyle(theme.muted)
+                let over = totals.planned > store.dailyLimitMinutes
+                Text("\(over ? "⚠︎ " : "")\(PlannerMath.duration(totals.planned)) planned · \(PlannerMath.duration(totals.free)) free · \(totals.done)/\(totals.total) done")
+                    .font(.system(size: 11, weight: over ? .bold : .regular, design: .rounded))
+                    .foregroundStyle(over ? theme.accent2 : theme.muted)
             }
             Spacer()
             Button("Plan my day") { showPlan() }.help("Fit today's unscheduled tasks into free working hours")
@@ -115,13 +121,14 @@ struct PlannerView: View {
         HStack(spacing: 0) {
             Color.clear.frame(width: geo.gutterWidth)
             ForEach(days, id: \.self) { day in
-                VStack(spacing: 0) {
-                    Text(day.date.formatted(.dateTime.weekday(.abbreviated))).font(.system(size: 11, design: .rounded))
-                    Text(day.date.formatted(.dateTime.day())).font(.system(size: 15, weight: .bold, design: .rounded))
+                HStack(spacing: 3) {
+                    Text(day.date.formatted(.dateTime.weekday(.abbreviated)))
+                    Text(day.date.formatted(.dateTime.day())).fontWeight(.bold)
                 }
+                .font(.system(size: 11, design: .rounded))
                 .foregroundStyle(day == .today() ? theme.accent : theme.ink)
                 .frame(maxWidth: .infinity)
-                .padding(.vertical, 6)
+                .padding(.vertical, 3)
                 .contentShape(Rectangle())
                 .onTapGesture { store.selectedDay = day; modeRaw = PlannerMode.day.rawValue }
             }

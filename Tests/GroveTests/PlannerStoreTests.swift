@@ -155,4 +155,61 @@ struct PlannerStoreTests {
         s.createFromDraft(title: "Late", day: day, start: 1380, end: 1440, asEvent: true)
         #expect(s.blocks(for: day...day).first?.endMinute == 1440)
     }
+
+    // MARK: Busy-day alert
+
+    private func addEvent(_ s: AppStore, _ start: Int, _ end: Int, day: DayKey? = nil) {
+        s.createFromDraft(title: "E\(start)", day: day ?? self.day, start: start, end: end, asEvent: true)
+    }
+
+    @Test func plannedMinutesCountOverlapsOnce() throws {
+        let s = try makeStore()
+        addEvent(s, 600, 720)
+        addEvent(s, 660, 780)   // overlaps 60 min
+        #expect(s.plannedMinutes(on: day) == 180)
+    }
+
+    @Test func noAlertAtExactlyNineHours() throws {
+        let s = try makeStore()
+        for h in 0..<9 { addEvent(s, 480 + h * 60, 540 + h * 60) }
+        #expect(s.plannedMinutes(on: day) == 540)
+        #expect(s.overloadWarning == nil)
+    }
+
+    @Test func alertWhenDayPassesNineHours() throws {
+        let s = try makeStore()
+        for h in 0..<9 { addEvent(s, 480 + h * 60, 540 + h * 60) }
+        addEvent(s, 1020, 1050)  // 9h30m
+        let warning = try #require(s.overloadWarning)
+        #expect(warning.contains("9h 30m"))
+    }
+
+    @Test func alertOnlyWhenCrossingNotWhileAlreadyOver() throws {
+        let s = try makeStore()
+        for h in 0..<9 { addEvent(s, 480 + h * 60, 540 + h * 60) }
+        addEvent(s, 1020, 1050)
+        s.overloadWarning = nil          // user dismissed it
+        addEvent(s, 1100, 1130)          // still over: no new alert
+        #expect(s.overloadWarning == nil)
+    }
+
+    @Test func movingBlockToAnotherDayCanTriggerAlert() throws {
+        let s = try makeStore()
+        let next = day.adding(days: 1)
+        for h in 0..<9 { addEvent(s, 480 + h * 60, 540 + h * 60, day: next) }
+        addEvent(s, 1200, 1230)
+        let b = try #require(s.blocks(for: day...day).first)
+        s.applyEdits([BlockEdit(id: b.id, day: next, start: 1200, end: 1230)], ripple: false, name: "Move Block")
+        #expect(s.overloadWarning != nil)
+    }
+
+    @Test func undoDoesNotAlert() throws {
+        let s = try makeStore()
+        for h in 0..<9 { addEvent(s, 480 + h * 60, 540 + h * 60) }
+        addEvent(s, 1020, 1050)
+        s.overloadWarning = nil
+        s.undo()
+        s.redo()
+        #expect(s.overloadWarning == nil)
+    }
 }

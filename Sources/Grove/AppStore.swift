@@ -20,6 +20,8 @@ final class AppStore {
     var selection: Set<String> = []
     var toast: String?
     var errorMessage: String?
+    /// Set when a change takes a day past the daily limit. The planner shows it as an alert.
+    var overloadWarning: String?
 
     private(set) var undoStack: [Mutation] = []
     private(set) var redoStack: [Mutation] = []
@@ -48,11 +50,50 @@ final class AppStore {
     @discardableResult
     func commit(_ m: Mutation) -> Bool {
         guard !m.isEmpty else { return false }
+        let days = plannedDays(in: m)
+        let before = Dictionary(uniqueKeysWithValues: days.map { ($0, plannedMinutes(on: $0)) })
         guard apply(m, forward: true) else { return false }
+        warnIfOverloaded(days, before: before)
         undoStack.append(m)
         redoStack.removeAll()
         if undoStack.count > 200 { undoStack.removeFirst() }
         return true
+    }
+
+    // MARK: Busy-day limit
+
+    /// Planned time per day above this many minutes triggers an alert. Default 9 hours.
+    var dailyLimitMinutes: Int {
+        let v = UserDefaults.standard.integer(forKey: "planner.dailyLimitMin")
+        return v > 0 ? v : 9 * 60
+    }
+
+    /// Minutes of the day that have at least one block. Overlaps count once.
+    func plannedMinutes(on day: DayKey) -> Int {
+        var covered = Set<Int>()
+        for b in blocks(for: day...day) { covered.formUnion(b.startMinute..<b.endMinute) }
+        return covered.count
+    }
+
+    private func plannedDays(in m: Mutation) -> [DayKey] {
+        var days = Set<DayKey>()
+        for e in m.events {
+            for ev in [e.before, e.after] { if let ev, !ev.allDay { days.insert(ev.start.day) } }
+        }
+        return days.sorted()
+    }
+
+    /// Alerts only when a change moves a day from within the limit to over it.
+    private func warnIfOverloaded(_ days: [DayKey], before: [DayKey: Int]) {
+        let limit = dailyLimitMinutes
+        for day in days {
+            let after = plannedMinutes(on: day)
+            if (before[day] ?? 0) <= limit && after > limit {
+                let name = day.date.formatted(.dateTime.weekday(.wide).day().month(.wide))
+                overloadWarning = "\(name) has \(PlannerMath.duration(after)) planned. That is more than \(PlannerMath.duration(limit)). Move or shorten something to leave room to rest."
+                return
+            }
+        }
     }
 
     func undo() {
