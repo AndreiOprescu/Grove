@@ -29,6 +29,11 @@ public final class ReferenceIndexer {
         return nil
     }
 
+    public func resolve(title: String, id: String?) throws -> Target? {
+        let none = ""
+        return try resolve(Mention(title: title, id: id, range: none.startIndex..<none.endIndex))
+    }
+
     public func title(of ref: ItemRef) throws -> String? {
         try target(id: ref.id).flatMap { $0.ref == ref ? $0.title : nil }
     }

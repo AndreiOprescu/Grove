@@ -51,7 +51,9 @@ public enum MarkdownEdit {
         }
     }
 
-    private static let prefixRegex = try! Regex(#"^( *)(?:([-*+]) \[([ xX])\] |([-*+]) |(\d{1,9})\. |(#{1,6}) |(> ))"#)
+    /// Groups: 1 indent · 2 and 3 checklist bullet and box · 4 bullet · 5 number · 6 hashes · 7 quote.
+    static let prefixPattern = #"^( *)(?:([-*+]) \[([ xX])\] |([-*+]) |(\d{1,9})\. |(#{1,6}) |(> ))"#
+    private static let prefixRegex = try! Regex(prefixPattern)
 
     static func prefix(of line: String) -> Prefix? {
         guard let m = line.prefixMatch(of: prefixRegex) else { return nil }
@@ -283,5 +285,41 @@ public enum MarkdownEdit {
     public static func insertMention(title: String, id: String, replacing range: NSRange) -> TextEdit {
         let text = ReferenceParser.mention(title: title, id: id)
         return TextEdit(range: range, replacement: text, selection: NSRange(location: range.location + text.utf16.count, length: 0))
+    }
+
+    /// Puts an image on a line of its own at the selection. The caret ends on the line after it.
+    public static func insertImage(id: String, alt: String, in text: String, selection: NSRange) -> TextEdit {
+        let ns = text as NSString
+        let newline = unichar(10)
+        let lead = selection.location > 0 && ns.character(at: selection.location - 1) != newline ? "\n" : ""
+        let end = NSMaxRange(selection)
+        let nextIsBreak = end < ns.length && ns.character(at: end) == newline
+        let replacement = lead + ReferenceParser.imageMarkup(id: id, alt: alt) + (nextIsBreak ? "" : "\n")
+        // When a line break follows, the caret steps over it. It is part of the text that stays.
+        let caret = selection.location + replacement.utf16.count + (nextIsBreak ? 1 : 0)
+        return TextEdit(range: selection, replacement: replacement, selection: NSRange(location: caret, length: 0))
+    }
+
+    /// The text without the image `id`. A line that held only that image goes away with its line break.
+    public static func removeImage(id: String, from text: String) -> String {
+        let ns = text as NSString
+        let pattern = "!\\[[^\\]\\n]*\\]\\(grove-image:\(NSRegularExpression.escapedPattern(for: id))\\)"
+        guard let regex = try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive]) else { return text }
+        var out = text
+        for m in regex.matches(in: text, range: NSRange(location: 0, length: ns.length)).reversed() {
+            var cut = m.range
+            let line = ns.lineRange(for: m.range)
+            let alone = line.location == cut.location && (NSMaxRange(line) == NSMaxRange(cut)
+                || (NSMaxRange(line) - 1 == NSMaxRange(cut) && ns.character(at: NSMaxRange(cut)) == 10))
+            if alone {
+                cut = line
+                // the last line has no break of its own: take the one before it
+                if NSMaxRange(line) == ns.length, line.location > 0, ns.character(at: line.location - 1) == 10 {
+                    cut = NSRange(location: line.location - 1, length: line.length + 1)
+                }
+            }
+            out = (out as NSString).replacingCharacters(in: cut, with: "")
+        }
+        return out
     }
 }

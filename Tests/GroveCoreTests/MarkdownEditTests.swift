@@ -233,4 +233,41 @@ struct MarkdownEditTests {
         #expect(found.id == id)
         #expect(found.title == "Plan draft v2")
     }
+
+    // MARK: Images
+
+    private let imageID = "11111111-2222-3333-4444-555555555555"
+    private func image(_ marked: String) -> String {
+        run(marked) { MarkdownEdit.insertImage(id: imageID, alt: "shot", in: $0, selection: $1) }!
+    }
+    private var markup: String { ReferenceParser.imageMarkup(id: imageID, alt: "shot") }
+
+    @Test func imageGoesOnALineOfItsOwn() {
+        #expect(image("hello|") == "hello\n\(markup)\n|")
+        #expect(image("|") == "\(markup)\n|")
+        #expect(image("ab|cd") == "ab\n\(markup)\n|cd")
+        #expect(image("a\n|") == "a\n\(markup)\n|")
+    }
+
+    @Test func imageBeforeAnExistingLineBreakReusesIt() {
+        #expect(image("a\n|\nb") == "a\n\(markup)\n|b")
+    }
+
+    @Test func imageReplacesASelection() {
+        #expect(image("a ‹old› b") == "a \n\(markup)\n| b")
+    }
+
+    @Test func removingAnImageTakesItsLineToo() {
+        let other = "99999999-2222-3333-4444-555555555555"
+        let otherMarkup = ReferenceParser.imageMarkup(id: other, alt: "other")
+        #expect(MarkdownEdit.removeImage(id: imageID, from: "a\n\(markup)\nb") == "a\nb")
+        #expect(MarkdownEdit.removeImage(id: imageID, from: "\(markup)\nb") == "b")
+        #expect(MarkdownEdit.removeImage(id: imageID, from: "a\n\(markup)") == "a")
+        #expect(MarkdownEdit.removeImage(id: imageID, from: markup) == "")
+        // other text on the line stays
+        #expect(MarkdownEdit.removeImage(id: imageID, from: "see \(markup) here") == "see  here")
+        // other images stay
+        #expect(MarkdownEdit.removeImage(id: imageID, from: "\(markup)\n\(otherMarkup)") == otherMarkup)
+        #expect(MarkdownEdit.removeImage(id: imageID, from: "no image") == "no image")
+    }
 }

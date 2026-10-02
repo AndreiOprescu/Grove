@@ -80,6 +80,16 @@ struct ReferenceIndexerTests {
         #expect(try r.refs.canonicalize("[[Book hotel]]").targets == [ItemRef(.task, child.id)])
     }
 
+    @Test func resolvesByTitleAndIdWithoutAMentionValue() throws {
+        let r = try makeRepos()
+        let milk = TaskItem(title: "Buy milk")
+        try r.tasks.save(milk)
+        #expect(try r.refs.resolve(title: "buy milk", id: nil)?.ref == ItemRef(.task, milk.id))
+        #expect(try r.refs.resolve(title: "stale title", id: milk.id)?.title == "Buy milk")
+        #expect(try r.refs.resolve(title: "Buy milk", id: UUID().uuidString) == nil)
+        #expect(try r.refs.resolve(title: "Nope", id: nil) == nil)
+    }
+
     // MARK: links table
 
     @Test func reindexWritesAndClearsBacklinks() throws {
