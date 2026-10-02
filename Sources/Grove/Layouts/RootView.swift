@@ -19,19 +19,28 @@ struct RootView: View {
     }
 
     var body: some View {
-        HStack(spacing: 0) {
-            if tasksOpen {
-                TasksPane()
-                    .padding(.leading, 16).padding(.top, 34).padding(.bottom, 16)
-                    .transition(.move(edge: .leading).combined(with: .opacity))
-            }
-            PlannerView()
-            if let id = store.selectedTaskId {
-                TaskInspector(taskId: id)
-                    .padding(.trailing, 16).padding(.top, 34).padding(.bottom, 16)
-                    .transition(.move(edge: .trailing).combined(with: .opacity))
+        Group {
+            switch store.screen {
+            case .planner:
+                HStack(spacing: 0) {
+                    if tasksOpen {
+                        TasksPane()
+                            .padding(.leading, 16).padding(.top, 34).padding(.bottom, 16)
+                            .transition(.move(edge: .leading).combined(with: .opacity))
+                    }
+                    PlannerView()
+                    if let id = store.selectedTaskId {
+                        TaskInspector(taskId: id)
+                            .padding(.trailing, 16).padding(.top, 34).padding(.bottom, 16)
+                            .transition(.move(edge: .trailing).combined(with: .opacity))
+                    }
+                }
+            case .notes:
+                NotesView()
             }
         }
+        .overlay(alignment: .top) { ScreenSwitch().padding(.top, 5) }
+        .overlay(alignment: .bottom) { ToastView() }
         .animation(.easeInOut(duration: 0.2), value: store.selectedTaskId != nil)
         .animation(.easeInOut(duration: 0.2), value: tasksOpen)
         .background(theme.bg.ignoresSafeArea())

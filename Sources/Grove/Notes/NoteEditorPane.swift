@@ -1,0 +1,192 @@
+import SwiftUI
+import AppKit
+import GroveCore
+
+/// One note: title, text, tags and what links here.
+struct NoteEditorPane: View {
+    @Environment(AppStore.self) private var store
+    @Environment(\.theme) private var theme
+    let noteId: String
+
+    // What the fields show. The store is only written when the user changes something.
+    @State private var title = ""
+    @State private var text = ""
+    @State private var loadedId: String?
+    /// True from the first key typed in the text until the text loses the keyboard.
+    @State private var typing = false
+    @State private var saveTask: Task<Void, Never>?
+    @State private var chipToken = 0
+    @FocusState private var titleFocus: Bool
+
+    var body: some View {
+        let _ = store.revision
+        Group {
+            if let note = store.note(noteId) {
+                content(note)
+            } else {
+                Text("This note is gone.").foregroundStyle(theme.muted).frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .background(RoundedRectangle(cornerRadius: theme.radius, style: .continuous).fill(theme.surface))
+        .overlay(RoundedRectangle(cornerRadius: theme.radius, style: .continuous).strokeBorder(theme.line))
+        .onAppear { load(noteId) }
+        .onChange(of: store.revision) { _, _ in
+            if !typing { chipToken += 1 }
+            if !typing, !titleFocus, let n = store.note(noteId) {
+                if n.body != text { text = n.body }
+                if n.title != title { title = n.title }
+            }
+        }
+        .onDisappear { flush(noteId) }
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.willResignActiveNotification)) { _ in flush(noteId) }
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.willTerminateNotification)) { _ in flush(noteId) }
+    }
+
+    // MARK: Loading and saving
+
+    private func load(_ id: String) {
+        guard let n = store.note(id) else { return }
+        title = n.title
+        text = n.body
+        typing = false
+        loadedId = id
+    }
+
+    /// Writes any unsaved title and text of note `id` now.
+    private func flush(_ id: String) {
+        saveTask?.cancel()
+        saveTask = nil
+        guard loadedId == id, let n = store.note(id) else { return }
+        if text != n.body { store.setNoteBody(id, text) }
+        let name = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        if n.kind == .note, !name.isEmpty, name != n.title { store.renameNote(id, to: name) }
+    }
+
+    private func scheduleSave() {
+        let id = noteId
+        saveTask?.cancel()
+        saveTask = Task {
+            try? await Task.sleep(for: .milliseconds(500))
+            guard !Task.isCancelled else { return }
+            if loadedId == id { store.setNoteBody(id, text) }
+        }
+    }
+
+    private func bodyEnded() {
+        flush(noteId)
+        typing = false
+        if let n = store.note(noteId), n.body != text { text = n.body }   // the saved text has the ids added
+        chipToken += 1
+    }
+
+    private func commitTitle() {
+        let name = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        if name.isEmpty { title = store.note(noteId)?.title ?? title; return }
+        store.renameNote(noteId, to: name)
+    }
+
+    // MARK: Content
+
+    private func content(_ note: Note) -> some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 14) {
+                header(note)
+                tagRow(note)
+                RichTextField(text: Binding(get: { text }, set: { text = $0; typing = true; scheduleSave() }),
+                              services: store.editorServices(excluding: ItemRef(.note, noteId)),
+                              placeholder: "Write something. Type [[ to link a task, note or event.",
+                              minHeight: 320, refreshToken: chipToken, onEnd: bodyEnded)
+                linked
+            }
+            .frame(maxWidth: 780, alignment: .leading)
+            .frame(maxWidth: .infinity)
+            .padding(.horizontal, 28).padding(.vertical, 22)
+        }
+        .scrollIndicators(.hidden)
+    }
+
+    private func header(_ note: Note) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack(alignment: .firstTextBaseline) {
+                if note.kind == .note {
+                    TextField("Title", text: $title)
+                        .textFieldStyle(.plain)
+                        .font(.system(size: 28, weight: .semibold, design: .serif))
+                        .foregroundStyle(theme.ink)
+                        .focused($titleFocus)
+                        .onSubmit(commitTitle)
+                } else {
+                    Text(note.title).font(.system(size: 28, weight: .semibold, design: .serif)).foregroundStyle(theme.ink)
+                }
+                Spacer(minLength: 8)
+                Button { store.togglePin(note.id) } label: { Image(systemName: note.pinned ? "pin.fill" : "pin") }
+                    .buttonStyle(.plain).foregroundStyle(note.pinned ? theme.accent2 : theme.muted)
+                    .help(note.pinned ? "Unpin" : "Pin to the top of the list")
+                Menu {
+                    Button("Duplicate") { store.duplicateNote(note.id) }
+                    Divider()
+                    Button("Delete note", role: .destructive) { store.deleteNote(note.id); store.showToast("Note deleted. ⌘Z brings it back.") }
+                } label: { Image(systemName: "ellipsis.circle") }
+                    .menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize().foregroundStyle(theme.muted)
+            }
+            Text(kindLine(note)).font(.system(size: 12, design: .rounded)).foregroundStyle(theme.muted)
+        }
+    }
+
+    private func kindLine(_ note: Note) -> String {
+        let edited = "Edited \(TaskFormat.dayLabel(DayKey(String(note.updatedAt.prefix(10))))), \(note.updatedAt.dropFirst(11).prefix(5))"
+        switch note.kind {
+        case .daily: return "Daily note · \(edited)"
+        case .weekly: return "Weekly note · \(edited)"
+        case .note: return edited
+        }
+    }
+
+    @ViewBuilder private func tagRow(_ note: Note) -> some View {
+        let tags = store.noteTags(note.id)
+        if !tags.isEmpty {
+            FlowLayout(spacing: 5) {
+                ForEach(tags, id: \.self) { tag in
+                    Button { store.noteFilter = .tag(tag) } label: {
+                        Text("#\(tag)").font(.system(size: 11, design: .rounded))
+                            .padding(.horizontal, 8).padding(.vertical, 3)
+                            .background(Capsule().fill(theme.surface2)).foregroundStyle(theme.muted)
+                    }
+                    .buttonStyle(.plain)
+                    .help("Show notes with this tag")
+                }
+            }
+        }
+    }
+
+    @ViewBuilder private var linked: some View {
+        let items = store.linkedItems(to: ItemRef(.note, noteId))
+        if !items.isEmpty {
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Linked here").font(.system(size: 12, weight: .bold, design: .serif)).foregroundStyle(theme.ink)
+                ForEach(items) { item in
+                    Button { store.open(item.ref) } label: {
+                        HStack(spacing: 8) {
+                            Image(systemName: icon(item.ref.type)).foregroundStyle(theme.accent)
+                            Text(item.title).foregroundStyle(theme.ink).lineLimit(1)
+                            Spacer(minLength: 0)
+                        }
+                        .font(.system(size: 12.5, design: .rounded))
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            .padding(.top, 6)
+        }
+    }
+
+    private func icon(_ type: ItemType) -> String {
+        switch type {
+        case .task: "checkmark.circle"
+        case .note: "note.text"
+        case .event: "calendar"
+        }
+    }
+}

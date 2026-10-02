@@ -2,7 +2,10 @@ import Foundation
 import GroveCore
 
 /// The screens that can fill the window.
-enum Screen: String { case planner, notes }
+enum Screen: String, CaseIterable, Identifiable {
+    case planner, notes
+    var id: String { rawValue }
+}
 
 /// A note, task or event that mentions another item.
 struct LinkedItem: Identifiable, Hashable {

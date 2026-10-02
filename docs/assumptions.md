@@ -104,4 +104,16 @@ Format: date · decision · why · how to undo
 - 2026-10-02 · The event editor is a popover next to what was clicked. Save is ⌘↩; Return in the title saves; Esc cancels · key equivalents run before the text view sees Return · `EventEditor`
 - 2026-10-02 · Saving a day of a series from the editor opens the "This event only / All events" question. Cancel in that question reopens the editor with the edits kept · no lost typing · `AppStore.saveEvent`, `RootView`
 - 2026-10-02 · The editor shows weekday chips (M T W T F S S) for a weekly rule. The last chip cannot be turned off. Other custom rules show as a text line ("Every 3 days") and are kept until a preset is picked · a full custom editor is more than M4 needs · `EventDraft.toggleWeekday`, `EventDraft.repeatLabel`
-- 2026-10-02 · Event notes are plain text in M4. Linked notes and "Create meeting note" come with M5 · notes screen not built yet · `EventEditor`
+- 2026-10-02 · Event notes are plain text in M4. Linked notes and "Create meeting note" come with M6 · the notes screen exists since M5, the links are interconnection work · `EventEditor`
+- 2026-10-02 · Until the layouts in M8, a two-screen switch (Planner | Notes, ⌘1 / ⌘2) sits in the top strip. The notes screen is full-window: a 300 pt list and the editor, no task list · layout B has no room for a third column yet · `ScreenSwitch`, `RootView`
+- 2026-10-02 · A daily or weekly note is made the first time the user opens it ("Today", "This week"), not at launch. Making it is not an undo step · no empty notes pile up, undo stays about the user's own edits · `AppStore.dailyNote`, `weeklyNote`
+- 2026-10-02 · Titles of daily and weekly notes are fixed. Only plain notes can be renamed. Empty names are refused · the title is how the app finds the day or week · `AppStore.renameNote`
+- 2026-10-02 · Titles use fixed English day and month names ("Friday, 2 October 2026", "Week 40 · 28 Sep – 4 Oct"). Week numbers are ISO · the app is English only · `NotesRules`
+- 2026-10-02 · Duplicating a note makes a plain note "<title> copy". Hidden task markers are stripped, so the copy does not own the original's tasks · one task must have one note line · `AppStore.duplicateNote`
+- 2026-10-02 · Tags come from `#tag` in the note body. They are kept in step on edit, delete and undo. Tags inside code, links, headings and numbers like `#1` do not count · PLAN §5.4 · `NoteParser.tags`
+- 2026-10-02 · Deleting a note is undoable and has a toast ("Note deleted. ⌘Z brings it back."). No confirmation dialog · undo is safer than a dialog · `NoteEditorPane`
+- 2026-10-02 · Opening a note that the filter or the search hides clears the filter and the search first · a click on a mention must always show the note · `AppStore.openNote`
+- 2026-10-02 · The notes search uses the FTS index on notes only. A list row shows a 90-character preview with headings, marks and hidden markers removed · fast and tidy · `AppStore.notes(filter:query:)`, `NotesRules.preview`
+- 2026-10-02 · Note filters are All, Daily, Weekly, Pinned and one chip per `#tag` · PLAN §5.4 · `NoteFilter`
+- 2026-10-02 · The toast moved from the planner to `RootView`, so it shows on both screens · notes need it too · `ToastView`
+- 2026-10-02 · `NoteParser` (tags, checkboxes, hidden task markers) exists now. The checkbox ↔ task link, `@date` and the other interconnections are M6 · keeps M5 small · `NoteParser`

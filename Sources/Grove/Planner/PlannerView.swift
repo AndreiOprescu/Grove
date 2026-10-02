@@ -72,7 +72,6 @@ struct PlannerView: View {
         .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { contentWidth = $0 }
         .padding(.horizontal, 16).padding(.bottom, 16)
         .padding(.top, 34)   // the window buttons sit in this space (title bar is hidden)
-        .overlay(alignment: .bottom) { toast }
         .onAppear { geo.hourHeight = CGFloat(hourHeight) }
         .onChange(of: geo.hourHeight) { _, new in hourHeight = Double(new) }
         .alert("Busy day", isPresented: Binding(get: { store.overloadWarning != nil }, set: { if !$0 { store.overloadWarning = nil } })) {
@@ -249,16 +248,6 @@ struct PlannerView: View {
                 }
                 Spacer()
             }
-        }
-    }
-
-    @ViewBuilder private var toast: some View {
-        if let text = store.toast {
-            Text(text).font(.system(size: 12, weight: .semibold, design: .rounded))
-                .padding(.horizontal, 14).padding(.vertical, 8)
-                .background(Capsule().fill(theme.ink)).foregroundStyle(theme.bg)
-                .padding(.bottom, 20)
-                .transition(.move(edge: .bottom).combined(with: .opacity))
         }
     }
 
