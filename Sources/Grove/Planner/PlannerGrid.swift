@@ -50,7 +50,7 @@ struct PlannerGrid: View {
     let workEnd: Int
 
     @State private var blocks: [PlannerBlock] = []
-    @State private var placements: [String: Placement] = [:]
+    @State private var layerMap: [String: Layer] = [:]
     @State private var live: LiveEdit?
     @State private var create: CreateDrag?
     @State private var draft: Draft?
@@ -106,20 +106,22 @@ struct PlannerGrid: View {
         }
         .onChange(of: store.revision) { reload() }
         .onChange(of: days) { reload(); draft = nil; renamingId = nil }
+        .onChange(of: geo.hourHeight) { relayout() }
         .onChange(of: scrollRequest) { scrollToNow(animated: true) }
-        .animation(animation, value: placements)
+        .animation(animation, value: layerMap)
     }
 
     // MARK: Layers
 
     private var layers: some View {
-        ZStack(alignment: .topLeading) {
+        let indents = indentMap
+        return ZStack(alignment: .topLeading) {
             gridLines
             ForEach(Array(days.enumerated()), id: \.element) { index, day in
                 dayColumn(index: index, day: day)
             }
             pastFade
-            ForEach(blocks) { block in blockView(block) }
+            ForEach(blocks) { block in blockView(block, indents: indents) }
             createRect
             draftView
             nowLine
@@ -210,17 +212,33 @@ struct PlannerGrid: View {
         }
     }
 
-    @ViewBuilder private func blockView(_ block: PlannerBlock) -> some View {
+    /// Overlapping blocks sit on top of each other, each a little to the right of the one under it.
+    /// The points depend on the column width, so they are worked out here and not in the layout step.
+    private var indentMap: [String: Double] {
+        let colW = Double(dayWidth - 9)
+        let byId = Dictionary(blocks.map { ($0.id, $0) }, uniquingKeysWith: { a, _ in a })
+        let base = min(150, max(56, colW * 0.45))
+        // A one-row block shows only its title, so the block above it moves right by about the title's width.
+        let tight: (String) -> Double = { id in
+            guard let b = byId[id], b.endMinute - b.startMinute < 25 || geo.y(forMinute: b.endMinute - b.startMinute) < 34
+            else { return base }
+            return min(colW * 0.5, max(base, 38 + 6 * Double(b.title.count)))
+        }
+        return PlannerMath.indents(layerMap, far: min(16, max(8, colW * 0.10)), tight: tight, maxIndent: colW * 0.62)
+    }
+
+    @ViewBuilder private func blockView(_ block: PlannerBlock, indents: [String: Double]) -> some View {
         let shown = displayed(block)
         if let dayIndex = days.firstIndex(of: shown.day) {
-            let place = (shown.day == block.day ? placements[block.id] : nil) ?? Placement(column: 0, columns: 1)
-            let colW = (dayWidth - 6) / CGFloat(place.columns)
-            let width = max(20, colW - 3)
+            let layer = shown.day == block.day ? layerMap[block.id] : nil
+            let indent = CGFloat(layer == nil ? 0 : indents[block.id] ?? 0)
+            let width = max(20, dayWidth - 9 - indent)
             let top = geo.y(forMinute: shown.start)
-            let height = max(4, geo.y(forMinute: shown.end - shown.start) - 1)
+            let height = max(PlannerGeometry.minBlockHeight, geo.y(forMinute: shown.end - shown.start) - 1)
             let isLive = live?.ids.contains(block.id) == true
             BlockView(
                 block: block, start: shown.start, end: shown.end, size: CGSize(width: width, height: height),
+                isOverlay: (layer?.depth ?? 0) > 0,
                 isSelected: store.selection.contains(block.id), isDragging: isLive,
                 isRenaming: renamingId == block.id,
                 onTap: { selectBlock(block) },
@@ -229,8 +247,9 @@ struct PlannerGrid: View {
                 onRename: { store.rename(blockId: block.id, to: $0); renamingId = nil; focused = true },
                 onCancelRename: { if renamingId == block.id { renamingId = nil; focused = true } },
                 onDrag: { mode, value, ended in blockDrag(block, mode, value, ended) })
-            .offset(x: geo.gutterWidth + CGFloat(dayIndex) * dayWidth + 2 + CGFloat(place.column) * colW, y: top)
-            .zIndex(isLive ? 10 : (store.selection.contains(block.id) ? 5 : 1))
+            .offset(x: geo.gutterWidth + CGFloat(dayIndex) * dayWidth + 2 + indent, y: top)
+            // Later start = on top. Stays between 1 and 9, under the drag (10), the now line and the draft.
+            .zIndex(isLive ? 10 : 9 - 8 / Double((layer?.order ?? 0) + 1))
             .contextMenu { blockMenu(block) }
             .animation(isLive ? nil : animation, value: shown.start)
             .animation(isLive ? nil : animation, value: shown.end)
@@ -377,13 +396,21 @@ struct PlannerGrid: View {
     private func reload() {
         guard let first = days.first, let last = days.last else { return }
         blocks = store.blocks(for: first...last)
-        var result: [String: Placement] = [:]
-        for day in days {
-            result.merge(PlannerMath.layoutColumns(blocks.filter { $0.day == day }.map(\.span))) { a, _ in a }
-        }
-        placements = result
+        relayout()
         let ids = Set(blocks.map(\.id))
         if !store.selection.isSubset(of: ids) { store.selection = store.selection.intersection(ids) }
+    }
+
+    /// Works out which block sits on which, per day. Runs again when the zoom changes,
+    /// because a short block is drawn taller than its length and so covers more minutes.
+    private func relayout() {
+        var result: [String: Layer] = [:]
+        for day in days {
+            result.merge(PlannerMath.layoutLayers(blocks.filter { $0.day == day }.map(\.span),
+                                                  minLength: geo.minDrawnMinutes,
+                                                  tightWithin: geo.tightMinutes)) { a, _ in a }
+        }
+        layerMap = result
     }
 
     /// Where a block is drawn. Live drags change it before anything is saved.

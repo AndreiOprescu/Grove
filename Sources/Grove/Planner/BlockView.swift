@@ -42,6 +42,8 @@ struct BlockView: View {
     let start: Int
     let end: Int
     let size: CGSize
+    /// True when the block lies on top of a longer block. It gets a solid base so the block below does not show through.
+    let isOverlay: Bool
     let isSelected: Bool
     let isDragging: Bool
     let isRenaming: Bool
@@ -75,7 +77,9 @@ struct BlockView: View {
                 .clipShape(shape)
                 .overlay { if isSelected { shape.strokeBorder(theme.accent, lineWidth: 2) } }
                 .opacity(block.isDone ? 0.55 : 1)
-                .shadow(color: .black.opacity(isDragging ? 0.22 : 0), radius: 10, y: 4)
+                .background { if isOverlay { shape.fill(theme.surface) } }
+                .shadow(color: .black.opacity(isDragging ? 0.22 : (isOverlay ? 0.18 : 0)),
+                        radius: isDragging ? 10 : 3, y: isDragging ? 4 : 1)
                 .contentShape(shape)
                 .gesture(
                     DragGesture(minimumDistance: 2, coordinateSpace: .named("plannerGrid"))
@@ -84,6 +88,7 @@ struct BlockView: View {
                 .onTapGesture(count: 2, perform: onDoubleTap)
                 .onTapGesture(perform: onTap)
                 .pointerStyle(.grabIdle)
+                .help("\(block.title) · \(PlannerMath.label(start: start, end: end))")
 
             handle(.top)
             handle(.bottom)
@@ -104,22 +109,28 @@ struct BlockView: View {
             .foregroundStyle(theme.ink)
         } else {
             VStack(alignment: .leading, spacing: 1) {
-                Text("\(PlannerMath.clock(start))–\(PlannerMath.clock(end))")
-                    .font(.system(size: 10, weight: .bold, design: .rounded)).monospacedDigit()
-                    .foregroundStyle(tint)
+                // One row for time and length. A block laid on top of this one then hides at most this row.
+                ViewThatFits(in: .horizontal) {
+                    timeRow("\(PlannerMath.clock(start))–\(PlannerMath.clock(end)) · \(PlannerMath.duration(length))")
+                        .fixedSize(horizontal: true, vertical: false)
+                    timeRow("\(PlannerMath.clock(start))–\(PlannerMath.clock(end))")
+                }
                 HStack(alignment: .top, spacing: 5) {
                     checkbox
                     Text(block.title).font(.system(size: 12, weight: .semibold, design: .rounded))
                         .lineLimit(max(1, Int((size.height - 28) / 15) + 1))
                         .strikethrough(block.isDone)
                 }
-                if size.height > 62 {
-                    Text(PlannerMath.duration(length)).font(.system(size: 10, design: .rounded))
-                        .foregroundStyle(theme.muted)
-                }
             }
             .foregroundStyle(theme.ink)
         }
+    }
+
+    private func timeRow(_ text: String) -> some View {
+        Text(text)
+            .font(.system(size: 10, weight: .bold, design: .rounded)).monospacedDigit()
+            .lineLimit(1)
+            .foregroundStyle(tint)
     }
 
     @ViewBuilder private var checkbox: some View {

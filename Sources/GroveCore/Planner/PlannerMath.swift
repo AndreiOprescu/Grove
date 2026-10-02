@@ -9,13 +9,6 @@ public struct Span: Equatable, Sendable {
     public var length: Int { end - start }
 }
 
-/// Where a block sits when overlapping blocks share the width.
-public struct Placement: Equatable, Sendable {
-    public var column: Int
-    public var columns: Int
-    public init(column: Int, columns: Int) { self.column = column; self.columns = columns }
-}
-
 /// Pure planner maths. No UI, no database. All values are minutes since midnight.
 public enum PlannerMath {
     public static let dayEnd = 1440
@@ -41,31 +34,6 @@ public enum PlannerMath {
     public static func resizeBottom(start: Int, end: Int, newEnd: Int, step: Int, minLen: Int = 5) -> (Int, Int) {
         let e = min(dayEnd, max(snap(newEnd, step: step), start + minLen))
         return (start, e)
-    }
-
-    /// Side-by-side layout. Spans that only touch (end == start) do not overlap.
-    public static func layoutColumns(_ spans: [Span]) -> [String: Placement] {
-        let sorted = spans.sorted { $0.start != $1.start ? $0.start < $1.start : ($0.end - $0.start) > ($1.end - $1.start) }
-        var result: [String: Placement] = [:]
-        var cluster: [Span] = []
-        var clusterEnd = Int.min
-        func flush() {
-            var colEnds: [Int] = []
-            var cols: [String: Int] = [:]
-            for s in cluster {
-                if let c = colEnds.firstIndex(where: { $0 <= s.start }) { colEnds[c] = s.end; cols[s.id] = c }
-                else { colEnds.append(s.end); cols[s.id] = colEnds.count - 1 }
-            }
-            for s in cluster { result[s.id] = Placement(column: cols[s.id]!, columns: colEnds.count) }
-            cluster.removeAll()
-        }
-        for s in sorted {
-            if !cluster.isEmpty && s.start >= clusterEnd { flush(); clusterEnd = Int.min }
-            cluster.append(s)
-            clusterEnd = max(clusterEnd, s.end)
-        }
-        if !cluster.isEmpty { flush() }
-        return result
     }
 
     /// Push spans that overlap `moved` and start at or after `moved.start` down, cascading.

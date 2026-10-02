@@ -34,36 +34,103 @@ struct PlannerMathTests {
         #expect(PlannerMath.resizeBottom(start: 600, end: 660, newEnd: 1500, step: 5) == (600, 1440))
     }
 
-    // MARK: layout
-    @Test func layoutNoOverlapGivesOneColumnEach() {
-        let p = PlannerMath.layoutColumns([span("a", 0, 60), span("b", 120, 180)])
-        #expect(p["a"] == Placement(column: 0, columns: 1))
-        #expect(p["b"] == Placement(column: 0, columns: 1))
+    // MARK: layout (overlaps cascade, they never share the width)
+    private func layers(_ spans: [Span], minLength: Int = 0, tightWithin: Int = 30) -> [String: Layer] {
+        PlannerMath.layoutLayers(spans, minLength: minLength, tightWithin: tightWithin)
     }
 
-    @Test func layoutTwoOverlappingGivesTwoColumns() {
-        let p = PlannerMath.layoutColumns([span("a", 0, 60), span("b", 30, 90)])
-        #expect(p["a"] == Placement(column: 0, columns: 2))
-        #expect(p["b"] == Placement(column: 1, columns: 2))
-    }
-
-    @Test func layoutChainReusesColumnZero() {
-        // A overlaps B, B overlaps C, A does not overlap C.
-        let p = PlannerMath.layoutColumns([span("a", 0, 60), span("b", 30, 90), span("c", 60, 120)])
-        #expect(p["a"]?.column == 0)
-        #expect(p["b"]?.column == 1)
-        #expect(p["c"]?.column == 0)
-        #expect(p.values.allSatisfy { $0.columns == 2 })
+    @Test func noOverlapMeansNoLayers() {
+        let l = layers([span("a", 0, 60), span("b", 120, 180)])
+        #expect(l["a"]?.depth == 0 && l["a"]?.parent == nil)
+        #expect(l["b"]?.depth == 0 && l["b"]?.parent == nil)
     }
 
     @Test func touchingBlocksDoNotOverlap() {
-        let p = PlannerMath.layoutColumns([span("a", 0, 60), span("b", 60, 120)])
-        #expect(p["a"] == Placement(column: 0, columns: 1))
-        #expect(p["b"] == Placement(column: 0, columns: 1))
+        let l = layers([span("a", 0, 60), span("b", 60, 120)])
+        #expect(l["a"]?.depth == 0 && l["b"]?.depth == 0)
+    }
+
+    @Test func shortBlockInsideALongOneSitsOnTopOfIt() throws {
+        // 09:00-14:00 with a 5 minute block at 11:00. The long block keeps the whole width.
+        let l = layers([span("short", 660, 665), span("long", 540, 840)])
+        #expect(l["long"]?.depth == 0 && l["long"]?.parent == nil)
+        #expect(l["short"]?.depth == 1 && l["short"]?.parent == "long")
+        #expect(l["short"]?.tight == false)
+        let under = try #require(l["long"]), over = try #require(l["short"])
+        #expect(under.order < over.order)   // painted first = underneath
+    }
+
+    @Test func blocksStartingTogetherPutTheLongOneUnder() {
+        let l = layers([span("short", 540, 545), span("long", 540, 840)])
+        #expect(l["long"]?.depth == 0)
+        #expect(l["short"]?.parent == "long")
+        #expect(l["short"]?.tight == true)   // would hide the long block's title, so it is pushed right
+    }
+
+    @Test func aBlockStartingJustAfterAnotherIsTight() {
+        let l = layers([span("a", 540, 600), span("b", 550, 610)], tightWithin: 30)
+        #expect(l["b"]?.tight == true)
+        let far = layers([span("a", 540, 600), span("b", 580, 640)], tightWithin: 30)
+        #expect(far["b"]?.tight == false)
+    }
+
+    @Test func chainOfOverlapsStepsDownOneLevelEach() {
+        let l = layers([span("a", 0, 60), span("b", 30, 90), span("c", 60, 120)], tightWithin: 10)
+        #expect(l["a"]?.depth == 0)
+        #expect(l["b"]?.depth == 1 && l["b"]?.parent == "a")
+        #expect(l["c"]?.depth == 2 && l["c"]?.parent == "b")
+    }
+
+    @Test func aBlockSitsOnTheMostIndentedBlockUnderIt() {
+        // c overlaps both a and b. b is already indented on a, so c must sit on b to stay clear of both.
+        let l = layers([span("a", 0, 300), span("b", 60, 120), span("c", 90, 150)], tightWithin: 10)
+        #expect(l["b"]?.parent == "a")
+        #expect(l["c"]?.parent == "b")
+        #expect(l["c"]?.depth == 2)
+    }
+
+    @Test func tinyBlocksCountAsTallAsTheyAreDrawn() {
+        // A 10 minute block is drawn at least 20 minutes tall, so a block that starts at minute 12 is covered by it.
+        let spans = [span("a", 0, 10), span("b", 12, 60)]
+        #expect(layers(spans, minLength: 0)["b"]?.depth == 0)
+        let drawn = layers(spans, minLength: 20)
+        #expect(drawn["b"]?.parent == "a" && drawn["b"]?.tight == true)
+    }
+
+    @Test func paintOrderIsStartTimeThenLongestFirst() throws {
+        let l = layers([span("late", 100, 130), span("short", 0, 10), span("long", 0, 90)])
+        #expect(l.values.sorted { $0.order < $1.order }.map(\.order) == [0, 1, 2])
+        #expect(l["long"]?.order == 0)
+        #expect(l["short"]?.order == 1)
+        #expect(l["late"]?.order == 2)
     }
 
     @Test func layoutIsStableForEmptyInput() {
-        #expect(PlannerMath.layoutColumns([]).isEmpty)
+        #expect(layers([]).isEmpty)
+    }
+
+    @Test func indentsAddUpAlongTheChainAndStopAtTheMaximum() {
+        let l = layers([span("a", 0, 300), span("b", 100, 200), span("c", 150, 250), span("d", 160, 240)], tightWithin: 30)
+        let ind = PlannerMath.indents(l, far: 14, tight: { _ in 60 }, maxIndent: 100)
+        #expect(ind["a"] == 0)
+        #expect(ind["b"] == 14)            // far from a
+        #expect(ind["c"] == 28)            // far from b (start 50 minutes later)
+        #expect(ind["d"] == 88)            // tight on c (starts 10 minutes after it)
+        let capped = PlannerMath.indents(l, far: 14, tight: { _ in 60 }, maxIndent: 50)
+        #expect(capped["d"] == 50)
+    }
+
+    @Test func aLongBlockThatNothingCoversHasNoIndent() {
+        let l = layers([span("long", 0, 600), span("x", 100, 105)])
+        #expect(PlannerMath.indents(l, far: 14, tight: { _ in 60 }, maxIndent: 100)["long"] == 0)
+    }
+
+    @Test func tightShiftCanDependOnTheBlockUnderneath() {
+        // The shift reveals the title of the block below, so a longer title can ask for a bigger shift.
+        let l = layers([span("wide", 0, 300), span("a", 0, 10), span("b", 5, 15)], tightWithin: 30)
+        let ind = PlannerMath.indents(l, far: 14, tight: { $0 == "wide" ? 40 : 90 }, maxIndent: 500)
+        #expect(ind["a"] == 40)             // sits on "wide"
+        #expect(ind["b"] == 130)            // sits on "a": 40 + 90
     }
 
     // MARK: ripple
