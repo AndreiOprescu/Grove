@@ -32,6 +32,8 @@ final class AppStore {
     private(set) var undoStack: [Mutation] = []
     private(set) var redoStack: [Mutation] = []
     private var toastTask: Task<Void, Never>?
+    /// Decoded images for task bodies and notes. Not observed: images never change once stored.
+    let imageCache = NSCache<NSString, NSImage>()
 
     init(repos: Repos? = nil) {
         if let repos {
