@@ -66,6 +66,18 @@ public final class ReferenceIndexer {
         return result.text
     }
 
+    /// Rebuilds the links that other bodies make to `ref`. Call after `ref` was brought back (undo of a delete),
+    /// because deleting an item also removes the link rows that point at it.
+    public func rebuildIncoming(to ref: ItemRef) throws {
+        let needle = "|\(ref.id)]]"
+        let args: [SQLValue] = [.text(needle)]
+        let found: [(ItemRef, String)] = try
+            db.query("SELECT id, notes FROM tasks WHERE instr(notes, ?) > 0", args) { (ItemRef(.task, $0.text(0)), $0.text(1)) }
+            + db.query("SELECT id, body FROM notes WHERE instr(body, ?) > 0", args) { (ItemRef(.note, $0.text(0)), $0.text(1)) }
+            + db.query("SELECT id, notes FROM events WHERE instr(notes, ?) > 0", args) { (ItemRef(.event, $0.text(0)), $0.text(1)) }
+        for (src, text) in found { try reindex(src, text: text) }
+    }
+
     /// Call after an item was renamed and saved. Rewrites the title inside every body that mentions it.
     /// The linking items keep their "last edited" time, so a rename does not reshuffle the notes list.
     public func renamed(_ ref: ItemRef, to newTitle: String) throws {

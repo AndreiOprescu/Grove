@@ -82,28 +82,28 @@ public final class TaskRepo {
 
     /// Top-level tasks planned for a day (not cancelled).
     public func forDay(_ day: DayKey) throws -> [TaskItem] {
-        try db.query(Self.select + " WHERE bucket = 'day' AND plan_date = ? AND parent_id IS NULL AND status != 'cancelled' ORDER BY sort, created_at",
+        try db.query(Self.select + " WHERE bucket = 'day' AND plan_date = ? AND parent_id IS NULL AND status != 'cancelled' ORDER BY sort, created_at, rowid",
                      [.text(day.string)], map: Self.map)
     }
 
     /// Tasks with a day inside the closed range.
     public func inRange(_ from: DayKey, _ to: DayKey) throws -> [TaskItem] {
-        try db.query(Self.select + " WHERE plan_date >= ? AND plan_date <= ? AND parent_id IS NULL AND status != 'cancelled' ORDER BY plan_date, sort, created_at",
+        try db.query(Self.select + " WHERE plan_date >= ? AND plan_date <= ? AND parent_id IS NULL AND status != 'cancelled' ORDER BY plan_date, sort, created_at, rowid",
                      [.text(from.string), .text(to.string)], map: Self.map)
     }
 
     /// "Sometime this week" tasks (no day yet).
     public func forWeek(_ monday: DayKey) throws -> [TaskItem] {
-        try db.query(Self.select + " WHERE bucket = 'week' AND plan_week = ? AND parent_id IS NULL AND status != 'cancelled' ORDER BY sort, created_at",
+        try db.query(Self.select + " WHERE bucket = 'week' AND plan_week = ? AND parent_id IS NULL AND status != 'cancelled' ORDER BY sort, created_at, rowid",
                      [.text(monday.string)], map: Self.map)
     }
 
     public func inbox() throws -> [TaskItem] {
-        try db.query(Self.select + " WHERE bucket = 'inbox' AND parent_id IS NULL AND status = 'open' ORDER BY sort, created_at", map: Self.map)
+        try db.query(Self.select + " WHERE bucket = 'inbox' AND parent_id IS NULL AND status = 'open' ORDER BY sort, created_at, rowid", map: Self.map)
     }
 
     public func someday() throws -> [TaskItem] {
-        try db.query(Self.select + " WHERE bucket = 'someday' AND parent_id IS NULL AND status = 'open' ORDER BY sort, created_at", map: Self.map)
+        try db.query(Self.select + " WHERE bucket = 'someday' AND parent_id IS NULL AND status = 'open' ORDER BY sort, created_at, rowid", map: Self.map)
     }
 
     /// Open tasks planned for a day before `day`.
@@ -113,7 +113,7 @@ public final class TaskRepo {
     }
 
     public func subtasks(of parentId: String) throws -> [TaskItem] {
-        try db.query(Self.select + " WHERE parent_id = ? ORDER BY sort, created_at", [.text(parentId)], map: Self.map)
+        try db.query(Self.select + " WHERE parent_id = ? ORDER BY sort, created_at, rowid", [.text(parentId)], map: Self.map)
     }
 
     public func completed(on day: DayKey) throws -> [TaskItem] {
@@ -127,12 +127,12 @@ public final class TaskRepo {
     }
 
     public func inList(_ listId: String) throws -> [TaskItem] {
-        try db.query(Self.select + " WHERE list_id = ? AND parent_id IS NULL AND status = 'open' ORDER BY sort, created_at",
+        try db.query(Self.select + " WHERE list_id = ? AND parent_id IS NULL AND status = 'open' ORDER BY sort, created_at, rowid",
                      [.text(listId)], map: Self.map)
     }
 
     public func withTag(_ name: String) throws -> [TaskItem] {
-        try db.query(Self.select + " WHERE id IN (SELECT task_id FROM task_tags JOIN tags ON tags.id = tag_id WHERE tags.name = ?) AND status = 'open' ORDER BY sort, created_at",
+        try db.query(Self.select + " WHERE id IN (SELECT task_id FROM task_tags JOIN tags ON tags.id = tag_id WHERE tags.name = ?) AND status = 'open' ORDER BY sort, created_at, rowid",
                      [.text(name)], map: Self.map)
     }
 
@@ -200,6 +200,11 @@ public final class EventRepo {
 
     public func get(_ id: String) throws -> EventItem? {
         try db.queryOne(Self.select + " WHERE id = ?", [.text(id)], map: Self.map)
+    }
+
+    /// Time blocks that belong to a task, earliest first.
+    public func blocks(forTask taskId: String) throws -> [EventItem] {
+        try db.query(Self.select + " WHERE task_id = ? ORDER BY start", [.text(taskId)], map: Self.map)
     }
 
     /// Case-insensitive exact title match, most recently edited first.

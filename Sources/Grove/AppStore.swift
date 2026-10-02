@@ -7,7 +7,9 @@ struct Mutation {
     var name: String
     var tasks: [(before: TaskItem?, after: TaskItem?)] = []
     var events: [(before: EventItem?, after: EventItem?)] = []
-    var isEmpty: Bool { tasks.isEmpty && events.isEmpty }
+    /// Tag names of a task before and after. Tags live in their own table, so they are tracked here.
+    var tags: [(taskId: String, before: [String], after: [String])] = []
+    var isEmpty: Bool { tasks.isEmpty && events.isEmpty && tags.isEmpty }
 }
 
 @Observable @MainActor
@@ -109,20 +111,43 @@ final class AppStore {
     private func apply(_ m: Mutation, forward: Bool) -> Bool {
         do {
             try repos.db.transaction {
-                for t in m.tasks { if let x = forward ? t.after : t.before { try repos.tasks.save(x) } }
+                func target(_ t: (before: TaskItem?, after: TaskItem?)) -> TaskItem? { forward ? t.after : t.before }
+                func source(_ t: (before: TaskItem?, after: TaskItem?)) -> TaskItem? { forward ? t.before : t.after }
+                for t in m.tasks { if let x = target(t) { try repos.tasks.save(x) } }
                 for e in m.events { if let x = forward ? e.after : e.before { try repos.events.save(x) } }
+                let gone = Set(m.tasks.filter { target($0) == nil }.compactMap { source($0)?.id })
+                for c in m.tags where !gone.contains(c.taskId) {
+                    try repos.tags.setTags(taskId: c.taskId, names: forward ? c.after : c.before)
+                }
                 for e in m.events where (forward ? e.after : e.before) == nil {
                     if let id = (forward ? e.before : e.after)?.id { try repos.events.delete(id) }
                 }
-                for t in m.tasks where (forward ? t.after : t.before) == nil {
-                    if let id = (forward ? t.before : t.after)?.id { try repos.tasks.delete(id) }
+                for t in m.tasks where target(t) == nil {
+                    if let id = source(t)?.id { try repos.tasks.delete(id) }
                 }
+                try updateReferences(m, forward: forward)
             }
             revision += 1
             return true
         } catch {
             errorMessage = "Could not save: \(error)"
             return false
+        }
+    }
+
+    /// Keeps `[[mentions]]` in step with a change: links from a changed body, titles after a rename,
+    /// and links that point at a task that was just brought back.
+    private func updateReferences(_ m: Mutation, forward: Bool) throws {
+        for t in m.tasks {
+            guard let now = forward ? t.after : t.before else { continue }
+            let was = forward ? t.before : t.after
+            let ref = ItemRef(.task, now.id)
+            if was == nil || was?.notes != now.notes {
+                let canonical = try repos.refs.reindex(ref, text: now.notes)
+                if canonical != now.notes { var fixed = now; fixed.notes = canonical; try repos.tasks.save(fixed) }
+            }
+            if was == nil { try repos.refs.rebuildIncoming(to: ref) }
+            if let was, was.title != now.title { try repos.refs.renamed(ref, to: now.title) }
         }
     }
 
@@ -199,13 +224,13 @@ final class AppStore {
 
     // MARK: Writing from the planner
 
-    private func blockEvent(for task: TaskItem, day: DayKey, start: Int, end: Int) -> EventItem {
+    func blockEvent(for task: TaskItem, day: DayKey, start: Int, end: Int) -> EventItem {
         EventItem(title: task.title, start: WallTime(day: day, minute: start), end: WallTime(day: day, minute: end),
                   kind: .block, taskId: task.id, color: "accent")
     }
 
     /// A task moved onto a day: bucket day, plan date set.
-    private func planned(_ task: TaskItem, on day: DayKey) -> TaskItem {
+    func planned(_ task: TaskItem, on day: DayKey) -> TaskItem {
         var t = task
         t.bucket = .day
         t.planDate = day
@@ -384,15 +409,6 @@ final class AppStore {
         var m = Mutation(name: "Split Block")
         m.events.append((old, first))
         m.events.append((nil, second))
-        commit(m)
-    }
-
-    func toggleDone(taskId: String) {
-        guard let old = task(taskId) else { return }
-        var t = old
-        if t.isDone { t.status = .open; t.completedAt = nil } else { t.status = .done; t.completedAt = Stamp.now() }
-        var m = Mutation(name: t.isDone ? "Complete Task" : "Reopen Task")
-        m.tasks.append((old, t))
         commit(m)
     }
 

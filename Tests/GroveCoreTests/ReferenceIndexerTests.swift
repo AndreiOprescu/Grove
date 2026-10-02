@@ -188,6 +188,21 @@ struct ReferenceIndexerTests {
         #expect(try r.links.backlinks(to: ItemRef(.note, n.id)).isEmpty)
     }
 
+    @Test func rebuildIncomingRestoresLinksToABroughtBackTarget() throws {
+        let r = try makeRepos()
+        let target = TaskItem(title: "Target")
+        try r.tasks.save(target)
+        var host = TaskItem(title: "Host")
+        host.notes = try r.refs.canonicalize("see [[Target]]").text
+        try r.tasks.save(host)
+        _ = try r.refs.reindex(ItemRef(.task, host.id), text: host.notes)
+        try r.tasks.delete(target.id)
+        #expect(try r.links.backlinks(to: ItemRef(.task, target.id)).isEmpty)
+        try r.tasks.save(target)   // same id, as undo does
+        try r.refs.rebuildIncoming(to: ItemRef(.task, target.id))
+        #expect(try r.links.backlinks(to: ItemRef(.task, target.id)) == [ItemRef(.task, host.id)])
+    }
+
     // MARK: search
 
     @Test func searchSeesWordsNotIdsOrMarkup() throws {
