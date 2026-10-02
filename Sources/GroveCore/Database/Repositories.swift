@@ -338,6 +338,13 @@ public final class NoteRepo {
         return Set(rows)
     }
 
+    /// The mood of each daily note that has one, by day.
+    public func moods(from: DayKey, to: DayKey) throws -> [DayKey: Int] {
+        let rows = try db.query("SELECT date, mood FROM notes WHERE kind = 'daily' AND mood IS NOT NULL AND date >= ? AND date <= ?",
+                                [.text(from.string), .text(to.string)]) { (DayKey($0.text(0)), $0.int(1)) }
+        return Dictionary(rows, uniquingKeysWith: { first, _ in first })
+    }
+
     private static func escapeLike(_ s: String) -> String {
         s.replacingOccurrences(of: "\\", with: "\\\\").replacingOccurrences(of: "%", with: "\\%").replacingOccurrences(of: "_", with: "\\_")
     }

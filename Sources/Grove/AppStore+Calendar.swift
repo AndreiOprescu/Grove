@@ -28,6 +28,7 @@ extension AppStore {
         for (day, info) in out { out[day]?.events = CalendarRules.sorted(info.events) }
         for (day, n) in (try? repos.tasks.openCounts(from: days.lowerBound, to: days.upperBound)) ?? [:] { out[day]?.openTasks = n }
         for day in (try? repos.notes.daysWithNotes(from: days.lowerBound, to: days.upperBound)) ?? [] { out[day]?.hasNote = true }
+        for (day, mood) in (try? repos.notes.moods(from: days.lowerBound, to: days.upperBound)) ?? [:] { out[day]?.mood = mood }
         return out
     }
 

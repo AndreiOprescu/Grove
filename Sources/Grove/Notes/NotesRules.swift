@@ -19,6 +19,9 @@ enum NotesRules {
         "\(weekdays[day.weekdayIndex - 1]), \(day.day) \(months[day.month - 1]) \(day.year)"
     }
 
+    /// "Friday"
+    static func weekdayName(_ day: DayKey) -> String { weekdays[day.weekdayIndex - 1] }
+
     /// "Week 40 · 28 Sep – 4 Oct"
     static func weeklyTitle(_ monday: DayKey) -> String {
         func short(_ d: DayKey) -> String { "\(d.day) \(months[d.month - 1].prefix(3))" }

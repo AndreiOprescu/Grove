@@ -9,6 +9,8 @@ struct MonthView: View {
     /// Called after a click on a day, so the planner can switch to its day view.
     let openDay: (DayKey) -> Void
     @State private var targeted: DayKey?
+    /// Colours each day by the mood of its daily note. The planner header turns it on and off.
+    @AppStorage("calendar.moodTint") private var moodTint = false
 
     var body: some View {
         let _ = store.revision
@@ -48,6 +50,11 @@ struct MonthView: View {
 
     // MARK: Cell
 
+    private func moodBackground(_ info: DayInfo) -> Color {
+        guard moodTint, let m = info.mood.flatMap(Mood.init(rawValue:)) else { return .clear }
+        return m.tint.opacity(0.2)
+    }
+
     private func cell(_ day: DayKey, info: DayInfo, inMonth: Bool, height: CGFloat) -> some View {
         let slots = CalendarRules.pillSlots(cellHeight: Double(height))
         let pills = CalendarRules.pills(info.events, slots: slots)
@@ -75,6 +82,7 @@ struct MonthView: View {
         }
         .padding(5)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .background(moodBackground(info))
         .background(targeted == day ? theme.accent.opacity(0.12) : isSelected ? theme.accent.opacity(0.07) : Color.clear)
         .overlay(Rectangle().strokeBorder(theme.line.opacity(0.7), lineWidth: 0.5))
         .overlay(Rectangle().strokeBorder(theme.accent, lineWidth: targeted == day ? 1.5 : 0))

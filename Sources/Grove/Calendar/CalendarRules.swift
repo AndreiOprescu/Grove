@@ -7,6 +7,8 @@ struct DayInfo: Equatable {
     var events: [EventItem] = []
     var openTasks = 0
     var hasNote = false
+    /// The mood of the day's note, 1 to 3.
+    var mood: Int?
     var itemCount: Int { events.count + openTasks }
 }
 

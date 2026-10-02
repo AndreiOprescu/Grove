@@ -95,20 +95,53 @@ struct NoteEditorPane: View {
 
     private func content(_ note: Note) -> some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 14) {
-                header(note)
-                tagRow(note)
-                RichTextField(text: Binding(get: { text }, set: { text = $0; typing = true; scheduleSave() }),
-                              services: store.editorServices(excluding: ItemRef(.note, noteId), noteId: noteId),
-                              placeholder: "Write something. Type [[ to link a task, note or event.",
-                              minHeight: 320, refreshToken: chipToken, onEnd: bodyEnded)
-                linked
+            if let side = sidePanel(note) {
+                // Daily and weekly notes: the text on the left, the day or the week on the right.
+                HStack(alignment: .top, spacing: 20) {
+                    editorColumn(note).frame(maxWidth: 720, alignment: .leading)
+                    side
+                }
+                .frame(maxWidth: .infinity, alignment: .center)
+                .padding(.horizontal, 28).padding(.vertical, 22)
+            } else {
+                editorColumn(note)
+                    .frame(maxWidth: 780, alignment: .leading)
+                    .frame(maxWidth: .infinity)
+                    .padding(.horizontal, 28).padding(.vertical, 22)
             }
-            .frame(maxWidth: 780, alignment: .leading)
-            .frame(maxWidth: .infinity)
-            .padding(.horizontal, 28).padding(.vertical, 22)
         }
         .scrollIndicators(.hidden)
+    }
+
+    private func editorColumn(_ note: Note) -> some View {
+        VStack(alignment: .leading, spacing: 14) {
+            header(note)
+            tagRow(note)
+            RichTextField(text: Binding(get: { text }, set: { text = $0; typing = true; scheduleSave() }),
+                          services: store.editorServices(excluding: ItemRef(.note, noteId), noteId: noteId),
+                          placeholder: "Write something. Type [[ to link a task, note or event.",
+                          minHeight: 320, refreshToken: chipToken, onEnd: bodyEnded)
+            if note.kind == .daily, let day = note.date { DoneLog(day: day) }
+            linked
+        }
+    }
+
+    /// The card beside a daily note (its day) or a weekly note (its week).
+    private func sidePanel(_ note: Note) -> AnyView? {
+        guard let date = note.date else { return nil }
+        switch note.kind {
+        case .daily: return AnyView(DayPanel(day: date))
+        case .weekly: return AnyView(WeekReviewPanel(monday: date, hasSummary: DayRules.hasSummary(text), onInsert: { insertSummary(note.id) }))
+        case .note: return nil
+        }
+    }
+
+    private func insertSummary(_ id: String) {
+        flush(id, creating: false)
+        typing = false
+        store.insertWeekSummary(id)
+        if let n = store.note(id) { text = n.body }
+        chipToken += 1
     }
 
     private func header(_ note: Note) -> some View {
@@ -125,6 +158,7 @@ struct NoteEditorPane: View {
                     Text(note.title).font(.system(size: 28, weight: .semibold, design: .serif)).foregroundStyle(theme.ink)
                 }
                 Spacer(minLength: 8)
+                if note.kind == .daily { MoodPicker(note: note) }
                 Button { store.togglePin(note.id) } label: { Image(systemName: note.pinned ? "pin.fill" : "pin") }
                     .buttonStyle(.plain).foregroundStyle(note.pinned ? theme.accent2 : theme.muted)
                     .help(note.pinned ? "Unpin" : "Pin to the top of the list")

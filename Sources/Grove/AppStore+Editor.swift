@@ -58,11 +58,13 @@ extension AppStore {
             if let t = task(ref.id) {
                 if let day = t.planDate { selectedDay = day }
                 selectedTaskId = t.id
+                screen = .planner   // the task panel only shows there
             }
         case .event:
-            if let e = try? repos.events.get(ref.id) {
+            if let e = event(ref.id) {
                 selectedDay = e.start.day
                 selection = [e.id]
+                screen = .planner
             }
         case .note:
             openNote(ref.id)

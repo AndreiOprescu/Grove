@@ -20,6 +20,7 @@ struct PlannerView: View {
     @AppStorage("planner.workEnd") private var workEnd = 18 * 60
     @AppStorage("planner.trayOpen") private var trayOpen = true
     @AppStorage("shell.tasksOpen") private var tasksOpen = true
+    @AppStorage("calendar.moodTint") private var moodTint = false
 
     @State private var geo = PlannerGeometry()
     @State private var dropToTray = false
@@ -140,6 +141,8 @@ struct PlannerView: View {
             .keyboardShortcut("t", modifiers: [.command, .shift])
             .fixedSize()
         Button { move(1) } label: { Image(systemName: "chevron.right") }.help("Next")
+        Button { store.openDailyNote(store.selectedDay) } label: { Image(systemName: "note.text") }
+            .help(store.selectedDay == .today() ? "Today's note" : "Note for \(store.selectedDay.date.formatted(.dateTime.weekday(.wide).day().month(.abbreviated)))")
     }
 
     private var titleText: some View {
@@ -160,7 +163,9 @@ struct PlannerView: View {
 
     @ViewBuilder private func planButton(compact: Bool) -> some View {
         if mode == .month {
-            EmptyView()
+            Toggle(isOn: $moodTint) { Image(systemName: "face.smiling") }
+                .toggleStyle(.button)
+                .help("Tint each day by the mood of its note")
         } else if compact {
             Button { showPlan() } label: { Image(systemName: "wand.and.stars") }
                 .help("Plan my day: fit today's unscheduled tasks into free working hours")
