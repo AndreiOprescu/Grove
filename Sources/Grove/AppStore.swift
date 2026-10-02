@@ -251,7 +251,11 @@ final class AppStore {
             if selection.contains(block.id) { selection.remove(block.id) } else { selection.insert(block.id) }
         } else {
             selection = [block.id]
-            if let taskId = block.taskId { selectedTaskId = taskId }
+            if let taskId = block.taskId {
+                selectedTaskId = taskId
+            } else if block.kind == .event, let e = event(block.id) {
+                editEvent(e)
+            }
         }
     }
 

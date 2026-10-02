@@ -87,3 +87,21 @@ Format: date · decision · why · how to undo
 - 2026-10-02 · Short descriptions are in the search index with the title and long description · you find a task by any of its texts · `TaskRepo.save`. Export and import (M8) must include `summary`
 - 2026-10-02 · The short description saves 0.5 s after typing stops, on Return, and when the field loses focus. Typing in one burst is one undo step · same as the long description · `TaskInspector.summaryChanged`
 - 2026-10-02 · Task list rows and the unscheduled tray do not show the short description yet · the owner asked for the planner blocks; the list rows are already full · add one muted line to `TaskRow` if wanted
+- 2026-10-02 · A repeating event on the 29th, 30th or 31st skips months that do not have that day (a task clamps to the last day) · that is how calendar apps handle events; the engine tests pin it · `RecurrenceEngine`
+- 2026-10-02 · A day of a series is a virtual event with the id `<seriesId>@<YYYY-MM-DD>`. Changing "This event only" saves a real copy (`seriesId` + `originalDate`) and adds a removed-day mark to the series · the series stays one row; one day can differ · `OccurrenceID`, `AppStore.change`
+- 2026-10-02 · "All events" with a changed day moves the series start. A weekly list of weekdays turns by the same number of days. Removed days and copies move too. `until` stays · the rest of the series must keep its rhythm · `AppStore.changeOccurrences`
+- 2026-10-02 · Turning Repeat off for "All events" keeps only the first day of the series · there is no good "which one stays" answer; the first day is the least surprising · `AppStore.change`
+- 2026-10-02 · A copy that was already changed (a detached day) moves and deletes with no question · it is a single event now · `AppStore.deletion`
+- 2026-10-02 · Duplicate and split on a repeating event are refused with a toast · both need rules the plan does not give · `AppStore.duplicate`, `AppStore.split`
+- 2026-10-02 · Ripple never pushes a day of a series · a push would have to change a series day for one block only · `AppStore.applyEdits`
+- 2026-10-02 · All-day events store the start as the first day 00:00 and the end as the last day 00:00 (the last day counts) · a one-day event has start = end · `EventDraft`, `CalendarRules.covers`
+- 2026-10-02 · A timed event that ends at exactly 00:00 stays on its start day · 22:00 to 00:00 is not a two-day event · `CalendarRules.covers`
+- 2026-10-02 · Month view: a click on a day opens that day in Day mode; a double click makes a new all-day event. The single click waits a short moment to tell them apart · `TapGesture(count: 2).exclusively(before:)` · `MonthView`
+- 2026-10-02 · Month view shows at most 3 event pills per day, then "+N more". Out-of-month days are dimmed. Task dots show open tasks (max 3). A leaf shows a daily note · the cell is small · `CalendarRules.pillSlots`, `MonthView`
+- 2026-10-02 · The week strip shows in Day and 3-Day modes only. Week mode already shows the week · `PlannerView`
+- 2026-10-02 · A task dropped on a week-strip day or a month cell moves to that day (bucket Day, no time). Dragging a planner block there is not built · tasks are the common case · `AppStore.dropTask`
+- 2026-10-02 · A click on an event block opens the event editor. A double click on a pure event no longer renames it. Task blocks keep the task panel and the rename · the editor has more than a title · `AppStore.selectBlock`, `PlannerGrid.blockView`
+- 2026-10-02 · The event editor is a popover next to what was clicked. Save is ⌘↩; Return in the title saves; Esc cancels · key equivalents run before the text view sees Return · `EventEditor`
+- 2026-10-02 · Saving a day of a series from the editor opens the "This event only / All events" question. Cancel in that question reopens the editor with the edits kept · no lost typing · `AppStore.saveEvent`, `RootView`
+- 2026-10-02 · The editor shows weekday chips (M T W T F S S) for a weekly rule. The last chip cannot be turned off. Other custom rules show as a text line ("Every 3 days") and are kept until a preset is picked · a full custom editor is more than M4 needs · `EventDraft.toggleWeekday`, `EventDraft.repeatLabel`
+- 2026-10-02 · Event notes are plain text in M4. Linked notes and "Create meeting note" come with M5 · notes screen not built yet · `EventEditor`

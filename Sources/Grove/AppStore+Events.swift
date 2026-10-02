@@ -6,6 +6,7 @@ enum RecurringScope { case only, all }
 
 /// The question "This event only / All events", waiting for an answer. `verb` is Move, Resize, Delete, Change or Rename.
 struct RecurringPrompt {
+    let id = UUID()
     var verb: String
     var run: (RecurringScope) -> Void
     /// Runs when the user cancels. The event editor uses it to open again with the same edits.
@@ -42,6 +43,12 @@ extension AppStore {
     func answerRecurring(_ scope: RecurringScope) {
         guard let prompt = recurringPrompt else { return }
         recurringPrompt = nil
+        prompt.run(scope)
+    }
+
+    /// An answer from the window's question. It still works when the question was already taken away.
+    func answerRecurring(_ prompt: RecurringPrompt, _ scope: RecurringScope) {
+        if recurringPrompt?.id == prompt.id { recurringPrompt = nil }
         prompt.run(scope)
     }
 

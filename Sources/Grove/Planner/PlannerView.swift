@@ -2,10 +2,10 @@ import SwiftUI
 import GroveCore
 
 enum PlannerMode: Int, CaseIterable, Identifiable {
-    case day = 1, threeDay = 3, week = 7
+    case day = 1, threeDay = 3, week = 7, month = 30
     var id: Int { rawValue }
     var label: String {
-        switch self { case .day: "Day"; case .threeDay: "3 Days"; case .week: "Week" }
+        switch self { case .day: "Day"; case .threeDay: "3 Days"; case .week: "Week"; case .month: "Month" }
     }
 }
 
@@ -36,7 +36,7 @@ struct PlannerView: View {
         switch mode {
         case .day: [store.selectedDay]
         case .threeDay: (0..<3).map { store.selectedDay.adding(days: $0) }
-        case .week: (0..<7).map { store.selectedDay.weekStart().adding(days: $0) }
+        case .week, .month: (0..<7).map { store.selectedDay.weekStart().adding(days: $0) }   // month draws its own grid
         }
     }
 
@@ -44,21 +44,29 @@ struct PlannerView: View {
         let _ = store.revision   // re-run this view after every saved change
         VStack(spacing: 10) {
             header
-            allDayStrip
-            HStack(alignment: .top, spacing: 12) {
-                if showTray {
-                    UnscheduledTray(day: store.selectedDay, isDropTarget: dropToTray,
-                                    workStart: workStart, workEnd: workEnd, snapStep: snapStep)
-                        .transition(.opacity)
+            if mode == .day || mode == .threeDay { WeekStrip(shown: Set(days)) }
+            if mode == .month {
+                MonthView { _ in modeRaw = PlannerMode.day.rawValue }
+                    .background(RoundedRectangle(cornerRadius: theme.radius, style: .continuous).fill(theme.surface))
+                    .overlay(RoundedRectangle(cornerRadius: theme.radius, style: .continuous).strokeBorder(theme.line))
+                    .clipShape(RoundedRectangle(cornerRadius: theme.radius, style: .continuous))
+            } else {
+                allDayStrip
+                HStack(alignment: .top, spacing: 12) {
+                    if showTray {
+                        UnscheduledTray(day: store.selectedDay, isDropTarget: dropToTray,
+                                        workStart: workStart, workEnd: workEnd, snapStep: snapStep)
+                            .transition(.opacity)
+                    }
+                    VStack(spacing: 0) {
+                        if days.count > 1 { dayHeaders }
+                        PlannerGrid(days: days, geo: $geo, dropToTray: $dropToTray, scrollRequest: scrollRequest,
+                                    snapStep: snapStep, workStart: workStart, workEnd: workEnd)
+                    }
+                    .background(RoundedRectangle(cornerRadius: theme.radius, style: .continuous).fill(theme.surface))
+                    .overlay(RoundedRectangle(cornerRadius: theme.radius, style: .continuous).strokeBorder(theme.line))
+                    .clipShape(RoundedRectangle(cornerRadius: theme.radius, style: .continuous))
                 }
-                VStack(spacing: 0) {
-                    if days.count > 1 { dayHeaders }
-                    PlannerGrid(days: days, geo: $geo, dropToTray: $dropToTray, scrollRequest: scrollRequest,
-                                snapStep: snapStep, workStart: workStart, workEnd: workEnd)
-                }
-                .background(RoundedRectangle(cornerRadius: theme.radius, style: .continuous).fill(theme.surface))
-                .overlay(RoundedRectangle(cornerRadius: theme.radius, style: .continuous).strokeBorder(theme.line))
-                .clipShape(RoundedRectangle(cornerRadius: theme.radius, style: .continuous))
             }
         }
         .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { contentWidth = $0 }
@@ -81,7 +89,8 @@ struct PlannerView: View {
         let blocks = store.blocks(for: store.selectedDay...store.selectedDay)
         let totals = store.dayTotals(store.selectedDay, blocks: blocks, workStart: workStart, workEnd: workEnd)
         let over = totals.planned > store.dailyLimitMinutes
-        let stats = "\(over ? "⚠︎ " : "")\(PlannerMath.duration(totals.planned)) planned · \(PlannerMath.duration(totals.free)) free · \(totals.done)/\(totals.total) done"
+        let stats = mode == .month ? monthStats
+            : "\(over ? "⚠︎ " : "")\(PlannerMath.duration(totals.planned)) planned · \(PlannerMath.duration(totals.free)) free · \(totals.done)/\(totals.total) done"
         return ViewThatFits(in: .horizontal) {
             HStack(spacing: 10) {
                 navButtons
@@ -91,7 +100,7 @@ struct PlannerView: View {
                 }
                 Spacer(minLength: 0)
                 planButton(compact: false)
-                modePicker(width: 200)
+                modePicker(width: 250)
                 zoomButtons
             }
             VStack(alignment: .leading, spacing: 6) {
@@ -100,7 +109,7 @@ struct PlannerView: View {
                     statsText(stats, over: over)
                     Spacer(minLength: 0)
                     planButton(compact: false)
-                    modePicker(width: 170)
+                    modePicker(width: 230)
                     zoomButtons
                 }
             }
@@ -108,7 +117,7 @@ struct PlannerView: View {
                 HStack(spacing: 10) { navButtons; titleText; Spacer(minLength: 0) }
                 statsText(stats, over: over)
                 HStack(spacing: 10) {
-                    modePicker(width: 170)
+                    modePicker(width: 230)
                     Spacer(minLength: 0)
                     planButton(compact: true)
                     zoomButtons
@@ -125,7 +134,7 @@ struct PlannerView: View {
                 .help("Show the task list")
         }
         Button { trayOpen.toggle() } label: { Image(systemName: "sidebar.left") }
-            .disabled(!trayFits)
+            .disabled(!trayFits || mode == .month)
             .help(trayFits ? "Show or hide the unscheduled tray" : "No room for the tray. Close the task list or the task panel.")
         Button { move(-1) } label: { Image(systemName: "chevron.left") }.help("Previous")
         Button("Today") { store.selectedDay = .today(); scrollRequest += 1 }
@@ -151,7 +160,9 @@ struct PlannerView: View {
     }
 
     @ViewBuilder private func planButton(compact: Bool) -> some View {
-        if compact {
+        if mode == .month {
+            EmptyView()
+        } else if compact {
             Button { showPlan() } label: { Image(systemName: "wand.and.stars") }
                 .help("Plan my day: fit today's unscheduled tasks into free working hours")
         } else {
@@ -169,20 +180,33 @@ struct PlannerView: View {
     }
 
     @ViewBuilder private var zoomButtons: some View {
-        Button { zoom(1 / 1.2) } label: { Image(systemName: "minus.magnifyingglass") }.help("Zoom out")
-        Button { zoom(1.2) } label: { Image(systemName: "plus.magnifyingglass") }.help("Zoom in")
+        if mode != .month {
+            Button { zoom(1 / 1.2) } label: { Image(systemName: "minus.magnifyingglass") }.help("Zoom out")
+            Button { zoom(1.2) } label: { Image(systemName: "plus.magnifyingglass") }.help("Zoom in")
+        }
     }
 
     private var title: String {
         switch mode {
         case .day: return store.selectedDay.date.formatted(.dateTime.weekday(.wide).day().month(.wide))
+        case .month: return store.selectedDay.date.formatted(.dateTime.month(.wide).year())
         default:
             let d = days
             return "\(d.first!.date.formatted(.dateTime.day().month(.abbreviated))) – \(d.last!.date.formatted(.dateTime.day().month(.abbreviated).year()))"
         }
     }
 
+    private var monthStats: String {
+        let grid = CalendarRules.monthGrid(containing: store.selectedDay)
+        let info = store.dayInfo(grid[0]...grid[41])
+        let inMonth = grid.filter { $0.month == store.selectedDay.month }
+        let events = Set(inMonth.flatMap { info[$0]?.events.map(\.id) ?? [] }).count
+        let tasks = inMonth.reduce(0) { $0 + (info[$1]?.openTasks ?? 0) }
+        return "\(events) event\(events == 1 ? "" : "s") · \(tasks) open task\(tasks == 1 ? "" : "s")"
+    }
+
     private func move(_ direction: Int) {
+        if mode == .month { store.selectedDay = CalendarRules.addMonths(store.selectedDay, direction); return }
         store.selectedDay = store.selectedDay.adding(days: direction * (mode == .week ? 7 : mode.rawValue))
     }
 
@@ -219,6 +243,9 @@ struct PlannerView: View {
                         .padding(.horizontal, 8).padding(.vertical, 3)
                         .background(Capsule().fill(theme.color(named: e.color).opacity(0.2)))
                         .foregroundStyle(theme.ink)
+                        .contentShape(Capsule())
+                        .onTapGesture { store.editEvent(e) }
+                        .eventEditor(anchor: e.id)
                 }
                 Spacer()
             }

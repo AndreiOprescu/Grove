@@ -60,6 +60,38 @@ enum EventDraft {
         return .never
     }
 
+    private static let weekdayNames = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
+
+    /// The rule in words: "Every 2 weeks", "Every week on Mon, Wed, Fri".
+    static func repeatLabel(_ rule: RecurrenceRule) -> String {
+        let days = (rule.weekdays ?? []).sorted()
+        if rule.freq == .weekly, rule.interval == 1, days == [1, 2, 3, 4, 5] { return "Every weekday" }
+        let noun: String
+        switch rule.freq {
+        case .daily: noun = "day"
+        case .weekly: noun = "week"
+        case .monthly: noun = "month"
+        case .yearly: noun = "year"
+        }
+        var text = rule.interval == 1 ? "Every \(noun)" : "Every \(rule.interval) \(noun)s"
+        if rule.freq == .weekly, !days.isEmpty { text += " on " + days.map { weekdayNames[$0 - 1] }.joined(separator: ", ") }
+        return text
+    }
+
+    /// Turns one weekday on or off. `start` is the weekday of the first event: a weekly rule without a list means that day.
+    /// The last day cannot be turned off. A list that is only the start day becomes "no list".
+    static func toggleWeekday(_ rule: RecurrenceRule, _ weekday: Int, start: Int) -> RecurrenceRule {
+        var set = Set(rule.weekdays ?? [start])
+        if set.contains(weekday) {
+            if set.count > 1 { set.remove(weekday) }
+        } else {
+            set.insert(weekday)
+        }
+        var out = rule
+        out.weekdays = set == [start] ? nil : set.sorted()
+        return out
+    }
+
     /// All-day events keep their days and drop the clock. Turning it off gives one hour from 09:00 on the first day.
     static func setAllDay(_ e: inout EventItem, _ on: Bool) {
         e.allDay = on
@@ -69,6 +101,19 @@ enum EventDraft {
         } else {
             e.start = WallTime(day: e.start.day, minute: 9 * 60)
             e.end = WallTime(day: e.start.day, minute: 10 * 60)
+        }
+    }
+
+    /// Moves the start and keeps the length. All-day events keep their number of days.
+    static func setStart(_ e: inout EventItem, to new: WallTime) {
+        if e.allDay {
+            let span = e.start.day.days(until: e.end.day)
+            e.start = WallTime(day: new.day, minute: 0)
+            e.end = WallTime(day: new.day.adding(days: span), minute: 0)
+        } else {
+            let length = max(0, e.durationMinutes)
+            e.start = new
+            e.end = wallTime(GroveCalendar.cal.date(byAdding: .minute, value: length, to: date(new)) ?? date(new))
         }
     }
 

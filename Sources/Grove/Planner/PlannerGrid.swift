@@ -249,11 +249,12 @@ struct PlannerGrid: View {
                 isSelected: store.selection.contains(block.id), isDragging: isLive,
                 isRenaming: renamingId == block.id,
                 onTap: { selectBlock(block) },
-                onDoubleTap: { selectBlock(block); renamingId = block.id },
+                onDoubleTap: { selectBlock(block); if block.kind != .event || block.isTaskBlock { renamingId = block.id } },
                 onToggleDone: { if let t = block.taskId { store.toggleDone(taskId: t) } },
                 onRename: { store.rename(blockId: block.id, to: $0); renamingId = nil; focused = true },
                 onCancelRename: { if renamingId == block.id { renamingId = nil; focused = true } },
                 onDrag: { mode, value, ended in blockDrag(block, mode, value, ended) })
+            .eventEditor(anchor: block.id, edge: .trailing)
             .offset(x: geo.gutterWidth + CGFloat(dayIndex) * dayWidth + 2 + indent, y: top)
             // Later start = on top. Stays between 1 and 9, under the drag (10), the now line and the draft.
             .zIndex(isLive ? 10 : 9 - 8 / Double((layer?.order ?? 0) + 1))
@@ -374,6 +375,10 @@ struct PlannerGrid: View {
 
     @ViewBuilder private func blockMenu(_ block: PlannerBlock) -> some View {
         let ids = store.selection.contains(block.id) ? Array(store.selection) : [block.id]
+        if block.kind == .event, !block.isTaskBlock {
+            Button("Edit Event…") { if let e = store.event(block.id) { store.editEvent(e) } }
+            Divider()
+        }
         Menu("Duration") {
             ForEach([15, 30, 45, 60, 90, 120, 180], id: \.self) { m in
                 Button(PlannerMath.duration(m)) { store.setDuration(blockIds: ids, minutes: m) }

@@ -9,6 +9,15 @@ struct RootView: View {
     @Environment(\.theme) private var theme
     @AppStorage("shell.tasksOpen") private var tasksOpen = true
 
+    /// The question went away without a button (a click outside). Wait one beat: when a button was pressed
+    /// its action may not have run yet, and it must win.
+    private func dismissedQuestion(_ shown: Bool) {
+        guard !shown, let id = store.recurringPrompt?.id else { return }
+        DispatchQueue.main.async {
+            if store.recurringPrompt?.id == id { store.cancelRecurring() }
+        }
+    }
+
     var body: some View {
         HStack(spacing: 0) {
             if tasksOpen {
@@ -26,6 +35,17 @@ struct RootView: View {
         .animation(.easeInOut(duration: 0.2), value: store.selectedTaskId != nil)
         .animation(.easeInOut(duration: 0.2), value: tasksOpen)
         .background(theme.bg.ignoresSafeArea())
+        .confirmationDialog(
+            store.recurringPrompt.map { "\($0.verb) a repeating event" } ?? "",
+            isPresented: Binding(get: { store.recurringPrompt != nil }, set: dismissedQuestion),
+            titleVisibility: .visible, presenting: store.recurringPrompt
+        ) { prompt in
+            Button("This event only") { store.answerRecurring(prompt, .only) }
+            Button("All events") { store.answerRecurring(prompt, .all) }
+            Button("Cancel", role: .cancel) { store.cancelRecurring() }
+        } message: { _ in
+            Text("Change only this day, or every day of the series?")
+        }
         .alert("Grove", isPresented: Binding(get: { store.errorMessage != nil }, set: { if !$0 { store.errorMessage = nil } })) {
             Button("OK") { store.errorMessage = nil }
         } message: { Text(store.errorMessage ?? "") }

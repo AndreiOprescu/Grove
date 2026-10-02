@@ -99,6 +99,26 @@ struct CalendarRulesTests {
         #expect(!e.allDay && e.start == at("2026-10-05", 540) && e.end == at("2026-10-05", 600))
     }
 
+    @Test func movingTheStartKeepsTheLength() {
+        var e = event(at("2026-10-05", 540), at("2026-10-05", 630))
+        EventDraft.setStart(&e, to: at("2026-10-05", 14 * 60))
+        #expect(e.start == at("2026-10-05", 840) && e.end == at("2026-10-05", 930))
+        EventDraft.setStart(&e, to: at("2026-10-06", 480))
+        #expect(e.start == at("2026-10-06", 480) && e.end == at("2026-10-06", 570))
+    }
+
+    @Test func movingTheStartCanPushTheEndPastMidnight() {
+        var e = event(at("2026-10-05", 23 * 60), at("2026-10-05", 23 * 60 + 30))
+        EventDraft.setStart(&e, to: at("2026-10-05", 23 * 60 + 45))
+        #expect(e.end == at("2026-10-06", 15))
+    }
+
+    @Test func movingTheStartOfAnAllDayEventKeepsItsDays() {
+        var e = event(at("2026-10-05", 0), at("2026-10-07", 0), allDay: true)
+        EventDraft.setStart(&e, to: at("2026-10-08", 0))
+        #expect(e.start == at("2026-10-08", 0) && e.end == at("2026-10-10", 0))
+    }
+
     @Test func anEndBeforeTheStartIsFixed() {
         var e = event(at("2026-10-05", 600), at("2026-10-05", 540))
         EventDraft.normalize(&e)
@@ -128,5 +148,33 @@ struct CalendarRulesTests {
         #expect(EventDraft.ends(.init(freq: .daily)) == .never)
         #expect(EventDraft.ends(.init(freq: .daily, until: DayKey("2026-12-01"))) == .on)
         #expect(EventDraft.ends(.init(freq: .daily, count: 5)) == .after)
+    }
+
+    // MARK: The repeat rule in words
+
+    @Test func repeatLabels() {
+        #expect(EventDraft.repeatLabel(.init(freq: .daily)) == "Every day")
+        #expect(EventDraft.repeatLabel(.init(freq: .daily, interval: 3)) == "Every 3 days")
+        #expect(EventDraft.repeatLabel(.init(freq: .weekly)) == "Every week")
+        #expect(EventDraft.repeatLabel(.init(freq: .weekly, interval: 2)) == "Every 2 weeks")
+        #expect(EventDraft.repeatLabel(.init(freq: .weekly, weekdays: [5, 1, 3])) == "Every week on Mon, Wed, Fri")
+        #expect(EventDraft.repeatLabel(.init(freq: .weekly, weekdays: [1, 2, 3, 4, 5])) == "Every weekday")
+        #expect(EventDraft.repeatLabel(.init(freq: .monthly)) == "Every month")
+        #expect(EventDraft.repeatLabel(.init(freq: .yearly, interval: 2)) == "Every 2 years")
+    }
+
+    @Test func togglingWeekdays() {
+        let weekly = RecurrenceRule(freq: .weekly)
+        // The start day is Friday (5). Add Monday.
+        let withMonday = EventDraft.toggleWeekday(weekly, 1, start: 5)
+        #expect(withMonday.weekdays == [1, 5])
+        // Take Friday off again: only Monday is left.
+        #expect(EventDraft.toggleWeekday(withMonday, 5, start: 5).weekdays == [1])
+        // The last chosen day cannot be turned off.
+        #expect(EventDraft.toggleWeekday(.init(freq: .weekly, weekdays: [1]), 1, start: 5).weekdays == [1])
+        // Back to only the start day means "no list".
+        #expect(EventDraft.toggleWeekday(withMonday, 1, start: 5).weekdays == nil)
+        // Turning on the only start day of a plain weekly rule changes nothing.
+        #expect(EventDraft.toggleWeekday(weekly, 5, start: 5).weekdays == nil)
     }
 }

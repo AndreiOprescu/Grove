@@ -39,8 +39,9 @@ extension AppStore {
         editingEvent = EditingEvent(item: item, isNew: true, anchor: "new:\(day.string)")
     }
 
-    func editEvent(_ event: EventItem) {
-        editingEvent = EditingEvent(item: draft(for: event), isNew: false, anchor: event.id)
+    /// Opens the editor. A multi-day event shows in several month cells, so a cell passes its own `anchor`.
+    func editEvent(_ event: EventItem, anchor: String? = nil) {
+        editingEvent = EditingEvent(item: draft(for: event), isNew: false, anchor: anchor ?? event.id)
     }
 
     func closeEditor() { editingEvent = nil }
@@ -62,7 +63,8 @@ extension AppStore {
             return
         }
         if item.title.isEmpty { item.title = original.title }
-        let editor = editingEvent
+        var editor = editingEvent
+        editor?.item = item   // Cancel in the question opens the editor again with these edits
         if OccurrenceID.parse(original.id) != nil {
             guard item != draft(for: original) else { closeEditor(); return }
             closeEditor()
