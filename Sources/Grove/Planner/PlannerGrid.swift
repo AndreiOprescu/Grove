@@ -84,7 +84,12 @@ struct PlannerGrid: View {
                 nowLine
                 liveLabel
             }
-            .frame(width: gridWidth, height: geo.totalHeight, alignment: .topLeading)
+            // Take the width the scroll view offers. A fixed width here made the scroll view grow
+            // by its scroller width on every pass (an endless layout loop).
+            .frame(maxWidth: .infinity, minHeight: geo.totalHeight, maxHeight: geo.totalHeight, alignment: .topLeading)
+            .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { w in
+                if abs(w - gridWidth) > 0.5 { gridWidth = w }
+            }
             .coordinateSpace(name: "plannerGrid")
         }
         .scrollPosition($position)
@@ -92,7 +97,6 @@ struct PlannerGrid: View {
         .scrollIndicators(.automatic)
         .onScrollGeometryChange(for: CGFloat.self) { $0.contentOffset.y } action: { _, y in scrollY = y }
         .onScrollGeometryChange(for: CGFloat.self) { $0.containerSize.height } action: { _, h in viewportH = h }
-        .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { gridWidth = $0 }
         .focusable()
         .focused($focused)
         .focusEffectDisabled()
