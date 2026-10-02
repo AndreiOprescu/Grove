@@ -9,7 +9,7 @@ struct GroveApp: App {
         WindowGroup(id: "main") {
             RootView()
                 .environment(store)
-                .frame(minWidth: 960, minHeight: 620)
+                .frame(minWidth: 1100, minHeight: 620)
         }
         .windowStyle(.hiddenTitleBar)
         .defaultSize(width: 1280, height: 800)

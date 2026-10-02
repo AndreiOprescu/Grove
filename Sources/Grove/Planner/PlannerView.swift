@@ -25,8 +25,12 @@ struct PlannerView: View {
     @State private var dropToTray = false
     @State private var scrollRequest = 0
     @State private var plan: [(task: TaskItem, start: Int)]?
+    /// Width inside the side padding. Starts wide so the first frame does not hide the tray.
+    @State private var contentWidth: CGFloat = 10_000
 
     private var mode: PlannerMode { PlannerMode(rawValue: modeRaw) ?? .day }
+    private var trayFits: Bool { PlannerLayoutRules.trayFits(contentWidth: contentWidth) }
+    private var showTray: Bool { trayOpen && trayFits }
 
     private var days: [DayKey] {
         switch mode {
@@ -42,7 +46,7 @@ struct PlannerView: View {
             header
             allDayStrip
             HStack(alignment: .top, spacing: 12) {
-                if trayOpen {
+                if showTray {
                     UnscheduledTray(day: store.selectedDay, isDropTarget: dropToTray,
                                     workStart: workStart, workEnd: workEnd, snapStep: snapStep)
                         .transition(.opacity)
@@ -57,6 +61,7 @@ struct PlannerView: View {
                 .clipShape(RoundedRectangle(cornerRadius: theme.radius, style: .continuous))
             }
         }
+        .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { contentWidth = $0 }
         .padding(.horizontal, 16).padding(.bottom, 16)
         .padding(.top, 34)   // the window buttons sit in this space (title bar is hidden)
         .overlay(alignment: .bottom) { toast }
@@ -66,43 +71,106 @@ struct PlannerView: View {
             Button("OK") { store.overloadWarning = nil }
         } message: { Text(store.overloadWarning ?? "") }
         .sheet(isPresented: Binding(get: { plan != nil }, set: { if !$0 { plan = nil } })) { planSheet }
-        .animation(.easeInOut(duration: 0.2), value: trayOpen)
+        .animation(.easeInOut(duration: 0.2), value: showTray)
     }
 
     // MARK: Header
 
+    /// One row when there is room. Two or three rows when the task list and the inspector are both open.
     private var header: some View {
         let blocks = store.blocks(for: store.selectedDay...store.selectedDay)
         let totals = store.dayTotals(store.selectedDay, blocks: blocks, workStart: workStart, workEnd: workEnd)
-        return HStack(spacing: 10) {
-            if !tasksOpen {
-                Button { tasksOpen = true } label: { Image(systemName: "checklist") }
-                    .help("Show the task list")
+        let over = totals.planned > store.dailyLimitMinutes
+        let stats = "\(over ? "⚠︎ " : "")\(PlannerMath.duration(totals.planned)) planned · \(PlannerMath.duration(totals.free)) free · \(totals.done)/\(totals.total) done"
+        return ViewThatFits(in: .horizontal) {
+            HStack(spacing: 10) {
+                navButtons
+                VStack(alignment: .leading, spacing: 0) {
+                    titleText
+                    statsText(stats, over: over)
+                }
+                Spacer(minLength: 0)
+                planButton(compact: false)
+                modePicker(width: 200)
+                zoomButtons
             }
-            Button { trayOpen.toggle() } label: { Image(systemName: "sidebar.left") }
-                .help("Show or hide the unscheduled tray")
-            Button { move(-1) } label: { Image(systemName: "chevron.left") }.help("Previous")
-            Button("Today") { store.selectedDay = .today(); scrollRequest += 1 }
-                .keyboardShortcut("t", modifiers: [.command, .shift])
-            Button { move(1) } label: { Image(systemName: "chevron.right") }.help("Next")
-            VStack(alignment: .leading, spacing: 0) {
-                Text(title).font(.system(.title2, design: .serif, weight: .semibold)).foregroundStyle(theme.ink)
-                let over = totals.planned > store.dailyLimitMinutes
-                Text("\(over ? "⚠︎ " : "")\(PlannerMath.duration(totals.planned)) planned · \(PlannerMath.duration(totals.free)) free · \(totals.done)/\(totals.total) done")
-                    .font(.system(size: 11, weight: over ? .bold : .regular, design: .rounded))
-                    .foregroundStyle(over ? theme.accent2 : theme.muted)
+            VStack(alignment: .leading, spacing: 6) {
+                HStack(spacing: 10) { navButtons; titleText; Spacer(minLength: 0) }
+                HStack(spacing: 10) {
+                    statsText(stats, over: over)
+                    Spacer(minLength: 0)
+                    planButton(compact: false)
+                    modePicker(width: 170)
+                    zoomButtons
+                }
             }
-            Spacer()
-            Button("Plan my day") { showPlan() }.help("Fit today's unscheduled tasks into free working hours")
-            Picker("View", selection: $modeRaw) {
-                ForEach(PlannerMode.allCases) { Text($0.label).tag($0.rawValue) }
+            VStack(alignment: .leading, spacing: 6) {
+                HStack(spacing: 10) { navButtons; titleText; Spacer(minLength: 0) }
+                statsText(stats, over: over)
+                HStack(spacing: 10) {
+                    modePicker(width: 170)
+                    Spacer(minLength: 0)
+                    planButton(compact: true)
+                    zoomButtons
+                }
             }
-            .pickerStyle(.segmented).frame(width: 200).labelsHidden()
-            Button { zoom(1 / 1.2) } label: { Image(systemName: "minus.magnifyingglass") }.help("Zoom out")
-            Button { zoom(1.2) } label: { Image(systemName: "plus.magnifyingglass") }.help("Zoom in")
         }
         .buttonStyle(.bordered)
         .controlSize(.regular)
+    }
+
+    @ViewBuilder private var navButtons: some View {
+        if !tasksOpen {
+            Button { tasksOpen = true } label: { Image(systemName: "checklist") }
+                .help("Show the task list")
+        }
+        Button { trayOpen.toggle() } label: { Image(systemName: "sidebar.left") }
+            .disabled(!trayFits)
+            .help(trayFits ? "Show or hide the unscheduled tray" : "No room for the tray. Close the task list or the task panel.")
+        Button { move(-1) } label: { Image(systemName: "chevron.left") }.help("Previous")
+        Button("Today") { store.selectedDay = .today(); scrollRequest += 1 }
+            .keyboardShortcut("t", modifiers: [.command, .shift])
+            .fixedSize()
+        Button { move(1) } label: { Image(systemName: "chevron.right") }.help("Next")
+    }
+
+    private var titleText: some View {
+        Text(title)
+            .font(.system(.title2, design: .serif, weight: .semibold))
+            .foregroundStyle(theme.ink)
+            .lineLimit(1)
+            .minimumScaleFactor(0.75)
+    }
+
+    private func statsText(_ text: String, over: Bool) -> some View {
+        Text(text)
+            .font(.system(size: 11, weight: over ? .bold : .regular, design: .rounded))
+            .foregroundStyle(over ? theme.accent2 : theme.muted)
+            .lineLimit(1)
+            .truncationMode(.tail)
+    }
+
+    @ViewBuilder private func planButton(compact: Bool) -> some View {
+        if compact {
+            Button { showPlan() } label: { Image(systemName: "wand.and.stars") }
+                .help("Plan my day: fit today's unscheduled tasks into free working hours")
+        } else {
+            Button("Plan my day") { showPlan() }
+                .fixedSize()
+                .help("Fit today's unscheduled tasks into free working hours")
+        }
+    }
+
+    private func modePicker(width: CGFloat) -> some View {
+        Picker("View", selection: $modeRaw) {
+            ForEach(PlannerMode.allCases) { Text($0.label).tag($0.rawValue) }
+        }
+        .pickerStyle(.segmented).frame(width: width).labelsHidden()
+    }
+
+    @ViewBuilder private var zoomButtons: some View {
+        Button { zoom(1 / 1.2) } label: { Image(systemName: "minus.magnifyingglass") }.help("Zoom out")
+        Button { zoom(1.2) } label: { Image(systemName: "plus.magnifyingglass") }.help("Zoom in")
     }
 
     private var title: String {

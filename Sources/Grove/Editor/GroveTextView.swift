@@ -26,6 +26,8 @@ final class GroveTextView: NSTextView {
     var onImages: (([(data: Data, name: String)]) -> Void)?
     var onTaskDrop: ((String, Int) -> Void)?
     var onAppearanceChange: (() -> Void)?
+    /// Asked before a window-wide Esc shortcut. Return true when the editor used the key (it closed its list).
+    var onEscape: (() -> Bool)?
 
     // MARK: Setup
 
@@ -106,6 +108,7 @@ final class GroveTextView: NSTextView {
         guard window?.firstResponder === self else { return super.performKeyEquivalent(with: event) }
         let mods = event.modifierFlags.intersection([.command, .shift, .option, .control])
         let key = event.charactersIgnoringModifiers?.lowercased()
+        if event.keyCode == 53, mods.isEmpty, onEscape?() == true { return true }
         switch (key, mods) {
         case ("b", [.command]): onFormat?(.bold); return true
         case ("i", [.command]): onFormat?(.italic); return true

@@ -175,3 +175,16 @@ struct EditorViewTests {
         #expect(!r.box.text.contains("T1"))
     }
 }
+
+extension EditorViewTests {
+    @Test func escapeKeyIsKeptByTheEditorWhileItsListIsOpen() throws {
+        var s = EditorServices()
+        s.suggest = { _ in [MentionSuggestion(ref: ItemRef(.task, "T1"), title: "Buy milk", kind: "Task")] }
+        let r = try makeRig("", services: s)
+        // no list yet: Esc is not the editor's
+        #expect(r.view.onEscape?() == false)
+        r.view.insertText("[[bu", replacementRange: NSRange(location: 0, length: 0))
+        #expect(r.view.onEscape?() == true)
+        #expect(r.view.onEscape?() == false)
+    }
+}

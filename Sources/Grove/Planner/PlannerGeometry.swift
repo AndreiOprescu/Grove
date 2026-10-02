@@ -19,3 +19,10 @@ struct PlannerGeometry: Equatable {
     /// How many minutes the title row of a block covers at this zoom.
     var tightMinutes: Int { Int((Self.titleRowHeight / (hourHeight / 60)).rounded(.up)) }
 }
+
+/// Rules for how the planner gives up space when the window is tight.
+enum PlannerLayoutRules {
+    /// The unscheduled tray is 230 wide. The grid next to it needs about 450 to stay readable.
+    static let trayMinContentWidth: CGFloat = 680
+    static func trayFits(contentWidth: CGFloat) -> Bool { contentWidth >= trayMinContentWidth }
+}

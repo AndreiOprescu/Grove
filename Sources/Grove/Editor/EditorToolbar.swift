@@ -119,13 +119,14 @@ struct RichTextField: View {
     var placeholder = ""
     var minHeight: CGFloat = 80
     var refreshToken = 0
+    var onEnd: () -> Void = {}
     @State private var controller = EditorController()
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             EditorToolbar(controller: controller)
             RichTextEditor(text: $text, controller: controller, services: services,
-                           minHeight: minHeight, placeholder: placeholder, refreshToken: refreshToken)
+                           minHeight: minHeight, placeholder: placeholder, refreshToken: refreshToken, onEnd: onEnd)
             ImageStrip(text: text, controller: controller, services: services) { text = $0 }
         }
     }

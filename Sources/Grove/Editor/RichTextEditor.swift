@@ -57,6 +57,8 @@ struct RichTextEditor: NSViewRepresentable {
     var placeholder = ""
     /// Change this when something the text points at may have changed, so chips are checked again.
     var refreshToken = 0
+    /// Called when the text loses the keyboard.
+    var onEnd: () -> Void = {}
     @Environment(\.theme) private var theme
 
     func makeCoordinator() -> Coordinator { Coordinator(self) }
@@ -95,7 +97,7 @@ struct RichTextEditor: NSViewRepresentable {
             view.string = text
             view.setSelectedRange(NSRange(location: min(sel.location, (text as NSString).length), length: 0))
             c.reload()
-        } else if restyle {
+        } else if restyle, !view.hasMarkedText() {
             c.reload()
         }
     }
@@ -142,6 +144,7 @@ struct RichTextEditor: NSViewRepresentable {
             view.onImages = { [weak self] in self?.importImages($0) }
             view.onTaskDrop = { [weak self] id, index in self?.dropTask(id, at: index) }
             view.onAppearanceChange = { [weak self] in self?.appearanceChanged() }
+            view.onEscape = { [weak self] in self?.closeList() ?? false }
         }
 
         // MARK: Look
@@ -219,6 +222,7 @@ struct RichTextEditor: NSViewRepresentable {
         func textDidEndEditing(_ notification: Notification) {
             popup.hide()
             shown = nil
+            parent.onEnd()
         }
 
         // MARK: Keys
@@ -234,10 +238,7 @@ struct RichTextEditor: NSViewRepresentable {
                 popup.move(-1)
                 return true
             case #selector(NSResponder.cancelOperation(_:)) where open:
-                dismissedAt = MarkdownEdit.mentionTrigger(in: view.string, caret: view.selectedRange().location)?.range.location
-                popup.hide()
-                shown = nil
-                return true
+                return closeList()
             case #selector(NSResponder.insertNewline(_:)), #selector(NSResponder.insertTab(_:)):
                 if open, let item = popup.current {
                     accept(item)
@@ -252,6 +253,15 @@ struct RichTextEditor: NSViewRepresentable {
             default:
                 return false
             }
+        }
+
+        /// Esc closes the `[[` list and keeps it closed until the caret leaves that `[[`. False when no list is open.
+        private func closeList() -> Bool {
+            guard popup.isVisible, let view else { return false }
+            dismissedAt = MarkdownEdit.mentionTrigger(in: view.string, caret: view.selectedRange().location)?.range.location
+            popup.hide()
+            shown = nil
+            return true
         }
 
         /// Tab moves a list item in. Anywhere else it moves to the next field.
