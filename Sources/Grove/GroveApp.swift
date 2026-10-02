@@ -18,6 +18,10 @@ struct GroveApp: App {
                 Button("New Task") { store.requestQuickAdd() }
                     .keyboardShortcut("n", modifiers: .command)
             }
+            CommandMenu("Go") {
+                Button("Command Palette") { store.togglePalette() }
+                    .keyboardShortcut("k", modifiers: .command)
+            }
             CommandGroup(replacing: .undoRedo) {
                 Button(store.undoName.map { "Undo \($0)" } ?? "Undo") { store.undo() }
                     .keyboardShortcut("z", modifiers: .command)

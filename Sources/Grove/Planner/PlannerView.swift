@@ -73,7 +73,8 @@ struct PlannerView: View {
         .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { contentWidth = $0 }
         .padding(.horizontal, 16).padding(.bottom, 16)
         .padding(.top, 34)   // the window buttons sit in this space (title bar is hidden)
-        .onAppear { geo.hourHeight = CGFloat(hourHeight) }
+        .onAppear { geo.hourHeight = CGFloat(hourHeight); takePlanRequest() }
+        .onChange(of: store.planMyDayRequest) { takePlanRequest() }
         .onChange(of: geo.hourHeight) { _, new in hourHeight = Double(new) }
         .alert("Busy day", isPresented: Binding(get: { store.overloadWarning != nil }, set: { if !$0 { store.overloadWarning = nil } })) {
             Button("OK") { store.overloadWarning = nil }
@@ -257,6 +258,13 @@ struct PlannerView: View {
     }
 
     // MARK: Plan my day
+
+    /// The palette asked for "Plan my day". It may ask while this screen is not shown, so the request waits here.
+    private func takePlanRequest() {
+        guard store.planMyDayHandled != store.planMyDayRequest else { return }
+        store.planMyDayHandled = store.planMyDayRequest
+        showPlan()
+    }
 
     private func showPlan() {
         let result = store.planMyDayPreview(day: store.selectedDay, workStart: workStart, workEnd: workEnd, step: snapStep)

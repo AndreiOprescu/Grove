@@ -154,3 +154,11 @@ Format: date · decision · why · how to undo
 - 2026-10-02 · M6c: PLAN §5.5 item 8 says "drag a note from the notes list". The notes list and the planner are on different screens, so a new "Notes" tray sits under the task list in the planner (closed by default, `tasks.notesOpen`, 12 notes, pinned first). Dropping a note on a day and time makes a 30-minute plain event "📝 <title>" with `[[Title|id]]` in its notes · `NotesTray`, `AppStore.addNoteToPlanner`
 - 2026-10-02 · M6c: a dragged note dropped into any text field becomes a mention, the same as a task. A note dropped on the week strip or a month cell does nothing (only tasks go there) · skipped to keep M6c small
 - 2026-10-02 · M6c: the event made from a note keeps its title if the note is renamed (the mention in its notes follows the rename, the title does not) · the user may have edited it
+- 2026-10-02 · M6d: "Toggle theme…" is not in the palette yet. Grove has one theme until M7. M7 adds the command with the themes · a command that does nothing would confuse
+- 2026-10-02 · M6d: the palette also has "New note", "Today's note", "Go to today", "Open planner", "Open notes" (PLAN lists four commands, these cost nothing and help)
+- 2026-10-02 · M6d: a text that is only a day ("fri", "tomorrow", "go to oct 9") puts "Go to <day>" first, so Return goes there. Other rows stay below it. A time after the day is ignored. A `>` first turns the day row off · it reuses the `@date` parser
+- 2026-10-02 · M6d: "Plan my day" in the palette goes to today and opens the plan for today. The planner button still plans the day on screen · the PLAN says "today's unscheduled tasks"
+- 2026-10-02 · M6d: going to a day from the palette leaves the month grid for the day view. Week and 3-day views stay · the day is easy to see
+- 2026-10-02 · M6d: the search shows at most 10 items. A task block is not listed (its task is). Search is the same FTS index as the notes screen · one index
+- 2026-10-02 · M6d: rows are chosen with the arrow keys and Return. The mouse only clicks (no hover choice), because a list that scrolls under a still mouse would change the choice · common palette bug
+- 2026-10-02 · M6d: a "Search ⌘K" pill sits top right in the window strip, and a "Go" menu holds "Command Palette ⌘K". M8 adds more to the Go menu

@@ -40,9 +40,12 @@ struct RootView: View {
             }
         }
         .overlay(alignment: .top) { ScreenSwitch().padding(.top, 5) }
+        .overlay(alignment: .topTrailing) { PaletteButton().padding(.top, 5).padding(.trailing, 16) }
+        .overlay { if store.paletteOpen { CommandPalette().transition(.opacity) } }
         .overlay(alignment: .bottom) { ToastView() }
         .animation(.easeInOut(duration: 0.2), value: store.selectedTaskId != nil)
         .animation(.easeInOut(duration: 0.2), value: tasksOpen)
+        .animation(.easeOut(duration: 0.12), value: store.paletteOpen)
         .background(theme.bg.ignoresSafeArea())
         .confirmationDialog(
             store.recurringPrompt.map { "\($0.verb) a repeating event" } ?? "",

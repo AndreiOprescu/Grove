@@ -60,6 +60,12 @@ final class AppStore {
     var selectedTaskId: String?
     /// Bumped by ⌘N. The task list focuses its quick-add field when this changes.
     var quickAddRequest = 0
+    /// The ⌘K palette is on screen, and the text in its box.
+    var paletteOpen = false
+    var paletteText = ""
+    /// Bumped by the palette command "Plan my day". The planner opens its plan when this passes `planMyDayHandled`.
+    var planMyDayRequest = 0
+    var planMyDayHandled = 0
     /// Set when a change takes a day past the daily limit. The planner shows it as an alert.
     var overloadWarning: String?
     /// Set when a change touches an event that repeats. The window asks "This event only / All events".
