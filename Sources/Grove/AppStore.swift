@@ -10,6 +10,21 @@ struct Mutation {
     /// Tag names of a task before and after. Tags live in their own table, so they are tracked here.
     var tags: [(taskId: String, before: [String], after: [String])] = []
     var isEmpty: Bool { tasks.isEmpty && events.isEmpty && tags.isEmpty }
+    /// Typing makes many small changes. Changes with the same key, close in time, become one undo step.
+    var mergeKey: String?
+    var at = Date()
+
+    /// Joins `next` (a later change of the same one task) into this one.
+    func merged(with next: Mutation) -> Mutation? {
+        guard let key = mergeKey, key == next.mergeKey, next.at.timeIntervalSince(at) < 60,
+              tasks.count == 1, next.tasks.count == 1, events.isEmpty, next.events.isEmpty,
+              tags.isEmpty, next.tags.isEmpty,
+              tasks[0].after?.id == next.tasks[0].before?.id else { return nil }
+        var m = self
+        m.tasks[0] = (tasks[0].before, next.tasks[0].after)
+        m.at = next.at
+        return m
+    }
 }
 
 @Observable @MainActor
@@ -43,6 +58,8 @@ final class AppStore {
             if let dir = try? Database.supportDirectory().appendingPathComponent("Backups") {
                 try? Backup.runDaily(db: db, directory: dir, today: .today())
             }
+            // After the backup: drop images that no text uses and that are over a day old.
+            _ = try? self.repos.attachments.sweepOrphans()
         } else {
             self.repos = Repos(db: try! Database.inMemory())
             self.errorMessage = "Grove could not open its database. Changes will not be saved."
@@ -62,7 +79,11 @@ final class AppStore {
         let before = Dictionary(uniqueKeysWithValues: days.map { ($0, plannedMinutes(on: $0)) })
         guard apply(m, forward: true) else { return false }
         warnIfOverloaded(days, before: before)
-        undoStack.append(m)
+        if let last = undoStack.last, let joined = last.merged(with: m) {
+            undoStack[undoStack.count - 1] = joined
+        } else {
+            undoStack.append(m)
+        }
         redoStack.removeAll()
         if undoStack.count > 200 { undoStack.removeFirst() }
         return true

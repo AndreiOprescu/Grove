@@ -157,6 +157,18 @@ extension AppStore {
         commit(m)
     }
 
+    /// Saves the body of a task. Many saves in a row while typing make one undo step.
+    func setNotes(_ id: String, _ text: String, now: Date = Date()) {
+        guard let old = task(id), old.notes != text else { return }
+        var t = old
+        t.notes = text
+        var m = Mutation(name: "Edit Notes")
+        m.tasks.append((old, t))
+        m.mergeKey = "notes:\(id)"
+        m.at = now
+        commit(m)
+    }
+
     func setTags(taskId: String, to names: [String]) {
         var seen = Set<String>()
         let clean = names.map { $0.trimmingCharacters(in: CharacterSet(charactersIn: "# ").union(.whitespacesAndNewlines)) }
