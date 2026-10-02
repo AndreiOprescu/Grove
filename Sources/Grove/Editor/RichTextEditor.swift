@@ -145,6 +145,8 @@ struct RichTextEditor: NSViewRepresentable {
             view.onTaskDrop = { [weak self] id, index in self?.dropTask(id, at: index) }
             view.onMakeTask = { [weak self] in self?.makeTask() }
             view.canMakeTask = { [weak self] in self?.taskTarget() != nil }
+            view.onAddToPlanner = { [weak self] in self?.addToPlanner() }
+            view.canAddToPlanner = { [weak self] in self?.plannerLine() != nil }
             view.onAppearanceChange = { [weak self] in self?.appearanceChanged() }
             view.onEscape = { [weak self] in self?.closeList() ?? false }
         }
@@ -164,6 +166,7 @@ struct RichTextEditor: NSViewRepresentable {
             spans = MarkdownSpans.scan(view.string)
             stale = false
             restyle(nil)
+            updateAddButton()
         }
 
         private func restyle(_ range: NSRange?) {
@@ -222,6 +225,7 @@ struct RichTextEditor: NSViewRepresentable {
             parent.text = view.string
             view.invalidateIntrinsicContentSize()
             updateMentionList()
+            updateAddButton()
         }
 
         func textView(_ textView: NSTextView, willChangeSelectionFromCharacterRange old: NSRange, toCharacterRange new: NSRange) -> NSRange {
@@ -229,7 +233,10 @@ struct RichTextEditor: NSViewRepresentable {
             return MarkdownSpans.snapped(new, in: spans, movingForward: new.location >= old.location)
         }
 
-        func textViewDidChangeSelection(_ notification: Notification) { updateMentionList() }
+        func textViewDidChangeSelection(_ notification: Notification) {
+            updateMentionList()
+            updateAddButton()
+        }
 
         func textDidEndEditing(_ notification: Notification) {
             popup.hide()
@@ -342,6 +349,42 @@ struct RichTextEditor: NSViewRepresentable {
             }
             guard let id = make(target.title) else { return }
             view.apply(MarkdownEdit.taskLine(for: target, in: view.string, taskId: id))
+        }
+
+        // MARK: Add to planner
+
+        /// The line with the caret, when the field can use the planner and the line has an `@date` it can take.
+        private func plannerLine() -> (text: String, range: NSRange)? {
+            guard let view, parent.services.addToPlanner != nil else { return nil }
+            let ns = view.string as NSString
+            let sel = view.selectedRange()
+            guard sel.location >= 0, NSMaxRange(sel) <= ns.length else { return nil }
+            var line = ns.lineRange(for: NSRange(location: sel.location, length: 0))
+            while line.length > 0, [10, 13].contains(ns.character(at: NSMaxRange(line) - 1)) { line.length -= 1 }
+            guard NSMaxRange(sel) <= NSMaxRange(line) else { return nil }
+            let text = ns.substring(with: line)
+            guard text.contains("@"), AtDatePlanner.plan(line: text, noteDay: nil) != nil else { return nil }
+            return (text, line)
+        }
+
+        private func updateAddButton() {
+            guard let view, !view.hasMarkedText() else { return }
+            view.setAddButton(line: plannerLine()?.range)
+        }
+
+        /// Makes the event or the task block, and writes the new text of the line (a link and when).
+        private func addToPlanner() {
+            guard let view, let add = parent.services.addToPlanner else { return }
+            guard let target = plannerLine() else {
+                parent.services.notify("Write @ and a day or time on an open line, like @fri 3pm.")
+                return
+            }
+            guard let text = add(target.text) else { return }
+            // The caret goes before the hidden task mark, if the line has one.
+            let mark = (text as NSString).range(of: " ⟦t:")
+            let end = mark.location == NSNotFound ? (text as NSString).length : mark.location
+            view.window?.makeFirstResponder(view)
+            view.apply(TextEdit(range: target.range, replacement: text, selection: NSRange(location: target.range.location + end, length: 0)))
         }
 
         // MARK: Images

@@ -5,7 +5,7 @@ import GroveCore
 /// A line and its task are tied by the hidden `⟦t:ID⟧` at the end of the line.
 extension AppStore {
     /// Where a task made from a line of this note goes when the line names no day.
-    private func placement(for note: Note) -> TaskPlacement {
+    func placement(for note: Note) -> TaskPlacement {
         switch (note.kind, note.date) {
         case (.daily, let day?): .day(day)
         case (.weekly, let monday?): .week(monday)
@@ -14,13 +14,14 @@ extension AppStore {
     }
 
     /// The notes field of a task that came from `note`. It is a link back to the note.
-    private func origin(of note: Note) -> String {
+    func origin(of note: Note) -> String {
         "From " + ReferenceParser.mention(title: note.title, id: note.id)
     }
 
     /// Brings the tasks in line with the saved text of a note.
     /// - A box that was ticked or cleared sets the task done or open.
     /// - An open box with words and no mark makes a task, and the mark is added to the line.
+    ///   A box with an `@date` is left alone. "Add to planner" makes its task.
     ///   This needs `creating`. Pass it only when the user is done typing, or half-typed words become tasks.
     /// Returns how many tasks it made. The saved text changes when it made some, so show it again.
     @discardableResult
@@ -38,6 +39,8 @@ extension AppStore {
         var change = Mutation(name: "New Task from Note")
         var made = 0
         for box in boxes where box.taskId == nil && !box.checked {
+            // A box with an @date waits for "Add to planner". A task made now would keep the token in its title.
+            guard AtDateParser.find(in: box.text) == nil else { continue }
             guard var q = quickAddChange(box.text, default: placement(for: old), notes: origin(of: old)) else { continue }
             // Each task is read from the database before it is saved, so they all get the same sort. Keep their order.
             q.change.tasks[0].after?.sort = q.task.sort + Double(made)

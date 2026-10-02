@@ -233,4 +233,23 @@ struct NoteTaskStoreTests {
         #expect(s.syncNoteTasks(n.id) == 0)
         #expect(try s.repos.tasks.inbox().count == 1)
     }
+
+    @Test func aBoxWithAnAtDateWaitsForAddToPlanner() throws {
+        let s = try makeStore()
+        let n = s.newNote(title: "Trip", body: "- [ ] Call Sam @tomorrow 3pm\n- [ ] Buy sunscreen")
+        #expect(s.syncNoteTasks(n.id) == 1)   // only the plain box
+        #expect(try s.repos.tasks.inbox().map(\.title) == ["Buy sunscreen"])
+        #expect(body(s, n.id).contains("Call Sam @tomorrow 3pm\n"))   // the line stays as typed
+
+        let line = try #require(s.addToPlanner(line: "- [ ] Call Sam @tomorrow 3pm", inNote: n.id))
+        s.setNoteBody(n.id, body(s, n.id).replacingOccurrences(of: "- [ ] Call Sam @tomorrow 3pm", with: line))
+        #expect(s.syncNoteTasks(n.id) == 0)   // it has its task now
+        #expect(try s.repos.tasks.all().count == 2)
+    }
+
+    @Test func anAddressIsNotAnAtDate() throws {
+        let s = try makeStore()
+        let n = s.newNote(title: "Trip", body: "- [ ] Mail me@home.com")
+        #expect(s.syncNoteTasks(n.id) == 1)
+    }
 }

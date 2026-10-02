@@ -26,4 +26,6 @@ struct EditorServices {
     var notify: (_ message: String) -> Void = { _ in }
     /// Makes a task from these words and returns its id. Nil when this field cannot make tasks (only notes can).
     var makeTask: ((_ words: String) -> String?)?
+    /// Sends a line with an `@date` to the planner. Returns the text the line becomes. Nil when it cannot go (only notes can).
+    var addToPlanner: ((_ line: String) -> String?)?
 }

@@ -34,6 +34,7 @@ struct TasksPane: View {
                     .padding(.bottom, 8)
             }
             .scrollIndicators(.hidden)
+            NotesTray()
         }
         .padding(12)
         .frame(width: 320)

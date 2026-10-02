@@ -112,6 +112,9 @@ enum MarkdownStyler {
             font { NSFont.systemFont(ofSize: $0.pointSize, weight: .medium) }
             set(.foregroundColor, s.accent2)
         case .tag: set(.foregroundColor, s.accent2)
+        case .atDate:
+            set(.foregroundColor, s.accent)
+            set(.underlineStyle, NSUnderlineStyle.single.rawValue | NSUnderlineStyle.patternDot.rawValue)
         case .link:
             set(.foregroundColor, s.accent)
             set(.underlineStyle, NSUnderlineStyle.single.rawValue)

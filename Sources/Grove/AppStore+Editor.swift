@@ -14,7 +14,10 @@ extension AppStore {
         s.storeImage = { [unowned self] data in (try? repos.attachments.addImage(data))?.id }
         s.loadImage = { [unowned self] id in image(id) }
         s.notify = { [unowned self] message in showToast(message) }
-        if let noteId { s.makeTask = { [unowned self] words in makeTask(from: words, inNote: noteId) } }
+        if let noteId {
+            s.makeTask = { [unowned self] words in makeTask(from: words, inNote: noteId) }
+            s.addToPlanner = { [unowned self] line in addToPlanner(line: line, inNote: noteId) }
+        }
         return s
     }
 

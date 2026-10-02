@@ -135,6 +135,15 @@ struct MarkdownSpansTests {
         #expect(link?.kind == .link("https://a.b/c"))
     }
 
+    @Test func anAtDateIsMarkedWhereItCanGoToThePlanner() {
+        #expect(found("Lunch @fri 12:30 at the cafe") { $0 == .atDate } == ["@fri 12:30"])
+        #expect(found("- [ ] Call Sam @tomorrow 3pm") { $0 == .atDate } == ["@tomorrow 3pm"])
+        #expect(found("Café ☕\nCall @mon 9am") { $0 == .atDate } == ["@mon 9am"])
+        #expect(found("Ask @sam about it") { $0 == .atDate }.isEmpty)
+        #expect(found("mail sam@fri.com") { $0 == .atDate }.isEmpty)
+        #expect(found("Code `@fri 3pm` stays plain") { $0 == .atDate }.isEmpty)
+    }
+
     // MARK: Positions
 
     @Test func rangesAreUTF16OffsetsInTheWholeText() {

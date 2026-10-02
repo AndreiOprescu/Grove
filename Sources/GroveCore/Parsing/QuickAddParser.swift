@@ -22,6 +22,8 @@ public struct QuickAddResult: Equatable, Sendable {
     public var listName: String?
     public var recurrence: RecurrenceRule?
     public var chips: [QuickAddChip] = []
+    /// True when the text named a day or a week (`fri`, `tomorrow`, `next week`). A time alone gives today without this.
+    public var namedADay = false
 
     /// Length of the time block: the stated length, or 30 minutes.
     public var blockMinutes: Int { durationMin ?? 30 }
@@ -372,6 +374,7 @@ public struct QuickAddParser {
             result.priority = priority ?? 0
             result.listName = listName
             result.recurrence = recurrence
+            result.namedADay = dateKind != nil
             result.chips = chips(for: result, someday: someday)
             return result
         }

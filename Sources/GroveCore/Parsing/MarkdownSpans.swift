@@ -27,6 +27,8 @@ public enum SpanKind: Hashable, Sendable {
     /// A whole `![alt](grove-image:ID)`.
     case image(id: String)
     case tag
+    /// An `@fri 3pm` that can go to the planner.
+    case atDate
     case link(String)
     /// The hidden ` ⟦t:ID⟧` that ties a check box line to its task. One unit, never shown.
     case taskMark
@@ -242,6 +244,10 @@ public enum MarkdownSpans {
         }
 
         for m in tagRegex.matches(in: masked as String, range: body()) { add(.tag, m.range.location, m.range.length) }
+
+        if line.contains("@"), let hit = AtDateParser.find(in: masked as String), hit.range.location >= bodyStart {
+            add(.atDate, hit.range.location, hit.range.length)
+        }
 
         for m in tripleRegex.matches(in: masked as String, range: body()) {
             let inner = m.range(at: 1)

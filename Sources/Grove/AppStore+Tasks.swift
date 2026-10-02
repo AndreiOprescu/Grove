@@ -37,7 +37,7 @@ extension AppStore {
         ((try? repos.db.queryOne("SELECT COALESCE(MAX(sort), 0) FROM tasks") { $0.double(0) }) ?? 0) + 1
     }
 
-    private func placed(_ task: TaskItem, in placement: TaskPlacement) -> TaskItem {
+    func placed(_ task: TaskItem, in placement: TaskPlacement) -> TaskItem {
         var t = task
         switch placement {
         case .inbox: t.bucket = .inbox; t.planDate = nil; t.planWeek = nil

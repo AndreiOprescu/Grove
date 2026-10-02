@@ -190,10 +190,13 @@ struct PlannerGrid: View {
                 .onChanged { createChanged(index: index, $0) }
                 .onEnded { createEnded(index: index, day: day, $0) })
         .dropDestination(for: String.self) { items, location in
-            guard let raw = items.first, raw.hasPrefix(DragPayload.taskPrefix) else { return false }
-            let id = String(raw.dropFirst(DragPayload.taskPrefix.count))
+            guard let raw = items.first else { return false }
             let minute = PlannerMath.snap(geo.minute(forY: location.y), step: snapStep)
-            store.schedule(taskId: id, day: day, start: minute)
+            if let noteId = DragPayload.noteId(from: raw) {
+                return store.addNoteToPlanner(noteId, on: day, at: minute) != nil
+            }
+            guard raw.hasPrefix(DragPayload.taskPrefix) else { return false }
+            store.schedule(taskId: String(raw.dropFirst(DragPayload.taskPrefix.count)), day: day, start: minute)
             return true
         } isTargeted: { targeted in
             if targeted { targetedDay = day } else if targetedDay == day { targetedDay = nil }

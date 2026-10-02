@@ -29,6 +29,13 @@ final class GroveTextView: NSTextView {
     var onMakeTask: (() -> Void)?
     /// True when the selection, or the line with the caret, has words a task can take.
     var canMakeTask: (() -> Bool)?
+    /// Set when the field can send an `@date` line to the planner (the "Add to planner" menu item and button).
+    var onAddToPlanner: (() -> Void)?
+    /// True when the line with the caret has an `@date` token the planner can take.
+    var canAddToPlanner: (() -> Bool)?
+    /// The line the "＋ Add to planner" button belongs to, without its line break. Nil hides the button.
+    private var addLine: NSRange?
+    private let addButton = PlannerButton()
     var onAppearanceChange: (() -> Void)?
     /// Asked before a window-wide Esc shortcut. Return true when the editor used the key (it closed its list).
     var onEscape: (() -> Bool)?
@@ -68,6 +75,7 @@ final class GroveTextView: NSTextView {
         if let c = textContainer, abs(c.containerSize.width - width) > 0.5 {
             c.containerSize = NSSize(width: width, height: CGFloat.greatestFiniteMagnitude)
         }
+        if addLine != nil { placeAddButton() }
     }
 
     override func viewDidChangeEffectiveAppearance() {
@@ -134,15 +142,73 @@ final class GroveTextView: NSTextView {
         item.keyEquivalentModifierMask = [.command, .shift]
         item.target = self
         menu.insertItem(item, at: 0)
-        menu.insertItem(.separator(), at: 1)
+        var next = 1
+        if onAddToPlanner != nil {
+            let plan = NSMenuItem(title: "Add to planner", action: #selector(addToPlannerFromMenu(_:)), keyEquivalent: "")
+            plan.target = self
+            menu.insertItem(plan, at: next)
+            next += 1
+        }
+        menu.insertItem(.separator(), at: next)
         return menu
     }
 
     @objc private func makeTaskFromMenu(_ sender: Any?) { onMakeTask?() }
+    @objc private func addToPlannerFromMenu(_ sender: Any?) { onAddToPlanner?() }
 
     override func validateMenuItem(_ item: NSMenuItem) -> Bool {
         if item.action == #selector(makeTaskFromMenu(_:)) { return canMakeTask?() ?? false }
+        if item.action == #selector(addToPlannerFromMenu(_:)) { return canAddToPlanner?() ?? false }
         return super.validateMenuItem(item)
+    }
+
+    // MARK: Add to planner
+
+    /// A button that never takes the keyboard. A click on it must not end the editing of the text (that would save the line before it is changed).
+    private final class PlannerButton: NSButton {
+        override var acceptsFirstResponder: Bool { false }
+    }
+
+    /// Shows the "＋ Add to planner" button after the last row of `line`, or hides it when `line` is nil
+    /// or the row has no room for it.
+    func setAddButton(line: NSRange?) {
+        addLine = line
+        placeAddButton()
+    }
+
+    private func placeAddButton() {
+        guard let line = addLine, let layout = layoutManager, let container = textContainer, let style, line.length > 0,
+              NSMaxRange(line) <= (string as NSString).length else {
+            addButton.isHidden = true
+            return
+        }
+        if addButton.superview == nil {
+            addButton.isBordered = false
+            addButton.wantsLayer = true
+            addButton.target = self
+            addButton.action = #selector(addToPlannerFromMenu(_:))
+            addButton.toolTip = "Make an event or a task block from the @date on this line"
+            addButton.setAccessibilityLabel("Add to planner")
+            addSubview(addButton)
+        }
+        addButton.attributedTitle = NSAttributedString(string: "＋ Add to planner", attributes: [
+            .font: NSFont.systemFont(ofSize: max(10.5, style.size - 2), weight: .medium), .foregroundColor: style.accent,
+        ])
+        addButton.layer?.backgroundColor = style.accent.withAlphaComponent(0.14).cgColor
+        addButton.sizeToFit()
+        let size = NSSize(width: addButton.frame.width + 12, height: 20)
+        addButton.layer?.cornerRadius = size.height / 2
+
+        layout.ensureLayout(for: container)
+        let glyph = layout.glyphIndexForCharacter(at: NSMaxRange(line) - 1)
+        let used = layout.lineFragmentUsedRect(forGlyphAt: glyph, effectiveRange: nil)
+        let x = used.maxX + textContainerOrigin.x + 10
+        guard x + size.width <= bounds.width else {
+            addButton.isHidden = true   // no room on this row. The menu item still works.
+            return
+        }
+        addButton.frame = NSRect(x: x, y: used.midY + textContainerOrigin.y - size.height / 2, width: size.width, height: size.height)
+        addButton.isHidden = false
     }
 
     // MARK: Pasting and dropping
@@ -161,9 +227,11 @@ final class GroveTextView: NSTextView {
         return []
     }
 
-    static func droppedTask(_ pb: NSPasteboard) -> String? {
-        guard let s = pb.string(forType: .string), s.hasPrefix(DragPayload.taskPrefix) else { return nil }
-        return String(s.dropFirst(DragPayload.taskPrefix.count))
+    /// The id of a task or a note that was dragged in from a list. It becomes a mention.
+    static func droppedItem(_ pb: NSPasteboard) -> String? {
+        guard let s = pb.string(forType: .string) else { return nil }
+        if s.hasPrefix(DragPayload.taskPrefix) { return String(s.dropFirst(DragPayload.taskPrefix.count)) }
+        return DragPayload.noteId(from: s)
     }
 
     override func paste(_ sender: Any?) {
@@ -186,12 +254,12 @@ final class GroveTextView: NSTextView {
     }
 
     private func accepts(_ sender: NSDraggingInfo) -> Bool {
-        Self.droppedTask(sender.draggingPasteboard) != nil || !Self.images(from: sender.draggingPasteboard).isEmpty
+        Self.droppedItem(sender.draggingPasteboard) != nil || !Self.images(from: sender.draggingPasteboard).isEmpty
     }
 
     override func performDragOperation(_ sender: NSDraggingInfo) -> Bool {
         let index = characterIndexForInsertion(at: convert(sender.draggingLocation, from: nil))
-        if let id = Self.droppedTask(sender.draggingPasteboard) {
+        if let id = Self.droppedItem(sender.draggingPasteboard) {
             onTaskDrop?(id, index)
             return true
         }
