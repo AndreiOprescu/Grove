@@ -12,3 +12,6 @@ Format: date · decision · why · how to undo
 - 2026-10-02 · Day Planner is the top priority feature (owner said so) · built in milestone M2 · —
 - 2026-10-02 · Apple/Google Calendar sync is out of scope for v1 · touches data outside the app; needs owner OK · —
 - 2026-10-02 · Default layout B (Day Spread) · shows planner, tasks and notes together · edit PLAN.md §0
+- 2026-10-02 · Task model is named `TaskItem` · Swift already has a `Task` type · rename in Model/Task.swift
+- 2026-10-02 · Saves use upsert (`ON CONFLICT DO UPDATE`), not `INSERT OR REPLACE` · REPLACE deletes the row first and would wipe subtasks and blocks by cascade · none needed
+- 2026-10-02 · Daily backup: `VACUUM INTO` a `grove-YYYY-MM-DD.sqlite` copy, keep newest 14 · cheap safety net for local data · change `keep` in Backup.runDaily
