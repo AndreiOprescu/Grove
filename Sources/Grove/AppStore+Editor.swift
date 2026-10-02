@@ -63,7 +63,7 @@ extension AppStore {
                 selection = [e.id]
             }
         case .note:
-            showToast("Notes open in a later step.")
+            openNote(ref.id)
         }
     }
 

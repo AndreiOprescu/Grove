@@ -7,23 +7,31 @@ struct Mutation {
     var name: String
     var tasks: [(before: TaskItem?, after: TaskItem?)] = []
     var events: [(before: EventItem?, after: EventItem?)] = []
+    var notes: [(before: Note?, after: Note?)] = []
     /// Days taken out of (`add`) or put back into a repeating event. Undo does the opposite, in reverse order.
     var exdates: [(eventId: String, day: DayKey, add: Bool)] = []
     /// Tag names of a task before and after. Tags live in their own table, so they are tracked here.
     var tags: [(taskId: String, before: [String], after: [String])] = []
-    var isEmpty: Bool { tasks.isEmpty && events.isEmpty && tags.isEmpty && exdates.isEmpty }
+    var isEmpty: Bool { tasks.isEmpty && events.isEmpty && notes.isEmpty && tags.isEmpty && exdates.isEmpty }
     /// Typing makes many small changes. Changes with the same key, close in time, become one undo step.
     var mergeKey: String?
     var at = Date()
 
-    /// Joins `next` (a later change of the same one task) into this one.
+    /// Joins `next` (a later change of the same one task or note) into this one.
     func merged(with next: Mutation) -> Mutation? {
         guard let key = mergeKey, key == next.mergeKey, next.at.timeIntervalSince(at) < 60,
-              tasks.count == 1, next.tasks.count == 1, events.isEmpty, next.events.isEmpty,
-              tags.isEmpty, next.tags.isEmpty, exdates.isEmpty, next.exdates.isEmpty,
-              tasks[0].after?.id == next.tasks[0].before?.id else { return nil }
+              events.isEmpty, next.events.isEmpty, tags.isEmpty, next.tags.isEmpty,
+              exdates.isEmpty, next.exdates.isEmpty else { return nil }
         var m = self
-        m.tasks[0] = (tasks[0].before, next.tasks[0].after)
+        if tasks.count == 1, next.tasks.count == 1, notes.isEmpty, next.notes.isEmpty,
+           tasks[0].after?.id == next.tasks[0].before?.id {
+            m.tasks[0] = (tasks[0].before, next.tasks[0].after)
+        } else if notes.count == 1, next.notes.count == 1, tasks.isEmpty, next.tasks.isEmpty,
+                  notes[0].after?.id == next.notes[0].before?.id {
+            m.notes[0] = (notes[0].before, next.notes[0].after)
+        } else {
+            return nil
+        }
         m.at = next.at
         return m
     }
@@ -32,6 +40,7 @@ struct Mutation {
     mutating func append(_ other: Mutation) {
         tasks += other.tasks
         events += other.events
+        notes += other.notes
         tags += other.tags
         exdates += other.exdates
     }
@@ -57,6 +66,12 @@ final class AppStore {
     var recurringPrompt: RecurringPrompt?
     /// The event the editor popover shows, or nil.
     var editingEvent: EditingEvent?
+    /// Which screen fills the window. M8 replaces this with the layouts.
+    var screen: Screen = .planner
+    /// The note the notes screen shows.
+    var selectedNoteId: String?
+    var noteFilter: NoteFilter = .all
+    var noteQuery = ""
 
     private(set) var undoStack: [Mutation] = []
     private(set) var redoStack: [Mutation] = []
@@ -156,6 +171,7 @@ final class AppStore {
                 func source(_ t: (before: TaskItem?, after: TaskItem?)) -> TaskItem? { forward ? t.before : t.after }
                 for t in m.tasks { if let x = target(t) { try repos.tasks.save(x) } }
                 for e in m.events { if let x = forward ? e.after : e.before { try repos.events.save(x) } }
+                for n in m.notes { if let x = forward ? n.after : n.before { try repos.notes.save(x) } }
                 for x in forward ? m.exdates : m.exdates.reversed() {
                     if x.add == forward { try repos.events.addExdate(x.eventId, x.day) } else { try repos.events.removeExdate(x.eventId, x.day) }
                 }
@@ -165,6 +181,9 @@ final class AppStore {
                 }
                 for e in m.events where (forward ? e.after : e.before) == nil {
                     if let id = (forward ? e.before : e.after)?.id { try repos.events.delete(id) }
+                }
+                for n in m.notes where (forward ? n.after : n.before) == nil {
+                    if let id = (forward ? n.before : n.after)?.id { try repos.notes.delete(id) }
                 }
                 for t in m.tasks where target(t) == nil {
                     if let id = source(t)?.id { try repos.tasks.delete(id) }
@@ -189,6 +208,18 @@ final class AppStore {
             if was == nil || was?.notes != now.notes {
                 let canonical = try repos.refs.reindex(ref, text: now.notes)
                 if canonical != now.notes { var fixed = now; fixed.notes = canonical; try repos.tasks.save(fixed) }
+            }
+            if was == nil { try repos.refs.rebuildIncoming(to: ref) }
+            if let was, was.title != now.title { try repos.refs.renamed(ref, to: now.title) }
+        }
+        for n in m.notes {
+            guard let now = forward ? n.after : n.before else { continue }
+            let was = forward ? n.before : n.after
+            let ref = ItemRef(.note, now.id)
+            if was == nil || was?.body != now.body {
+                let canonical = try repos.refs.reindex(ref, text: now.body)
+                if canonical != now.body { var fixed = now; fixed.body = canonical; try repos.notes.save(fixed) }
+                try repos.tags.setTags(noteId: now.id, names: NoteParser.tags(in: now.body))
             }
             if was == nil { try repos.refs.rebuildIncoming(to: ref) }
             if let was, was.title != now.title { try repos.refs.renamed(ref, to: now.title) }

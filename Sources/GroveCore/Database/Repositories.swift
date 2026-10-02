@@ -287,7 +287,7 @@ public final class NoteRepo {
                 .text(n.id), .text(n.title), .text(n.body), .text(n.kind.rawValue), SQLValue(n.date?.string),
                 .int(n.pinned ? 1 : 0), SQLValue(n.mood), .text(n.createdAt), .text(n.updatedAt),
             ])
-            try search.upsert(.note, id: n.id, title: n.title, body: ReferenceParser.searchText(n.body))
+            try search.upsert(.note, id: n.id, title: n.title, body: ReferenceParser.searchText(NoteParser.withoutMarkers(n.body)))
         }
     }
 
@@ -402,6 +402,11 @@ public final class TagRepo {
 
     public func tags(forNote id: String) throws -> [String] {
         try db.query("SELECT tags.name FROM tags JOIN note_tags ON tags.id = tag_id WHERE note_id = ? ORDER BY tags.name", [.text(id)]) { $0.text(0) }
+    }
+
+    /// Every tag that at least one note uses, A to Z.
+    public func noteTagNames() throws -> [String] {
+        try db.query("SELECT DISTINCT tags.name FROM tags JOIN note_tags ON tags.id = tag_id ORDER BY tags.name COLLATE NOCASE") { $0.text(0) }
     }
 }
 
