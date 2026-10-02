@@ -59,3 +59,6 @@ Format: date · decision · why · how to undo
 - 2026-10-02 · Known limit: when two one-row blocks start within about 30 min of each other in a narrow column (week view), both titles are cut. The full title shows on hover (`.help`) · a narrow column cannot fit two full titles · the block below gets at most half the column
 - 2026-10-02 · Time and length share one row ("12:30–13:30 · 1h"), and the separate length row is gone · a block on top then hides at most one row of the block below · `BlockView.timeRow`
 - 2026-10-02 · Selecting a block no longer lifts it above the blocks that sit on it. Selection shows as a border only · lifting a base block would hide the small blocks on it · `PlannerGrid.blockView` z-order = paint order
+- 2026-10-02 · Return in a numbered list does not renumber the items below · the text stays valid Markdown and the numbers fix themselves when the list is toggled again · `MarkdownEdit.enter`
+- 2026-10-02 · Tab and Shift-Tab only act on list lines (two spaces per level); on plain text they do nothing special · a Tab character in a note is rarely wanted · `MarkdownEdit.indent`
+- 2026-10-02 · Bold, italic and code toggles look only at the characters right around the selection; `**x**` counts as bold, not italic · simple and predictable · `MarkdownEdit.toggleWrap`
