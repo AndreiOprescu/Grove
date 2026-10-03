@@ -74,8 +74,10 @@ final class AppStore {
     var recurringPrompt: RecurringPrompt?
     /// The event the editor popover shows, or nil.
     var editingEvent: EditingEvent?
-    /// Which screen fills the window. M8 replaces this with the layouts.
-    var screen: Screen = .planner
+    /// Which screen fills the window. The Day Spread (layout B) is the home screen.
+    var screen: Screen = .today
+    /// Counts the "go to now" requests (⌘T). The timeline scrolls to the current time when it changes.
+    var todayRequest = 0
     /// The note the notes screen shows.
     var selectedNoteId: String?
     var noteFilter: NoteFilter = .all

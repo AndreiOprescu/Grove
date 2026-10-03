@@ -7,6 +7,8 @@ struct NoteEditorPane: View {
     @Environment(AppStore.self) private var store
     @Environment(\.theme) private var theme
     let noteId: String
+    /// A narrow column (the Day Spread): a short header with the mood, no side card and a shorter text box.
+    var compact = false
 
     // What the fields show. The store is only written when the user changes something.
     @State private var title = ""
@@ -94,7 +96,11 @@ struct NoteEditorPane: View {
 
     private func content(_ note: Note) -> some View {
         ScrollView {
-            if let side = sidePanel(note) {
+            if compact {
+                editorColumn(note)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(14)
+            } else if let side = sidePanel(note) {
                 // Daily and weekly notes: the text on the left, the day or the week on the right.
                 HStack(alignment: .top, spacing: 20) {
                     editorColumn(note).frame(maxWidth: 720, alignment: .leading)
@@ -114,12 +120,12 @@ struct NoteEditorPane: View {
 
     private func editorColumn(_ note: Note) -> some View {
         VStack(alignment: .leading, spacing: 14) {
-            header(note)
+            if compact { compactHeader(note) } else { header(note) }
             tagRow(note)
             RichTextField(text: Binding(get: { text }, set: { text = $0; typing = true; scheduleSave() }),
                           services: store.editorServices(excluding: ItemRef(.note, noteId), noteId: noteId),
                           placeholder: "Write something. Type [[ to link a task, note or event.",
-                          minHeight: 320, refreshToken: chipToken, onEnd: bodyEnded)
+                          minHeight: compact ? 200 : 320, refreshToken: chipToken, onEnd: bodyEnded)
             if note.kind == .daily, let day = note.date { DoneLog(day: day) }
             linked
         }
@@ -169,6 +175,27 @@ struct NoteEditorPane: View {
                     .menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize().foregroundStyle(theme.muted)
             }
             Text(kindLine(note)).font(theme.body(12)).foregroundStyle(theme.muted)
+        }
+    }
+
+    /// "Today's note", the pin and the menu, then the mood.
+    private func compactHeader(_ note: Note) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(alignment: .firstTextBaseline) {
+                Text(note.date == .today() ? "Today's note" : "Note · \(TaskFormat.dayLabel(note.date ?? .today()))")
+                    .themedHeading(theme, 20, weight: .semibold).foregroundStyle(theme.ink)
+                Spacer(minLength: 8)
+                Button { store.togglePin(note.id) } label: { Image(systemName: note.pinned ? "pin.fill" : "pin") }
+                    .buttonStyle(.plain).foregroundStyle(note.pinned ? theme.accent2 : theme.muted)
+                    .help(note.pinned ? "Unpin" : "Pin to the top of the list")
+                Button { store.openNote(note.id) } label: { Image(systemName: "arrow.up.left.and.arrow.down.right") }
+                    .buttonStyle(.plain).foregroundStyle(theme.muted)
+                    .help("Open in the Notes screen")
+            }
+            HStack(spacing: 8) {
+                MoodPicker(note: note)
+                Spacer(minLength: 0)
+            }
         }
     }
 

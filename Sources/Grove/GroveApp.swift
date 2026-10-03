@@ -17,8 +17,37 @@ struct GroveApp: App {
         .defaultSize(width: 1280, height: 800)
         .commands {
             CommandGroup(replacing: .newItem) {
-                Button("New Task") { store.requestQuickAdd() }
+                Button("New Task") { store.run(.newTask) }
                     .keyboardShortcut("n", modifiers: .command)
+                Button("New Note") { store.newNote() }
+                    .keyboardShortcut("n", modifiers: [.command, .option])
+                Button("New Event") { store.newEventNow() }
+                    .keyboardShortcut("n", modifiers: [.command, .shift])
+            }
+            CommandGroup(before: .toolbar) {
+                Button("Today") { store.showToday() }
+                    .keyboardShortcut("t", modifiers: .command)
+                Button("Planner") { store.screen = .planner }
+                    .keyboardShortcut("1", modifiers: .command)
+                Button("Tasks") { store.showTasks() }
+                    .keyboardShortcut("2", modifiers: .command)
+                Button("Calendar") { store.screen = .calendar }
+                    .keyboardShortcut("3", modifiers: .command)
+                Button("Notes") { store.screen = .notes }
+                    .keyboardShortcut("4", modifiers: .command)
+                Divider()
+                Button("Day") { store.showMode(.day) }
+                    .keyboardShortcut("1", modifiers: [.command, .option])
+                Button("3 Days") { store.showMode(.threeDay) }
+                    .keyboardShortcut("2", modifiers: [.command, .option])
+                Button("Week") { store.showMode(.week) }
+                    .keyboardShortcut("3", modifiers: [.command, .option])
+                Divider()
+                Button("Zoom In") { store.zoomPlanner(by: 1.2) }
+                    .keyboardShortcut("=", modifiers: .command)
+                Button("Zoom Out") { store.zoomPlanner(by: 1 / 1.2) }
+                    .keyboardShortcut("-", modifiers: .command)
+                Divider()
             }
             CommandGroup(after: .toolbar) {
                 Menu("Theme") {

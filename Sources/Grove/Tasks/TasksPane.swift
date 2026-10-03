@@ -8,6 +8,9 @@ enum TasksTab: String, CaseIterable, Identifiable {
 
 /// The task list next to the planner. Tabs: the chosen day, the week, the inbox, someday.
 struct TasksPane: View {
+    /// In the Day Spread the pane is a column that takes the width it is given.
+    /// The greeting and the plant are in the page header there, so the pane shows a progress bar instead.
+    var spread = false
     @Environment(AppStore.self) private var store
     @Environment(\.theme) private var theme
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -23,16 +26,20 @@ struct TasksPane: View {
         let today = store.plantProgress(on: .today())
         let lists = Dictionary(uniqueKeysWithValues: ((try? store.repos.lists.all(includeArchived: true)) ?? []).map { ($0.id, $0) })
         VStack(alignment: .leading, spacing: 10) {
-            HStack(alignment: .center, spacing: 8) {
-                VStack(alignment: .leading, spacing: 1) {
-                    Text("Tasks").themedHeading(theme, 20, weight: .semibold).foregroundStyle(theme.ink)
-                    Text("\(Greeting.now()) · \(today.growthText)")
-                        .font(theme.body(11)).foregroundStyle(theme.muted).lineLimit(1)
+            if spread {
+                spreadHeader(store.plantProgress(on: store.selectedDay))
+            } else {
+                HStack(alignment: .center, spacing: 8) {
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text("Tasks").themedHeading(theme, 20, weight: .semibold).foregroundStyle(theme.ink)
+                        Text("\(Greeting.now()) · \(today.growthText)")
+                            .font(theme.body(11)).foregroundStyle(theme.muted).lineLimit(1)
+                    }
+                    Spacer()
+                    GrowingPlant(progress: today, height: 38)
+                    Button { open = false } label: { Image(systemName: "sidebar.left") }
+                        .buttonStyle(.plain).foregroundStyle(theme.muted).help("Hide the task list")
                 }
-                Spacer()
-                GrowingPlant(progress: today, height: 38)
-                Button { open = false } label: { Image(systemName: "sidebar.left") }
-                    .buttonStyle(.plain).foregroundStyle(theme.muted).help("Hide the task list")
             }
             QuickAddField(placement: defaultPlacement, placementLabel: defaultLabel)
             tabBar
@@ -44,9 +51,22 @@ struct TasksPane: View {
             NotesTray()
         }
         .padding(12)
-        .frame(width: 320)
-        .frame(maxHeight: .infinity, alignment: .topLeading)
+        .frame(width: spread ? nil : 320)
+        .frame(maxWidth: spread ? .infinity : nil, maxHeight: .infinity, alignment: .topLeading)
         .panel()
+    }
+
+    /// "Tasks", how many of the chosen day are done, and a bar for it.
+    private func spreadHeader(_ progress: PlantProgress) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(alignment: .firstTextBaseline) {
+                Text("Tasks").themedHeading(theme, 20, weight: .semibold).foregroundStyle(theme.ink)
+                Spacer()
+                Text(progress.total == 0 ? "Nothing planned" : "\(progress.done) of \(progress.total) done")
+                    .font(theme.body(11)).foregroundStyle(theme.muted)
+            }
+            ProgressBar(fraction: progress.fraction)
+        }
     }
 
     // MARK: Defaults for quick add
@@ -168,5 +188,24 @@ struct TasksPane: View {
                 }
             }
         }
+    }
+}
+
+/// A thin bar. The filled part is `fraction` of it.
+struct ProgressBar: View {
+    @Environment(\.theme) private var theme
+    let fraction: Double
+
+    var body: some View {
+        Capsule().fill(theme.surface2)
+            .overlay(alignment: .leading) {
+                GeometryReader { g in
+                    Capsule().fill(theme.accent).frame(width: g.size.width * min(1, max(0, fraction)))
+                }
+            }
+            .frame(height: 6)
+            .accessibilityElement()
+            .accessibilityLabel("Progress")
+            .accessibilityValue("\(Int((min(1, max(0, fraction)) * 100).rounded())) percent")
     }
 }

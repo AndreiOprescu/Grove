@@ -9,11 +9,31 @@ enum PlannerMode: Int, CaseIterable, Identifiable {
     }
 }
 
+extension PlannerMode {
+    /// Where a screen keeps its mode. The Today screen has none: it is always one day.
+    static func storageKey(for screen: Screen) -> String? {
+        switch screen {
+        case .planner: "planner.mode"
+        case .calendar: "calendar.mode"
+        case .today, .notes: nil
+        }
+    }
+}
+
+/// The time grid with its header. It fills the Planner and the Calendar screens.
+/// With `column` it is the timeline of the Day Spread: one day, a small header, no week strip and no tray.
 struct PlannerView: View {
     @Environment(AppStore.self) private var store
     @Environment(\.theme) private var theme
 
-    @AppStorage("planner.mode") private var modeRaw = PlannerMode.day.rawValue
+    private let column: Bool
+
+    init(modeKey: String = "planner.mode", defaultMode: PlannerMode = .day, column: Bool = false) {
+        _modeRaw = AppStorage(wrappedValue: defaultMode.rawValue, modeKey)
+        self.column = column
+    }
+
+    @AppStorage private var modeRaw: Int
     @AppStorage("planner.hourHeight") private var hourHeight = 64.0
     @AppStorage("planner.snap") private var snapStep = 5
     @AppStorage("planner.workStart") private var workStart = 9 * 60
@@ -29,8 +49,8 @@ struct PlannerView: View {
     /// Width inside the side padding. Starts wide so the first frame does not hide the tray.
     @State private var contentWidth: CGFloat = 10_000
 
-    private var mode: PlannerMode { PlannerMode(rawValue: modeRaw) ?? .day }
-    private var trayFits: Bool { PlannerLayoutRules.trayFits(contentWidth: contentWidth) }
+    private var mode: PlannerMode { column ? .day : PlannerMode(rawValue: modeRaw) ?? .day }
+    private var trayFits: Bool { !column && PlannerLayoutRules.trayFits(contentWidth: contentWidth) }
     private var showTray: Bool { trayOpen && trayFits }
 
     private var days: [DayKey] {
@@ -44,8 +64,8 @@ struct PlannerView: View {
     var body: some View {
         let _ = store.revision   // re-run this view after every saved change
         VStack(spacing: 10) {
-            header
-            if mode == .day || mode == .threeDay { WeekStrip(shown: Set(days)) }
+            if column { columnHeader } else { header }
+            if !column, mode == .day || mode == .threeDay { WeekStrip(shown: Set(days)) }
             if mode == .month {
                 MonthView { _ in modeRaw = PlannerMode.day.rawValue }
                     .panel()
@@ -69,11 +89,13 @@ struct PlannerView: View {
             }
         }
         .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { contentWidth = $0 }
-        .padding(.horizontal, 16).padding(.bottom, 16)
-        .padding(.top, 34)   // the window buttons sit in this space (title bar is hidden)
+        .padding(.horizontal, column ? 0 : 16).padding(.bottom, column ? 0 : 16)
+        .padding(.top, column ? 0 : 34)   // the window buttons sit in this space (title bar is hidden)
         .onAppear { geo.hourHeight = CGFloat(hourHeight); takePlanRequest() }
         .onChange(of: store.planMyDayRequest) { takePlanRequest() }
+        .onChange(of: store.todayRequest) { scrollRequest += 1 }
         .onChange(of: geo.hourHeight) { _, new in hourHeight = Double(new) }
+        .onChange(of: hourHeight) { _, new in if CGFloat(new) != geo.hourHeight { geo.hourHeight = CGFloat(new) } }   // the View ▸ Zoom menu writes here
         .alert("Busy day", isPresented: Binding(get: { store.overloadWarning != nil }, set: { if !$0 { store.overloadWarning = nil } })) {
             Button("OK") { store.overloadWarning = nil }
         } message: { Text(store.overloadWarning ?? "") }
@@ -127,6 +149,23 @@ struct PlannerView: View {
         .controlSize(.regular)
     }
 
+    /// The small header of the Day Spread timeline: a title, the day's numbers, Plan my day and the zoom.
+    private var columnHeader: some View {
+        let blocks = store.blocks(for: store.selectedDay...store.selectedDay)
+        let totals = store.dayTotals(store.selectedDay, blocks: blocks, workStart: workStart, workEnd: workEnd)
+        let over = totals.planned > store.dailyLimitMinutes
+        return VStack(alignment: .leading, spacing: 2) {
+            HStack(spacing: 8) {
+                Text("Timeline").themedHeading(theme, 20, weight: .semibold).foregroundStyle(theme.ink)
+                Spacer(minLength: 0)
+                planButton(compact: true)
+                zoomButtons
+            }
+            .buttonStyle(.bordered).controlSize(.small)
+            statsText("\(over ? "⚠︎ " : "")\(PlannerMath.duration(totals.planned)) planned · \(PlannerMath.duration(totals.free)) free · \(totals.done)/\(totals.total) done", over: over)
+        }
+    }
+
     @ViewBuilder private var navButtons: some View {
         if !tasksOpen {
             Button { tasksOpen = true } label: { Image(systemName: "checklist") }
@@ -137,7 +176,6 @@ struct PlannerView: View {
             .help(trayFits ? "Show or hide the unscheduled tray" : "No room for the tray. Close the task list or the task panel.")
         Button { move(-1) } label: { Image(systemName: "chevron.left") }.help("Previous")
         Button("Today") { store.selectedDay = .today(); scrollRequest += 1 }
-            .keyboardShortcut("t", modifiers: [.command, .shift])
             .fixedSize()
         Button { move(1) } label: { Image(systemName: "chevron.right") }.help("Next")
         Button { store.openDailyNote(store.selectedDay) } label: { Image(systemName: "note.text") }

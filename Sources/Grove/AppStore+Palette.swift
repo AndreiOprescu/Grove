@@ -110,7 +110,7 @@ extension AppStore {
         paletteOpen = false
         switch id {
         case .newTask:
-            screen = .planner
+            if screen != .planner { screen = .today }   // both screens have the task list
             requestQuickAdd()
         case .newNote: newNote()
         case .todayNote: openDailyNote(.today())
@@ -120,19 +120,16 @@ extension AppStore {
             show(.today())
             planMyDayRequest += 1
         case .showPlanner: screen = .planner
+        case .showCalendar: screen = .calendar
         case .showNotes: screen = .notes
         case .toggleTheme: nextTheme()
         case .toggleMotion: setMotion(!motionSetting)
         }
     }
 
-    /// The planner shows `day`. The month grid gives way to the day view, so the day is easy to see.
+    /// The Today screen shows `day`: its timeline, its tasks and its note.
     private func show(_ day: DayKey) {
         selectedDay = day
-        screen = .planner
-        let defaults = UserDefaults.standard
-        if defaults.integer(forKey: "planner.mode") == PlannerMode.month.rawValue {
-            defaults.set(PlannerMode.day.rawValue, forKey: "planner.mode")
-        }
+        screen = .today
     }
 }

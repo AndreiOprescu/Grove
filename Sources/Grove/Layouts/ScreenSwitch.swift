@@ -1,18 +1,33 @@
 import SwiftUI
 
 extension Screen {
-    var title: String { self == .planner ? "Planner" : "Notes" }
-    var icon: String { self == .planner ? "calendar.day.timeline.left" : "note.text" }
+    var title: String {
+        switch self {
+        case .today: "Today"
+        case .planner: "Planner"
+        case .calendar: "Calendar"
+        case .notes: "Notes"
+        }
+    }
+
+    var icon: String {
+        switch self {
+        case .today: "sun.max"
+        case .planner: "calendar.day.timeline.left"
+        case .calendar: "calendar"
+        case .notes: "note.text"
+        }
+    }
 }
 
-/// The two screens of the window. Sits in the empty strip at the top. ⌘1 and ⌘2 switch too.
+/// The screens of the window. Sits in the empty strip at the top. The View menu has a shortcut for each.
 struct ScreenSwitch: View {
     @Environment(AppStore.self) private var store
     @Environment(\.theme) private var theme
 
     var body: some View {
         HStack(spacing: 2) {
-            ForEach(Array(Screen.allCases.enumerated()), id: \.element) { i, screen in
+            ForEach(Screen.allCases) { screen in
                 let on = store.screen == screen
                 Button { store.screen = screen } label: {
                     Label(screen.title, systemImage: screen.icon)
@@ -22,7 +37,6 @@ struct ScreenSwitch: View {
                         .foregroundStyle(on ? theme.surface : theme.muted)
                 }
                 .buttonStyle(.plain)
-                .keyboardShortcut(KeyEquivalent(Character("\(i + 1)")), modifiers: .command)
             }
         }
         .padding(2)

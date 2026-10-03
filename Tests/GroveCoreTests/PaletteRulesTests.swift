@@ -47,6 +47,19 @@ struct PaletteRulesTests {
         #expect(PaletteRules.commands(matching: "go to date").first?.title == "Go to date…")
     }
 
+    @Test func theScreenCommandsCarryTheMenuShortcuts() {
+        let shortcuts = Dictionary(uniqueKeysWithValues: PaletteRules.commands.compactMap { c in c.shortcut.map { (c.id, $0) } })
+        #expect(shortcuts[.goToday] == "⌘T")
+        #expect(shortcuts[.showPlanner] == "⌘1")
+        #expect(shortcuts[.showCalendar] == "⌘3")
+        #expect(shortcuts[.showNotes] == "⌘4")
+    }
+
+    @Test func theCalendarCommandIsFoundByMonth() {
+        #expect(PaletteRules.commands(matching: "month").map(\.id) == [.showCalendar])
+        #expect(PaletteRules.commands(matching: "open cal").map(\.id).contains(.showCalendar))
+    }
+
     @Test func theThemeAndMotionCommandsAreFound() {
         #expect(PaletteRules.commands(matching: "toggle theme").map(\.id) == [.toggleTheme])
         #expect(PaletteRules.commands(matching: "dark").map(\.id) == [.toggleTheme])

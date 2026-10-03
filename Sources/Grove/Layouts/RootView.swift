@@ -1,9 +1,8 @@
 import SwiftUI
 import GroveCore
 
-/// The window: the task list on the left (it can be hidden), the planner in the middle and the task inspector
-/// on the right while a task is selected.
-/// M8 adds the sidebar, the other screens and the other layouts.
+/// The window. The screen switch at the top picks what fills it:
+/// Today (the Day Spread), the Planner (task list, time grid and task panel), the Calendar and the Notes.
 struct RootView: View {
     @Environment(AppStore.self) private var store
     @Environment(\.theme) private var theme
@@ -21,6 +20,8 @@ struct RootView: View {
     var body: some View {
         Group {
             switch store.screen {
+            case .today:
+                DaySpreadView()
             case .planner:
                 HStack(spacing: 0) {
                     if tasksOpen {
@@ -35,6 +36,8 @@ struct RootView: View {
                             .transition(.move(edge: .trailing).combined(with: .opacity))
                     }
                 }
+            case .calendar:
+                PlannerView(modeKey: "calendar.mode", defaultMode: .month)
             case .notes:
                 NotesView()
             }

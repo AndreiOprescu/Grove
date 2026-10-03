@@ -2,7 +2,7 @@ import Foundation
 
 /// The things the ⌘K palette can do besides open an item.
 public enum PaletteCommandId: String, CaseIterable, Sendable {
-    case newTask, newNote, todayNote, goToday, goToDate, planMyDay, showPlanner, showNotes, toggleTheme, toggleMotion
+    case newTask, newNote, todayNote, goToday, goToDate, planMyDay, showPlanner, showCalendar, showNotes, toggleTheme, toggleMotion
 }
 
 public struct PaletteCommand: Equatable, Identifiable, Sendable {
@@ -35,13 +35,14 @@ public enum PaletteRules {
     /// In the order the palette lists them.
     public static let commands: [PaletteCommand] = [
         .init(id: .newTask, title: "New task", keywords: ["add", "create"], shortcut: "⌘N", symbol: "plus.circle"),
-        .init(id: .newNote, title: "New note", keywords: ["add", "create", "write"], symbol: "square.and.pencil"),
+        .init(id: .newNote, title: "New note", keywords: ["add", "create", "write"], shortcut: "⌥⌘N", symbol: "square.and.pencil"),
         .init(id: .todayNote, title: "Today's note", keywords: ["daily", "journal", "diary"], symbol: "note.text"),
-        .init(id: .goToday, title: "Go to today", keywords: ["now"], symbol: "sun.max"),
+        .init(id: .goToday, title: "Go to today", keywords: ["now"], shortcut: "⌘T", symbol: "sun.max"),
         .init(id: .goToDate, title: "Go to date…", keywords: ["day", "jump", "calendar"], symbol: "calendar"),
         .init(id: .planMyDay, title: "Plan my day", keywords: ["fit", "schedule", "auto"], symbol: "wand.and.stars"),
         .init(id: .showPlanner, title: "Open planner", keywords: ["calendar", "schedule", "day"], shortcut: "⌘1", symbol: "calendar.day.timeline.left"),
-        .init(id: .showNotes, title: "Open notes", keywords: ["notebook"], shortcut: "⌘2", symbol: "note.text"),
+        .init(id: .showCalendar, title: "Open calendar", keywords: ["month", "schedule"], shortcut: "⌘3", symbol: "calendar"),
+        .init(id: .showNotes, title: "Open notes", keywords: ["notebook"], shortcut: "⌘4", symbol: "note.text"),
         .init(id: .toggleTheme, title: "Toggle theme", keywords: ["theme", "dark", "light", "colour", "color", "appearance", "look", "switch"], symbol: "paintpalette"),
         .init(id: .toggleMotion, title: "Toggle motion", keywords: ["motion", "animation", "animate", "reduce", "calm"], symbol: "wind"),
     ]

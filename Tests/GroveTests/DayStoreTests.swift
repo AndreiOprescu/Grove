@@ -184,22 +184,22 @@ struct DayStoreTests {
 
     // MARK: Opening things from a note
 
-    @Test func openingATaskSwitchesToThePlanner() throws {
+    @Test func openingATaskSwitchesToTheTodayScreen() throws {
         let s = try makeStore()
         let day = today.adding(days: 2)
         let t = try #require(s.quickAdd("Buy stamps", default: .day(day)))
         s.screen = .notes
         s.open(ItemRef(.task, t.id))
-        #expect(s.screen == .planner && s.selectedTaskId == t.id && s.selectedDay == day)
+        #expect(s.screen == .today && s.selectedTaskId == t.id && s.selectedDay == day)
     }
 
-    @Test func openingAnEventSwitchesToThePlanner() throws {
+    @Test func openingAnEventSwitchesToTheTodayScreen() throws {
         let s = try makeStore()
         let day = today.adding(days: 2)
         s.createFromDraft(title: "Dentist", day: day, start: 540, end: 600, asEvent: true)
         let e = try #require(s.eventItems(in: day...day).first)
         s.screen = .notes
         s.open(ItemRef(.event, e.id))
-        #expect(s.screen == .planner && s.selection == [e.id] && s.selectedDay == day)
+        #expect(s.screen == .today && s.selection == [e.id] && s.selectedDay == day)
     }
 }

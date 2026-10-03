@@ -2,8 +2,9 @@ import Foundation
 import GroveCore
 
 /// The screens that can fill the window.
+/// The screens of the window. Today is the Day Spread: timeline, tasks and the note of the chosen day.
 enum Screen: String, CaseIterable, Identifiable {
-    case planner, notes
+    case today, planner, calendar, notes
     var id: String { rawValue }
 }
 
@@ -54,6 +55,9 @@ extension AppStore {
         revision += 1
         return n
     }
+
+    /// The note of a day, or nil when none was made. This does not make one.
+    func existingDailyNote(for day: DayKey) -> Note? { try? repos.notes.daily(day) }
 
     /// The note of the week that holds `day`.
     @discardableResult

@@ -131,25 +131,12 @@ struct PaletteStoreTests {
 
     // MARK: Running a row
 
-    @Test func goingToADayShowsItInThePlanner() throws {
+    @Test func goingToADayShowsItOnTheTodayScreen() throws {
         let s = try makeStore()
         s.screen = .notes
         s.paletteOpen = true
         s.runPalette(try #require(s.paletteItems(for: "sat", today: friday).first))
-        #expect(s.selectedDay == saturday && s.screen == .planner && !s.paletteOpen)
-    }
-
-    @Test func goingToADayLeavesTheMonthGridForTheDayView() throws {
-        let defaults = UserDefaults.standard
-        let saved = defaults.object(forKey: "planner.mode")
-        defer { if let saved { defaults.set(saved, forKey: "planner.mode") } else { defaults.removeObject(forKey: "planner.mode") } }
-        let s = try makeStore()
-        defaults.set(PlannerMode.month.rawValue, forKey: "planner.mode")
-        s.run(.goToday)
-        #expect(defaults.integer(forKey: "planner.mode") == PlannerMode.day.rawValue)
-        defaults.set(PlannerMode.week.rawValue, forKey: "planner.mode")
-        s.run(.goToday)
-        #expect(defaults.integer(forKey: "planner.mode") == PlannerMode.week.rawValue)   // other modes stay
+        #expect(s.selectedDay == saturday && s.screen == .today && !s.paletteOpen)
     }
 
     @Test func openingAnItemClosesThePaletteAndOpensIt() throws {
@@ -158,7 +145,7 @@ struct PaletteStoreTests {
         s.paletteOpen = true
         s.screen = .notes
         s.runPalette(try #require(s.paletteItems(for: "report", today: friday).first))
-        #expect(!s.paletteOpen && s.screen == .planner && s.selectedTaskId == t.id && s.selectedDay == saturday)
+        #expect(!s.paletteOpen && s.screen == .today && s.selectedTaskId == t.id && s.selectedDay == saturday)
     }
 
     @Test func newTaskFocusesTheQuickAddField() throws {
@@ -167,7 +154,14 @@ struct PaletteStoreTests {
         s.paletteOpen = true
         let before = s.quickAddRequest
         s.run(.newTask)
-        #expect(s.screen == .planner && s.quickAddRequest == before + 1 && !s.paletteOpen)
+        #expect(s.screen == .today && s.quickAddRequest == before + 1 && !s.paletteOpen)
+    }
+
+    @Test func newTaskStaysOnThePlannerScreen() throws {
+        let s = try makeStore()
+        s.screen = .planner
+        s.run(.newTask)
+        #expect(s.screen == .planner)
     }
 
     @Test func newNoteMakesOneAndShowsIt() throws {
@@ -191,7 +185,7 @@ struct PaletteStoreTests {
         s.selectedDay = DayKey.today().adding(days: 9)
         s.screen = .notes
         s.run(.goToday)
-        #expect(s.selectedDay == .today() && s.screen == .planner)
+        #expect(s.selectedDay == .today() && s.screen == .today)
     }
 
     @Test func planMyDayAsksTheTodayPlannerToOpenItsPlan() throws {
@@ -200,7 +194,7 @@ struct PaletteStoreTests {
         s.screen = .notes
         let before = s.planMyDayRequest
         s.run(.planMyDay)
-        #expect(s.screen == .planner && s.selectedDay == .today() && s.planMyDayRequest == before + 1 && !s.paletteOpen)
+        #expect(s.screen == .today && s.selectedDay == .today() && s.planMyDayRequest == before + 1 && !s.paletteOpen)
     }
 
     @Test func theScreenCommandsSwitchScreens() throws {
@@ -209,6 +203,8 @@ struct PaletteStoreTests {
         #expect(s.screen == .notes)
         s.run(.showPlanner)
         #expect(s.screen == .planner)
+        s.run(.showCalendar)
+        #expect(s.screen == .calendar)
     }
 
     @Test func goToDateKeepsThePaletteOpenAndAsksForADay() throws {
