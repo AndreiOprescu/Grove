@@ -6,6 +6,7 @@ import GroveCore
 struct TaskRow: View {
     @Environment(AppStore.self) private var store
     @Environment(\.theme) private var theme
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     let task: TaskItem
     /// The day this list stands for. Picks which time block to show.
     var contextDay: DayKey?
@@ -60,13 +61,13 @@ struct TaskRow: View {
         .accessibilityElement(children: .contain)
     }
 
+    private var motionOn: Bool { MotionRules.isOn(setting: store.motionSetting, reduceMotion: reduceMotion) }
+
     // MARK: Pieces
 
     private func checkbox(_ t: TaskItem) -> some View {
-        Button { store.toggleDone(taskId: t.id) } label: {
-            Image(systemName: t.isDone ? "checkmark.circle.fill" : "circle")
-                .font(.system(size: 17))
-                .foregroundStyle(t.isDone ? theme.accent : theme.muted)
+        Button { store.toggleDone(taskId: t.id, linger: motionOn) } label: {
+            CheckBox(isOn: t.isDone, size: 17)
         }
         .buttonStyle(.plain)
         .accessibilityLabel(t.isDone ? "Mark \(t.title) as not done" : "Mark \(t.title) as done")
@@ -76,14 +77,14 @@ struct TaskRow: View {
         if renaming {
             TextField("Title", text: $draft)
                 .textFieldStyle(.plain)
-                .font(.system(size: 13, weight: .semibold, design: .rounded))
+                .font(theme.body(13, weight: .semibold))
                 .focused($renameFocus)
                 .onSubmit { commitRename() }
                 .onExitCommand { renaming = false }
                 .onChange(of: renameFocus) { _, now in if !now { commitRename() } }
         } else {
             Text(task.title)
-                .font(.system(size: 13, weight: .semibold, design: .rounded))
+                .font(theme.body(13, weight: .semibold))
                 .strikethrough(task.isDone)
                 .foregroundStyle(task.isDone ? theme.muted : theme.ink)
                 .lineLimit(3)
@@ -121,7 +122,7 @@ struct TaskRow: View {
             HStack(spacing: 3) {
                 if !subtasks.isEmpty {
                     Text("\(subtasks.filter(\.isDone).count)/\(subtasks.count)")
-                        .font(.system(size: 10, weight: .semibold, design: .rounded))
+                        .font(theme.body(10, weight: .semibold))
                 }
                 Image(systemName: isExpanded ? "chevron.up" : "chevron.down").font(.system(size: 9, weight: .bold))
             }
@@ -138,7 +139,7 @@ struct TaskRow: View {
                 HStack(spacing: 6) {
                     checkbox(sub).scaleEffect(0.85)
                     Text(sub.title)
-                        .font(.system(size: 12, design: .rounded))
+                        .font(theme.body(12))
                         .strikethrough(sub.isDone)
                         .foregroundStyle(sub.isDone ? theme.muted : theme.ink)
                     Spacer(minLength: 0)
@@ -149,7 +150,7 @@ struct TaskRow: View {
                 Image(systemName: "plus").font(.system(size: 10, weight: .bold)).foregroundStyle(theme.muted).frame(width: 17)
                 TextField("Add a subtask", text: $newSubtask)
                     .textFieldStyle(.plain)
-                    .font(.system(size: 12, design: .rounded))
+                    .font(theme.body(12))
                     .focused($subtaskFocus)
                     .onSubmit {
                         store.addSubtask(to: task.id, title: newSubtask)

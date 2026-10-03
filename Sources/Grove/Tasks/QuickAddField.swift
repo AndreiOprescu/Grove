@@ -17,7 +17,7 @@ struct QuickAddField: View {
                 Image(systemName: "plus.circle.fill").foregroundStyle(theme.accent)
                 TextField("Add a task…", text: $text)
                     .textFieldStyle(.plain)
-                    .font(.system(size: 13, design: .rounded))
+                    .font(theme.body(13))
                     .focused($focused)
                     .onSubmit(submit)
                     .onExitCommand { text = ""; focused = false }
@@ -30,7 +30,7 @@ struct QuickAddField: View {
             if text.trimmingCharacters(in: .whitespaces).isEmpty {
                 if focused {
                     Text("Try “Call mum tomorrow 6pm for 20m #home /Errands !2”")
-                        .font(.system(size: 10, design: .rounded)).foregroundStyle(theme.muted)
+                        .font(theme.body(10)).foregroundStyle(theme.muted)
                 }
             } else {
                 preview

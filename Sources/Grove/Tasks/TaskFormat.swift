@@ -65,9 +65,9 @@ struct Chip: View {
             if let symbol { Image(systemName: symbol).font(.system(size: 9, weight: .semibold)) }
             Text(text).lineLimit(1)
         }
-        .font(.system(size: 10, weight: .medium, design: .rounded))
+        .font(theme.body(10, weight: .medium))
         .foregroundStyle(tint ?? theme.muted)
         .padding(.horizontal, 6).padding(.vertical, 2)
-        .background(Capsule().fill((tint ?? theme.muted).opacity(0.13)))
+        .chipBackground(tint ?? theme.muted)
     }
 }

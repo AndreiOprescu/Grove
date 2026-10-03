@@ -5,6 +5,7 @@ import GroveCore
 struct TaskSection: View {
     @Environment(AppStore.self) private var store
     @Environment(\.theme) private var theme
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     let title: String
     var tint: Color?
     /// Where dropped tasks go. Nil means this list takes no drops (for example, overdue).
@@ -21,9 +22,9 @@ struct TaskSection: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 6) {
-                Text(title).font(.system(size: 12, weight: .bold, design: .serif)).foregroundStyle(tint ?? theme.ink)
+                Text(title).themedHeading(theme, 12, weight: .bold).foregroundStyle(tint ?? theme.ink)
                 if !tasks.isEmpty {
-                    Text("\(tasks.count)").font(.system(size: 10, weight: .semibold, design: .rounded)).foregroundStyle(theme.muted)
+                    Text("\(tasks.count)").font(theme.body(10, weight: .semibold)).foregroundStyle(theme.muted)
                 }
                 Spacer(minLength: 0)
             }
@@ -33,7 +34,7 @@ struct TaskSection: View {
 
             if tasks.isEmpty {
                 Text(emptyText)
-                    .font(.system(size: 11, design: .rounded)).foregroundStyle(theme.muted)
+                    .font(theme.body(11)).foregroundStyle(theme.muted)
                     .frame(maxWidth: .infinity, minHeight: emptyHeight)
                     .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous)
                         .strokeBorder(zoneTargeted ? theme.accent : theme.line, style: StrokeStyle(lineWidth: 1, dash: [4, 3])))
@@ -45,6 +46,7 @@ struct TaskSection: View {
                             isExpanded: expanded.contains(task.id),
                             toggleExpanded: { toggle(task.id) },
                             onDrop: placement == nil ? nil : { drop($0, before: task.id) })
+                    .transition(.move(edge: .top).combined(with: .opacity))
                 }
                 // the end of the list: a thin strip that takes drops
                 Rectangle().fill(.clear).frame(height: 10)
@@ -53,6 +55,8 @@ struct TaskSection: View {
                     .overlay(alignment: .top) { if zoneTargeted { Capsule().fill(theme.accent).frame(height: 3) } }
             }
         }
+        .animation(MotionRules.isOn(setting: store.motionSetting, reduceMotion: reduceMotion) ? .smooth(duration: 0.25) : nil,
+                   value: tasks.map(\.id))
     }
 
     private func toggle(_ id: String) {

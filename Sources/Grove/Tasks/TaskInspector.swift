@@ -158,16 +158,15 @@ struct TaskInspector: View {
     private func header(_ task: TaskItem) -> some View {
         HStack(alignment: .top, spacing: 8) {
             Button { store.toggleDone(taskId: task.id) } label: {
-                Image(systemName: task.isDone ? "checkmark.circle.fill" : "circle")
-                    .font(.system(size: 20))
-                    .foregroundStyle(task.isDone ? theme.accent : theme.muted)
+                CheckBox(isOn: task.isDone, size: 20)
             }
             .buttonStyle(.plain)
             .help(task.isDone ? "Mark as not done" : "Mark as done")
+            .accessibilityLabel(task.isDone ? "Mark as not done" : "Mark as done")
 
             TextField("Title", text: $title, axis: .vertical)
                 .textFieldStyle(.plain)
-                .font(.system(size: 16, weight: .semibold, design: .serif))
+                .font(theme.heading(16, weight: .semibold))
                 .strikethrough(task.isDone)
                 .lineLimit(1...4)
                 .focused($titleFocus)
@@ -184,7 +183,7 @@ struct TaskInspector: View {
     private var summaryField: some View {
         TextField("One short line. It shows on the planner.", text: $summary, axis: .vertical)
             .textFieldStyle(.plain)
-            .font(.system(size: 13, design: .rounded))
+            .font(theme.body(13))
             .lineLimit(1...3)
             .focused($summaryFocus)
             .padding(.horizontal, 8).padding(.vertical, 6)
@@ -221,7 +220,7 @@ struct TaskInspector: View {
                                displayedComponents: .date)
                         .labelsHidden().datePickerStyle(.compact)
                 }
-                .font(.system(size: 12, design: .rounded))
+                .font(theme.body(12))
             }
         }
     }
@@ -289,14 +288,14 @@ struct TaskInspector: View {
                         Button { store.setTags(taskId: task.id, to: names.filter { $0 != name }) } label: { Image(systemName: "xmark") }
                             .buttonStyle(.plain).help("Remove this tag")
                     }
-                    .font(.system(size: 11, weight: .medium, design: .rounded))
+                    .font(theme.body(11, weight: .medium))
                     .foregroundStyle(theme.accent2)
                     .padding(.horizontal, 7).padding(.vertical, 3)
-                    .background(Capsule().fill(theme.accent2.opacity(0.13)))
+                    .chipBackground(theme.accent2)
                 }
             }
             TextField("Add a tag", text: $newTag)
-                .textFieldStyle(.plain).font(.system(size: 12, design: .rounded))
+                .textFieldStyle(.plain).font(theme.body(12))
                 .onSubmit {
                     store.setTags(taskId: task.id, to: names + [newTag])
                     newTag = ""
@@ -312,16 +311,16 @@ struct TaskInspector: View {
             ForEach(subs) { sub in
                 HStack(spacing: 8) {
                     Button { store.toggleDone(taskId: sub.id) } label: {
-                        Image(systemName: sub.isDone ? "checkmark.circle.fill" : "circle")
-                            .foregroundStyle(sub.isDone ? theme.accent : theme.muted)
+                        CheckBox(isOn: sub.isDone, size: 14)
                     }
                     .buttonStyle(.plain)
+                    .accessibilityLabel(sub.isDone ? "Mark \(sub.title) as not done" : "Mark \(sub.title) as done")
                     Text(sub.title).strikethrough(sub.isDone).foregroundStyle(sub.isDone ? theme.muted : theme.ink)
                     Spacer(minLength: 0)
                     Button { store.deleteTask(sub.id) } label: { Image(systemName: "trash") }
                         .buttonStyle(.plain).foregroundStyle(theme.muted).help("Delete this subtask")
                 }
-                .font(.system(size: 12, design: .rounded))
+                .font(theme.body(12))
             }
             HStack(spacing: 8) {
                 Image(systemName: "plus").foregroundStyle(theme.muted)
@@ -332,7 +331,7 @@ struct TaskInspector: View {
                         newSubtask = ""
                     }
             }
-            .font(.system(size: 12, design: .rounded))
+            .font(theme.body(12))
         }
     }
 
@@ -356,10 +355,10 @@ struct TaskInspector: View {
                     Button { store.deleteBlocks([b.id]) } label: { Image(systemName: "trash") }
                         .buttonStyle(.plain).foregroundStyle(theme.muted).help("Remove this block. The task stays.")
                 }
-                .font(.system(size: 12, design: .rounded))
+                .font(theme.body(12))
             }
             Button { addBlock(task) } label: { Label("Add block", systemImage: "plus") }
-                .buttonStyle(.plain).foregroundStyle(theme.accent).font(.system(size: 12, weight: .medium, design: .rounded))
+                .buttonStyle(.plain).foregroundStyle(theme.accent).font(theme.body(12, weight: .medium))
         }
     }
 
@@ -398,7 +397,7 @@ struct TaskInspector: View {
                 Text(text).foregroundStyle(theme.ink).lineLimit(1)
                 Spacer(minLength: 0)
             }
-            .font(.system(size: 12, design: .rounded))
+            .font(theme.body(12))
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
@@ -416,7 +415,7 @@ struct TaskInspector: View {
 
     private func section<Content: View>(_ name: String, @ViewBuilder _ content: () -> Content) -> some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text(name).font(.system(size: 12, weight: .bold, design: .serif)).foregroundStyle(theme.ink)
+            Text(name).themedHeading(theme, 12, weight: .bold).foregroundStyle(theme.ink)
             content()
         }
     }
@@ -427,6 +426,6 @@ struct TaskInspector: View {
             Spacer(minLength: 0)
             content()
         }
-        .font(.system(size: 12, design: .rounded))
+        .font(theme.body(12))
     }
 }

@@ -38,7 +38,7 @@ struct ToastView: View {
 
     var body: some View {
         if let text = store.toast {
-            Text(text).font(.system(size: 12, weight: .semibold, design: .rounded))
+            Text(text).font(theme.body(12, weight: .semibold))
                 .padding(.horizontal, 14).padding(.vertical, 8)
                 .background(Capsule().fill(theme.ink)).foregroundStyle(theme.bg)
                 .padding(.bottom, 20)

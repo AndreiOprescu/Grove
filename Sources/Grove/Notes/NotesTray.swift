@@ -17,7 +17,7 @@ struct NotesTray: View {
             Button { withAnimation(.easeInOut(duration: 0.18)) { open.toggle() } } label: {
                 HStack(spacing: 4) {
                     Image(systemName: open ? "chevron.down" : "chevron.right").font(.system(size: 9, weight: .bold))
-                    Text("Notes").font(.system(size: 12, weight: .bold, design: .serif))
+                    Text("Notes").themedHeading(theme, 12, weight: .bold)
                     Spacer()
                 }
                 .foregroundStyle(theme.muted)
@@ -34,7 +34,7 @@ struct NotesTray: View {
     @ViewBuilder private var list: some View {
         let notes = Array(store.notes().prefix(limit))
         if notes.isEmpty {
-            Text("No notes yet.").font(.system(size: 12, design: .rounded)).foregroundStyle(theme.muted)
+            Text("No notes yet.").font(theme.body(12)).foregroundStyle(theme.muted)
         } else {
             ScrollView {
                 VStack(spacing: 4) { ForEach(notes) { row($0) } }
@@ -42,7 +42,7 @@ struct NotesTray: View {
             .scrollIndicators(.hidden)
             .frame(height: min(150, CGFloat(notes.count) * 32))   // a row is about 28 high, with 4 between
             Text("Drag a note onto the planner to give it a time.")
-                .font(.system(size: 10.5, design: .rounded)).foregroundStyle(theme.muted)
+                .font(theme.body(10.5)).foregroundStyle(theme.muted)
         }
     }
 
@@ -51,7 +51,7 @@ struct NotesTray: View {
             Image(systemName: note.kind == .daily ? "sun.max" : note.kind == .weekly ? "calendar" : "note.text")
                 .font(.system(size: 10)).foregroundStyle(theme.accent)
             Text(note.title.isEmpty ? "Untitled" : note.title)
-                .font(.system(size: 12.5, design: .rounded)).foregroundStyle(theme.ink).lineLimit(1)
+                .font(theme.body(12.5)).foregroundStyle(theme.ink).lineLimit(1)
             Spacer(minLength: 0)
             if note.pinned { Image(systemName: "pin.fill").font(.system(size: 9)).foregroundStyle(theme.accent2) }
         }

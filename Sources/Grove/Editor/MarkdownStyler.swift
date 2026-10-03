@@ -9,9 +9,14 @@ struct EditorStyle: Equatable {
     var accent: NSColor
     var accent2: NSColor
     var surface2: NSColor
+    var line: NSColor
+    /// Vintage: every line of text is 28 pt high and sits on a ruled line.
+    var ruled: Bool
 
     init(theme: Theme, size: CGFloat = 13) {
         self.size = size
+        ruled = theme.ruledLines
+        line = NSColor(theme.line)
         ink = NSColor(theme.ink)
         muted = NSColor(theme.muted)
         accent = NSColor(theme.accent)
@@ -36,8 +41,12 @@ enum MarkdownStyler {
 
     private static func paragraph(_ s: EditorStyle, indent: CGFloat = 0, before: CGFloat = 0) -> NSMutableParagraphStyle {
         let p = NSMutableParagraphStyle()
-        p.lineSpacing = s.size * 0.28
-        p.paragraphSpacingBefore = before
+        if s.ruled {
+            p.minimumLineHeight = GridMath.ruledPitch
+            p.maximumLineHeight = GridMath.ruledPitch
+        }
+        p.lineSpacing = s.ruled ? 0 : s.size * 0.28
+        p.paragraphSpacingBefore = s.ruled ? 0 : before
         p.firstLineHeadIndent = 0
         p.headIndent = indent
         return p

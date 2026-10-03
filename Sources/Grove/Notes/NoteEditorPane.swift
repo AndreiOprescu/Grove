@@ -149,12 +149,12 @@ struct NoteEditorPane: View {
                 if note.kind == .note {
                     TextField("Title", text: $title)
                         .textFieldStyle(.plain)
-                        .font(.system(size: 28, weight: .semibold, design: .serif))
+                        .font(theme.heading(28, weight: .semibold))
                         .foregroundStyle(theme.ink)
                         .focused($titleFocus)
                         .onSubmit(commitTitle)
                 } else {
-                    Text(note.title).font(.system(size: 28, weight: .semibold, design: .serif)).foregroundStyle(theme.ink)
+                    Text(note.title).themedHeading(theme, 28, weight: .semibold).foregroundStyle(theme.ink)
                 }
                 Spacer(minLength: 8)
                 if note.kind == .daily { MoodPicker(note: note) }
@@ -168,7 +168,7 @@ struct NoteEditorPane: View {
                 } label: { Image(systemName: "ellipsis.circle") }
                     .menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize().foregroundStyle(theme.muted)
             }
-            Text(kindLine(note)).font(.system(size: 12, design: .rounded)).foregroundStyle(theme.muted)
+            Text(kindLine(note)).font(theme.body(12)).foregroundStyle(theme.muted)
         }
     }
 
@@ -187,7 +187,7 @@ struct NoteEditorPane: View {
             FlowLayout(spacing: 5) {
                 ForEach(tags, id: \.self) { tag in
                     Button { store.noteFilter = .tag(tag) } label: {
-                        Text("#\(tag)").font(.system(size: 11, design: .rounded))
+                        Text("#\(tag)").font(theme.body(11))
                             .padding(.horizontal, 8).padding(.vertical, 3)
                             .background(Capsule().fill(theme.surface2)).foregroundStyle(theme.muted)
                     }
@@ -202,7 +202,7 @@ struct NoteEditorPane: View {
         let items = store.linkedItems(to: ItemRef(.note, noteId))
         if !items.isEmpty {
             VStack(alignment: .leading, spacing: 8) {
-                Text("Linked here").font(.system(size: 12, weight: .bold, design: .serif)).foregroundStyle(theme.ink)
+                Text("Linked here").themedHeading(theme, 12, weight: .bold).foregroundStyle(theme.ink)
                 ForEach(items) { item in
                     Button { store.open(item.ref) } label: {
                         HStack(spacing: 8) {
@@ -210,7 +210,7 @@ struct NoteEditorPane: View {
                             Text(item.title).foregroundStyle(theme.ink).lineLimit(1)
                             Spacer(minLength: 0)
                         }
-                        .font(.system(size: 12.5, design: .rounded))
+                        .font(theme.body(12.5))
                         .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)

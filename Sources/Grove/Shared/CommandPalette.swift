@@ -39,14 +39,14 @@ struct CommandPalette: View {
             Image(systemName: "magnifyingglass").foregroundStyle(theme.muted)
             TextField("Search, or type > for commands", text: $store.paletteText)
                 .textFieldStyle(.plain)
-                .font(.system(size: 17, design: .rounded))
+                .font(theme.body(17))
                 .foregroundStyle(theme.ink)
                 .focused($focused)
                 .onSubmit { runChosen() }
                 .onKeyPress(.downArrow) { move(1); return .handled }
                 .onKeyPress(.upArrow) { move(-1); return .handled }
                 .onKeyPress(.escape) { self.store.paletteOpen = false; return .handled }
-            Text("esc").font(.system(size: 10.5, weight: .semibold, design: .rounded)).foregroundStyle(theme.muted)
+            Text("esc").font(theme.body(10.5, weight: .semibold)).foregroundStyle(theme.muted)
                 .padding(.horizontal, 6).padding(.vertical, 2)
                 .background(RoundedRectangle(cornerRadius: 5).fill(theme.surface2))
         }
@@ -72,7 +72,7 @@ struct CommandPalette: View {
 
     @ViewBuilder private func results(_ rows: [PaletteItem], chosen: Int) -> some View {
         if rows.isEmpty {
-            Text(emptyText).font(.system(size: 13, design: .rounded)).foregroundStyle(theme.muted)
+            Text(emptyText).font(theme.body(13)).foregroundStyle(theme.muted)
                 .frame(maxWidth: .infinity, alignment: .leading).padding(16)
         } else {
             ScrollViewReader { proxy in
@@ -102,15 +102,15 @@ struct CommandPalette: View {
                 Image(systemName: item.symbol).font(.system(size: 13))
                     .foregroundStyle(item.done ? theme.muted : theme.accent).frame(width: 20)
                 VStack(alignment: .leading, spacing: 1) {
-                    Text(item.title).font(.system(size: 14, design: .rounded)).strikethrough(item.done)
+                    Text(item.title).font(theme.body(14)).strikethrough(item.done)
                         .foregroundStyle(item.done ? theme.muted : theme.ink).lineLimit(1)
                     if !item.detail.isEmpty {
-                        Text(item.detail).font(.system(size: 11, design: .rounded)).foregroundStyle(theme.muted).lineLimit(1)
+                        Text(item.detail).font(theme.body(11)).foregroundStyle(theme.muted).lineLimit(1)
                     }
                 }
                 Spacer(minLength: 8)
                 if let key = item.shortcut {
-                    Text(key).font(.system(size: 11, design: .rounded)).foregroundStyle(theme.muted)
+                    Text(key).font(theme.body(11)).foregroundStyle(theme.muted)
                 }
             }
             .padding(.horizontal, 10).frame(height: 42)
@@ -125,7 +125,7 @@ struct CommandPalette: View {
             Text("↑↓ choose"); Text("⏎ open"); Text("> commands")
             Spacer()
         }
-        .font(.system(size: 11, design: .rounded)).foregroundStyle(theme.muted)
+        .font(theme.body(11)).foregroundStyle(theme.muted)
         .padding(.horizontal, 16).padding(.vertical, 8)
         .overlay(alignment: .top) { Divider().overlay(theme.line) }
     }
@@ -140,8 +140,8 @@ struct PaletteButton: View {
         Button { store.togglePalette() } label: {
             HStack(spacing: 6) {
                 Image(systemName: "magnifyingglass")
-                Text("Search").font(.system(size: 12, design: .rounded))
-                Text("⌘K").font(.system(size: 10.5, weight: .semibold, design: .rounded))
+                Text("Search").font(theme.body(12))
+                Text("⌘K").font(theme.body(10.5, weight: .semibold))
             }
             .foregroundStyle(theme.muted)
             .padding(.horizontal, 10).padding(.vertical, 5)

@@ -146,7 +146,7 @@ struct PlannerView: View {
 
     private var titleText: some View {
         Text(title)
-            .font(.system(.title2, design: .serif, weight: .semibold))
+            .themedHeading(theme, 22)
             .foregroundStyle(theme.ink)
             .lineLimit(1)
             .minimumScaleFactor(0.75)
@@ -222,8 +222,8 @@ struct PlannerView: View {
             Color.clear.frame(width: geo.gutterWidth, height: 0)
             ForEach(days, id: \.self) { day in
                 VStack(spacing: 0) {
-                    Text(day.date.formatted(.dateTime.weekday(.abbreviated))).font(.system(size: 11, design: .rounded))
-                    Text(day.date.formatted(.dateTime.day())).font(.system(size: 15, weight: .bold, design: .rounded))
+                    Text(day.date.formatted(.dateTime.weekday(.abbreviated))).font(theme.body(11))
+                    Text(day.date.formatted(.dateTime.day())).font(theme.body(15, weight: .bold))
                 }
                 .foregroundStyle(day == .today() ? theme.accent : theme.ink)
                 .frame(maxWidth: .infinity)
@@ -240,11 +240,11 @@ struct PlannerView: View {
         let events = store.allDayEvents(for: days.first!...days.last!)
         if !events.isEmpty {
             HStack(spacing: 6) {
-                Text("All day").font(.system(size: 11, design: .rounded)).foregroundStyle(theme.muted)
+                Text("All day").font(theme.body(11)).foregroundStyle(theme.muted)
                 ForEach(events) { e in
-                    Text(e.title).font(.system(size: 11, weight: .semibold, design: .rounded))
+                    Text(e.title).font(theme.body(11, weight: .semibold))
                         .padding(.horizontal, 8).padding(.vertical, 3)
-                        .background(Capsule().fill(theme.color(named: e.color).opacity(0.2)))
+                        .chipBackground(theme.color(named: e.color), fill: 0.2)
                         .foregroundStyle(theme.ink)
                         .contentShape(Capsule())
                         .onTapGesture { store.editEvent(e) }
@@ -271,9 +271,9 @@ struct PlannerView: View {
 
     private var planSheet: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Plan my day").font(.system(.title2, design: .serif, weight: .semibold))
+            Text("Plan my day").themedHeading(theme, 22, weight: .semibold)
             Text("Grove will place these tasks in free working hours, highest priority first.")
-                .font(.system(size: 12, design: .rounded)).foregroundStyle(theme.muted)
+                .font(theme.body(12)).foregroundStyle(theme.muted)
             ForEach(Array((plan ?? []).enumerated()), id: \.offset) { _, item in
                 HStack {
                     Text("\(PlannerMath.clock(item.start))–\(PlannerMath.clock(item.start + max(5, item.task.estimateMin)))")
@@ -281,7 +281,7 @@ struct PlannerView: View {
                     Text(item.task.title).lineLimit(1)
                     Spacer()
                 }
-                .font(.system(size: 13, design: .rounded))
+                .font(theme.body(13))
             }
             HStack {
                 Spacer()

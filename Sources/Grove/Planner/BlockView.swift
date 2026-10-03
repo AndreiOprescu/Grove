@@ -6,6 +6,7 @@ enum DragMode { case move, resizeTop, resizeBottom, create }
 
 /// A text field that grabs focus when it appears. Return saves. Esc cancels.
 struct InlineTitleField: View {
+    @Environment(\.theme) private var theme
     @State private var text: String
     let placeholder: String
     var onChange: (String) -> Void = { _ in }
@@ -25,7 +26,7 @@ struct InlineTitleField: View {
     var body: some View {
         TextField(placeholder, text: $text)
             .textFieldStyle(.plain)
-            .font(.system(size: 12, weight: .semibold, design: .rounded))
+            .font(theme.body(12, weight: .semibold))
             .focused($focused)
             .onSubmit { onCommit(text, NSEvent.modifierFlags.contains(.command)) }
             .onExitCommand { onCancel() }
@@ -104,7 +105,7 @@ struct BlockView: View {
         } else if compact {
             HStack(spacing: 5) {
                 checkbox
-                Text(block.title).font(.system(size: 11, weight: .semibold, design: .rounded)).lineLimit(1)
+                Text(block.title).font(theme.body(11, weight: .semibold)).lineLimit(1)
                     .strikethrough(block.isDone)
             }
             .foregroundStyle(theme.ink)
@@ -120,11 +121,11 @@ struct BlockView: View {
                 HStack(alignment: .top, spacing: 5) {
                     checkbox
                     VStack(alignment: .leading, spacing: 1) {
-                        Text(block.title).font(.system(size: 12, weight: .semibold, design: .rounded))
+                        Text(block.title).font(theme.body(12, weight: .semibold))
                             .lineLimit(lines.title)
                             .strikethrough(block.isDone)
                         if lines.summary > 0 {
-                            Text(block.summary).font(.system(size: 11, design: .rounded))
+                            Text(block.summary).font(theme.body(11))
                                 .foregroundStyle(theme.ink.opacity(0.7))
                                 .lineLimit(lines.summary)
                         }
@@ -137,7 +138,7 @@ struct BlockView: View {
 
     private func timeRow(_ text: String) -> some View {
         Text(text)
-            .font(.system(size: 10, weight: .bold, design: .rounded)).monospacedDigit()
+            .font(theme.number(10, weight: .bold))
             .lineLimit(1)
             .foregroundStyle(tint)
     }
@@ -145,9 +146,7 @@ struct BlockView: View {
     @ViewBuilder private var checkbox: some View {
         if block.isTaskBlock {
             Button(action: onToggleDone) {
-                Image(systemName: block.isDone ? "checkmark.circle.fill" : "circle")
-                    .font(.system(size: compact ? 11 : 13))
-                    .foregroundStyle(block.isDone ? theme.accent : theme.muted)
+                CheckBox(isOn: block.isDone, size: compact ? 12 : 14)
             }
             .buttonStyle(.plain)
             .accessibilityLabel(block.isDone ? "Mark not done" : "Mark done")

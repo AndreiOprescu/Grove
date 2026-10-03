@@ -1,4 +1,5 @@
 import SwiftUI
+import GroveCore
 
 /// The theme and the motion switch (PLAN §6, §5.8). They are view preferences of this Mac, so they live in
 /// UserDefaults like the planner settings.
@@ -21,6 +22,14 @@ extension AppStore {
         motionSetting = on
         UserDefaults.standard.set(on, forKey: "appearance.motion")
         showToast(on ? "Motion on" : "Motion off")
+    }
+}
+
+extension AppStore {
+    /// How many of a day's tasks are done. Tasks planned for that day count; cancelled ones do not.
+    func plantProgress(on day: DayKey) -> PlantProgress {
+        let tasks = (try? repos.tasks.forDay(day)) ?? []
+        return PlantProgress(done: tasks.filter(\.isDone).count, total: tasks.count)
     }
 }
 

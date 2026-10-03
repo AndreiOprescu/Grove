@@ -46,7 +46,15 @@ struct RootView: View {
         .animation(.easeInOut(duration: 0.2), value: store.selectedTaskId != nil)
         .animation(.easeInOut(duration: 0.2), value: tasksOpen)
         .animation(.easeOut(duration: 0.12), value: store.paletteOpen)
-        .background(theme.bg.ignoresSafeArea())
+        .background {
+            ZStack {
+                theme.bg
+                AmbientBackground()
+                if theme.gridLines { BackgroundGrid() }
+                if theme.paper { PaperTexture() }
+            }
+            .ignoresSafeArea()
+        }
         .confirmationDialog(
             store.recurringPrompt.map { "\($0.verb) a repeating event" } ?? "",
             isPresented: Binding(get: { store.recurringPrompt != nil }, set: dismissedQuestion),

@@ -39,6 +39,7 @@ struct PlannerGrid: View {
     @Environment(AppStore.self) private var store
     @Environment(\.theme) private var theme
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.controlActiveState) private var controlState
 
     let days: [DayKey]
     @Binding var geo: PlannerGeometry
@@ -149,7 +150,7 @@ struct PlannerGrid: View {
         .overlay(alignment: .topLeading) {
             ForEach(1..<24, id: \.self) { h in
                 Text(String(format: "%02d:00", h))
-                    .font(.system(size: 10, weight: .medium, design: .rounded)).monospacedDigit()
+                    .font(theme.number(10, weight: .medium))
                     .foregroundStyle(theme.muted)
                     .frame(width: geo.gutterWidth - 10, alignment: .trailing)
                     .offset(y: geo.y(forMinute: h * 60) - 7)
@@ -275,7 +276,7 @@ struct PlannerGrid: View {
                 .overlay(RoundedRectangle(cornerRadius: 8, style: .continuous).strokeBorder(theme.accent, lineWidth: 1.5))
                 .overlay(alignment: .topLeading) {
                     Text(PlannerMath.label(start: s, end: max(e, s + 5)))
-                        .font(.system(size: 10, weight: .bold, design: .rounded)).foregroundStyle(theme.accent).padding(5)
+                        .font(theme.body(10, weight: .bold)).foregroundStyle(theme.accent).padding(5)
                 }
                 .frame(width: dayWidth - 6, height: max(4, geo.y(forMinute: max(e - s, 5))))
                 .offset(x: geo.gutterWidth + CGFloat(c.dayIndex) * dayWidth + 2, y: geo.y(forMinute: s))
@@ -289,7 +290,7 @@ struct PlannerGrid: View {
             VStack(alignment: .leading, spacing: 4) {
                 VStack(alignment: .leading, spacing: 1) {
                     Text(PlannerMath.label(start: d.start, end: d.end))
-                        .font(.system(size: 10, weight: .bold, design: .rounded)).foregroundStyle(theme.accent)
+                        .font(theme.body(10, weight: .bold)).foregroundStyle(theme.accent)
                     InlineTitleField(
                         initial: "", placeholder: d.asEvent ? "New event" : "New task",
                         onChange: { draft?.text = $0 },
@@ -318,14 +319,14 @@ struct PlannerGrid: View {
         let matches = store.matchingTasks(d.text, on: d.day)
         if !matches.isEmpty {
             VStack(alignment: .leading, spacing: 0) {
-                Text("Schedule existing task").font(.system(size: 10, weight: .bold, design: .rounded))
+                Text("Schedule existing task").font(theme.body(10, weight: .bold))
                     .foregroundStyle(theme.muted).padding(.horizontal, 10).padding(.top, 6).padding(.bottom, 2)
                 ForEach(matches) { t in
                     Button {
                         store.schedule(taskId: t.id, day: d.day, start: d.start, length: d.end - d.start)
                         draft = nil
                     } label: {
-                        Text(t.title).font(.system(size: 12, design: .rounded)).lineLimit(1)
+                        Text(t.title).font(theme.body(12)).lineLimit(1)
                             .padding(.horizontal, 10).padding(.vertical, 4)
                             .frame(maxWidth: .infinity, alignment: .leading)
                     }
@@ -343,9 +344,15 @@ struct PlannerGrid: View {
         if let i = days.firstIndex(of: .today()) {
             TimelineView(.periodic(from: .now, by: 20)) { _ in
                 let y = geo.y(forMinute: store.nowMinute())
-                HStack(spacing: 0) {
-                    Circle().fill(theme.accent2).frame(width: 9, height: 9)
-                    Rectangle().fill(theme.accent2).frame(height: 2)
+                let pulses = MotionRules.ambientRuns(motionOn: MotionRules.isOn(setting: store.motionSetting, reduceMotion: reduceMotion),
+                                                     windowIsKey: controlState != .inactive)
+                TimelineView(.animation(minimumInterval: 1.0 / 20, paused: !pulses)) { t in
+                    HStack(spacing: 0) {
+                        Circle().fill(theme.accent2).frame(width: 9, height: 9)
+                        Rectangle().fill(theme.accent2).frame(height: 2)
+                    }
+                    .shadow(color: theme.glow ? theme.accent2.opacity(0.8) : .clear, radius: 5)
+                    .opacity(pulses ? PulseMath.opacity(at: t.date.timeIntervalSinceReferenceDate) : 1)
                 }
                 .frame(width: dayWidth + 4, height: 9)
                 .offset(x: geo.gutterWidth + CGFloat(i) * dayWidth - 4, y: y - 4.5)
@@ -361,7 +368,7 @@ struct PlannerGrid: View {
             let shown = displayed(b)
             if let i = days.firstIndex(of: shown.day) {
                 Text(PlannerMath.label(start: shown.start, end: shown.end))
-                    .font(.system(size: 11, weight: .bold, design: .rounded)).monospacedDigit()
+                    .font(theme.number(11, weight: .bold))
                     .foregroundStyle(theme.bg)
                     .padding(.horizontal, 8).padding(.vertical, 4)
                     .background(Capsule().fill(theme.ink))

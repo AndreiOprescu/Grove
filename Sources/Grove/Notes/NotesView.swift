@@ -24,7 +24,7 @@ struct NotesView: View {
     private var empty: some View {
         VStack(spacing: 10) {
             Image(systemName: "leaf").font(.system(size: 30)).foregroundStyle(theme.accent)
-            Text("Pick a note, or start a new one.").font(.system(.title3, design: .serif)).foregroundStyle(theme.ink)
+            Text("Pick a note, or start a new one.").themedHeading(theme, 20).foregroundStyle(theme.ink)
             Button("New note") { store.newNote() }.buttonStyle(.borderedProminent).tint(theme.accent)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -43,7 +43,7 @@ struct NotesList: View {
         let notes = store.notes(filter: store.noteFilter, query: store.noteQuery)
         VStack(alignment: .leading, spacing: 10) {
             HStack {
-                Text("Notes").font(.system(.title3, design: .serif, weight: .semibold)).foregroundStyle(theme.ink)
+                Text("Notes").themedHeading(theme, 20, weight: .semibold).foregroundStyle(theme.ink)
                 Spacer()
                 Button { store.newNote() } label: { Image(systemName: "square.and.pencil") }
                     .buttonStyle(.plain).foregroundStyle(theme.accent).help("New note")
@@ -60,7 +60,7 @@ struct NotesList: View {
                         .buttonStyle(.plain).foregroundStyle(theme.muted)
                 }
             }
-            .font(.system(size: 13, design: .rounded))
+            .font(theme.body(13))
             .padding(.horizontal, 10).padding(.vertical, 7)
             .background(RoundedRectangle(cornerRadius: 9, style: .continuous).fill(theme.surface2))
             filters
@@ -69,7 +69,7 @@ struct NotesList: View {
                     ForEach(notes) { note in row(note) }
                     if notes.isEmpty {
                         Text(store.noteQuery.isEmpty ? "No notes here yet." : "Nothing matches.")
-                            .font(.system(size: 12, design: .rounded)).foregroundStyle(theme.muted).padding(.top, 14)
+                            .font(theme.body(12)).foregroundStyle(theme.muted).padding(.top, 14)
                     }
                 }
             }
@@ -85,9 +85,9 @@ struct NotesList: View {
 
     private func pill(_ title: String, icon: String, action: @escaping () -> Void) -> some View {
         Button(action: action) {
-            Label(title, systemImage: icon).font(.system(size: 12, weight: .medium, design: .rounded))
+            Label(title, systemImage: icon).font(theme.body(12, weight: .medium))
                 .padding(.horizontal, 10).padding(.vertical, 5)
-                .background(Capsule().fill(theme.accent.opacity(0.14)))
+                .chipBackground(theme.accent, fill: 0.14)
                 .foregroundStyle(theme.accent)
         }
         .buttonStyle(.plain)
@@ -118,15 +118,15 @@ struct NotesList: View {
             VStack(alignment: .leading, spacing: 3) {
                 HStack(spacing: 5) {
                     Image(systemName: icon(note)).font(.system(size: 10)).foregroundStyle(theme.accent)
-                    Text(note.title).font(.system(size: 13, weight: .semibold, design: .rounded)).lineLimit(1)
+                    Text(note.title).font(theme.body(13, weight: .semibold)).lineLimit(1)
                     Spacer(minLength: 0)
                     if note.pinned { Image(systemName: "pin.fill").font(.system(size: 9)).foregroundStyle(theme.accent2) }
                 }
                 if !preview.isEmpty {
-                    Text(preview).font(.system(size: 11.5, design: .rounded)).foregroundStyle(theme.muted).lineLimit(2)
+                    Text(preview).font(theme.body(11.5)).foregroundStyle(theme.muted).lineLimit(2)
                 }
                 Text(TaskFormat.dayLabel(DayKey(String(note.updatedAt.prefix(10)))))
-                    .font(.system(size: 10.5, design: .rounded)).foregroundStyle(theme.muted.opacity(0.8))
+                    .font(theme.body(10.5)).foregroundStyle(theme.muted.opacity(0.8))
             }
             .foregroundStyle(theme.ink)
             .frame(maxWidth: .infinity, alignment: .leading)

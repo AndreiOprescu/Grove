@@ -39,7 +39,7 @@ struct MonthView: View {
         HStack(spacing: 0) {
             ForEach(0..<7, id: \.self) { i in
                 Text(grid[i].date.formatted(.dateTime.weekday(.abbreviated)))
-                    .font(.system(size: 11, weight: .semibold, design: .rounded))
+                    .font(theme.body(11, weight: .semibold))
                     .foregroundStyle(theme.muted)
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 6)
@@ -76,7 +76,7 @@ struct MonthView: View {
             }
             ForEach(pills.shown) { pill($0, on: day) }
             if pills.hidden > 0 {
-                Text("+\(pills.hidden) more").font(.system(size: 10, design: .rounded)).foregroundStyle(theme.muted)
+                Text("+\(pills.hidden) more").font(theme.body(10)).foregroundStyle(theme.muted)
             }
             Spacer(minLength: 0)
         }
@@ -113,7 +113,7 @@ struct MonthView: View {
         let anchor = "\(e.id)#\(day.string)"
         let time = !e.allDay && e.start.day == day ? PlannerMath.clock(e.start.minute) + " " : ""
         return (Text(time).foregroundStyle(theme.muted) + Text(e.title.isEmpty ? "New Event" : e.title))
-            .font(.system(size: 10.5, weight: .semibold, design: .rounded))
+            .font(theme.body(10.5, weight: .semibold))
             .lineLimit(1)
             .foregroundStyle(theme.ink)
             .padding(.horizontal, 5).padding(.vertical, 2)

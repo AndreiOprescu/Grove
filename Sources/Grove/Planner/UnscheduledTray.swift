@@ -15,11 +15,11 @@ struct UnscheduledTray: View {
         let _ = store.revision
         let tasks = store.unscheduled(for: day)
         VStack(alignment: .leading, spacing: 8) {
-            Text("Unscheduled").font(.system(.headline, design: .serif))
+            Text("Unscheduled").themedHeading(theme, 17)
                 .foregroundStyle(theme.ink)
             if tasks.isEmpty {
                 Text("Nothing waiting. Every open task for this day has a time.")
-                    .font(.system(size: 12, design: .rounded)).foregroundStyle(theme.muted)
+                    .font(theme.body(12)).foregroundStyle(theme.muted)
             }
             ScrollView {
                 LazyVStack(spacing: 6) {
@@ -28,7 +28,7 @@ struct UnscheduledTray: View {
             }
             if isDropTarget {
                 Label("Release to unschedule", systemImage: "tray.and.arrow.down")
-                    .font(.system(size: 12, weight: .semibold, design: .rounded)).foregroundStyle(theme.accent)
+                    .font(theme.body(12, weight: .semibold)).foregroundStyle(theme.accent)
             }
         }
         .padding(12)
@@ -40,9 +40,9 @@ struct UnscheduledTray: View {
     private func row(_ task: TaskItem) -> some View {
         HStack(spacing: 6) {
             VStack(alignment: .leading, spacing: 1) {
-                Text(task.title).font(.system(size: 12, weight: .semibold, design: .rounded)).lineLimit(2)
+                Text(task.title).font(theme.body(12, weight: .semibold)).lineLimit(2)
                     .foregroundStyle(theme.ink)
-                Text(PlannerMath.duration(task.estimateMin)).font(.system(size: 10, design: .rounded))
+                Text(PlannerMath.duration(task.estimateMin)).font(theme.body(10))
                     .foregroundStyle(theme.muted)
             }
             Spacer(minLength: 0)

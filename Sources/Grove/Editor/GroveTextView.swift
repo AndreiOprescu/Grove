@@ -348,6 +348,13 @@ final class GroveTextView: NSTextView {
         super.drawBackground(in: rect)
         guard let style, layoutManager != nil else { return }
 
+        if style.ruled {
+            style.line.setFill()
+            for y in GridMath.ruledRows(top: textContainerOrigin.y, minY: rect.minY, maxY: rect.maxY) {
+                NSRect(x: 0, y: y - 0.5, width: bounds.width, height: 1).fill()
+            }
+        }
+
         if string.isEmpty, !placeholder.isEmpty {
             let origin = textContainerOrigin
             (placeholder as NSString).draw(at: NSPoint(x: origin.x, y: origin.y),

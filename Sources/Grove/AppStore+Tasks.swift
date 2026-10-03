@@ -1,4 +1,4 @@
-import Foundation
+import SwiftUI
 import GroveCore
 
 /// Where a task lives. Used by quick add defaults, moves and drops.
@@ -23,7 +23,7 @@ extension AppStore {
         case .day(let d): list = (try? repos.tasks.forDay(d)) ?? []
         case .week(let d): list = (try? repos.tasks.forWeek(d.weekStart())) ?? []
         }
-        return list.filter { $0.status == .open }
+        return list.filter { $0.status == .open || lingering.contains($0.id) }
     }
 
     func subtasks(of parentId: String) -> [TaskItem] { (try? repos.tasks.subtasks(of: parentId)) ?? [] }
@@ -89,14 +89,24 @@ extension AppStore {
     // MARK: Completing
 
     /// Checks a task off, or reopens it. Completing a repeating task also makes its next copy.
-    func toggleDone(taskId: String) {
+    /// With `linger`, a task that was just checked off stays in the open list for 0.7 s, so the check burst can play.
+    func toggleDone(taskId: String, linger: Bool = false) {
         guard let old = task(taskId) else { return }
+        if linger, !old.isDone { holdInList(taskId) }
         var t = old
         if t.isDone { t.status = .open; t.completedAt = nil } else { t.status = .done; t.completedAt = Stamp.now() }
         var m = Mutation(name: t.isDone ? "Complete Task" : "Reopen Task")
         m.tasks.append((old, t))
         if t.isDone, let rule = old.recurrence { appendNextInstance(of: old, rule: rule, to: &m) }
         commit(m)
+    }
+
+    private func holdInList(_ id: String) {
+        lingering.insert(id)
+        Task { @MainActor [weak self] in
+            try? await Task.sleep(for: .milliseconds(700))
+            withAnimation(.easeOut(duration: 0.25)) { _ = self?.lingering.remove(id) }
+        }
     }
 
     /// The next copy of a repeating task: new id, next date, subtasks unchecked, one block copied.

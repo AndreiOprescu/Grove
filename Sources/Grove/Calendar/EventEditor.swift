@@ -45,7 +45,7 @@ struct EventEditor: View {
         VStack(alignment: .leading, spacing: 12) {
             TextField("Event title", text: $draft.title)
                 .textFieldStyle(.plain)
-                .font(.system(.title3, design: .serif, weight: .semibold))
+                .font(theme.heading(20, weight: .semibold))
                 .focused($titleFocused)
                 .onSubmit(save)
             Toggle("All day", isOn: Binding(get: { draft.allDay }, set: { EventDraft.setAllDay(&draft, $0) }))
@@ -65,11 +65,11 @@ struct EventEditor: View {
             repeatSection
             if isDayOfSeries {
                 Text("When you save, Grove asks if the change is for this event only or all events.")
-                    .font(.system(size: 11, design: .rounded)).foregroundStyle(theme.muted)
+                    .font(theme.body(11)).foregroundStyle(theme.muted)
             }
             buttons
         }
-        .font(.system(size: 12, design: .rounded))
+        .font(theme.body(12))
         .padding(16)
         .frame(width: 360)
         .onAppear { titleFocused = editing.isNew }
@@ -148,7 +148,7 @@ struct EventEditor: View {
                 .buttonStyle(.bordered).controlSize(.small)
                 .help(meeting == nil ? "Make a note for this event, with a place for the agenda and action items" : "Show the note of this event")
                 if !here.isEmpty {
-                    Text("Linked here").font(.system(size: 12, weight: .bold, design: .serif)).foregroundStyle(theme.ink).padding(.top, 4)
+                    Text("Linked here").themedHeading(theme, 12, weight: .bold).foregroundStyle(theme.ink).padding(.top, 4)
                     ForEach(here) { item in
                         Button { openLinked(item.ref) } label: {
                             HStack(spacing: 8) {
@@ -233,7 +233,7 @@ struct EventEditor: View {
             ForEach(1...7, id: \.self) { d in
                 Button { draft.recurrence = EventDraft.toggleWeekday(rule, d, start: start) } label: {
                     Text(["M", "T", "W", "T", "F", "S", "S"][d - 1])
-                        .font(.system(size: 11, weight: .semibold, design: .rounded))
+                        .font(theme.body(11, weight: .semibold))
                         .frame(width: 24, height: 24)
                         .foregroundStyle(on.contains(d) ? theme.surface : theme.ink)
                         .background(Circle().fill(on.contains(d) ? theme.accent : theme.line.opacity(0.5)))

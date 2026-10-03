@@ -139,3 +139,48 @@ struct ThemeSpecTests {
         #expect(m.hairlines && !g.hairlines)
     }
 }
+
+/// The moving background and the motion switch (PLAN §6.3).
+struct AmbientMotionTests {
+    @Test func theThreePeriodsAre22And28And34Seconds() {
+        #expect(AmbientMath.periods == [22, 28, 34])
+    }
+
+    @Test func aBlobStaysNearTheWindowAtAnyTime() {
+        for i in 0..<3 {
+            for t in stride(from: 0.0, through: 200, by: 1.7) {
+                let c = AmbientMath.centre(index: i, time: t)
+                #expect(c.x > 0.1 && c.x < 0.9 && c.y > 0.1 && c.y < 0.9)
+            }
+        }
+    }
+
+    @Test func aBlobMovesSlowly() {
+        let a = AmbientMath.centre(index: 0, time: 10), b = AmbientMath.centre(index: 0, time: 11)
+        let step = hypot(a.x - b.x, a.y - b.y)
+        #expect(step > 0 && step < 0.08)   // under 8% of the window in one second
+    }
+
+    @Test func theBlobsDoNotMoveTogether() {
+        let a = AmbientMath.centre(index: 0, time: 5), b = AmbientMath.centre(index: 1, time: 5)
+        #expect(a.x != b.x || a.y != b.y)
+    }
+
+    @Test func aBlobIs46PercentOfTheLongSide() {
+        #expect(abs(AmbientMath.diameter(width: 1000, height: 600) - 460) < 0.001)
+        #expect(abs(AmbientMath.diameter(width: 600, height: 1000) - 460) < 0.001)
+    }
+
+    @Test func motionNeedsTheSwitchAndNoReduceMotion() {
+        #expect(MotionRules.isOn(setting: true, reduceMotion: false))
+        #expect(!MotionRules.isOn(setting: false, reduceMotion: false))
+        #expect(!MotionRules.isOn(setting: true, reduceMotion: true))
+        #expect(!MotionRules.isOn(setting: false, reduceMotion: true))
+    }
+
+    @Test func theBackgroundOnlyRunsInTheKeyWindow() {
+        #expect(MotionRules.ambientRuns(motionOn: true, windowIsKey: true))
+        #expect(!MotionRules.ambientRuns(motionOn: true, windowIsKey: false))
+        #expect(!MotionRules.ambientRuns(motionOn: false, windowIsKey: true))
+    }
+}

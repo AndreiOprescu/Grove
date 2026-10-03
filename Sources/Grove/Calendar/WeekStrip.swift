@@ -27,9 +27,9 @@ struct WeekStrip: View {
         return VStack(spacing: 2) {
             HStack(spacing: 4) {
                 Text(day.date.formatted(.dateTime.weekday(.abbreviated)))
-                    .font(.system(size: 11, design: .rounded))
+                    .font(theme.body(11))
                 Text(day.date.formatted(.dateTime.day()))
-                    .font(.system(size: 14, weight: .bold, design: .rounded))
+                    .font(theme.body(14, weight: .bold))
             }
             .foregroundStyle(isToday ? theme.accent : theme.ink)
             HStack(spacing: 2) {

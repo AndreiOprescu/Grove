@@ -52,6 +52,8 @@ final class AppStore {
     var selectedDay: DayKey = .today()
     /// Bumped after every write so views reload.
     var revision = 0
+    /// Tasks just checked off that stay in the open list for a moment, so the burst can play (see `toggleDone`).
+    var lingering: Set<String> = []
     /// Selected planner block ids.
     var selection: Set<String> = []
     var toast: String?

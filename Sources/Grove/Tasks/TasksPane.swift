@@ -10,6 +10,7 @@ enum TasksTab: String, CaseIterable, Identifiable {
 struct TasksPane: View {
     @Environment(AppStore.self) private var store
     @Environment(\.theme) private var theme
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @AppStorage("shell.tasksOpen") private var open = true
     @AppStorage("tasks.tab") private var tabRaw = TasksTab.day.rawValue
     @State private var expanded: Set<String> = []
@@ -19,11 +20,17 @@ struct TasksPane: View {
 
     var body: some View {
         let _ = store.revision
+        let today = store.plantProgress(on: .today())
         let lists = Dictionary(uniqueKeysWithValues: ((try? store.repos.lists.all(includeArchived: true)) ?? []).map { ($0.id, $0) })
         VStack(alignment: .leading, spacing: 10) {
-            HStack {
-                Text("Tasks").font(.system(.title3, design: .serif, weight: .semibold)).foregroundStyle(theme.ink)
+            HStack(alignment: .center, spacing: 8) {
+                VStack(alignment: .leading, spacing: 1) {
+                    Text("Tasks").themedHeading(theme, 20, weight: .semibold).foregroundStyle(theme.ink)
+                    Text("\(Greeting.now()) · \(today.growthText)")
+                        .font(theme.body(11)).foregroundStyle(theme.muted).lineLimit(1)
+                }
                 Spacer()
+                GrowingPlant(progress: today, height: 38)
                 Button { open = false } label: { Image(systemName: "sidebar.left") }
                     .buttonStyle(.plain).foregroundStyle(theme.muted).help("Hide the task list")
             }
@@ -121,7 +128,7 @@ struct TasksPane: View {
             TaskSection(title: TaskFormat.dayLabel(day), placement: .day(day), tasks: store.openTasks(in: .day(day)),
                         contextDay: day, emptyText: "Nothing planned. Add a task above, or drop one here.",
                         lists: lists, expanded: $expanded)
-            let done = ((try? store.repos.tasks.forDay(day)) ?? []).filter(\.isDone)
+            let done = ((try? store.repos.tasks.forDay(day)) ?? []).filter { $0.isDone && !store.lingering.contains($0.id) }
             if !done.isEmpty { doneSection(done, day: day, lists: lists) }
         case .week:
             let monday = store.selectedDay.weekStart()
@@ -148,7 +155,7 @@ struct TasksPane: View {
             Button { showDone.toggle() } label: {
                 HStack(spacing: 4) {
                     Image(systemName: showDone ? "chevron.down" : "chevron.right").font(.system(size: 9, weight: .bold))
-                    Text("Done · \(done.count)").font(.system(size: 12, weight: .bold, design: .serif))
+                    Text("Done · \(done.count)").themedHeading(theme, 12, weight: .bold)
                     Spacer()
                 }
                 .foregroundStyle(theme.muted)
