@@ -48,8 +48,7 @@ struct PlannerView: View {
             if mode == .day || mode == .threeDay { WeekStrip(shown: Set(days)) }
             if mode == .month {
                 MonthView { _ in modeRaw = PlannerMode.day.rawValue }
-                    .background(RoundedRectangle(cornerRadius: theme.radius, style: .continuous).fill(theme.surface))
-                    .overlay(RoundedRectangle(cornerRadius: theme.radius, style: .continuous).strokeBorder(theme.line))
+                    .panel()
                     .clipShape(RoundedRectangle(cornerRadius: theme.radius, style: .continuous))
             } else {
                 allDayStrip
@@ -64,8 +63,7 @@ struct PlannerView: View {
                         PlannerGrid(days: days, geo: $geo, dropToTray: $dropToTray, scrollRequest: scrollRequest,
                                     snapStep: snapStep, workStart: workStart, workEnd: workEnd)
                     }
-                    .background(RoundedRectangle(cornerRadius: theme.radius, style: .continuous).fill(theme.surface))
-                    .overlay(RoundedRectangle(cornerRadius: theme.radius, style: .continuous).strokeBorder(theme.line))
+                    .panel()
                     .clipShape(RoundedRectangle(cornerRadius: theme.radius, style: .continuous))
                 }
             }

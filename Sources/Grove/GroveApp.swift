@@ -9,6 +9,8 @@ struct GroveApp: App {
         WindowGroup(id: "main") {
             RootView()
                 .environment(store)
+                .environment(\.theme, store.theme)
+                .preferredColorScheme(store.colorScheme)
                 .frame(minWidth: 1100, minHeight: 620)
         }
         .windowStyle(.hiddenTitleBar)
@@ -17,6 +19,15 @@ struct GroveApp: App {
             CommandGroup(replacing: .newItem) {
                 Button("New Task") { store.requestQuickAdd() }
                     .keyboardShortcut("n", modifiers: .command)
+            }
+            CommandGroup(after: .toolbar) {
+                Menu("Theme") {
+                    Picker("Theme", selection: Binding(get: { store.themeID }, set: { store.setTheme($0) })) {
+                        ForEach(ThemeID.allCases) { Text(ThemeSpec.spec($0).name).tag($0) }
+                    }
+                    .pickerStyle(.inline)
+                }
+                Toggle("Motion", isOn: Binding(get: { store.motionSetting }, set: { store.setMotion($0) }))
             }
             CommandMenu("Go") {
                 Button("Command Palette") { store.togglePalette() }

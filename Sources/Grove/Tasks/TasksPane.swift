@@ -39,8 +39,7 @@ struct TasksPane: View {
         .padding(12)
         .frame(width: 320)
         .frame(maxHeight: .infinity, alignment: .topLeading)
-        .background(RoundedRectangle(cornerRadius: theme.radius, style: .continuous).fill(theme.surface))
-        .overlay(RoundedRectangle(cornerRadius: theme.radius, style: .continuous).strokeBorder(theme.line))
+        .panel()
     }
 
     // MARK: Defaults for quick add

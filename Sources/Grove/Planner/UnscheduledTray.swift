@@ -34,9 +34,7 @@ struct UnscheduledTray: View {
         .padding(12)
         .frame(width: 230)
         .frame(maxHeight: .infinity, alignment: .topLeading)
-        .background(RoundedRectangle(cornerRadius: theme.radius, style: .continuous).fill(theme.surface))
-        .overlay(RoundedRectangle(cornerRadius: theme.radius, style: .continuous)
-            .strokeBorder(isDropTarget ? theme.accent : theme.line, lineWidth: isDropTarget ? 2 : 1))
+        .panel(border: isDropTarget ? theme.accent : nil, borderWidth: isDropTarget ? 2 : nil)
     }
 
     private func row(_ task: TaskItem) -> some View {

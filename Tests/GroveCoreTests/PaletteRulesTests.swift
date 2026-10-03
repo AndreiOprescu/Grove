@@ -47,6 +47,14 @@ struct PaletteRulesTests {
         #expect(PaletteRules.commands(matching: "go to date").first?.title == "Go to date…")
     }
 
+    @Test func theThemeAndMotionCommandsAreFound() {
+        #expect(PaletteRules.commands(matching: "toggle theme").map(\.id) == [.toggleTheme])
+        #expect(PaletteRules.commands(matching: "dark").map(\.id) == [.toggleTheme])
+        #expect(PaletteRules.commands(matching: "toggle").map(\.id) == [.toggleTheme, .toggleMotion])
+        #expect(PaletteRules.commands(matching: "animation").map(\.id) == [.toggleMotion])
+        #expect(PaletteRules.commands(matching: "toggle theme").first?.title == "Toggle theme")
+    }
+
     // MARK: Dates
 
     @Test func aDayWordIsADate() {

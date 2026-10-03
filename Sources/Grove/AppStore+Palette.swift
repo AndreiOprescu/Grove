@@ -121,6 +121,8 @@ extension AppStore {
             planMyDayRequest += 1
         case .showPlanner: screen = .planner
         case .showNotes: screen = .notes
+        case .toggleTheme: nextTheme()
+        case .toggleMotion: setMotion(!motionSetting)
         }
     }
 

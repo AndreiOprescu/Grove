@@ -28,8 +28,7 @@ struct NoteEditorPane: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .background(RoundedRectangle(cornerRadius: theme.radius, style: .continuous).fill(theme.surface))
-        .overlay(RoundedRectangle(cornerRadius: theme.radius, style: .continuous).strokeBorder(theme.line))
+        .panel()
         .onAppear { load(noteId) }
         .onChange(of: store.revision) { _, _ in
             if !typing { chipToken += 1 }

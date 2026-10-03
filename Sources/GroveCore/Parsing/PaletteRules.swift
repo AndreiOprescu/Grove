@@ -2,7 +2,7 @@ import Foundation
 
 /// The things the ⌘K palette can do besides open an item.
 public enum PaletteCommandId: String, CaseIterable, Sendable {
-    case newTask, newNote, todayNote, goToday, goToDate, planMyDay, showPlanner, showNotes
+    case newTask, newNote, todayNote, goToday, goToDate, planMyDay, showPlanner, showNotes, toggleTheme, toggleMotion
 }
 
 public struct PaletteCommand: Equatable, Identifiable, Sendable {
@@ -42,6 +42,8 @@ public enum PaletteRules {
         .init(id: .planMyDay, title: "Plan my day", keywords: ["fit", "schedule", "auto"], symbol: "wand.and.stars"),
         .init(id: .showPlanner, title: "Open planner", keywords: ["calendar", "schedule", "day"], shortcut: "⌘1", symbol: "calendar.day.timeline.left"),
         .init(id: .showNotes, title: "Open notes", keywords: ["notebook"], shortcut: "⌘2", symbol: "note.text"),
+        .init(id: .toggleTheme, title: "Toggle theme", keywords: ["theme", "dark", "light", "colour", "color", "appearance", "look", "switch"], symbol: "paintpalette"),
+        .init(id: .toggleMotion, title: "Toggle motion", keywords: ["motion", "animation", "animate", "reduce", "calm"], symbol: "wind"),
     ]
 
     /// Every word typed must start a word of the title or of a keyword. Empty text matches all.

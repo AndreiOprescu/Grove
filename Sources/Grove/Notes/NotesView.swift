@@ -28,8 +28,7 @@ struct NotesView: View {
             Button("New note") { store.newNote() }.buttonStyle(.borderedProminent).tint(theme.accent)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(RoundedRectangle(cornerRadius: theme.radius, style: .continuous).fill(theme.surface))
-        .overlay(RoundedRectangle(cornerRadius: theme.radius, style: .continuous).strokeBorder(theme.line))
+        .panel()
     }
 }
 
@@ -79,8 +78,7 @@ struct NotesList: View {
         .padding(12)
         .frame(width: 300)
         .frame(maxHeight: .infinity, alignment: .topLeading)
-        .background(RoundedRectangle(cornerRadius: theme.radius, style: .continuous).fill(theme.surface))
-        .overlay(RoundedRectangle(cornerRadius: theme.radius, style: .continuous).strokeBorder(theme.line))
+        .panel()
     }
 
     // MARK: Pieces

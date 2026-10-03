@@ -34,8 +34,7 @@ struct TaskInspector: View {
         }
         .frame(width: 340)
         .frame(maxHeight: .infinity, alignment: .topLeading)
-        .background(RoundedRectangle(cornerRadius: theme.radius, style: .continuous).fill(theme.surface))
-        .overlay(RoundedRectangle(cornerRadius: theme.radius, style: .continuous).strokeBorder(theme.line))
+        .panel()
         .onAppear { load(taskId) }
         .onChange(of: taskId) { old, new in
             flush(old)

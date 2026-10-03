@@ -23,8 +23,7 @@ struct CommandPalette: View {
                 footer
             }
             .frame(width: 560)
-            .background(RoundedRectangle(cornerRadius: theme.radius, style: .continuous).fill(theme.surface))
-            .overlay(RoundedRectangle(cornerRadius: theme.radius, style: .continuous).strokeBorder(theme.line))
+            .panel()
             .shadow(color: .black.opacity(0.25), radius: 24, y: 10)
             .padding(.top, 90)
         }

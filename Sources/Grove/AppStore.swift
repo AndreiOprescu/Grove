@@ -78,6 +78,9 @@ final class AppStore {
     var selectedNoteId: String?
     var noteFilter: NoteFilter = .all
     var noteQuery = ""
+    /// The look of the window and the motion switch. Both are saved in UserDefaults (see `AppStore+Appearance`).
+    var themeID: ThemeID = ThemeID(rawValue: UserDefaults.standard.string(forKey: "appearance.theme") ?? "") ?? .default
+    var motionSetting: Bool = UserDefaults.standard.object(forKey: "appearance.motion") as? Bool ?? true
 
     private(set) var undoStack: [Mutation] = []
     private(set) var redoStack: [Mutation] = []
