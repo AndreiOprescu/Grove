@@ -43,11 +43,10 @@ extension AppStore {
     func newEventNow() {
         if screen != .planner { screen = .today }   // the Calendar and the Notes have no time grid
         let defaults = UserDefaults.standard
-        let step = defaults.object(forKey: "planner.snap") as? Int ?? 5
         let workStart = defaults.object(forKey: "planner.workStart") as? Int ?? 9 * 60
         let length = defaults.object(forKey: "planner.defaultLength") as? Int ?? SettingsRules.defaultEventLength
         let day = selectedDay
-        guard let start = nextFreeSlot(day: day, length: length, workStart: workStart, step: step), start + length <= 1440 else {
+        guard let start = nextFreeSlot(day: day, length: length, workStart: workStart, step: PlannerMath.step), start + length <= 1440 else {
             showToast("No free time left on this day.")
             return
         }

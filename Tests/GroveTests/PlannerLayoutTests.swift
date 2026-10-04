@@ -6,39 +6,41 @@ import GroveCore
 
 /// Layout checks that draw the real planner in an off-screen window.
 @MainActor
+@Suite(.serialized)
 struct PlannerLayoutTests {
-    /// Smallest width the planner asks for, with the tray open. Optionally the tray is closed and reopened first.
-    private func idealWidth(closeAndReopenTray: Bool) throws -> CGFloat {
+    /// Smallest width the Planner screen (week mode, sticky strip open) asks for, with `notesPerDay` timeless tasks on each day.
+    private func idealWidth(notesPerDay: Int) throws -> CGFloat {
         let defaults = UserDefaults.standard
         defaults.set(7, forKey: "planner.mode")
-        defaults.set(true, forKey: "planner.trayOpen")
+        defaults.set(true, forKey: "planner.stickyOpen")
         defer {
             defaults.removeObject(forKey: "planner.mode")
-            defaults.removeObject(forKey: "planner.trayOpen")
+            defaults.removeObject(forKey: "planner.stickyOpen")
         }
         let store = AppStore(repos: Repos(db: try Database.inMemory()))
+        store.screen = .planner
+        let monday = DayKey.today().weekStart()
+        for d in 0..<7 {
+            for n in 0..<notesPerDay {
+                try store.repos.tasks.save(TaskItem(title: "A rather long task title that needs to wrap \(d)-\(n)",
+                                                    bucket: .day, planDate: monday.adding(days: d)))
+            }
+        }
         _ = NSApplication.shared
         let hosting = NSHostingView(rootView: RootView().environment(store))
         let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 1280, height: 800),
                               styleMask: [.titled], backing: .buffered, defer: false)
         window.contentView = hosting
-        func settle() {
-            hosting.layoutSubtreeIfNeeded()
-            RunLoop.main.run(until: Date().addingTimeInterval(0.5))
-            hosting.layoutSubtreeIfNeeded()
-        }
-        settle()
-        if closeAndReopenTray {
-            defaults.set(false, forKey: "planner.trayOpen"); settle()
-            defaults.set(true, forKey: "planner.trayOpen"); settle()
-        }
+        hosting.layoutSubtreeIfNeeded()
+        RunLoop.main.run(until: Date().addingTimeInterval(0.5))
+        hosting.layoutSubtreeIfNeeded()
         return hosting.fittingSize.width
     }
 
-    @Test func reopeningTheTrayDoesNotKeepTheGridWide() throws {
-        let fresh = try idealWidth(closeAndReopenTray: false)
-        let reopened = try idealWidth(closeAndReopenTray: true)
-        // A stale grid width used to push the tray off the left edge after close + reopen.
-        #expect(abs(fresh - reopened) < 1, "fresh \(fresh) vs reopened \(reopened)")
+    @Test func stickyNotesDoNotWidenThePlanner() throws {
+        let empty = try idealWidth(notesPerDay: 0)
+        let full = try idealWidth(notesPerDay: 6)
+        // Notes wrap and scroll inside their day column. They must never push the grid wider.
+        #expect(abs(empty - full) < 1, "empty \(empty) vs full \(full)")
     }
 }

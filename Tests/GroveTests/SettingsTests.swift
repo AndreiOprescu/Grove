@@ -6,7 +6,6 @@ import GroveCore
 /// The small rules behind the Settings window (PLAN §5.8).
 struct SettingsRulesTests {
     @Test func theChoicesAreSmallAndSorted() {
-        #expect(SettingsRules.snapSteps == [5, 10, 15, 30])
         #expect(SettingsRules.eventLengths == [15, 30, 45, 60, 90, 120])
         #expect(SettingsRules.eventLengths.contains(SettingsRules.defaultEventLength))
     }

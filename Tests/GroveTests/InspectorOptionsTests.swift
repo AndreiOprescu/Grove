@@ -34,6 +34,11 @@ struct InspectorOptionsTests {
         #expect(!InspectorOptions.estimates(including: 30).contains(37))
     }
 
+    @Test func estimateChoicesFollowTheFifteenMinuteGrid() {
+        #expect(InspectorOptions.estimates(including: 30).allSatisfy { $0 % 15 == 0 })
+        #expect(InspectorOptions.estimates(including: 30).first == 15)
+    }
+
     @Test func dueDatesReadAndWrite() {
         #expect(InspectorOptions.dueDay("2026-10-05") == "2026-10-05")
         #expect(InspectorOptions.dueDay("2026-10-05T14:30") == "2026-10-05")

@@ -103,7 +103,6 @@ private struct ThemeCard: View {
 // MARK: Planner
 
 private struct PlannerSettings: View {
-    @AppStorage("planner.snap") private var snap = 5
     @AppStorage("planner.workStart") private var workStart = 9 * 60
     @AppStorage("planner.workEnd") private var workEnd = 18 * 60
     @AppStorage("planner.defaultLength") private var defaultLength = SettingsRules.defaultEventLength
@@ -113,9 +112,6 @@ private struct PlannerSettings: View {
     var body: some View {
         Form {
             Section("Time grid") {
-                Picker("Snap step", selection: $snap) {
-                    ForEach(SettingsRules.snapSteps, id: \.self) { Text("\($0) minutes").tag($0) }
-                }
                 Picker("New event length", selection: $defaultLength) {
                     ForEach(SettingsRules.eventLengths, id: \.self) { Text(PlannerMath.duration($0)).tag($0) }
                 }

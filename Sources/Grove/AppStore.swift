@@ -357,18 +357,41 @@ final class AppStore {
 
     /// Open tasks for this day, then this week, then the inbox, that have no block on `day`.
     func unscheduled(for day: DayKey) -> [TaskItem] {
-        let next = day.adding(days: 1)
-        let scheduledIds = Set((try? repos.db.query(
-            "SELECT DISTINCT task_id FROM events WHERE task_id IS NOT NULL AND start >= ? AND start < ?",
-            [.text(day.string + "T00:00"), .text(next.string + "T00:00")]) { $0.text(0) }) ?? [])
+        let scheduledIds = Set(blockedTaskIds(day...day).map(\.task))
         func open(_ list: [TaskItem]) -> [TaskItem] {
             list.filter { $0.status == .open && $0.parentId == nil && !scheduledIds.contains($0.id) }
         }
-        let byPriority: (TaskItem, TaskItem) -> Bool = { $0.priority != $1.priority ? $0.priority > $1.priority : $0.sort < $1.sort }
+        let byPriority = Self.byPriority
         let dayTasks = open((try? repos.tasks.forDay(day)) ?? []).sorted(by: byPriority)
         let weekTasks = open((try? repos.tasks.forWeek(day.weekStart())) ?? []).sorted(by: byPriority)
         let inbox = open((try? repos.tasks.inbox()) ?? []).sorted(by: byPriority)
         return dayTasks + weekTasks + inbox
+    }
+
+    /// Open tasks planned for each day that have no block on that day: the sticky notes under the day numbers.
+    func timeless(for days: [DayKey]) -> [DayKey: [TaskItem]] {
+        guard let first = days.min(), let last = days.max() else { return [:] }
+        let blocked = Set(blockedTaskIds(first...last).map { "\($0.day.string)|\($0.task)" })
+        let tasks = ((try? repos.tasks.inRange(first, last)) ?? []).filter { t in
+            guard t.status == .open, t.bucket == .day, let day = t.planDate else { return false }
+            return !blocked.contains("\(day.string)|\(t.id)")
+        }
+        var out: [DayKey: [TaskItem]] = [:]
+        for day in days { out[day] = [] }
+        for t in tasks.sorted(by: Self.byPriority) { if let d = t.planDate, out[d] != nil { out[d]!.append(t) } }
+        return out
+    }
+
+    /// Highest priority first, then the order of the list.
+    private static let byPriority: (TaskItem, TaskItem) -> Bool = { $0.priority != $1.priority ? $0.priority > $1.priority : $0.sort < $1.sort }
+
+    /// Which task has a block on which day, for the days in the range.
+    private func blockedTaskIds(_ days: ClosedRange<DayKey>) -> [(day: DayKey, task: String)] {
+        (try? repos.db.query(
+            "SELECT DISTINCT substr(start, 1, 10), task_id FROM events WHERE task_id IS NOT NULL AND start >= ? AND start < ?",
+            [.text(days.lowerBound.string + "T00:00"), .text(days.upperBound.adding(days: 1).string + "T00:00")]) {
+                (day: DayKey($0.text(0)), task: $0.text(1))
+            }) ?? []
     }
 
     /// Open tasks with a title that contains `text`, not yet blocked on `day`. For the "schedule existing" hint.
@@ -422,7 +445,7 @@ final class AppStore {
     /// Puts an existing task on the grid. Length is `length`, or the task estimate.
     func schedule(taskId: String, day: DayKey, start: Int, length: Int? = nil) {
         guard let task = task(taskId) else { return }
-        let len = max(5, length ?? task.estimateMin)
+        let len = PlannerMath.blockLength(length ?? task.estimateMin)
         let s = PlannerMath.clampMove(start: start, length: len)
         var m = Mutation(name: "Schedule Task")
         m.tasks.append((task, planned(task, on: day)))
@@ -434,7 +457,7 @@ final class AppStore {
     /// First free gap for a task: from now (today) or from work start (other days).
     func fit(taskId: String, day: DayKey, workStart: Int, workEnd: Int, step: Int) {
         guard let task = task(taskId) else { return }
-        let len = max(5, task.estimateMin)
+        let len = PlannerMath.blockLength(task.estimateMin)
         let busy = blocks(for: day...day).map(\.span)
         let from = day == .today() ? max(workStart, nowMinute()) : workStart
         if let slot = PlannerMath.firstFreeSlot(length: len, busy: busy, from: from, until: 1440, step: step) {
@@ -451,7 +474,7 @@ final class AppStore {
         from = PlannerMath.snap(from, step: step)
         var out: [(TaskItem, Int)] = []
         for t in unscheduled(for: day) {
-            let len = max(5, t.estimateMin)
+            let len = PlannerMath.blockLength(t.estimateMin)
             guard let slot = PlannerMath.firstFreeSlot(length: len, busy: busy, from: from, until: workEnd, step: step) else { continue }
             busy.append(Span(id: t.id, start: slot, end: slot + len))
             out.append((t, slot))
@@ -463,7 +486,7 @@ final class AppStore {
         var m = Mutation(name: "Plan My Day")
         for p in plan {
             m.tasks.append((p.task, planned(p.task, on: day)))
-            m.events.append((nil, blockEvent(for: p.task, day: day, start: p.start, end: p.start + max(5, p.task.estimateMin))))
+            m.events.append((nil, blockEvent(for: p.task, day: day, start: p.start, end: p.start + PlannerMath.blockLength(p.task.estimateMin))))
         }
         commit(m)
     }
@@ -600,8 +623,9 @@ final class AppStore {
         guard let old = event(blockId) else { return }
         guard old.seriesId == nil else { showToast("A repeating event cannot be split."); return }
         let len = old.end.minute - old.start.minute
-        guard len >= 10 else { showToast("Block is too short to split."); return }
-        let mid = max(old.start.minute + 5, min(old.end.minute - 5, PlannerMath.snap(old.start.minute + len / 2, step: 5)))
+        let half = PlannerMath.minLength
+        guard len >= 2 * half else { showToast("Block is too short to split."); return }
+        let mid = max(old.start.minute + half, min(old.end.minute - half, PlannerMath.snap(old.start.minute + len / 2, step: PlannerMath.step)))
         var first = old
         first.end = WallTime(day: old.start.day, minute: mid)
         var second = old

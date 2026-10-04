@@ -3,7 +3,6 @@ import GroveCore
 
 /// The small rules behind the Settings window (PLAN §5.8). Plain functions, so tests can check them.
 enum SettingsRules {
-    static let snapSteps = [5, 10, 15, 30]
     static let eventLengths = [15, 30, 45, 60, 90, 120]
     static let defaultEventLength = 60
     /// How strong the moving circles look, 0% to 150%. 100% is the theme as designed.

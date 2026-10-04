@@ -94,7 +94,7 @@ struct ScreenStoreTests {
 @MainActor
 @Suite(.serialized)
 struct ViewMenuStoreTests {
-    private let keys = ["planner.mode", "calendar.mode", "planner.hourHeight", "planner.snap", "planner.workStart"]
+    private let keys = ["planner.mode", "calendar.mode", "planner.hourHeight", "planner.workStart"]
     private let defaults = UserDefaults.standard
 
     private func makeStore() throws -> AppStore { AppStore(repos: Repos(db: try Database.inMemory())) }

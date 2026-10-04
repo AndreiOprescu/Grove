@@ -21,7 +21,7 @@ extension PlannerMode {
 }
 
 /// The time grid with its header. It fills the Planner and the Calendar screens.
-/// With `column` it is the timeline of the Day Spread: one day, a small header, no week strip and no tray.
+/// With `column` it is the timeline of the Day Spread: one day, a small header and no week strip.
 struct PlannerView: View {
     @Environment(AppStore.self) private var store
     @Environment(\.theme) private var theme
@@ -35,24 +35,18 @@ struct PlannerView: View {
 
     @AppStorage private var modeRaw: Int
     @AppStorage("planner.hourHeight") private var hourHeight = 64.0
-    @AppStorage("planner.snap") private var snapStep = 5
     @AppStorage("planner.workStart") private var workStart = 9 * 60
     @AppStorage("planner.workEnd") private var workEnd = 18 * 60
-    @AppStorage("planner.trayOpen") private var trayOpen = true
     @AppStorage("shell.tasksOpen") private var tasksOpen = true
     @AppStorage("calendar.moodTint") private var moodTint = false
     @AppStorage("calendar.weekStartsSunday") private var sundayFirst = false
 
     @State private var geo = PlannerGeometry()
-    @State private var dropToTray = false
+    @State private var dropToStrip = false
     @State private var scrollRequest = 0
     @State private var plan: [(task: TaskItem, start: Int)]?
-    /// Width inside the side padding. Starts wide so the first frame does not hide the tray.
-    @State private var contentWidth: CGFloat = 10_000
 
     private var mode: PlannerMode { column ? .day : PlannerMode(rawValue: modeRaw) ?? .day }
-    private var trayFits: Bool { !column && PlannerLayoutRules.trayFits(contentWidth: contentWidth) }
-    private var showTray: Bool { trayOpen && trayFits }
 
     private var days: [DayKey] {
         switch mode {
@@ -73,23 +67,17 @@ struct PlannerView: View {
                     .clipShape(RoundedRectangle(cornerRadius: theme.radius, style: .continuous))
             } else {
                 allDayStrip
-                HStack(alignment: .top, spacing: 12) {
-                    if showTray {
-                        UnscheduledTray(day: store.selectedDay, isDropTarget: dropToTray,
-                                        workStart: workStart, workEnd: workEnd, snapStep: snapStep)
-                            .transition(.opacity)
-                    }
-                    VStack(spacing: 0) {
-                        if days.count > 1 { dayHeaders }
-                        PlannerGrid(days: days, geo: $geo, dropToTray: $dropToTray, scrollRequest: scrollRequest,
-                                    snapStep: snapStep, workStart: workStart, workEnd: workEnd)
-                    }
-                    .panel()
-                    .clipShape(RoundedRectangle(cornerRadius: theme.radius, style: .continuous))
+                VStack(spacing: 0) {
+                    if days.count > 1 { dayHeaders }
+                    StickyStrip(days: days, gutterWidth: geo.gutterWidth, isDropTarget: dropToStrip,
+                                workStart: workStart, workEnd: workEnd)
+                    PlannerGrid(days: days, geo: $geo, dropToStrip: $dropToStrip, scrollRequest: scrollRequest,
+                                workStart: workStart, workEnd: workEnd)
                 }
+                .panel()
+                .clipShape(RoundedRectangle(cornerRadius: theme.radius, style: .continuous))
             }
         }
-        .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { contentWidth = $0 }
         .padding(.horizontal, column ? 0 : 16).padding(.bottom, column ? 0 : 16)
         .padding(.top, column ? 0 : 34)   // the window buttons sit in this space (title bar is hidden)
         .onAppear { geo.hourHeight = CGFloat(hourHeight); takePlanRequest() }
@@ -101,7 +89,6 @@ struct PlannerView: View {
             Button("OK") { store.overloadWarning = nil }
         } message: { Text(store.overloadWarning ?? "") }
         .sheet(isPresented: Binding(get: { plan != nil }, set: { if !$0 { plan = nil } })) { planSheet }
-        .animation(.easeInOut(duration: 0.2), value: showTray)
     }
 
     // MARK: Header
@@ -172,9 +159,6 @@ struct PlannerView: View {
             Button { tasksOpen = true } label: { Image(systemName: "checklist") }
                 .help("Show the task list")
         }
-        Button { trayOpen.toggle() } label: { Image(systemName: "sidebar.left") }
-            .disabled(!trayFits || mode == .month)
-            .help(trayFits ? "Show or hide the unscheduled tray" : "No room for the tray. Close the task list or the task panel.")
         Button { move(-1) } label: { Image(systemName: "chevron.left") }.help("Previous")
         Button("Today") { store.selectedDay = .today(); scrollRequest += 1 }
             .fixedSize()
@@ -304,7 +288,7 @@ struct PlannerView: View {
     }
 
     private func showPlan() {
-        let result = store.planMyDayPreview(day: store.selectedDay, workStart: workStart, workEnd: workEnd, step: snapStep)
+        let result = store.planMyDayPreview(day: store.selectedDay, workStart: workStart, workEnd: workEnd, step: PlannerMath.step)
         if result.isEmpty { store.showToast("Nothing to plan. No unscheduled task fits in working hours.") } else { plan = result }
     }
 
@@ -315,7 +299,7 @@ struct PlannerView: View {
                 .font(theme.body(12)).foregroundStyle(theme.muted)
             ForEach(Array((plan ?? []).enumerated()), id: \.offset) { _, item in
                 HStack {
-                    Text("\(PlannerMath.clock(item.start))–\(PlannerMath.clock(item.start + max(5, item.task.estimateMin)))")
+                    Text("\(PlannerMath.clock(item.start))–\(PlannerMath.clock(item.start + PlannerMath.blockLength(item.task.estimateMin)))")
                         .monospacedDigit().foregroundStyle(theme.accent)
                     Text(item.task.title).lineLimit(1)
                     Spacer()

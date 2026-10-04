@@ -53,7 +53,7 @@ enum RepeatPreset: String, CaseIterable, Identifiable {
 /// Small pure rules behind the inspector fields.
 enum InspectorOptions {
     static func estimates(including current: Int) -> [Int] {
-        var set = Set([5, 10, 15, 20, 30, 45, 60, 90, 120, 180, 240, 300, 480])
+        var set = Set([15, 30, 45, 60, 90, 120, 180, 240, 300, 480])
         set.insert(current)
         return set.sorted()
     }

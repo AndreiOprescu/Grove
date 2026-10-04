@@ -34,6 +34,37 @@ struct PlannerMathTests {
         #expect(PlannerMath.resizeBottom(start: 600, end: 660, newEnd: 1500, step: 5) == (600, 1440))
     }
 
+    // MARK: the 15 minute grid
+    @Test func theGridStepAndTheShortestBlockAreFifteenMinutes() {
+        #expect(PlannerMath.step == 15)
+        #expect(PlannerMath.minLength == 15)
+    }
+
+    @Test func resizeKeepsAFifteenMinuteMinimumOnBothEdges() {
+        #expect(PlannerMath.resizeTop(start: 600, end: 660, newStart: 700, step: 15, minLen: 15) == (645, 660))
+        #expect(PlannerMath.resizeTop(start: 600, end: 660, newStart: 622, step: 15, minLen: 15) == (615, 660))
+        #expect(PlannerMath.resizeBottom(start: 600, end: 660, newEnd: 500, step: 15, minLen: 15) == (600, 615))
+        #expect(PlannerMath.resizeBottom(start: 600, end: 660, newEnd: 668, step: 15, minLen: 15) == (600, 675))
+    }
+
+    @Test func aTaskLengthRoundsUpToTheGrid() {
+        #expect(PlannerMath.blockLength(0) == 15)
+        #expect(PlannerMath.blockLength(10) == 15)
+        #expect(PlannerMath.blockLength(15) == 15)
+        #expect(PlannerMath.blockLength(20) == 30)
+        #expect(PlannerMath.blockLength(60) == 60)
+        #expect(PlannerMath.blockLength(61) == 75)
+    }
+
+    @Test func steppingGoesToTheNextGridLine() {
+        #expect(PlannerMath.stepped(600, by: 1, step: 15) == 615)
+        #expect(PlannerMath.stepped(600, by: -1, step: 15) == 585)
+        // A block from before the grid lands on the grid line next to it.
+        #expect(PlannerMath.stepped(605, by: 1, step: 15) == 615)
+        #expect(PlannerMath.stepped(605, by: -1, step: 15) == 600)
+        #expect(PlannerMath.stepped(614, by: -1, step: 15) == 600)
+    }
+
     // MARK: layout (overlaps cascade, they never share the width)
     private func layers(_ spans: [Span], minLength: Int = 0, tightWithin: Int = 30) -> [String: Layer] {
         PlannerMath.layoutLayers(spans, minLength: minLength, tightWithin: tightWithin)

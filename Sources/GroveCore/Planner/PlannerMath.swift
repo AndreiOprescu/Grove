@@ -12,6 +12,23 @@ public struct Span: Equatable, Sendable {
 /// Pure planner maths. No UI, no database. All values are minutes since midnight.
 public enum PlannerMath {
     public static let dayEnd = 1440
+    /// Blocks start, end and move on a 15 minute grid.
+    public static let step = 15
+    /// The shortest block the planner makes.
+    public static let minLength = 15
+
+    /// The length a task gets on the grid: its estimate, rounded up to the step, at least `minLength`.
+    public static func blockLength(_ estimate: Int) -> Int {
+        max(minLength, (estimate + step - 1) / step * step)
+    }
+
+    /// The next grid line after (`direction` > 0) or before (`direction` < 0) `minute`.
+    /// A minute off the grid goes to the grid line next to it, not a whole step away.
+    public static func stepped(_ minute: Int, by direction: Int, step: Int) -> Int {
+        let step = max(1, step)
+        if direction >= 0 { return (minute / step + 1) * step }
+        return minute > 0 ? (minute - 1) / step * step : minute - step
+    }
 
     /// Round to the nearest step. Halves round up.
     public static func snap(_ minute: Int, step: Int) -> Int {

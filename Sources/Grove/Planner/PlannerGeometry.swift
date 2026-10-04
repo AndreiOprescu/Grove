@@ -22,12 +22,6 @@ struct PlannerGeometry: Equatable {
 
 /// Rules for how the planner gives up space when the window is tight.
 enum PlannerLayoutRules {
-    /// The unscheduled tray is 230 wide. The grid next to it needs about 450 to stay readable.
-    static let trayMinContentWidth: CGFloat = 680
-
-    static func trayFits(contentWidth: CGFloat) -> Bool { contentWidth >= trayMinContentWidth }
-
-
     /// How many minutes after a block's start another block would cover its text rows.
     /// A block that shows a short description has one more row than one that shows a title only.
     static func tightMinutes(hourHeight: CGFloat, blockHeight: CGFloat, hasSummary: Bool) -> Int {

@@ -95,13 +95,62 @@ struct PlannerStoreTests {
 
     @Test func dropTaskFromTrayUsesEstimate() throws {
         let s = try makeStore()
-        let t = TaskItem(title: "Email", estimateMin: 20)
+        let t = TaskItem(title: "Email", estimateMin: 45)
         try s.repos.tasks.save(t)
-        s.schedule(taskId: t.id, day: day, start: 545)
+        s.schedule(taskId: t.id, day: day, start: 540)
         let b = try #require(s.blocks(for: day...day).first)
-        #expect(b.startMinute == 545 && b.length == 20)
+        #expect(b.startMinute == 540 && b.length == 45)
         let saved = try #require(s.task(t.id))
         #expect(saved.bucket == .day && saved.planDate == day)
+    }
+
+    @Test func aShortEstimateMakesABlockOfAtLeastFifteenMinutes() throws {
+        let s = try makeStore()
+        let short = TaskItem(title: "Call", estimateMin: 10)
+        let odd = TaskItem(title: "Tidy", estimateMin: 20)
+        try s.repos.tasks.save(short)
+        try s.repos.tasks.save(odd)
+        s.schedule(taskId: short.id, day: day, start: 540)
+        s.schedule(taskId: odd.id, day: day, start: 600)
+        let byTitle = Dictionary(uniqueKeysWithValues: s.blocks(for: day...day).map { ($0.title, $0) })
+        #expect(byTitle["Call"]?.length == 15)
+        #expect(byTitle["Tidy"]?.length == 30)
+    }
+
+    @Test func timelessTasksAreTheDayTasksWithNoBlock() throws {
+        let s = try makeStore()
+        let next = day.adding(days: 1)
+        let free = TaskItem(title: "Free", bucket: .day, planDate: day)
+        let urgent = TaskItem(title: "Urgent", priority: 3, bucket: .day, planDate: day)
+        let blocked = TaskItem(title: "Blocked", bucket: .day, planDate: day)
+        let done = TaskItem(title: "Done", status: .done, bucket: .day, planDate: day)
+        let sub = TaskItem(title: "Sub", parentId: free.id, bucket: .day, planDate: day)
+        let tomorrow = TaskItem(title: "Tomorrow", bucket: .day, planDate: next)
+        let week = TaskItem(title: "Week", bucket: .week, planWeek: day.weekStart())
+        let inbox = TaskItem(title: "Inbox")
+        for t in [free, urgent, blocked, done, sub, tomorrow, week, inbox] { try s.repos.tasks.save(t) }
+        s.schedule(taskId: blocked.id, day: day, start: 600)
+
+        let map = s.timeless(for: [day, next])
+        #expect(map[day]?.map(\.title) == ["Urgent", "Free"])
+        #expect(map[next]?.map(\.title) == ["Tomorrow"])
+
+        // A block on another day does not give the task a time today.
+        s.schedule(taskId: free.id, day: next, start: 600)
+        #expect(s.timeless(for: [day])[day]?.map(\.title) == ["Urgent"])
+    }
+
+    @Test func aBlockShorterThanHalfAnHourCannotSplit() throws {
+        let s = try makeStore()
+        s.createFromDraft(title: "Short", day: day, start: 600, end: 615, asEvent: true)
+        let b = try #require(s.blocks(for: day...day).first)
+        s.split(blockId: b.id)
+        #expect(s.blocks(for: day...day).count == 1)
+        s.createFromDraft(title: "Half", day: day, start: 700, end: 730, asEvent: true)
+        let half = try #require(s.blocks(for: day...day).first { $0.title == "Half" })
+        s.split(blockId: half.id)
+        let parts = s.blocks(for: day...day).filter { $0.title == "Half" }.map { [$0.startMinute, $0.endMinute] }.sorted { $0[0] < $1[0] }
+        #expect(parts == [[700, 715], [715, 730]])
     }
 
     @Test func fitUsesFirstFreeGap() throws {

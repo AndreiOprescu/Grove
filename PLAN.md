@@ -55,8 +55,8 @@ Everything is stored locally on this Mac. No accounts, no network, no third-part
 - [ ] The app has its own custom icon (not the generic one) in Finder, Dock and Desktop.
 - [ ] Planner: create a block by dragging on empty time; by double-click; by dragging a
       task from the task list onto the timeline.
-- [ ] Planner: move a block by dragging (snaps to 5 min by default; ⌥ disables snap).
-- [ ] Planner: resize from the top edge and from the bottom edge. Minimum 5 min.
+- [ ] Planner: move a block by dragging (snaps to a fixed 15-min grid).
+- [ ] Planner: resize from the top edge and from the bottom edge. Minimum 15 min.
 - [ ] Planner: overlapping blocks are allowed and shown side by side in columns.
 - [ ] Planner: in 3-day / week mode, drag a block to another day.
 - [ ] Planner: live label while dragging shows `11:15 – 12:45 · 1h 30m`.
@@ -141,7 +141,7 @@ To Do/
 │     ├─ Layouts/              RootView.swift, LayoutA_Garden.swift, LayoutB_DaySpread.swift,
 │     │                        LayoutC_WeekBoard.swift, LayoutD_Journal.swift
 │     ├─ Planner/              PlannerView.swift, PlannerGrid.swift, BlockView.swift,
-│     │                        PlannerGeometry.swift, UnscheduledTray.swift
+│     │                        PlannerGeometry.swift, StickyStrip.swift, StickyRules.swift
 │     ├─ Tasks/                TaskListView.swift, TaskRow.swift, TaskInspector.swift,
 │     │                        QuickAddField.swift
 │     ├─ Calendar/             MonthView.swift, WeekStrip.swift, EventEditor.swift
@@ -430,14 +430,14 @@ Block frame: `x = gutter + col * colWidth`, `width = colWidth - 3`, where
 |---|---|
 | Drag on empty grid space | Draws a selection from press point to current point (snapped). On release: creates a new block and opens an inline title field in it. Esc cancels → nothing saved. Typing a title that matches an existing open task offers "Schedule existing task" (top suggestion). Otherwise creates a new task (bucket `day`) + block. Hold ⌘ while releasing to create a plain **event** instead of a task. |
 | Double-click empty space | New 30-min block (or task estimate) at the snapped minute, title field open. |
-| Drag a task from any task list / the Unscheduled tray onto the grid | Ghost preview follows the pointer showing the time; on drop: creates a block at the snapped minute with length `estimate_min`; sets task `bucket='day'`, `plan_date` = that day. |
+| Drag a task from any task list / a sticky note onto the grid | Ghost preview follows the pointer showing the time; on drop: creates a block at the snapped minute with length `estimate_min` rounded up to 15 min (at least 15); sets task `bucket='day'`, `plan_date` = that day. |
 | Drag a block body | Moves it. Live label `11:15 – 12:45 · 1h 30m` floats next to the block. In multi-day mode, horizontal movement changes the day column. |
 | Drag top edge (6pt hit zone) | Changes start; end stays. Cursor `.pointerStyle(.frameResize(position: .top))`. |
 | Drag bottom edge (6pt hit zone) | Changes end; start stays. Cursor `.frameResize(position: .bottom)`. |
-| Snap | Default 5 min (Settings: 1/5/10/15/30). Hold ⌥ during drag → 1-min precision. Snap is applied to the *edge being moved*; when moving, snap the start. |
-| Min / clamp | Minimum length 5 min. Clamp inside 00:00–24:00. A block cannot cross midnight (clamp). |
+| Snap | Fixed 15 min (:00, :15, :30, :45). No setting and no ⌥ fine mode. Snap is applied to the *edge being moved*; when moving, snap the start. |
+| Min / clamp | Minimum length 15 min. Clamp inside 00:00–24:00. A block cannot cross midnight (clamp). |
 | ⇧ held on release (move or resize) | **Ripple**: blocks that start after the moved block's start and now overlap it are pushed down so they start at its end; cascade further (see `ripple`). Show a small "pushed 2 blocks" toast. |
-| Release over the Unscheduled tray | Removes the block (task stays, goes back to unscheduled for that day). |
+| Release over the sticky strip | Removes the block (task stays, planned for that day with no time, so it shows as a sticky note). |
 | Drag a block onto a day in the Week strip / Month view | Moves it to that day, same time. |
 | Edge auto-scroll | While dragging within 40pt of the scroll view's top/bottom, auto-scroll (use a `Timer` at 60 Hz, speed proportional to distance). |
 | Click a block | Selects it (accent outline). Shows it in the inspector (Layout A) or a popover (others). |
@@ -484,7 +484,7 @@ public enum PlannerMath {
 }
 ```
 
-Tests must cover: snapping both ways, 5-min minimum on both edges, clamping at 00:00
+Tests must cover: snapping both ways, 15-min minimum on both edges, clamping at 00:00
 and 24:00, layout of (a) no overlap → 1 column each, (b) two overlapping → 2 columns,
 (c) A overlaps B, B overlaps C, A not C → 2 columns with C reusing column 0, (d) touching
 blocks (end == start) do **not** overlap, ripple cascade of three blocks, free-slot when
@@ -494,8 +494,8 @@ the day is full returns nil, label formatting (`45m`, `1h`, `1h 30m`).
 
 | Key | Action |
 |---|---|
-| ↑ / ↓ | Move 15 min (⌥: 5 min) |
-| ⇧↑ / ⇧↓ | Make 15 min shorter / longer (end edge) |
+| ↑ / ↓ | Move to the next 15-min grid line up / down |
+| ⇧↑ / ⇧↓ | Make shorter / longer: the end edge moves to the next 15-min grid line |
 | ← / → | Move to previous / next day |
 | Return | Rename |
 | Space | Toggle task done |
@@ -509,16 +509,20 @@ Use `.focusable()` + `.onKeyPress`.
 
 #### 5.1.7 Planner extras
 
-- **Unscheduled tray** (left of the grid in Planner screen; collapsible): open tasks for
-  this day, then this week, then inbox. Each row draggable. Shows estimate.
-- **Fit** button on each tray row: places the task in the first free slot from now
+- **Sticky-note strip** (right under the day numbers in Day, 3 Days and Week, and on the
+  Today screen timeline; can fold): each day's open tasks that are planned for that day
+  but have no block, drawn as sticky notes (priority, then order). Each note shows its
+  length. Drag a note onto the grid to give it a time. Drag a block up onto the strip to
+  take its time away. Drop a task from a list on a day to plan it for that day with no
+  time. Click a note to open the task.
+- **Fit** button on each sticky note: places the task in the first free slot from now
   (today) or from the working-hours start (other days). Animate the block growing in.
 - **Plan my day** button: fits all of today's unscheduled tasks in priority order into free
   working-hours slots, as one undo step. Shows a preview sheet with Apply / Cancel.
 - **Day totals** in the header: "4h 30m planned · 2h 10m free · 3/6 done".
 - **End of day roll-over**: on first launch of a new day, if yesterday has open task
   blocks, show a gentle card "3 things from yesterday — Move to today / Leave". Move
-  sets `plan_date` = today and removes the old blocks (tasks go to the tray).
+  sets `plan_date` = today and removes the old blocks (tasks go to the sticky strip).
 - **Focus mode**: right-click a block → "Start focus" → a floating mini timer counts down
   to the block's end; when it ends: "Mark done?" notification.
 
@@ -670,7 +674,7 @@ Use `.focusable()` + `.onKeyPress`.
   Planner ⌘1, Tasks ⌘2, Calendar ⌘3, Notes ⌘4, Day/3-Day/Week ⌥⌘1/2/3, Zoom In/Out,
   Theme ▸, Layout ▸ (if several) · Go ▸ Command Palette ⌘K · Edit ▸ Undo/Redo (system).
 - `Settings` scene tabs: **Appearance** (theme picker with live previews, layout picker,
-  motion on/off, accent intensity), **Planner** (snap step, working hours, default
+  motion on/off, accent intensity), **Planner** (working hours, default
   duration, hour height, week starts Monday/Sunday), **Notifications**, **Notes**
   (daily/weekly templates), **Data** (export, import, show folder, backups list).
 - Settings are stored in the `settings` table (JSON values) and mirrored in `AppStore`.

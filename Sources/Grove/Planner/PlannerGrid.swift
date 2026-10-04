@@ -43,10 +43,10 @@ struct PlannerGrid: View {
 
     let days: [DayKey]
     @Binding var geo: PlannerGeometry
-    @Binding var dropToTray: Bool
+    /// True while a task block is dragged up over the sticky strip. Letting go there unschedules it.
+    @Binding var dropToStrip: Bool
     /// Bump to scroll to "now".
     let scrollRequest: Int
-    let snapStep: Int
     let workStart: Int
     let workEnd: Int
 
@@ -175,7 +175,7 @@ struct PlannerGrid: View {
         .contentShape(Rectangle())
         .onTapGesture(count: 2, coordinateSpace: .named("plannerGrid")) { p in
             guard !isDragging else { return }
-            let s = PlannerMath.clampMove(start: PlannerMath.snap(geo.minute(forY: p.y), step: snapStep), length: 30)
+            let s = PlannerMath.clampMove(start: PlannerMath.snap(geo.minute(forY: p.y), step: PlannerMath.step), length: 30)
             draft = Draft(day: day, start: s, end: s + 30)
             store.selection = []
             renamingId = nil
@@ -192,7 +192,7 @@ struct PlannerGrid: View {
                 .onEnded { createEnded(index: index, day: day, $0) })
         .dropDestination(for: String.self) { items, location in
             guard let raw = items.first else { return false }
-            let minute = PlannerMath.snap(geo.minute(forY: location.y), step: snapStep)
+            let minute = PlannerMath.snap(geo.minute(forY: location.y), step: PlannerMath.step)
             if let noteId = DragPayload.noteId(from: raw) {
                 return store.addNoteToPlanner(noteId, on: day, at: minute) != nil
             }
@@ -275,10 +275,10 @@ struct PlannerGrid: View {
                 .fill(theme.accent.opacity(0.18))
                 .overlay(RoundedRectangle(cornerRadius: 8, style: .continuous).strokeBorder(theme.accent, lineWidth: 1.5))
                 .overlay(alignment: .topLeading) {
-                    Text(PlannerMath.label(start: s, end: max(e, s + 5)))
+                    Text(PlannerMath.label(start: s, end: max(e, s + PlannerMath.minLength)))
                         .font(theme.body(10, weight: .bold)).foregroundStyle(theme.accent).padding(5)
                 }
-                .frame(width: dayWidth - 6, height: max(4, geo.y(forMinute: max(e - s, 5))))
+                .frame(width: dayWidth - 6, height: max(4, geo.y(forMinute: max(e - s, PlannerMath.minLength))))
                 .offset(x: geo.gutterWidth + CGFloat(c.dayIndex) * dayWidth + 2, y: geo.y(forMinute: s))
                 .allowsHitTesting(false)
         }
@@ -512,11 +512,9 @@ struct PlannerGrid: View {
         return p.lastY + (scrollY - p.scrollAtEvent)
     }
 
-    private func currentStep() -> Int { NSEvent.modifierFlags.contains(.option) ? 1 : snapStep }
-
     private func refreshLive() {
         guard var l = live, let p = pointer, let primary = l.originals[l.primaryId] else { return }
-        let step = currentStep()
+        let step = PlannerMath.step
         let raw = Int(((effectiveY() - p.startY) / geo.hourHeight * 60).rounded())
         switch l.mode {
         case .move:
@@ -530,13 +528,14 @@ struct PlannerGrid: View {
                 let lo = -(indexes.min() ?? 0), hi = days.count - 1 - (indexes.max() ?? 0)
                 l.deltaDays = max(lo, min(rawDays, hi))
             }
-            let overTray = p.lastX < 0 && blocks.first { $0.id == l.primaryId }?.isTaskBlock == true
-            if dropToTray != overTray { dropToTray = overTray }
+            // Above the top of the visible grid is the sticky strip.
+            let overStrip = p.lastY - p.scrollAtEvent < 0 && blocks.first { $0.id == l.primaryId }?.isTaskBlock == true
+            if dropToStrip != overStrip { dropToStrip = overStrip }
         case .resizeTop:
-            let r = PlannerMath.resizeTop(start: primary.start, end: primary.end, newStart: primary.start + raw, step: step)
+            let r = PlannerMath.resizeTop(start: primary.start, end: primary.end, newStart: primary.start + raw, step: step, minLen: PlannerMath.minLength)
             l.deltaMinutes = r.0 - primary.start
         case .resizeBottom:
-            let r = PlannerMath.resizeBottom(start: primary.start, end: primary.end, newEnd: primary.end + raw, step: step)
+            let r = PlannerMath.resizeBottom(start: primary.start, end: primary.end, newEnd: primary.end + raw, step: step, minLen: PlannerMath.minLength)
             l.deltaMinutes = r.1 - primary.end
         case .create:
             break
@@ -550,10 +549,10 @@ struct PlannerGrid: View {
             live = nil
             pointer = nil
             autoScroll?.cancel()
-            if dropToTray { dropToTray = false }
+            if dropToStrip { dropToStrip = false }
         }
         guard let l = live else { return }
-        if dropToTray, l.mode == .move {
+        if dropToStrip, l.mode == .move {
             store.deleteBlocks(l.ids, name: "Unschedule")
             return
         }
@@ -572,7 +571,7 @@ struct PlannerGrid: View {
 
     private func createChanged(index: Int, _ v: DragGesture.Value) {
         if create == nil {
-            let anchor = PlannerMath.snap(geo.minute(forY: v.startLocation.y), step: currentStep())
+            let anchor = PlannerMath.snap(geo.minute(forY: v.startLocation.y), step: PlannerMath.step)
             create = CreateDrag(dayIndex: index, anchor: anchor, current: anchor)
             pointer = PointerContext(startX: v.startLocation.x, startY: v.startLocation.y,
                                      lastX: v.location.x, lastY: v.location.y, scrollAtEvent: scrollY)
@@ -587,7 +586,7 @@ struct PlannerGrid: View {
 
     private func refreshCreate() {
         guard var c = create else { return }
-        let minute = PlannerMath.snap(geo.minute(forY: effectiveY()), step: currentStep())
+        let minute = PlannerMath.snap(geo.minute(forY: effectiveY()), step: PlannerMath.step)
         c.current = max(0, min(1440, minute))
         if c.current != create?.current { haptic() }
         create = c
@@ -599,8 +598,8 @@ struct PlannerGrid: View {
         defer { create = nil; pointer = nil; autoScroll?.cancel() }
         guard let c = create else { return }
         var s = min(c.anchor, c.current), e = max(c.anchor, c.current)
-        if e - s < 5 { e = s + 30 }
-        if e > 1440 { e = 1440; s = min(s, 1435) }
+        if e - s < PlannerMath.minLength { e = s + 30 }
+        if e > 1440 { e = 1440; s = min(s, 1440 - PlannerMath.minLength) }
         draft = Draft(day: day, start: s, end: e, asEvent: NSEvent.modifierFlags.contains(.command))
     }
 
@@ -611,7 +610,7 @@ struct PlannerGrid: View {
         autoScroll = Task { @MainActor in
             while !Task.isCancelled {
                 try? await Task.sleep(for: .milliseconds(16))
-                guard let p = pointer else { continue }
+                guard let p = pointer, !dropToStrip else { continue }   // no scrolling while over the strip
                 let viewportY = p.lastY - p.scrollAtEvent
                 var speed: CGFloat = 0
                 if viewportY < 40 { speed = -min(24, (40 - viewportY) / 40 * 24) }
@@ -638,7 +637,6 @@ struct PlannerGrid: View {
         guard draft == nil, renamingId == nil else { return .ignored }
         let selected = blocks.filter { store.selection.contains($0.id) }
         let cmd = press.modifiers.contains(.command), shift = press.modifiers.contains(.shift)
-        let option = press.modifiers.contains(.option)
 
         if cmd {
             switch press.characters {
@@ -657,18 +655,21 @@ struct PlannerGrid: View {
             return .handled
         case .upArrow, .downArrow:
             guard !selected.isEmpty else { return .ignored }
-            let amount = (option ? 5 : 15) * (press.key == .upArrow ? -1 : 1)
+            let direction = press.key == .upArrow ? -1 : 1
             var edits: [BlockEdit] = []
             if shift {
-                // Shorter / longer: the end edge moves.
+                // Shorter / longer: the end edge moves to the next grid line.
                 for b in selected {
-                    let r = PlannerMath.resizeBottom(start: b.startMinute, end: b.endMinute, newEnd: b.endMinute + amount, step: 1)
+                    let newEnd = PlannerMath.stepped(b.endMinute, by: direction, step: PlannerMath.step)
+                    let r = PlannerMath.resizeBottom(start: b.startMinute, end: b.endMinute, newEnd: newEnd, step: 1, minLen: PlannerMath.minLength)
                     edits.append(BlockEdit(id: b.id, day: b.day, start: r.0, end: r.1))
                 }
                 store.applyEdits(edits, ripple: false, name: "Resize Block")
             } else {
+                // The earliest start goes to the next grid line. The other blocks keep their distance to it.
                 let minStart = selected.map(\.startMinute).min() ?? 0
                 let maxEnd = selected.map(\.endMinute).max() ?? 1440
+                let amount = PlannerMath.stepped(minStart, by: direction, step: PlannerMath.step) - minStart
                 let d = max(-minStart, min(amount, 1440 - maxEnd))
                 for b in selected {
                     edits.append(BlockEdit(id: b.id, day: b.day, start: b.startMinute + d, end: b.endMinute + d))
@@ -698,7 +699,7 @@ struct PlannerGrid: View {
         default:
             if press.characters == "n", press.modifiers.isEmpty {
                 let day = days.contains(.today()) ? DayKey.today() : (days.first ?? .today())
-                if let slot = store.nextFreeSlot(day: day, length: 30, workStart: workStart, step: snapStep) {
+                if let slot = store.nextFreeSlot(day: day, length: 30, workStart: workStart, step: PlannerMath.step) {
                     draft = Draft(day: day, start: slot, end: slot + 30)
                     store.selection = []
                     return .handled

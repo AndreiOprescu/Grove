@@ -365,8 +365,7 @@ struct TaskInspector: View {
     private func addBlock(_ task: TaskItem) {
         let day = task.planDate ?? store.selectedDay
         let start = UserDefaults.standard.object(forKey: "planner.workStart") as? Int ?? 9 * 60
-        let step = UserDefaults.standard.object(forKey: "planner.snap") as? Int ?? 5
-        let slot = store.nextFreeSlot(day: day, length: task.estimateMin, workStart: start, step: step) ?? start
+        let slot = store.nextFreeSlot(day: day, length: PlannerMath.blockLength(task.estimateMin), workStart: start, step: PlannerMath.step) ?? start
         store.selectedDay = day
         store.schedule(taskId: task.id, day: day, start: slot)
     }
