@@ -772,8 +772,9 @@ Command palette, Settings. Use the matching mock in `design/layouts.html` as the
   Week, Calendar, Notes, Inbox, Lists, Tags, growing plant at bottom) · content · inspector
   (`.inspector(isPresented:)`) for the selected task/event/note.
 - **B · Day Spread** (recommended) — header: big date, greeting + "% of today grown", week
-  strip, search pill. Three columns: **Planner (day mode)** 300–420pt resizable · **Tasks**
-  (tabs Today/Week/Someday, progress bar, unscheduled section, quick add) · **Today's
+  strip, search pill. Three columns: **Tasks** on the left, 300–420pt resizable
+  (tabs Today/Week/Someday, progress bar, unscheduled section, quick add) · **Planner (day
+  mode)** in the centre, taking the rest of the width · **Today's
   note** (editor + Linked here + mood + focus). A toolbar segmented control switches the
   whole window to Planner (full width, 3-day/week) · Calendar (month) · Notes (full).
 - **C · Week Board** — header "Week 40" with ‹ ›. Grid: Inbox column + 7 day columns,

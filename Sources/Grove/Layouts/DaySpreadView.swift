@@ -2,27 +2,28 @@ import SwiftUI
 import GroveCore
 
 /// Layout B, the home screen (PLAN §8): a header with the date, then three columns.
-/// The timeline of the day · the tasks · the note of the day (the task panel takes its place while a task is selected).
+/// The tasks · the timeline of the day · the note of the day (the task panel takes its place while a task is selected).
+/// The timeline is the main column: it takes the width the task list and the note leave.
 struct DaySpreadView: View {
     @Environment(AppStore.self) private var store
     @Environment(\.theme) private var theme
-    @AppStorage("spread.timelineWidth") private var savedWidth = SpreadRules.timelineDefault
+    @AppStorage("spread.tasksWidth") private var savedWidth = SpreadRules.tasksDefault
     /// The width while the edge is being dragged. Saved when the drag ends.
     @State private var liveWidth: Double?
     @State private var dragStart: Double?
 
-    private var timelineWidth: Double { SpreadRules.clampTimeline(liveWidth ?? savedWidth) }
+    private var tasksWidth: Double { SpreadRules.clampTasks(liveWidth ?? savedWidth) }
 
     var body: some View {
         let _ = store.revision
         VStack(spacing: 12) {
             SpreadHeader()
             HStack(alignment: .top, spacing: 0) {
-                PlannerView(column: true)
-                    .frame(width: timelineWidth)
-                resizeHandle
                 TasksPane(spread: true)
-                    .frame(minWidth: SpreadRules.tasksMinimum)
+                    .frame(width: tasksWidth)
+                resizeHandle
+                PlannerView(column: true)
+                    .frame(minWidth: SpreadRules.timelineMinimum, maxWidth: .infinity)
                 Color.clear.frame(width: SpreadRules.gap)
                 rightColumn
                     .frame(width: SpreadRules.noteWidth)
@@ -44,7 +45,7 @@ struct DaySpreadView: View {
         }
     }
 
-    /// A thin strip between the timeline and the tasks. Drag it to make the timeline wider or narrower.
+    /// A thin strip between the tasks and the timeline. Drag it right to make the task list wider.
     private var resizeHandle: some View {
         Color.clear
             .frame(width: SpreadRules.gap)
@@ -53,8 +54,8 @@ struct DaySpreadView: View {
             .gesture(
                 DragGesture(minimumDistance: 1, coordinateSpace: .global)
                     .onChanged { v in
-                        if dragStart == nil { dragStart = timelineWidth }
-                        liveWidth = SpreadRules.clampTimeline((dragStart ?? timelineWidth) + v.translation.width)
+                        if dragStart == nil { dragStart = tasksWidth }
+                        liveWidth = SpreadRules.clampTasks((dragStart ?? tasksWidth) + v.translation.width)
                     }
                     .onEnded { _ in
                         if let liveWidth { savedWidth = liveWidth }
@@ -62,8 +63,8 @@ struct DaySpreadView: View {
                         dragStart = nil
                     }
             )
-            .help("Drag to change the width of the timeline")
-            .accessibilityLabel("Timeline width")
+            .help("Drag to change the width of the task list")
+            .accessibilityLabel("Task list width")
     }
 }
 

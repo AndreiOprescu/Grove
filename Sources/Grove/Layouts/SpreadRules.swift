@@ -2,22 +2,22 @@ import Foundation
 
 /// The numbers and the words of the Day Spread (PLAN §8, layout B). Plain values, so the tests need no view.
 enum SpreadRules {
-    /// The timeline column is 300 to 420 pt wide. The user drags its edge.
-    static let timelineRange: ClosedRange<Double> = 300...420
-    static let timelineDefault = 340.0
-    /// The note column has one width. The task list takes what is left.
+    /// The task list on the left is 300 to 420 pt wide. The user drags its edge.
+    static let tasksRange: ClosedRange<Double> = 300...420
+    static let tasksDefault = 340.0
+    /// The note column has one width. The timeline in the centre takes what is left.
     static let noteWidth = 340.0
-    static let tasksMinimum = 280.0
+    static let timelineMinimum = 280.0
     static let gap = 12.0
     static let side = 16.0
 
-    /// The window width where the widest timeline still leaves the task list its minimum.
+    /// The window width where the widest task list still leaves the timeline its minimum.
     static var minimumWindowWidth: Double {
-        2 * side + 2 * gap + timelineRange.upperBound + tasksMinimum + noteWidth
+        2 * side + 2 * gap + tasksRange.upperBound + timelineMinimum + noteWidth
     }
 
-    static func clampTimeline(_ width: Double) -> Double {
-        min(timelineRange.upperBound, max(timelineRange.lowerBound, width))
+    static func clampTasks(_ width: Double) -> Double {
+        min(tasksRange.upperBound, max(tasksRange.lowerBound, width))
     }
 
     /// The line under the big date.

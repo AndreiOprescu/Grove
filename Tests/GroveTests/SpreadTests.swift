@@ -5,18 +5,26 @@ import GroveCore
 
 /// The numbers and the words of the Day Spread (PLAN §8, layout B).
 struct SpreadRulesTests {
-    @Test func theTimelineStaysBetween300And420() {
-        #expect(SpreadRules.clampTimeline(100) == 300)
-        #expect(SpreadRules.clampTimeline(340) == 340)
-        #expect(SpreadRules.clampTimeline(900) == 420)
+    @Test func theTaskListStaysBetween300And420() {
+        #expect(SpreadRules.clampTasks(100) == 300)
+        #expect(SpreadRules.clampTasks(340) == 340)
+        #expect(SpreadRules.clampTasks(900) == 420)
     }
 
-    @Test func theTimelineStartsInsideItsRange() {
-        #expect(SpreadRules.timelineRange.contains(SpreadRules.timelineDefault))
+    @Test func theTaskListStartsInsideItsRange() {
+        #expect(SpreadRules.tasksRange.contains(SpreadRules.tasksDefault))
     }
 
     @Test func threeColumnsFitTheSmallestWindow() {
         #expect(SpreadRules.minimumWindowWidth <= 1100)
+    }
+
+    /// The timeline takes what the task list and the note leave. In the first window (1280 pt) it is the widest column.
+    @Test func theTimelineIsTheWideColumn() {
+        let timeline = 1280 - 2 * SpreadRules.side - 2 * SpreadRules.gap - SpreadRules.tasksDefault - SpreadRules.noteWidth
+        #expect(timeline > SpreadRules.tasksDefault)
+        #expect(timeline > SpreadRules.noteWidth)
+        #expect(timeline >= SpreadRules.timelineMinimum)
     }
 
     @Test func todayGetsAGreetingAndTheGrowth() {
