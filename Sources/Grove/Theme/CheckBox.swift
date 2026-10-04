@@ -29,6 +29,8 @@ struct CheckBox: View {
                 .opacity(isOn ? 1 : 0)
         }
         .frame(width: size, height: size)
+        // The whole square takes the click. An empty box is only a thin ring, and clicks in the middle went to the row.
+        .contentShape(Rectangle())
         .shadow(color: theme.glow && isOn ? theme.accent.opacity(0.55) : .clear, radius: 5)
         .animation(motionOn ? .spring(response: 0.3, dampingFraction: 0.6) : nil, value: isOn)
         .overlay {
