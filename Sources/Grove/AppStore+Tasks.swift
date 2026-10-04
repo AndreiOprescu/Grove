@@ -26,6 +26,18 @@ extension AppStore {
         return list.filter { $0.status == .open || lingering.contains($0.id) }
     }
 
+    /// Every open top-level task, split for the Planner screen's list (see `AllTasksRules`).
+    /// A task that was just checked off is already done in the database, so it is put back in its place while it lingers.
+    func allOpenTasks() -> (noDay: [TaskItem], byDay: [TaskItem]) {
+        var list = (try? repos.tasks.openTopLevel()) ?? []
+        for id in lingering where !list.contains(where: { $0.id == id }) {
+            guard let t = task(id), t.parentId == nil, t.status != .cancelled else { continue }
+            let i = list.firstIndex { ($0.sort, $0.createdAt) > (t.sort, t.createdAt) } ?? list.endIndex
+            list.insert(t, at: i)
+        }
+        return AllTasksRules.split(list)
+    }
+
     func subtasks(of parentId: String) -> [TaskItem] { (try? repos.tasks.subtasks(of: parentId)) ?? [] }
 
     func tagNames(of taskId: String) -> [String] { (try? repos.tags.tags(forTask: taskId)) ?? [] }

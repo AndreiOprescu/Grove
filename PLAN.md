@@ -531,6 +531,10 @@ Use `.focusable()` + `.onKeyPress`.
 - **Buckets**: Inbox (no date) · Day (`plan_date`) · Week (`plan_week`, any day that week)
   · Someday. A day's task list shows: overdue (open, plan_date < today, dimmed warm
   colour) → today's → "This week (no day yet)" collapsible section.
+- **Planner screen task list** (owner request, 2026-10-04): no tabs. It shows every open
+  task: "No day yet" first (inbox → week tasks, earliest week first → someday), then
+  "By day" (one flat list, earliest day first, late ones on top, no day headings). Quick
+  add there goes to the Inbox. The Today page keeps its tabs (Today / Week / Inbox / Someday).
 - **Week view of tasks** (used by Layout C and the "This Week" sidebar item): 7 day columns
   + "Anytime this week" column. Drag tasks between columns (changes `plan_date`; to the
   "anytime" column sets bucket `week`).

@@ -11,6 +11,7 @@ struct TaskSection: View {
     /// Where dropped tasks go. Nil means this list takes no drops (for example, overdue).
     let placement: TaskPlacement?
     let tasks: [TaskItem]
+    /// The day this list stands for. Nil means each row uses its own planned day.
     var contextDay: DayKey?
     var showDate = false
     var emptyText = "Nothing here."
@@ -42,7 +43,7 @@ struct TaskSection: View {
                     .dropDestination(for: String.self) { items, _ in drop(items, before: nil) } isTargeted: { zoneTargeted = $0 && placement != nil }
             } else {
                 ForEach(tasks) { task in
-                    TaskRow(task: task, contextDay: contextDay, showDate: showDate, lists: lists,
+                    TaskRow(task: task, contextDay: contextDay ?? task.planDate, showDate: showDate, lists: lists,
                             isExpanded: expanded.contains(task.id),
                             toggleExpanded: { toggle(task.id) },
                             onDrop: placement == nil ? nil : { drop($0, before: task.id) })

@@ -10,7 +10,8 @@ struct TaskRow: View {
     let task: TaskItem
     /// The day this list stands for. Picks which time block to show.
     var contextDay: DayKey?
-    /// Show the planned date as a label (used in the overdue list).
+    /// Show where the task is planned as a label: its day (warm when late), "Week of 5 Oct" or "Someday".
+    /// Used in the overdue list and the Planner screen's list of all tasks.
     var showDate = false
     let lists: [String: ListItem]
     let isExpanded: Bool
@@ -98,7 +99,10 @@ struct TaskRow: View {
         let shown = blocks.first { $0.start.day == contextDay } ?? blocks.first
         let now = store.nowMinute()
         return FlowLayout(spacing: 4) {
-            if showDate, let d = task.planDate { Chip(text: TaskFormat.dayLabel(d), symbol: "calendar", tint: theme.accent2) }
+            if showDate, let place = TaskFormat.planLabel(task) {
+                let late = task.bucket == .day && task.planDate.map { $0 < .today() } == true
+                Chip(text: place, symbol: task.bucket == .someday ? "moon.zzz" : "calendar", tint: late ? theme.accent2 : nil)
+            }
             if let shown {
                 let more = blocks.count - 1
                 Chip(text: PlannerMath.clock(shown.start.minute) + "–" + PlannerMath.clock(shown.end.minute) + (more > 0 ? " +\(more)" : ""),

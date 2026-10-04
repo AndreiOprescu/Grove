@@ -96,6 +96,19 @@ struct DatabaseTests {
         #expect(try r.tasks.inRange("2026-10-01", "2026-10-02").count == 2)
     }
 
+    @Test func openTopLevelHasEveryOpenTaskButNoSubtasks() throws {
+        let r = try makeRepos()
+        let parent = TaskItem(title: "parent", bucket: .day, planDate: "2026-10-02", sort: 2)
+        try r.tasks.save(parent)
+        try r.tasks.save(TaskItem(title: "sub", parentId: parent.id, sort: 3))
+        try r.tasks.save(TaskItem(title: "inbox", sort: 1))
+        try r.tasks.save(TaskItem(title: "someday", bucket: .someday, sort: 4))
+        try r.tasks.save(TaskItem(title: "done", status: .done, sort: 5))
+        try r.tasks.save(TaskItem(title: "cancelled", status: .cancelled, sort: 6))
+        try r.tasks.save(TaskItem(title: "week", bucket: .week, planWeek: "2026-09-28", sort: 0))
+        #expect(try r.tasks.openTopLevel().map(\.title) == ["week", "inbox", "parent", "someday"])
+    }
+
     @Test func deletingTaskCascadesToSubtasksAndBlocks() throws {
         let r = try makeRepos()
         let parent = TaskItem(title: "parent")

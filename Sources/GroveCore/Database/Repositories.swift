@@ -107,6 +107,11 @@ public final class TaskRepo {
         try db.query(Self.select + " WHERE bucket = 'someday' AND parent_id IS NULL AND status = 'open' ORDER BY sort, created_at, rowid", map: Self.map)
     }
 
+    /// Every open top-level task, whatever its bucket. The Planner screen's task list.
+    public func openTopLevel() throws -> [TaskItem] {
+        try db.query(Self.select + " WHERE status = 'open' AND parent_id IS NULL ORDER BY sort, created_at, rowid", map: Self.map)
+    }
+
     /// Open tasks planned for a day before `day`.
     public func overdue(before day: DayKey) throws -> [TaskItem] {
         try db.query(Self.select + " WHERE status = 'open' AND bucket = 'day' AND plan_date < ? AND parent_id IS NULL ORDER BY plan_date, sort",

@@ -7,10 +7,13 @@ enum TasksTab: String, CaseIterable, Identifiable {
 }
 
 /// The task list next to the planner. Tabs: the chosen day, the week, the inbox, someday.
+/// On the Planner screen it has no tabs and lists every open task (`allTasks`).
 struct TasksPane: View {
     /// In the Day Spread the pane is a column that takes the width it is given.
     /// The greeting and the plant are in the page header there, so the pane shows a progress bar instead.
     var spread = false
+    /// Every open task in one list: the ones with no day yet on top, then the rest by day, earliest first.
+    var allTasks = false
     @Environment(AppStore.self) private var store
     @Environment(\.theme) private var theme
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -41,11 +44,13 @@ struct TasksPane: View {
                         .buttonStyle(.plain).foregroundStyle(theme.muted).help("Hide the task list")
                 }
             }
-            QuickAddField(placement: defaultPlacement, placementLabel: defaultLabel)
-            tabBar
+            QuickAddField(placement: allTasks ? .inbox : defaultPlacement, placementLabel: allTasks ? "Inbox" : defaultLabel)
+            if !allTasks { tabBar }
             ScrollView {
-                VStack(alignment: .leading, spacing: 14) { content(lists) }
-                    .padding(.bottom, 8)
+                VStack(alignment: .leading, spacing: 14) {
+                    if allTasks { allContent(lists) } else { content(lists) }
+                }
+                .padding(.bottom, 8)
             }
             .scrollIndicators(.hidden)
             NotesTray()
@@ -170,12 +175,25 @@ struct TasksPane: View {
         }
     }
 
-    private func doneSection(_ done: [TaskItem], day: DayKey, lists: [String: ListItem]) -> some View {
+    /// Every open task. The order comes from the plan, so these lists take no drops and cannot be reordered.
+    /// Rows can still be dragged to the planner. Below them: the tasks checked off today, so a slip can be undone.
+    @ViewBuilder private func allContent(_ lists: [String: ListItem]) -> some View {
+        let all = store.allOpenTasks()
+        TaskSection(title: "No day yet", placement: nil, tasks: all.noDay, showDate: true,
+                    emptyText: "Every task has a day", lists: lists, expanded: $expanded)
+        TaskSection(title: "By day", placement: nil, tasks: all.byDay, showDate: true,
+                    emptyText: "No open tasks with a day", lists: lists, expanded: $expanded)
+        let done = ((try? store.repos.tasks.completed(on: .today())) ?? [])
+            .filter { $0.parentId == nil && !store.lingering.contains($0.id) }
+        if !done.isEmpty { doneSection(done, title: "Done today", day: .today(), lists: lists) }
+    }
+
+    private func doneSection(_ done: [TaskItem], title: String = "Done", day: DayKey, lists: [String: ListItem]) -> some View {
         VStack(alignment: .leading, spacing: 6) {
             Button { showDone.toggle() } label: {
                 HStack(spacing: 4) {
                     Image(systemName: showDone ? "chevron.down" : "chevron.right").font(.system(size: 9, weight: .bold))
-                    Text("Done · \(done.count)").themedHeading(theme, 12, weight: .bold)
+                    Text("\(title) · \(done.count)").themedHeading(theme, 12, weight: .bold)
                     Spacer()
                 }
                 .foregroundStyle(theme.muted)

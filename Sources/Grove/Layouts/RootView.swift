@@ -25,7 +25,7 @@ struct RootView: View {
             case .planner:
                 HStack(spacing: 0) {
                     if tasksOpen {
-                        TasksPane()
+                        TasksPane(allTasks: true)
                             .padding(.leading, 16).padding(.top, 34).padding(.bottom, 16)
                             .transition(.move(edge: .leading).combined(with: .opacity))
                     }

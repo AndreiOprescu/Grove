@@ -18,6 +18,21 @@ enum TaskFormat {
         d.date.formatted(.dateTime.weekday(.abbreviated).day().month(.abbreviated))
     }
 
+    /// "Week of 5 Oct" for a week task. `monday` is the stored week (its Monday).
+    static func weekLabel(_ monday: DayKey) -> String {
+        "Week of " + monday.date.formatted(.dateTime.day().month(.abbreviated))
+    }
+
+    /// Where a task is planned, for its date label: the day, "Week of 5 Oct" or "Someday". Nil for the inbox.
+    static func planLabel(_ task: TaskItem, today: DayKey = .today()) -> String? {
+        switch task.bucket {
+        case .day: task.planDate.map { dayLabel($0, today: today) }
+        case .week: task.planWeek.map(weekLabel)
+        case .someday: "Someday"
+        case .inbox: nil
+        }
+    }
+
     /// Text for a due value ("YYYY-MM-DD" or "YYYY-MM-DDTHH:MM") and whether it is already late.
     static func due(_ value: String, today: DayKey = .today(), nowMinute: Int) -> (text: String, late: Bool) {
         let day = DayKey(String(value.prefix(10)))
