@@ -23,6 +23,24 @@ enum SettingsRules {
     /// 540 → "09:00"
     static func hourText(_ minutes: Int) -> String { String(format: "%02d:%02d", minutes / 60, minutes % 60) }
 
+    /// 0 → "When it starts", 5 → "5 minutes before"
+    static func leadText(_ minutes: Int) -> String {
+        switch minutes {
+        case 0: "When it starts"
+        case 1: "1 minute before"
+        default: "\(minutes) minutes before"
+        }
+    }
+
+    /// The quiet note under the switch in the Notifications tab.
+    static func notifyStatusText(_ status: NotifyAuthorization) -> String {
+        switch status {
+        case .allowed: "Notifications are allowed for Grove."
+        case .notAsked: "Grove has not asked for permission yet."
+        case .denied: "Notifications are off for Grove. Turn them on in System Settings to get reminders."
+        }
+    }
+
     /// The day in a backup file name: "grove-2026-10-04.sqlite" → 2026-10-04.
     static func backupDay(fileName: String) -> DayKey? {
         guard fileName.hasPrefix("grove-"), fileName.hasSuffix(".sqlite") else { return nil }

@@ -86,13 +86,29 @@ final class AppStore {
     var themeID: ThemeID = ThemeID(rawValue: UserDefaults.standard.string(forKey: "appearance.theme") ?? "") ?? .default
     var motionSetting: Bool = UserDefaults.standard.object(forKey: "appearance.motion") as? Bool ?? true
 
+    /// Reminders (PLAN §5.6). Saved in UserDefaults. The switch is on and the lead is 5 minutes until the user changes them.
+    var notifyEnabled: Bool = UserDefaults.standard.object(forKey: "notifications.enabled") as? Bool ?? true
+    var notifyLead: Int = {
+        let saved = UserDefaults.standard.object(forKey: "notifications.lead") as? Int
+        return saved.flatMap { ReminderPlanner.leadChoices.contains($0) ? $0 : nil } ?? ReminderPlanner.defaultLead
+    }()
+    /// What the Mac says. It is `.notAsked` until Grove asks.
+    var notifyStatus: NotifyAuthorization = .notAsked
+    /// How long a change waits before the reminders are made again. One second, so a burst of changes makes one refresh.
+    var reminderDelay: Duration = .seconds(1)
+    /// A fixed "now" for tests. Nil means the real clock.
+    var clockOverride: WallTime?
+    @ObservationIgnored var notifier: any Notifier
+    @ObservationIgnored var reminderTask: Task<Void, Never>?
+
     private(set) var undoStack: [Mutation] = []
     private(set) var redoStack: [Mutation] = []
     private var toastTask: Task<Void, Never>?
     /// Decoded images for task bodies and notes. Not observed: images never change once stored.
     let imageCache = NSCache<NSString, NSImage>()
 
-    init(repos: Repos? = nil) {
+    init(repos: Repos? = nil, notifier: (any Notifier)? = nil) {
+        self.notifier = notifier ?? NullNotifier()
         if let repos {
             self.repos = repos
         } else if let db = try? Database.openDefault() {
@@ -106,6 +122,7 @@ final class AppStore {
             self.repos = Repos(db: try! Database.inMemory())
             self.errorMessage = "Grove could not open its database. Changes will not be saved."
         }
+        self.notifier.onOpen = { [weak self] day, ref in self?.openFromNotification(day: day, ref: ref) }
     }
 
     /// After an import every id in the window may be gone. Forget what was open, and the undo history.
@@ -123,6 +140,7 @@ final class AppStore {
         lingering.removeAll()
         imageCache.removeAllObjects()
         revision += 1
+        scheduleReminderRefresh()
     }
 
     // MARK: Undo
@@ -221,6 +239,7 @@ final class AppStore {
                 try updateReferences(m, forward: forward)
             }
             revision += 1
+            scheduleReminderRefresh()
             return true
         } catch {
             errorMessage = "Could not save: \(error)"

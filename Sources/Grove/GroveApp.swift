@@ -3,7 +3,14 @@ import GroveCore
 
 @main
 struct GroveApp: App {
-    @State private var store = AppStore()
+    @State private var store: AppStore
+
+    init() {
+        let store = AppStore(notifier: SystemNotifier.ifAppBundle())
+        _store = State(initialValue: store)
+        // From launch to quit: make the reminders now, and again each hour.
+        Task { await store.keepRemindersFresh() }
+    }
 
     var body: some Scene {
         WindowGroup(id: "main") {
@@ -71,6 +78,16 @@ struct GroveApp: App {
                     .disabled(store.redoName == nil)
             }
         }
+        // The leaf in the menu bar (PLAN §5.7). It shares the store with the main window.
+        MenuBarExtra {
+            MenuBarContent()
+                .environment(store)
+                .environment(\.theme, store.theme)
+                .preferredColorScheme(store.colorScheme)
+        } label: {
+            Image(systemName: "leaf")
+        }
+        .menuBarExtraStyle(.window)
         // ⌘, opens it. It shares the store, so a new theme shows in the main window at once.
         Settings {
             SettingsView()

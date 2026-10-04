@@ -113,6 +113,11 @@ public final class TaskRepo {
                      [.text(day.string)], map: Self.map)
     }
 
+    /// Open tasks whose due date has a time ("YYYY-MM-DDTHH:MM"). These are the tasks that can remind.
+    public func openWithTimedDue() throws -> [TaskItem] {
+        try db.query(Self.select + " WHERE status = 'open' AND due LIKE '%T%' ORDER BY due", map: Self.map)
+    }
+
     public func subtasks(of parentId: String) throws -> [TaskItem] {
         try db.query(Self.select + " WHERE parent_id = ? ORDER BY sort, created_at, rowid", [.text(parentId)], map: Self.map)
     }

@@ -14,6 +14,8 @@ struct SettingsView: View {
                 .tabItem { Label("Planner", systemImage: "calendar.day.timeline.left") }
             NotesSettings()
                 .tabItem { Label("Notes", systemImage: "note.text") }
+            NotificationSettings()
+                .tabItem { Label("Notifications", systemImage: "bell") }
             DataSettings()
                 .tabItem { Label("Data", systemImage: "externaldrive") }
         }
@@ -186,6 +188,52 @@ private struct NotesSettings: View {
                 store.resetTemplate(kind)
                 text.wrappedValue = store.template(kind)
             }
+        }
+    }
+}
+
+// MARK: Notifications
+
+/// Reminders before events and due times (PLAN §5.6).
+private struct NotificationSettings: View {
+    @Environment(AppStore.self) private var store
+
+    var body: some View {
+        Form {
+            Section("Reminders") {
+                Toggle("Remind me about events, blocks and due times", isOn: Binding(
+                    get: { store.notifyEnabled },
+                    set: { on in
+                        store.setNotifyEnabled(on)
+                        if on, store.notifyStatus == .notAsked { Task { await store.askForNotifications() } }
+                    }))
+                Picker("Remind me", selection: Binding(get: { store.notifyLead }, set: { store.setNotifyLead($0) })) {
+                    ForEach(ReminderPlanner.leadChoices, id: \.self) { Text(SettingsRules.leadText($0)).tag($0) }
+                }
+                .disabled(!store.notifyEnabled)
+                Text("Grove reminds you about the next 14 days. A task with a due day but no time does not remind.")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+            Section("Permission") {
+                Text(SettingsRules.notifyStatusText(store.notifyStatus))
+                    .foregroundStyle(store.notifyStatus == .denied ? Color.orange : Color.secondary)
+                switch store.notifyStatus {
+                case .allowed:
+                    EmptyView()
+                case .notAsked:
+                    Button("Allow notifications") { Task { await store.askForNotifications() } }
+                case .denied:
+                    Button("Open System Settings") { openSystemSettings() }
+                }
+            }
+        }
+        .formStyle(.grouped)
+        .task { await store.refreshNotifyStatus() }
+    }
+
+    private func openSystemSettings() {
+        if let url = URL(string: "x-apple.systempreferences:com.apple.Notifications-Settings.extension") {
+            NSWorkspace.shared.open(url)
         }
     }
 }
