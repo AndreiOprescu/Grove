@@ -71,5 +71,12 @@ struct GroveApp: App {
                     .disabled(store.redoName == nil)
             }
         }
+        // ⌘, opens it. It shares the store, so a new theme shows in the main window at once.
+        Settings {
+            SettingsView()
+                .environment(store)
+                .environment(\.theme, store.theme)
+                .preferredColorScheme(store.colorScheme)
+        }
     }
 }

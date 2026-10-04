@@ -108,6 +108,23 @@ final class AppStore {
         }
     }
 
+    /// After an import every id in the window may be gone. Forget what was open, and the undo history.
+    func resetAfterReplace() {
+        undoStack.removeAll()
+        redoStack.removeAll()
+        selection.removeAll()
+        selectedTaskId = nil
+        selectedNoteId = nil
+        noteFilter = .all
+        noteQuery = ""
+        editingEvent = nil
+        recurringPrompt = nil
+        overloadWarning = nil
+        lingering.removeAll()
+        imageCache.removeAllObjects()
+        revision += 1
+    }
+
     // MARK: Undo
 
     var undoName: String? { undoStack.last?.name }

@@ -38,18 +38,20 @@ extension AppStore {
         defaults.set(min(Double(range.upperBound), max(Double(range.lowerBound), now * factor)), forKey: "planner.hourHeight")
     }
 
-    /// File ▸ New Event (⇧⌘N): a one-hour event at the next free time of the chosen day. Its editor opens.
+    /// File ▸ New Event (⇧⌘N): an event of the default length (Settings ▸ Planner, one hour at first)
+    /// at the next free time of the chosen day. Its editor opens.
     func newEventNow() {
         if screen != .planner { screen = .today }   // the Calendar and the Notes have no time grid
         let defaults = UserDefaults.standard
         let step = defaults.object(forKey: "planner.snap") as? Int ?? 5
         let workStart = defaults.object(forKey: "planner.workStart") as? Int ?? 9 * 60
+        let length = defaults.object(forKey: "planner.defaultLength") as? Int ?? SettingsRules.defaultEventLength
         let day = selectedDay
-        guard let start = nextFreeSlot(day: day, length: 60, workStart: workStart, step: step), start + 60 <= 1440 else {
-            showToast("No free hour left on this day.")
+        guard let start = nextFreeSlot(day: day, length: length, workStart: workStart, step: step), start + length <= 1440 else {
+            showToast("No free time left on this day.")
             return
         }
-        createFromDraft(title: "New event", day: day, start: start, end: start + 60, asEvent: true)
+        createFromDraft(title: "New event", day: day, start: start, end: start + length, asEvent: true)
         if let id = selection.first, let e = event(id) { editEvent(e) }
     }
 }

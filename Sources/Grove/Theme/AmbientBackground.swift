@@ -15,6 +15,9 @@ enum AmbientMath {
         return (x, y)
     }
 
+    /// How strong the circles are: the theme's strength times the Accent intensity setting, kept between 0 and 1.
+    static func strength(base: Double, intensity: Double) -> Double { min(1, max(0, base * intensity)) }
+
     /// Blob diameter: 46% of the longer side of the window.
     static func diameter(width: Double, height: Double) -> Double { 0.46 * max(width, height) }
 }
@@ -26,6 +29,7 @@ struct AmbientBackground: View {
     @Environment(\.theme) private var theme
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.controlActiveState) private var activeState
+    @AppStorage("appearance.intensity") private var intensity = 1.0
 
     private var motionOn: Bool { MotionRules.isOn(setting: store.motionSetting, reduceMotion: reduceMotion) }
     private var runs: Bool { MotionRules.ambientRuns(motionOn: motionOn, windowIsKey: activeState != .inactive) }
@@ -41,9 +45,10 @@ struct AmbientBackground: View {
                     let centre = CGPoint(x: c.x * size.width, y: c.y * size.height)
                     let rect = CGRect(x: centre.x - d / 2, y: centre.y - d / 2, width: d, height: d)
                     // A soft edge from a gradient. It looks like a blur, costs less, and also draws in a snapshot.
+                    let strength = AmbientMath.strength(base: theme.blobOpacity, intensity: intensity)
                     let fade = Gradient(stops: [
-                        .init(color: colour.opacity(theme.blobOpacity), location: 0),
-                        .init(color: colour.opacity(theme.blobOpacity * 0.55), location: 0.5),
+                        .init(color: colour.opacity(strength), location: 0),
+                        .init(color: colour.opacity(strength * 0.55), location: 0.5),
                         .init(color: colour.opacity(0), location: 1),
                     ])
                     gc.fill(Path(ellipseIn: rect), with: .radialGradient(fade, center: centre, startRadius: 0, endRadius: d / 2))

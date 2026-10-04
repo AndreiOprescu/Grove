@@ -50,7 +50,7 @@ extension AppStore {
     @discardableResult
     func dailyNote(for day: DayKey) -> Note {
         if let n = try? repos.notes.daily(day) { return n }
-        let n = Note(title: NotesRules.dailyTitle(day), body: NotesRules.template(.daily), kind: .daily, date: day)
+        let n = Note(title: NotesRules.dailyTitle(day), body: template(.daily), kind: .daily, date: day)
         try? repos.notes.save(n)
         revision += 1
         return n
@@ -64,7 +64,7 @@ extension AppStore {
     func weeklyNote(for day: DayKey) -> Note {
         let monday = day.weekStart()
         if let n = try? repos.notes.weekly(monday) { return n }
-        let n = Note(title: NotesRules.weeklyTitle(monday), body: NotesRules.template(.weekly), kind: .weekly, date: monday)
+        let n = Note(title: NotesRules.weeklyTitle(monday), body: template(.weekly), kind: .weekly, date: monday)
         try? repos.notes.save(n)
         revision += 1
         return n

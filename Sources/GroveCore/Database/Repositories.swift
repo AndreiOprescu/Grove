@@ -55,7 +55,7 @@ public final class TaskRepo {
                 .int(t.estimateMin), SQLValue(t.recurrence?.json()), SQLValue(t.sourceNoteId),
                 .real(t.sort), .text(t.createdAt), .text(t.updatedAt), SQLValue(t.completedAt), .text(t.summary),
             ])
-            try search.upsert(.task, id: t.id, title: t.title, body: t.summary + " " + ReferenceParser.searchText(t.notes))
+            try search.upsert(.task, id: t.id, title: t.title, body: Self.searchBody(t))
         }
     }
 
@@ -137,6 +137,9 @@ public final class TaskRepo {
                      [.text(name)], map: Self.map)
     }
 
+    /// The text the search index holds for a task (the title is stored beside it).
+    static func searchBody(_ t: TaskItem) -> String { t.summary + " " + ReferenceParser.searchText(t.notes) }
+
     public func all() throws -> [TaskItem] {
         try db.query(Self.select + " ORDER BY created_at", map: Self.map)
     }
@@ -194,7 +197,7 @@ public final class EventRepo {
                 SQLValue(e.originalDate?.string), .text(e.createdAt), .text(e.updatedAt),
             ])
             if e.kind == .event {
-                try search.upsert(.event, id: e.id, title: e.title, body: ReferenceParser.searchText(e.notes) + " " + e.location)
+                try search.upsert(.event, id: e.id, title: e.title, body: Self.searchBody(e))
             }
         }
     }
@@ -251,6 +254,8 @@ public final class EventRepo {
         try db.execute("DELETE FROM event_exdates WHERE event_id = ? AND date = ?", [.text(eventId), .text(day.string)])
     }
 
+    static func searchBody(_ e: EventItem) -> String { ReferenceParser.searchText(e.notes) + " " + e.location }
+
     public func all() throws -> [EventItem] {
         try db.query(Self.select + " ORDER BY start", map: Self.map)
     }
@@ -288,7 +293,7 @@ public final class NoteRepo {
                 .text(n.id), .text(n.title), .text(n.body), .text(n.kind.rawValue), SQLValue(n.date?.string),
                 .int(n.pinned ? 1 : 0), SQLValue(n.mood), .text(n.createdAt), .text(n.updatedAt),
             ])
-            try search.upsert(.note, id: n.id, title: n.title, body: ReferenceParser.searchText(NoteParser.withoutMarkers(n.body)))
+            try search.upsert(.note, id: n.id, title: n.title, body: Self.searchBody(n))
         }
     }
 
@@ -302,6 +307,8 @@ public final class NoteRepo {
             try search.remove(.note, id: id)
         }
     }
+
+    static func searchBody(_ n: Note) -> String { ReferenceParser.searchText(NoteParser.withoutMarkers(n.body)) }
 
     /// Pinned first, then most recently edited.
     public func all() throws -> [Note] {
@@ -470,6 +477,9 @@ public final class SettingsRepo {
     public func get(_ key: String) throws -> String? {
         try db.queryOne("SELECT value FROM settings WHERE key = ?", [.text(key)]) { $0.text(0) }
     }
+    public func remove(_ key: String) throws {
+        try db.execute("DELETE FROM settings WHERE key = ?", [.text(key)])
+    }
     public func set(_ key: String, _ value: String) throws {
         try db.execute("INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value", [.text(key), .text(value)])
     }
@@ -502,5 +512,18 @@ public final class Repos {
         self.settings = SettingsRepo(db: db)
         self.attachments = AttachmentRepo(db: db)
         self.refs = ReferenceIndexer(db: db, tasks: tasks, notes: notes, events: events, links: links, search: s)
+    }
+
+    /// Throws the search index away and builds it again from the tables.
+    /// Time blocks are not searched, only real events.
+    public func rebuildSearch() throws {
+        try db.transaction {
+            try db.execute("DELETE FROM search")
+            for t in try tasks.all() { try search.upsert(.task, id: t.id, title: t.title, body: TaskRepo.searchBody(t)) }
+            for e in try events.all() where e.kind == .event {
+                try search.upsert(.event, id: e.id, title: e.title, body: EventRepo.searchBody(e))
+            }
+            for n in try notes.all() { try search.upsert(.note, id: n.id, title: n.title, body: NoteRepo.searchBody(n)) }
+        }
     }
 }

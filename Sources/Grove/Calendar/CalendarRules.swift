@@ -14,11 +14,15 @@ struct DayInfo: Equatable {
 
 /// The small rules behind the month view and the week strip.
 enum CalendarRules {
-    /// Six full weeks, Monday first, that hold the month of `day`.
-    static func monthGrid(containing day: DayKey) -> [DayKey] {
-        let first = DayKey(year: day.year, month: day.month, day: 1).weekStart()
+    /// Six full weeks, Monday first (or Sunday first), that hold the month of `day`.
+    static func monthGrid(containing day: DayKey, sundayFirst: Bool = false) -> [DayKey] {
+        let first = weekStart(of: DayKey(year: day.year, month: day.month, day: 1), sundayFirst: sundayFirst)
         return (0..<42).map { first.adding(days: $0) }
     }
+
+    /// The first day of the week that holds `day`. This is for what the screens show.
+    /// Plans for "this week" always run Monday to Sunday (see docs/assumptions.md).
+    static func weekStart(of day: DayKey, sundayFirst: Bool) -> DayKey { day.weekStart(mondayFirst: !sundayFirst) }
 
     /// The same day number in another month. A short month gives its last day.
     static func addMonths(_ day: DayKey, _ months: Int) -> DayKey {

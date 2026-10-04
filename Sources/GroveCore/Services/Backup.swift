@@ -25,6 +25,18 @@ public enum Backup {
         return created
     }
 
+    /// A copy of the data before an import replaces it. One file, `before-import.sqlite`; a new copy replaces the old one.
+    /// It is not in `list` and the daily clean-up leaves it alone.
+    @discardableResult
+    public static func safetyCopy(db: Database, directory: URL) throws -> URL {
+        let fm = FileManager.default
+        try fm.createDirectory(at: directory, withIntermediateDirectories: true)
+        let target = directory.appendingPathComponent("before-import.sqlite")
+        try? fm.removeItem(at: target)
+        try db.execute("VACUUM INTO '\(target.path.replacingOccurrences(of: "'", with: "''"))'")
+        return target
+    }
+
     public static func list(directory: URL) -> [URL] {
         let names = (try? FileManager.default.contentsOfDirectory(atPath: directory.path)) ?? []
         return names.filter { $0.hasPrefix("grove-") && $0.hasSuffix(".sqlite") }.sorted(by: >)

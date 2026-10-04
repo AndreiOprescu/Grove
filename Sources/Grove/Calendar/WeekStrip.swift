@@ -1,18 +1,19 @@
 import SwiftUI
 import GroveCore
 
-/// Mon–Sun of the selected week. Each day has up to three dots for what is on it. A click picks the day.
+/// The seven days of the selected week (Monday first, or Sunday first in Settings). Each day has up to three dots for what is on it. A click picks the day.
 /// A task dropped on a day is planned for that day.
 struct WeekStrip: View {
     @Environment(AppStore.self) private var store
     @Environment(\.theme) private var theme
     /// The days the planner shows now. They get the soft fill.
     let shown: Set<DayKey>
+    @AppStorage("calendar.weekStartsSunday") private var sundayFirst = false
     @State private var targeted: DayKey?
 
     var body: some View {
         let _ = store.revision
-        let start = store.selectedDay.weekStart()
+        let start = CalendarRules.weekStart(of: store.selectedDay, sundayFirst: sundayFirst)
         let info = store.dayInfo(start...start.adding(days: 6))
         HStack(spacing: 4) {
             ForEach(0..<7, id: \.self) { i in

@@ -241,4 +241,18 @@ struct DatabaseTests {
         let copy = Repos(db: try Database(path: dir.appendingPathComponent("grove-2026-10-06.sqlite").path))
         #expect(try copy.tasks.all().map(\.title) == ["backed up"])
     }
+
+    @Test func theCopyBeforeAnImportReplacesTheOlderOneAndStaysOutOfTheDailyList() throws {
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent("grove-safety-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let r = try makeRepos()
+        try r.tasks.save(TaskItem(title: "first"))
+        let one = try Backup.safetyCopy(db: r.db, directory: dir)
+        try r.tasks.save(TaskItem(title: "second"))
+        let two = try Backup.safetyCopy(db: r.db, directory: dir)
+        #expect(one == two && two.lastPathComponent == "before-import.sqlite")
+        #expect(Backup.list(directory: dir).isEmpty)
+        let copy = Repos(db: try Database(path: two.path))
+        #expect(Set(try copy.tasks.all().map(\.title)) == ["first", "second"])
+    }
 }

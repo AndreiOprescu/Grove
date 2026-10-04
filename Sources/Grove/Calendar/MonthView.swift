@@ -1,7 +1,7 @@
 import SwiftUI
 import GroveCore
 
-/// Six weeks, Monday first. Each day shows its events, a dot for each open task (up to three)
+/// Six weeks, Monday first (Sunday first in Settings). Each day shows its events, a dot for each open task (up to three)
 /// and a leaf when it has a daily note. A click opens the day. A double-click makes an all-day event.
 struct MonthView: View {
     @Environment(AppStore.self) private var store
@@ -11,10 +11,11 @@ struct MonthView: View {
     @State private var targeted: DayKey?
     /// Colours each day by the mood of its daily note. The planner header turns it on and off.
     @AppStorage("calendar.moodTint") private var moodTint = false
+    @AppStorage("calendar.weekStartsSunday") private var sundayFirst = false
 
     var body: some View {
         let _ = store.revision
-        let grid = CalendarRules.monthGrid(containing: store.selectedDay)
+        let grid = CalendarRules.monthGrid(containing: store.selectedDay, sundayFirst: sundayFirst)
         let info = store.dayInfo(grid[0]...grid[41])
         let month = store.selectedDay.month
         VStack(spacing: 0) {

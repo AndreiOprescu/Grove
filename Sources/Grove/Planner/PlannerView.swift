@@ -41,6 +41,7 @@ struct PlannerView: View {
     @AppStorage("planner.trayOpen") private var trayOpen = true
     @AppStorage("shell.tasksOpen") private var tasksOpen = true
     @AppStorage("calendar.moodTint") private var moodTint = false
+    @AppStorage("calendar.weekStartsSunday") private var sundayFirst = false
 
     @State private var geo = PlannerGeometry()
     @State private var dropToTray = false
@@ -57,7 +58,7 @@ struct PlannerView: View {
         switch mode {
         case .day: [store.selectedDay]
         case .threeDay: (0..<3).map { store.selectedDay.adding(days: $0) }
-        case .week, .month: (0..<7).map { store.selectedDay.weekStart().adding(days: $0) }   // month draws its own grid
+        case .week, .month: (0..<7).map { CalendarRules.weekStart(of: store.selectedDay, sundayFirst: sundayFirst).adding(days: $0) }   // month draws its own grid
         }
     }
 
@@ -238,7 +239,7 @@ struct PlannerView: View {
     }
 
     private var monthStats: String {
-        let grid = CalendarRules.monthGrid(containing: store.selectedDay)
+        let grid = CalendarRules.monthGrid(containing: store.selectedDay, sundayFirst: sundayFirst)
         let info = store.dayInfo(grid[0]...grid[41])
         let inMonth = grid.filter { $0.month == store.selectedDay.month }
         let events = Set(inMonth.flatMap { info[$0]?.events.map(\.id) ?? [] }).count
