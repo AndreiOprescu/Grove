@@ -41,3 +41,8 @@ enum MotionRules {
     /// The ambient background only draws while the window is the key window, to save energy.
     static func ambientRuns(motionOn: Bool, windowIsKey: Bool) -> Bool { motionOn && windowIsKey }
 }
+
+extension AppStore {
+    /// How many tasks are finished. The Garden plant grows with this number.
+    func gardenDone() -> Int { (try? repos.tasks.doneCount()) ?? 0 }
+}

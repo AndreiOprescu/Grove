@@ -343,7 +343,8 @@ final class AppStore {
             out.append(PlannerBlock(
                 id: e.id, title: task?.title ?? e.title, summary: task?.summary ?? "", day: day, startMinute: e.start.minute,
                 endMinute: max(end, e.start.minute + 1), kind: e.kind, taskId: e.taskId,
-                isDone: task?.isDone ?? false, color: e.color, isRecurring: e.seriesId != nil))
+                isDone: task?.isDone ?? false, color: task.flatMap { $0.color.isEmpty ? nil : $0.color } ?? e.color,
+                isRecurring: e.seriesId != nil, priority: task?.priority ?? 0))
         }
         return out
     }

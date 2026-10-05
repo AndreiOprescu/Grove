@@ -85,7 +85,7 @@ struct Theme: Identifiable {
         case "accent": accent
         case "accent3": accent3
         case "muted": muted
-        default: accent2
+        default: TaskPalette.color(named: name) ?? accent2
         }
     }
 

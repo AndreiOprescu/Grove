@@ -15,6 +15,8 @@ struct PlannerBlock: Identifiable, Equatable {
     var color: String
     var isRecurring: Bool
     var hasNote: Bool = false
+    /// The priority of the block's task, 0 to 3. 0 for a block with no task.
+    var priority: Int = 0
 
     var span: Span { Span(id: id, start: startMinute, end: endMinute) }
     var length: Int { endMinute - startMinute }

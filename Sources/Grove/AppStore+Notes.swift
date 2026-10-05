@@ -4,7 +4,7 @@ import GroveCore
 /// The screens that can fill the window.
 /// The screens of the window. Today is the Day Spread: timeline, tasks and the note of the chosen day.
 enum Screen: String, CaseIterable, Identifiable {
-    case today, planner, calendar, notes
+    case today, planner, calendar, notes, garden
     var id: String { rawValue }
 }
 

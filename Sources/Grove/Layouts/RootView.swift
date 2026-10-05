@@ -40,6 +40,8 @@ struct RootView: View {
                 PlannerView(modeKey: "calendar.mode", defaultMode: .month)
             case .notes:
                 NotesView()
+            case .garden:
+                GardenView()
             }
         }
         .overlay(alignment: .top) { ScreenSwitch().padding(.top, 5) }

@@ -50,8 +50,8 @@ struct ScreenStoreTests {
     private func makeStore() throws -> AppStore { AppStore(repos: Repos(db: try Database.inMemory())) }
 
     @Test func theScreensRunInTheOrderOfTheSwitch() {
-        #expect(Screen.allCases == [.today, .planner, .calendar, .notes])
-        #expect(Screen.allCases.map(\.title) == ["Today", "Planner", "Calendar", "Notes"])
+        #expect(Screen.allCases == [.today, .planner, .calendar, .notes, .garden])
+        #expect(Screen.allCases.map(\.title) == ["Today", "Planner", "Calendar", "Notes", "Garden"])
     }
 
     @Test func theWindowStartsOnToday() throws {

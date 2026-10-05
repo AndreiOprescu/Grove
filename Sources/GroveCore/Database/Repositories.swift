@@ -17,7 +17,7 @@ public final class TaskRepo {
 
     private static let cols = ["id", "title", "notes", "list_id", "parent_id", "priority", "status", "bucket",
                                "plan_date", "plan_week", "due", "estimate_min", "recurrence", "source_note_id",
-                               "sort", "created_at", "updated_at", "completed_at", "summary"]
+                               "sort", "created_at", "updated_at", "completed_at", "summary", "color"]
     private static let select = "SELECT \(cols.joined(separator: ",")) FROM tasks"
     private static let upsert = upsertSQL("tasks", cols)
 
@@ -40,6 +40,7 @@ public final class TaskRepo {
         t.updatedAt = r.text(16)
         t.completedAt = r.optText(17)
         t.summary = r.text(18)
+        t.color = r.text(19)
         return t
     }
 
@@ -53,10 +54,15 @@ public final class TaskRepo {
                 .int(t.priority), .text(t.status.rawValue), .text(t.bucket.rawValue),
                 SQLValue(t.planDate?.string), SQLValue(t.planWeek?.string), SQLValue(t.due),
                 .int(t.estimateMin), SQLValue(t.recurrence?.json()), SQLValue(t.sourceNoteId),
-                .real(t.sort), .text(t.createdAt), .text(t.updatedAt), SQLValue(t.completedAt), .text(t.summary),
+                .real(t.sort), .text(t.createdAt), .text(t.updatedAt), SQLValue(t.completedAt), .text(t.summary), .text(t.color),
             ])
             try search.upsert(.task, id: t.id, title: t.title, body: Self.searchBody(t))
         }
+    }
+
+    /// How many tasks are finished. The garden plant grows with this number.
+    public func doneCount() throws -> Int {
+        try db.queryOne("SELECT COUNT(*) FROM tasks WHERE status = 'done'", map: { $0.int(0) }) ?? 0
     }
 
     public func get(_ id: String) throws -> TaskItem? {

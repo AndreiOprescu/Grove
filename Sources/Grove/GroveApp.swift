@@ -42,6 +42,8 @@ struct GroveApp: App {
                     .keyboardShortcut("3", modifiers: .command)
                 Button("Notes") { store.screen = .notes }
                     .keyboardShortcut("4", modifiers: .command)
+                Button("Garden") { store.screen = .garden }
+                    .keyboardShortcut("5", modifiers: .command)
                 Divider()
                 Button("Day") { store.showMode(.day) }
                     .keyboardShortcut("1", modifiers: [.command, .option])

@@ -111,6 +111,11 @@ enum Migrations {
         """
         ALTER TABLE tasks ADD COLUMN summary TEXT NOT NULL DEFAULT '';
         """,
+
+        // 4 — a colour on each task ('' means none)
+        """
+        ALTER TABLE tasks ADD COLUMN color TEXT NOT NULL DEFAULT '';
+        """,
     ]
 
     static func run(on db: Database) throws {

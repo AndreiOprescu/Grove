@@ -236,6 +236,7 @@ struct TaskInspector: View {
                 }
                 .pickerStyle(.segmented).labelsHidden().frame(width: 190)
             }
+            row("Colour") { colourPicker(task) }
             row("Takes") {
                 Picker("", selection: Binding(get: { task.estimateMin }, set: { m in store.editTask(task.id, name: "Set Length") { $0.estimateMin = m } })) {
                     ForEach(InspectorOptions.estimates(including: task.estimateMin), id: \.self) { Text(PlannerMath.duration($0)).tag($0) }
@@ -411,6 +412,25 @@ struct TaskInspector: View {
     }
 
     // MARK: Pieces
+
+    /// None, then the eight colours. The chosen one has a ring.
+    private func colourPicker(_ task: TaskItem) -> some View {
+        HStack(spacing: 6) {
+            Button { store.setTaskColor(task.id, "") } label: {
+                Image(systemName: "circle.slash").font(.system(size: 15))
+                    .foregroundStyle(task.color.isEmpty ? theme.ink : theme.muted)
+            }
+            .buttonStyle(.plain).help("No colour").accessibilityLabel("No colour")
+            ForEach(TaskColor.names, id: \.self) { name in
+                Button { store.setTaskColor(task.id, name) } label: {
+                    Circle().fill(TaskPalette.color(named: name) ?? theme.muted).frame(width: 15, height: 15)
+                        .overlay(Circle().strokeBorder(theme.ink, lineWidth: task.color == name ? 2 : 0).padding(-3))
+                }
+                .buttonStyle(.plain).help(name.capitalized).accessibilityLabel("Colour \(name)")
+                .accessibilityAddTraits(task.color == name ? .isSelected : [])
+            }
+        }
+    }
 
     private func section<Content: View>(_ name: String, @ViewBuilder _ content: () -> Content) -> some View {
         VStack(alignment: .leading, spacing: 8) {

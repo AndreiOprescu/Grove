@@ -53,6 +53,7 @@ struct PaletteRulesTests {
         #expect(shortcuts[.showPlanner] == "⌘1")
         #expect(shortcuts[.showCalendar] == "⌘3")
         #expect(shortcuts[.showNotes] == "⌘4")
+        #expect(shortcuts[.showGarden] == "⌘5")
     }
 
     @Test func theCalendarCommandIsFoundByMonth() {

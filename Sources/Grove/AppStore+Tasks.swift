@@ -186,6 +186,12 @@ extension AppStore {
         commit(m)
     }
 
+    /// Gives a task one of the eight colours, or none (""). A name that is not on the list is ignored.
+    func setTaskColor(_ id: String, _ name: String) {
+        guard TaskColor.isValid(name) else { return }
+        editTask(id, name: "Set Colour") { $0.color = name }
+    }
+
     /// Saves the body of a task. Many saves in a row while typing make one undo step.
     func setNotes(_ id: String, _ text: String, now: Date = Date()) {
         guard let old = task(id), old.notes != text else { return }

@@ -71,7 +71,9 @@ struct BlockView: View {
                     Rectangle().fill(tint).frame(width: 3)
                 }
                 .overlay {
-                    if block.isTaskBlock {
+                    if let outline = TaskFormat.priorityColor(block.priority), !block.isDone {
+                        shape.strokeBorder(outline, lineWidth: TaskFormat.priorityBorderWidth)
+                    } else if block.isTaskBlock {
                         shape.strokeBorder(tint.opacity(0.7), style: StrokeStyle(lineWidth: 1, dash: [4, 3]))
                     }
                 }

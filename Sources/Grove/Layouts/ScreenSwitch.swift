@@ -7,6 +7,7 @@ extension Screen {
         case .planner: "Planner"
         case .calendar: "Calendar"
         case .notes: "Notes"
+        case .garden: "Garden"
         }
     }
 
@@ -16,6 +17,7 @@ extension Screen {
         case .planner: "calendar.day.timeline.left"
         case .calendar: "calendar"
         case .notes: "note.text"
+        case .garden: "leaf"
         }
     }
 }

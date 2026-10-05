@@ -122,6 +122,7 @@ extension AppStore {
         case .showPlanner: screen = .planner
         case .showCalendar: screen = .calendar
         case .showNotes: screen = .notes
+        case .showGarden: screen = .garden
         case .toggleTheme: nextTheme()
         case .toggleMotion: setMotion(!motionSetting)
         }

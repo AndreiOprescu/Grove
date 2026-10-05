@@ -45,14 +45,30 @@ enum TaskFormat {
         return (text, late)
     }
 
-    static func priorityColor(_ p: Int, _ theme: Theme) -> Color? {
+    /// The colour of a task's outline. Low is green, medium is yellow, high is red. No priority has no outline.
+    enum PriorityTone: Equatable { case green, yellow, red }
+
+    static func priorityTone(_ p: Int) -> PriorityTone? {
         switch p {
-        case 1: theme.muted
-        case 2: theme.accent3
-        case 3: theme.accent2
+        case 1: .green
+        case 2: .yellow
+        case 3: .red
         default: nil
         }
     }
+
+    /// The same colours in every theme, so "red" always means "high".
+    static func priorityColor(_ p: Int) -> Color? {
+        switch priorityTone(p) {
+        case .green: Color(red: 0.20, green: 0.72, blue: 0.35)
+        case .yellow: Color(red: 0.98, green: 0.80, blue: 0.10)
+        case .red: Color(red: 0.92, green: 0.18, blue: 0.18)
+        case nil: nil
+        }
+    }
+
+    /// A thick outline, so the priority can be read from across the room.
+    static let priorityBorderWidth: CGFloat = 3.5
 
     static func symbol(_ kind: QuickAddChip.Kind) -> String {
         switch kind {

@@ -15,7 +15,7 @@ extension PlannerMode {
         switch screen {
         case .planner: "planner.mode"
         case .calendar: "calendar.mode"
-        case .today, .notes: nil
+        case .today, .notes, .garden: nil
         }
     }
 }
@@ -97,15 +97,12 @@ struct PlannerView: View {
     private var header: some View {
         let blocks = store.blocks(for: store.selectedDay...store.selectedDay)
         let totals = store.dayTotals(store.selectedDay, blocks: blocks, workStart: workStart, workEnd: workEnd)
-        let over = totals.planned > store.dailyLimitMinutes
-        let stats = mode == .month ? monthStats
-            : "\(over ? "⚠︎ " : "")\(PlannerMath.duration(totals.planned)) planned · \(PlannerMath.duration(totals.free)) free · \(totals.done)/\(totals.total) done"
         return ViewThatFits(in: .horizontal) {
             HStack(spacing: 10) {
                 navButtons
                 VStack(alignment: .leading, spacing: 0) {
                     titleText
-                    statsText(stats, over: over)
+                    statsView(totals, width: 220)
                 }
                 Spacer(minLength: 0)
                 planButton(compact: false)
@@ -115,7 +112,7 @@ struct PlannerView: View {
             VStack(alignment: .leading, spacing: 6) {
                 HStack(spacing: 10) { navButtons; titleText; Spacer(minLength: 0) }
                 HStack(spacing: 10) {
-                    statsText(stats, over: over)
+                    statsView(totals, width: 220)
                     Spacer(minLength: 0)
                     planButton(compact: false)
                     modePicker(width: 230)
@@ -124,7 +121,7 @@ struct PlannerView: View {
             }
             VStack(alignment: .leading, spacing: 6) {
                 HStack(spacing: 10) { navButtons; titleText; Spacer(minLength: 0) }
-                statsText(stats, over: over)
+                statsView(totals, width: 220)
                 HStack(spacing: 10) {
                     modePicker(width: 230)
                     Spacer(minLength: 0)
@@ -141,8 +138,7 @@ struct PlannerView: View {
     private var columnHeader: some View {
         let blocks = store.blocks(for: store.selectedDay...store.selectedDay)
         let totals = store.dayTotals(store.selectedDay, blocks: blocks, workStart: workStart, workEnd: workEnd)
-        let over = totals.planned > store.dailyLimitMinutes
-        return VStack(alignment: .leading, spacing: 2) {
+        return VStack(alignment: .leading, spacing: 4) {
             HStack(spacing: 8) {
                 Text("Timeline").themedHeading(theme, 20, weight: .semibold).foregroundStyle(theme.ink)
                 Spacer(minLength: 0)
@@ -150,7 +146,19 @@ struct PlannerView: View {
                 zoomButtons
             }
             .buttonStyle(.bordered).controlSize(.small)
-            statsText("\(over ? "⚠︎ " : "")\(PlannerMath.duration(totals.planned)) planned · \(PlannerMath.duration(totals.free)) free · \(totals.done)/\(totals.total) done", over: over)
+            statsView(totals, width: nil)
+        }
+    }
+
+    /// Under the title: the workload bar for a day, the numbers of the month for the month.
+    /// The tooltip keeps the old numbers: free time and tasks done.
+    @ViewBuilder private func statsView(_ totals: (planned: Int, free: Int, done: Int, total: Int), width: CGFloat?) -> some View {
+        if mode == .month {
+            statsText(monthStats, over: false)
+        } else {
+            WorkloadBar(planned: totals.planned, limit: store.dailyLimitMinutes,
+                        detail: "\(PlannerMath.duration(totals.planned)) planned · \(PlannerMath.duration(totals.free)) free in working hours · \(totals.done)/\(totals.total) done")
+                .frame(width: width)
         }
     }
 
