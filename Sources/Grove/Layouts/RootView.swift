@@ -46,6 +46,12 @@ struct RootView: View {
         .overlay(alignment: .topTrailing) { PaletteButton().padding(.top, 5).padding(.trailing, 16) }
         .overlay { if store.paletteOpen { CommandPalette().transition(.opacity) } }
         .overlay(alignment: .bottom) { ToastView() }
+        .overlay(alignment: .bottomTrailing) {
+            if let session = store.focus {
+                FocusCard(session: session).padding(16).transition(.move(edge: .trailing).combined(with: .opacity))
+            }
+        }
+        .animation(.easeInOut(duration: 0.2), value: store.focus != nil)
         .animation(.easeInOut(duration: 0.2), value: store.selectedTaskId != nil)
         .animation(.easeInOut(duration: 0.2), value: tasksOpen)
         .animation(.easeOut(duration: 0.12), value: store.paletteOpen)

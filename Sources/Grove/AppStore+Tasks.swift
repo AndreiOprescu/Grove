@@ -279,7 +279,12 @@ extension AppStore {
 
     /// Deletes a task with its subtasks and time blocks. Undo brings everything back, tags included.
     func deleteTask(_ id: String) {
-        guard let root = task(id) else { return }
+        if let m = deletion(ofTask: id, name: "Delete Task") { commit(m) }
+    }
+
+    /// The change that deletes a task, its subtasks, their blocks and tags. Nil when the task is gone.
+    func deletion(ofTask id: String, name: String) -> Mutation? {
+        guard let root = task(id) else { return nil }
         var all = [root]
         var queue = [root.id]
         while let parent = queue.popLast() {
@@ -287,13 +292,13 @@ extension AppStore {
             all += kids
             queue += kids.map(\.id)
         }
-        var m = Mutation(name: "Delete Task")
+        var m = Mutation(name: name)
         for t in all {
             m.tasks.append((t, nil))
             for b in blocks(ofTask: t.id) { m.events.append((b, nil)) }
             let names = tagNames(of: t.id)
             if !names.isEmpty { m.tags.append((t.id, names, [])) }
         }
-        commit(m)
+        return m
     }
 }

@@ -48,6 +48,11 @@ struct TasksPane: View {
             if !allTasks { tabBar }
             ScrollView {
                 VStack(alignment: .leading, spacing: 14) {
+                    if store.welcomeVisible { WelcomeCard() }
+                    if !allTasks, store.selectedDay == .today() {
+                        let yesterday = store.rollOverItems()
+                        if !yesterday.isEmpty { RollOverCard(items: yesterday) }
+                    }
                     if allTasks { allContent(lists) } else { content(lists) }
                 }
                 .padding(.bottom, 8)

@@ -100,6 +100,13 @@ final class AppStore {
     var clockOverride: WallTime?
     @ObservationIgnored var notifier: any Notifier
     @ObservationIgnored var reminderTask: Task<Void, Never>?
+    /// The welcome card with the three sample tasks is on screen (PLAN §9).
+    var welcomeVisible = false
+    /// The running focus timer, or nil (PLAN §5.1.7).
+    var focus: FocusSession?
+    /// The Mac question that follows the welcome card, and the notification calls of the focus timer. Tests wait on them.
+    @ObservationIgnored var welcomeAsk: Task<Void, Never>?
+    @ObservationIgnored var focusNotify: Task<Void, Never>?
 
     private(set) var undoStack: [Mutation] = []
     private(set) var redoStack: [Mutation] = []
@@ -118,11 +125,15 @@ final class AppStore {
             }
             // After the backup: drop images that no text uses and that are over a day old.
             _ = try? self.repos.attachments.sweepOrphans()
+            // A brand new database gets the three lists and the sample tasks. Before anything else writes to it.
+            _ = try? FirstRun.seedIfNew(self.repos, today: .today())
         } else {
             self.repos = Repos(db: try! Database.inMemory())
             self.errorMessage = "Grove could not open its database. Changes will not be saved."
         }
         self.notifier.onOpen = { [weak self] day, ref in self?.openFromNotification(day: day, ref: ref) }
+        self.notifier.onFocusDone = { [weak self] taskId in self?.focusDoneFromNotification(taskId) }
+        self.welcomeVisible = FirstRun.welcomeVisible(self.repos)
     }
 
     /// After an import every id in the window may be gone. Forget what was open, and the undo history.
@@ -139,6 +150,8 @@ final class AppStore {
         overloadWarning = nil
         lingering.removeAll()
         imageCache.removeAllObjects()
+        stopFocus()
+        welcomeVisible = FirstRun.welcomeVisible(repos)
         revision += 1
         scheduleReminderRefresh()
     }

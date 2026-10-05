@@ -404,6 +404,11 @@ struct PlannerGrid: View {
         Button("Split in Two") { store.split(blockId: block.id) }
         if let t = block.taskId {
             Button(block.isDone ? "Mark Not Done" : "Mark Done") { store.toggleDone(taskId: t) }
+            if store.focus?.blockId == block.id {
+                Button("Stop Focus") { store.stopFocus() }
+            } else if !block.isDone {
+                Button("Start Focus") { if let e = store.event(block.id) { store.startFocus(e) } }
+            }
         }
         Divider()
         if block.isTaskBlock {
