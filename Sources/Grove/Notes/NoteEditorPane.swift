@@ -167,12 +167,14 @@ struct NoteEditorPane: View {
                 Button { store.togglePin(note.id) } label: { Image(systemName: note.pinned ? "pin.fill" : "pin") }
                     .buttonStyle(.plain).foregroundStyle(note.pinned ? theme.accent2 : theme.muted)
                     .help(note.pinned ? "Unpin" : "Pin to the top of the list")
+                    .accessibilityLabel(note.pinned ? "Unpin note" : "Pin note")
                 Menu {
                     Button("Duplicate") { store.duplicateNote(note.id) }
                     Divider()
                     Button("Delete note", role: .destructive) { store.deleteNote(note.id); store.showToast("Note deleted. ⌘Z brings it back.") }
                 } label: { Image(systemName: "ellipsis.circle") }
                     .menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize().foregroundStyle(theme.muted)
+                    .accessibilityLabel("More for this note")
             }
             Text(kindLine(note)).font(theme.body(12)).foregroundStyle(theme.muted)
         }
@@ -188,9 +190,10 @@ struct NoteEditorPane: View {
                 Button { store.togglePin(note.id) } label: { Image(systemName: note.pinned ? "pin.fill" : "pin") }
                     .buttonStyle(.plain).foregroundStyle(note.pinned ? theme.accent2 : theme.muted)
                     .help(note.pinned ? "Unpin" : "Pin to the top of the list")
+                    .accessibilityLabel(note.pinned ? "Unpin note" : "Pin note")
                 Button { store.openNote(note.id) } label: { Image(systemName: "arrow.up.left.and.arrow.down.right") }
                     .buttonStyle(.plain).foregroundStyle(theme.muted)
-                    .help("Open in the Notes screen")
+                    .help("Open in the Notes screen").accessibilityLabel("Open in the Notes screen")
             }
             HStack(spacing: 8) {
                 MoodPicker(note: note)

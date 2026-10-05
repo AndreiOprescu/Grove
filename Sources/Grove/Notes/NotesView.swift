@@ -24,7 +24,8 @@ struct NotesView: View {
     private var empty: some View {
         VStack(spacing: 10) {
             Image(systemName: "leaf").font(.system(size: 30)).foregroundStyle(theme.accent)
-            Text("Pick a note, or start a new one.").themedHeading(theme, 20).foregroundStyle(theme.ink)
+            Text(store.notes(filter: .all, query: "").isEmpty ? "Your thoughts grow here. ⌥⌘N for a new note." : "Pick a note, or start a new one.")
+                .themedHeading(theme, 20).foregroundStyle(theme.ink).multilineTextAlignment(.center)
             Button("New note") { store.newNote() }.buttonStyle(.borderedProminent).tint(theme.accent)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -46,7 +47,7 @@ struct NotesList: View {
                 Text("Notes").themedHeading(theme, 20, weight: .semibold).foregroundStyle(theme.ink)
                 Spacer()
                 Button { store.newNote() } label: { Image(systemName: "square.and.pencil") }
-                    .buttonStyle(.plain).foregroundStyle(theme.accent).help("New note")
+                    .buttonStyle(.plain).foregroundStyle(theme.accent).help("New note").accessibilityLabel("New note")
             }
             HStack(spacing: 6) {
                 pill("Today", icon: "sun.max") { store.openDailyNote(.today()) }

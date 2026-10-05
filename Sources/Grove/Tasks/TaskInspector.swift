@@ -174,7 +174,7 @@ struct TaskInspector: View {
                 .onChange(of: titleFocus) { _, now in if !now { commitTitle() } }
 
             Button { store.selectedTaskId = nil } label: { Image(systemName: "xmark") }
-                .buttonStyle(.plain).foregroundStyle(theme.muted).help("Close  (Esc)")
+                .buttonStyle(.plain).foregroundStyle(theme.muted).help("Close  (Esc)").accessibilityLabel("Close")
                 .keyboardShortcut(.cancelAction)
         }
     }
@@ -250,7 +250,7 @@ struct TaskInspector: View {
                                displayedComponents: .date)
                         .labelsHidden().datePickerStyle(.compact)
                     Button { store.editTask(task.id, name: "Clear Due Date") { $0.due = nil } } label: { Image(systemName: "xmark.circle.fill") }
-                        .buttonStyle(.plain).foregroundStyle(theme.muted).help("Remove the due date")
+                        .buttonStyle(.plain).foregroundStyle(theme.muted).help("Remove the due date").accessibilityLabel("Remove the due date")
                 } else {
                     Button("Add a due date") { store.editTask(task.id, name: "Set Due Date") { $0.due = (task.planDate ?? store.selectedDay).string } }
                         .buttonStyle(.plain).foregroundStyle(theme.accent)
@@ -286,7 +286,7 @@ struct TaskInspector: View {
                     HStack(spacing: 3) {
                         Text("#" + name)
                         Button { store.setTags(taskId: task.id, to: names.filter { $0 != name }) } label: { Image(systemName: "xmark") }
-                            .buttonStyle(.plain).help("Remove this tag")
+                            .buttonStyle(.plain).help("Remove this tag").accessibilityLabel("Remove tag \(name)")
                     }
                     .font(theme.body(11, weight: .medium))
                     .foregroundStyle(theme.accent2)
@@ -318,7 +318,7 @@ struct TaskInspector: View {
                     Text(sub.title).strikethrough(sub.isDone).foregroundStyle(sub.isDone ? theme.muted : theme.ink)
                     Spacer(minLength: 0)
                     Button { store.deleteTask(sub.id) } label: { Image(systemName: "trash") }
-                        .buttonStyle(.plain).foregroundStyle(theme.muted).help("Delete this subtask")
+                        .buttonStyle(.plain).foregroundStyle(theme.muted).help("Delete this subtask").accessibilityLabel("Delete subtask \(sub.title)")
                 }
                 .font(theme.body(12))
             }

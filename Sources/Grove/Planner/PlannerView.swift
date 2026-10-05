@@ -159,11 +159,12 @@ struct PlannerView: View {
             Button { tasksOpen = true } label: { Image(systemName: "checklist") }
                 .help("Show the task list")
         }
-        Button { move(-1) } label: { Image(systemName: "chevron.left") }.help("Previous")
+        Button { move(-1) } label: { Image(systemName: "chevron.left") }.help("Previous").accessibilityLabel("Previous")
         Button("Today") { store.selectedDay = .today(); scrollRequest += 1 }
             .fixedSize()
-        Button { move(1) } label: { Image(systemName: "chevron.right") }.help("Next")
+        Button { move(1) } label: { Image(systemName: "chevron.right") }.help("Next").accessibilityLabel("Next")
         Button { store.openDailyNote(store.selectedDay) } label: { Image(systemName: "note.text") }
+            .accessibilityLabel("Note for the day")
             .help(store.selectedDay == .today() ? "Today's note" : "Note for \(store.selectedDay.date.formatted(.dateTime.weekday(.wide).day().month(.abbreviated)))")
     }
 
@@ -187,9 +188,10 @@ struct PlannerView: View {
         if mode == .month {
             Toggle(isOn: $moodTint) { Image(systemName: "face.smiling") }
                 .toggleStyle(.button)
-                .help("Tint each day by the mood of its note")
+                .help("Tint each day by the mood of its note").accessibilityLabel("Tint days by mood")
         } else if compact {
             Button { showPlan() } label: { Image(systemName: "wand.and.stars") }
+                .accessibilityLabel("Plan my day")
                 .help("Plan my day: fit today's unscheduled tasks into free working hours")
         } else {
             Button("Plan my day") { showPlan() }

@@ -110,6 +110,14 @@ struct PlannerGrid: View {
         .onChange(of: geo.hourHeight) { relayout() }
         .onChange(of: scrollRequest) { scrollToNow(animated: true) }
         .animation(animation, value: layerMap)
+        .overlay {
+            if blocks.isEmpty && draft == nil {
+                Text("Drag a task here, or drag on the grid to plan time.")
+                    .font(theme.body(13)).foregroundStyle(theme.muted)
+                    .multilineTextAlignment(.center).padding(24)
+                    .allowsHitTesting(false)
+            }
+        }
     }
 
     // MARK: Layers
