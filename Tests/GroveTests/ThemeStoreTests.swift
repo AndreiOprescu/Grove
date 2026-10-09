@@ -8,7 +8,7 @@ import GroveCore
 @Suite(.serialized)
 struct ThemeStoreTests {
     private let defaults = UserDefaults.standard
-    private let keys = ["appearance.theme", "appearance.motion"]
+    private let keys = ["appearance.theme", "appearance.motion", "appearance.mode"]
 
     private func clean() { keys.forEach(defaults.removeObject(forKey:)) }
     private func makeStore() throws -> AppStore { AppStore(repos: Repos(db: try Database.inMemory())) }
@@ -66,8 +66,53 @@ struct ThemeStoreTests {
         let s = try makeStore()
         s.setTheme(.futuristic)
         #expect(s.theme.kind == .futuristic)
-        #expect(s.colorScheme == .dark)
+        #expect(s.colorScheme == nil)   // the theme does not pick light or dark
         s.setTheme(.grove)
         #expect(s.colorScheme == nil)
+    }
+
+    @Test func theAppearanceStartsOnSystem() throws {
+        clean(); defer { clean() }
+        let s = try makeStore()
+        #expect(s.appearance == .system)
+        #expect(s.colorScheme == nil)
+    }
+
+    @Test func aChosenAppearanceIsSavedAndComesBack() throws {
+        clean(); defer { clean() }
+        let s = try makeStore()
+        s.setAppearance(.dark)
+        #expect(s.colorScheme == .dark)
+        #expect(defaults.string(forKey: "appearance.mode") == "dark")
+        #expect(try makeStore().appearance == .dark)
+        s.setAppearance(.light)
+        #expect(try makeStore().colorScheme == .light)
+    }
+
+    @Test func anUnknownSavedAppearanceFallsBackToSystem() throws {
+        clean(); defer { clean() }
+        defaults.set("sepia", forKey: "appearance.mode")
+        #expect(try makeStore().appearance == .system)
+    }
+
+    @Test func changingTheThemeKeepsLightOrDark() throws {
+        clean(); defer { clean() }
+        let s = try makeStore()
+        s.setAppearance(.dark)
+        for id in ThemeID.allCases {
+            s.setTheme(id)
+            #expect(s.colorScheme == .dark, "\(id) changed the mode")
+        }
+        s.setAppearance(.light)
+        s.setTheme(.futuristic)
+        #expect(s.colorScheme == .light)
+    }
+
+    @Test func changingLightOrDarkKeepsTheTheme() throws {
+        clean(); defer { clean() }
+        let s = try makeStore()
+        s.setTheme(.vintage)
+        s.setAppearance(.dark)
+        #expect(s.themeID == .vintage)
     }
 }

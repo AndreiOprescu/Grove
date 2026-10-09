@@ -45,6 +45,8 @@ struct PlannerView: View {
     @AppStorage("planner.workStart") private var workStart = 9 * 60
     @AppStorage("planner.workEnd") private var workEnd = 18 * 60
     @AppStorage("calendar.moodTint") private var moodTint = false
+    /// Read so the workload bar redraws when the limit changes in Settings.
+    @AppStorage("planner.dailyLimitMin") private var dailyLimit = SettingsRules.defaultDailyLimit
     @AppStorage("calendar.weekStartsSunday") private var sundayFirst = false
 
     @State private var geo = PlannerGeometry()
@@ -150,6 +152,7 @@ struct PlannerView: View {
         if kind == .month {
             statsText(monthStats, over: false)
         } else {
+            let _ = dailyLimit
             WorkloadBar(planned: totals.planned, limit: store.dailyLimitMinutes,
                         detail: "\(PlannerMath.duration(totals.planned)) planned · \(PlannerMath.duration(totals.free)) free in working hours · \(totals.done)/\(totals.total) done")
                 .frame(width: width)

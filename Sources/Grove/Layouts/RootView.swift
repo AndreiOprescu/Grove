@@ -42,7 +42,9 @@ struct RootView: View {
         }
         .overlay(alignment: .top) { ScreenSwitch().padding(.top, 5) }
         .overlay(alignment: .topLeading) { LeftDock().padding(.top, 5).padding(.leading, 84) }   // the window buttons take the first 84 pt
-        .overlay(alignment: .topTrailing) { PaletteButton().padding(.top, 5).padding(.trailing, 16) }
+        .overlay(alignment: .topTrailing) {
+            HStack(spacing: 6) { PaletteButton(); SettingsButton() }.padding(.top, 5).padding(.trailing, 16)
+        }
         .overlay { if store.paletteOpen { CommandPalette().transition(.opacity) } }
         .overlay(alignment: .bottom) { ToastView() }
         .overlay(alignment: .bottomTrailing) {

@@ -685,10 +685,11 @@ Use `.focusable()` + `.onKeyPress`.
   under the traffic lights with top padding 38.
 - Menu commands: File ▸ New Task ⌘N, New Note ⌥⌘N, New Event ⇧⌘N · View ▸ Today ⌘T,
   Planner ⌘1, Tasks ⌘2, Calendar ⌘3, Notes ⌘4, Day/3-Day/Week ⌥⌘1/2/3, Zoom In/Out,
-  Theme ▸, Layout ▸ (if several) · Go ▸ Command Palette ⌘K · Edit ▸ Undo/Redo (system).
-- `Settings` scene tabs: **Appearance** (theme picker with live previews, layout picker,
-  motion on/off, accent intensity), **Planner** (working hours, default
-  duration, hour height, week starts Monday/Sunday), **Notifications**, **Notes**
+  Theme ▸, Appearance ▸ (System/Light/Dark), Layout ▸ (if several) · Go ▸ Command Palette ⌘K · Edit ▸ Undo/Redo (system).
+- A gear button next to the "Search ⌘K" pill (top right) opens the Settings window, like ⌘,.
+- `Settings` scene tabs: **Appearance** (theme picker with live previews, light/dark/system,
+  layout picker, motion on/off, accent intensity), **Planner** (working hours, busy-day limit,
+  default duration, hour height, week starts Monday/Sunday, mood tint), **Notifications**, **Notes**
   (daily/weekly templates), **Data** (export, import, show folder, backups list).
 - Settings are stored in the `settings` table (JSON values) and mirrored in `AppStore`.
 
@@ -721,10 +722,12 @@ A goal is a recurring item with **no date** and a **weekly target** of one of tw
 `struct Theme: Identifiable` with colour tokens, fonts, shape and motion settings.
 Inject with a custom `EnvironmentKey` (`@Environment(\.theme)`). Switching is live and
 animated (0.35 s crossfade).
+Light or dark is a separate setting (`appearance.mode`: System, Light, Dark), never set by the
+theme. Every theme has a light and a dark look (owner request, 2026-10-09).
 
 ### 6.1 Tokens (match `design/layouts.html`)
 
-| Token | Grove light | Grove dark | Minimal light | Minimal dark | Futuristic (dark only) | Vintage (light only) |
+| Token | Grove light | Grove dark | Minimal light | Minimal dark | Futuristic dark | Vintage light |
 |---|---|---|---|---|---|---|
 | bg | #F3EEE3 | #171C16 | #F7F7F5 | #121212 | #070B16 | #E6D8BA |
 | surface | #FBF8F1 | #1F261D | #FFFFFF | #1B1B1B | rgba(22,30,58,.55) + glass | #F3E9D2 |
@@ -737,6 +740,12 @@ animated (0.35 s crossfade).
 | line | #DDD3BF | #333D30 | #E6E6E2 | #2C2C2C | rgba(120,160,255,.20) | #C8B38D |
 | blobs | #A9C79A #F2C6A0 #E8DC9A | #3F5E35 #6E4A33 #5E5630 | #E9EEE6 #F1EEE8 #EDEDED | #1E241F #242220 #202020 | #1FD1B5 #7B4DFF #FF4FA3 | #F0D9A8 #E2B98A #F5E6C0 |
 | radius | 16 | 16 | 10 | 10 | 14 | 3 |
+
+Added later (owner request, 2026-10-09): **Futuristic light** bg #EEF3FB, surface white .6 + glass,
+surface2 rgba(60,80,140,.10), ink #0B1530, muted #56628A, accent #0B8F7A, accent2 #6A3FE0,
+accent3 #D43C86, line rgba(60,100,200,.22), blobs #7FE8D6 #B9A2FF #FFA3CE.
+**Vintage dark** bg #221A12, surface #2E2318, surface2 #3A2C1F, ink #EFE3C8, muted #A8957A,
+accent #D9735E, accent2 #8BAF97, accent3 #D9AA4E, line #4E3E2B, blobs #5A4325 #6B4630 #4D3F28.
 
 Fonts (all ship with macOS — no files to bundle):
 
