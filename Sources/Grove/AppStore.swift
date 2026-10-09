@@ -355,7 +355,7 @@ final class AppStore {
             out.append(PlannerBlock(
                 id: e.id, title: task?.title ?? e.title, summary: task?.summary ?? "", day: day, startMinute: e.start.minute,
                 endMinute: max(end, e.start.minute + 1), kind: e.kind, taskId: e.taskId,
-                isDone: task?.isDone ?? false,
+                isDone: e.goalId != nil ? e.doneAt != nil : (task?.isDone ?? false),
                 color: task.flatMap { $0.color.isEmpty ? nil : $0.color } ?? e.color,
                 isRecurring: e.seriesId != nil, priority: task?.priority ?? 0, goalId: e.goalId))
         }
@@ -646,6 +646,7 @@ final class AppStore {
             let s = PlannerMath.clampMove(start: old.end.minute, length: len)
             var copy = old
             copy.id = UUID().uuidString
+            copy.doneAt = nil   // a copy of a done goal block is planned, so it is not counted done twice
             copy.start = WallTime(day: old.start.day, minute: s)
             copy.end = WallTime(day: old.start.day, minute: s + len)
             m.events.append((nil, copy))

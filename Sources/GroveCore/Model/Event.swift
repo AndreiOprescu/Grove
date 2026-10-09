@@ -18,7 +18,7 @@ public struct EventItem: Identifiable, Codable, Hashable, Sendable {
     public var seriesId: String?        // set on a detached occurrence of a series
     public var originalDate: DayKey?    // which occurrence it replaces
     public var goalId: String?          // set on a block that belongs to a goal (it has no task)
-    public var doneAt: String?          // an old done mark on a goal block; no longer read (every goal block counts)
+    public var doneAt: String?          // when a goal block was ticked done; nil = planned
     public var createdAt: String
     public var updatedAt: String
 

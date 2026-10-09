@@ -1,9 +1,11 @@
 import GroveCore
 
-/// A goal's week: what it counts, how much it has (minutes or sessions) and its target in the same unit.
+/// A goal's week: what it counts, how much is done, how much is planned (done blocks included)
+/// and the target, all in one unit (minutes or sessions).
 struct GoalProgress: Equatable {
     var kind: GoalKind
-    var value: Int
+    var done: Int
+    var planned: Int
     var target: Int
 }
 
@@ -69,11 +71,20 @@ enum GoalRules {
         return part % 10 == 0 ? "\(whole).\(part / 10)" : "\(whole).\(part < 10 ? "0" : "")\(part)"
     }
 
-    /// "2.5 / 5 h" or "3 / 5 sessions". Over the target is fine: "7 / 5 h".
+    /// "2.5 / 5 h done" or "3 / 5 sessions done". Over the target is fine: "7 / 5 h done".
     static func progressText(_ p: GoalProgress) -> String {
         switch p.kind {
-        case .hours: "\(hours(p.value)) / \(hours(p.target)) h"
-        case .sessions: "\(max(0, p.value)) / \(p.target) \(p.target == 1 ? "session" : "sessions")"
+        case .hours: "\(hours(p.done)) / \(hours(p.target)) h done"
+        case .sessions: "\(max(0, p.done)) / \(p.target) \(p.target == 1 ? "session" : "sessions") done"
+        }
+    }
+
+    /// "4 h planned" or "2 sessions planned": every block of the week, done or not. "Nothing planned yet" for none.
+    static func plannedText(_ p: GoalProgress) -> String {
+        guard p.planned > 0 else { return "Nothing planned yet" }
+        return switch p.kind {
+        case .hours: "\(hours(p.planned)) h planned"
+        case .sessions: "\(p.planned) \(p.planned == 1 ? "session" : "sessions") planned"
         }
     }
 
@@ -85,10 +96,12 @@ enum GoalRules {
         }
     }
 
-    /// How much of the bar is filled, from 0 to 1. A goal at or over its target shows a full bar.
-    static func bar(value: Int, target: Int) -> Double {
-        guard target > 0 else { return 0 }
-        return min(1, max(0, Double(value) / Double(target)))
+    /// How far the solid part (done) and the lighter part (planned, done included) reach, each from 0 to 1.
+    /// A goal at or over its target shows a full bar.
+    static func bar(_ p: GoalProgress) -> (done: Double, planned: Double) {
+        guard p.target > 0 else { return (0, 0) }
+        func part(_ v: Int) -> Double { min(1, max(0, Double(v) / Double(p.target))) }
+        return (part(p.done), max(part(p.done), part(p.planned)))
     }
 
     /// The title of the panel's week: "This week" when `today` is in it, else "5–11 Oct" or "28 Sep–4 Oct".
@@ -101,6 +114,8 @@ enum GoalRules {
         return "\(first.day) \(name(first))–\(last.day) \(name(last))"
     }
 
-    /// One sentence for VoiceOver: "Read, 2.5 / 5 h".
-    static func accessibilityText(title: String, _ p: GoalProgress) -> String { "\(title), \(progressText(p))" }
+    /// One sentence for VoiceOver: "Read, 2.5 / 5 h done, 4 h planned".
+    static func accessibilityText(title: String, _ p: GoalProgress) -> String {
+        "\(title), \(progressText(p)), \(plannedText(p))"
+    }
 }

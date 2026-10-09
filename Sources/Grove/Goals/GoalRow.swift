@@ -1,7 +1,8 @@
 import SwiftUI
 import GroveCore
 
-/// One goal in the panel: colour dot, title, "2.5 / 5 h" or "3 / 5 sessions" and a bar.
+/// One goal in the panel: colour dot, title, "2.5 / 5 h done", a bar and "4 h planned".
+/// A goal is never done itself; its blocks are ticked in the planner.
 /// Click it to open the editor under it; click again to close. Drag it onto a day to plan a block of it.
 /// Right-click to edit or delete.
 struct GoalRow: View {
@@ -49,7 +50,8 @@ struct GoalRow: View {
                         .font(theme.number(11, weight: .semibold)).foregroundStyle(theme.muted)
                         .lineLimit(1).fixedSize()
                 }
-                GoalBar(fill: GoalRules.bar(value: progress.value, target: progress.target), tint: tint)
+                GoalBar(parts: GoalRules.bar(progress), tint: tint)
+                Text(GoalRules.plannedText(progress)).font(theme.body(10)).foregroundStyle(theme.muted)
             }
         }
         .contentShape(Rectangle())
@@ -69,17 +71,21 @@ struct GoalRow: View {
     }
 }
 
-/// A thin bar: how much of the week's target is there. Full when the goal is at or over its target.
+/// A thin bar against the week's target. The solid part is done, the lighter part planned.
+/// Full when the goal is at or over its target.
 struct GoalBar: View {
     @Environment(\.theme) private var theme
-    let fill: Double
+    let parts: (done: Double, planned: Double)
     let tint: Color
 
     var body: some View {
         Capsule().fill(theme.surface)
             .overlay(alignment: .leading) {
                 GeometryReader { g in
-                    Capsule().fill(tint).frame(width: g.size.width * fill)
+                    ZStack(alignment: .leading) {
+                        Capsule().fill(tint.opacity(0.35)).frame(width: g.size.width * parts.planned)
+                        Capsule().fill(tint).frame(width: g.size.width * parts.done)
+                    }
                 }
             }
             .frame(height: 6)

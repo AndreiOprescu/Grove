@@ -2,7 +2,8 @@ import SwiftUI
 import GroveCore
 
 /// Goals: recurring work with a weekly target of hours or sessions, and no date.
-/// A goal is dragged into a day as a block. Every block adds to the goal that week: its length, or one session.
+/// A goal is dragged into a day as a block. Every block is planned time for the goal that week;
+/// a block ticked done is done time too. The goal itself is never done: it stays for the next week.
 /// Progress is worked out from the blocks each time, never stored. Every write is a single undo step.
 extension AppStore {
     // MARK: Reading
@@ -17,16 +18,20 @@ extension AppStore {
     /// The planner's setting: does the week start on Sunday?
     var weekStartsSunday: Bool { UserDefaults.standard.bool(forKey: "calendar.weekStartsSunday") }
 
-    /// The goal's tally this week and its weekly target: minutes for an hours goal, blocks for a sessions goal.
+    /// The goal's week: done and planned (done blocks included), and the weekly target.
+    /// Minutes for an hours goal, blocks for a sessions goal.
     /// The week is the one that holds `day`, the same week the planner shows. `sundayFirst` defaults to the planner setting.
     func goalProgress(_ id: String, weekOf day: DayKey, sundayFirst: Bool? = nil) -> GoalProgress {
-        guard let g = goal(id) else { return GoalProgress(kind: .hours, value: 0, target: 0) }
+        guard let g = goal(id) else { return GoalProgress(kind: .hours, done: 0, planned: 0, target: 0) }
         let week = GoalRules.week(of: day, sundayFirst: sundayFirst ?? weekStartsSunday)
-        let value = switch g.kind {
-        case .hours: (try? repos.goals.minutes(goalId: id, from: week.lowerBound, to: week.upperBound)) ?? 0
-        case .sessions: (try? repos.goals.sessions(goalId: id, from: week.lowerBound, to: week.upperBound)) ?? 0
+        func tally(doneOnly: Bool) -> Int {
+            let (from, to) = (week.lowerBound, week.upperBound)
+            return switch g.kind {
+            case .hours: (try? repos.goals.minutes(goalId: id, from: from, to: to, doneOnly: doneOnly)) ?? 0
+            case .sessions: (try? repos.goals.sessions(goalId: id, from: from, to: to, doneOnly: doneOnly)) ?? 0
+            }
         }
-        return GoalProgress(kind: g.kind, value: value, target: GoalRules.target(of: g))
+        return GoalProgress(kind: g.kind, done: tally(doneOnly: true), planned: tally(doneOnly: false), target: GoalRules.target(of: g))
     }
 
     // MARK: Writing
@@ -103,5 +108,15 @@ extension AppStore {
         guard let id = DragPayload.goalId(from: raw), goal(id) != nil else { return false }
         scheduleGoal(goalId: id, day: day, start: minute)
         return true
+    }
+
+    /// Ticks a goal block done, or back to planned. A done block adds to the goal's done tally. One undo step.
+    func toggleGoalBlockDone(eventId: String) {
+        guard let old = try? repos.events.get(eventId), old.goalId != nil else { return }
+        var new = old
+        new.doneAt = old.doneAt == nil ? Stamp.now() : nil
+        var m = Mutation(name: new.doneAt == nil ? "Reopen Goal Block" : "Complete Goal Block")
+        m.events.append((old, new))
+        commit(m)
     }
 }

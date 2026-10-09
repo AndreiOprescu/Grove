@@ -2,7 +2,8 @@ import SwiftUI
 import GroveCore
 
 /// The Goals panel: recurring work with a weekly target of hours or sessions, and no date.
-/// Drag a goal into a day to plan a block of it. Every block in the week adds to the goal.
+/// Drag a goal into a day to plan a block of it. Every block in the week is planned time;
+/// a block ticked done in the planner is done time. A goal is never done: it stays every week.
 /// The numbers are for the week that holds the selected day, the week the Planner shows.
 /// One goal at a time can be open for editing.
 struct GoalsPane: View {

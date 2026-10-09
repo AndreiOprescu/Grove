@@ -427,6 +427,9 @@ struct PlannerGrid: View {
         Divider()
         Button("Duplicate") { store.duplicate(blockIds: ids) }
         Button("Split in Two") { store.split(blockId: block.id) }
+        if block.isGoalBlock {
+            Button(block.isDone ? "Mark Not Done" : "Mark Done") { store.toggleGoalBlockDone(eventId: block.id) }
+        }
         if let t = block.taskId {
             Button(block.isDone ? "Mark Not Done" : "Mark Done") { store.toggleDone(taskId: t) }
             if store.focus?.blockId == block.id {
@@ -499,9 +502,10 @@ struct PlannerGrid: View {
         }
     }
 
-    /// The check box and the space bar. Only a task block has something to tick.
+    /// The check box and the space bar. A task block ticks its task; a goal block adds to the goal's done tally.
     private func toggleDone(_ block: PlannerBlock) {
         if let t = block.taskId { store.toggleDone(taskId: t) }
+        else if block.isGoalBlock { store.toggleGoalBlockDone(eventId: block.id) }
     }
 
     private func selectBlock(_ block: PlannerBlock) {

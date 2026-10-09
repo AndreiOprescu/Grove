@@ -17,7 +17,7 @@ struct PlannerBlock: Identifiable, Equatable {
     var hasNote: Bool = false
     /// The priority of the block's task, 0 to 3. 0 for a block with no task.
     var priority: Int = 0
-    /// The goal this block belongs to, or nil. A goal block has no task and is never done: it counts while it is there.
+    /// The goal this block belongs to, or nil. A goal block has no task; `isDone` comes from the event's `doneAt`.
     var goalId: String?
 
     var span: Span { Span(id: id, start: startMinute, end: endMinute) }

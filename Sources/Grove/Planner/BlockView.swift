@@ -188,7 +188,7 @@ struct BlockView: View {
     }
 
     @ViewBuilder private var checkbox: some View {
-        if block.isTaskBlock {
+        if block.isTaskBlock || block.isGoalBlock {
             Button(action: onToggleDone) {
                 CheckBox(isOn: block.isDone, size: compact ? 12 : 14)
             }

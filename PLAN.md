@@ -698,18 +698,19 @@ A goal is a recurring item with **no date** and a **weekly target** of one of tw
 **Hours** (time per week) or **Sessions** (number of blocks per week).
 - Table `goals` (migration 5): `id, title, notes, color, target_min (default 300), sort,
   archived, created_at, updated_at`. Migration 6 adds `kind` (`hours` | `sessions`, default
-  `hours`) and `target_count` (default 3). Events get `goal_id` (migration 5). `done_at` from
-  migration 5 stays in the table but is no longer read.
-- The **Goals** panel (left dock) lists goals with "2.5 / 5 h" or "3 / 5 sessions" and a bar for
-  the week of the chosen day. Add a goal with a name, Hours or Sessions, and a weekly target
+  `hours`) and `target_count` (default 3). Events get `goal_id` and `done_at` (migration 5).
+- The **Goals** panel (left dock) lists goals with "2.5 / 5 h done" or "3 / 5 sessions done",
+  a bar (solid = done, lighter = planned) and "4 h planned", for the week of the chosen day.
+  A goal is never marked done in the panel: it stays there every week. Add a goal with a name, Hours or Sessions, and a weekly target
   (Hours: 0.5 h steps, 5 h at first; Sessions: steps of 1, 1–99, 3 at first).
 - Click a goal to open its editor in place: name, Hours | Sessions, target per week, colour.
   Click again, press Escape or open another goal to close it. Right-click ▸ Edit… does the same.
 - Drag a goal onto a day in the Today timeline or the Planner week: it makes a 1 h block.
   Set the length by resizing the block or with its right-click menu (15 min to 4 h).
-- A goal block counts as soon as it is in the week: Hours adds its length, Sessions adds 1.
-  There is no done tick on goal blocks. The tally can go over the target ("7 / 5 h").
-  Progress is worked out from the blocks of the planner week; it is never stored, so
+- Every goal block in the week is **planned**: Hours adds its length, Sessions adds 1.
+  Tick a goal block done (check box, right-click ▸ Mark Done, or space) in Today or the Planner:
+  it is also **done**. Un-tick takes it back. Planned includes done. Both can go over the
+  target ("7 / 5 h done"). Progress is worked out from the blocks of the planner week; it is never stored, so
   a new week starts at zero. The goal stays, so more blocks can be added in the same week.
 - Deleting a goal keeps its blocks as plain blocks. Goals are in export, import and backup.
 

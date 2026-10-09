@@ -111,9 +111,20 @@ struct GoalTests {
     @Test func minutesAddUpEveryBlockOfTheGoalInTheRange() throws {
         let r = try makeRepos()
         try block(r, goal: "G1", day: monday, from: 600, to: 660)                          // 60
-        try block(r, goal: "G1", day: monday.adding(days: 2), from: 540, to: 600, done: true) // 60, an old done mark changes nothing
+        try block(r, goal: "G1", day: monday.adding(days: 2), from: 540, to: 600, done: true) // 60, done
         try block(r, goal: "G1", day: monday.adding(days: 3), from: 540, to: 570)          // 30
         #expect(try r.goals.minutes(goalId: "G1", from: monday, to: sunday) == 150)
+        #expect(try r.goals.minutes(goalId: "G1", from: monday, to: sunday, doneOnly: true) == 60)
+    }
+
+    @Test func doneOnlyCountsTheDoneBlocks() throws {
+        let r = try makeRepos()
+        try block(r, goal: "G1", day: monday, from: 600, to: 615)
+        try block(r, goal: "G1", day: monday, from: 700, to: 940, done: true)
+        try block(r, goal: "G1", day: sunday, from: 800, to: 845, done: true)
+        #expect(try r.goals.sessions(goalId: "G1", from: monday, to: sunday, doneOnly: true) == 2)
+        #expect(try r.goals.minutes(goalId: "G1", from: monday, to: sunday, doneOnly: true) == 285)
+        #expect(try r.goals.minutes(goalId: "G2", from: monday, to: sunday, doneOnly: true) == 0)
     }
 
     @Test func sessionsCountTheBlocksWhateverTheirLength() throws {
