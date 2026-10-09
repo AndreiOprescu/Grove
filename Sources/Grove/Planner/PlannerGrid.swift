@@ -441,6 +441,9 @@ struct PlannerGrid: View {
         Divider()
         if block.isTaskBlock {
             Button("Unschedule") { store.deleteBlocks(ids, name: "Unschedule") }
+            if let t = block.taskId {
+                Button("Delete Task", role: .destructive) { store.deleteTask(t) }
+            }
         } else if block.isGoalBlock {
             Button("Delete Goal Block", role: .destructive) { store.deleteBlocks(ids, name: "Delete Goal Block") }
         } else {
