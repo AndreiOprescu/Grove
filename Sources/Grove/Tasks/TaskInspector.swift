@@ -175,6 +175,11 @@ struct TaskInspector: View {
                 .onSubmit { commitTitle() }
                 .onChange(of: titleFocus) { _, now in if !now { commitTitle() } }
 
+            Button { flush(task.id); store.deleteTask(task.id) } label: { Image(systemName: "trash") }
+                .buttonStyle(.plain).foregroundStyle(theme.muted)
+                .help("Delete this task, its subtasks and its blocks. You can undo this.")
+                .accessibilityLabel("Delete task")
+
             Button { store.selectedTaskId = nil } label: { Image(systemName: "xmark") }
                 .buttonStyle(.plain).foregroundStyle(theme.muted).help("Close  (Esc)").accessibilityLabel("Close")
                 .keyboardShortcut(.cancelAction)

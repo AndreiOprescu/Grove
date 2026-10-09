@@ -305,8 +305,14 @@ extension AppStore {
     // MARK: Deleting
 
     /// Deletes a task with its subtasks and time blocks. Undo brings everything back, tags included.
+    /// The right panel closes when it shows one of the deleted tasks; their blocks leave the selection.
     func deleteTask(_ id: String) {
-        if let m = deletion(ofTask: id, name: "Delete Task") { commit(m) }
+        guard let m = deletion(ofTask: id, name: "Delete Task") else { return }
+        let goneTasks = Set(m.tasks.compactMap { $0.before?.id })
+        let goneBlocks = Set(m.events.compactMap { $0.before?.id })
+        commit(m)
+        if let open = selectedTaskId, goneTasks.contains(open) { selectedTaskId = nil }
+        selection.subtract(goneBlocks)
     }
 
     /// The change that deletes a task, its subtasks, their blocks and tags. Nil when the task is gone.

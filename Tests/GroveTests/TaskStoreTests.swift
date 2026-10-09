@@ -266,6 +266,31 @@ struct TaskStoreTests {
         #expect(try s.repos.tasks.all().isEmpty)
     }
 
+    @Test func deletingTheOpenTaskClosesItsPanel() throws {
+        let s = try makeStore()
+        let t = try #require(s.quickAdd("Trip", default: .day(monday)))
+        let other = try #require(s.quickAdd("Other", default: .day(monday)))
+        s.selectedTaskId = t.id
+        s.deleteTask(other.id)
+        #expect(s.selectedTaskId == t.id)
+        s.deleteTask(t.id)
+        #expect(s.selectedTaskId == nil)
+    }
+
+    @Test func deletingAParentClosesTheOpenSubtaskAndDropsItsSelectedBlocks() throws {
+        let s = try makeStore()
+        let t = try #require(s.quickAdd("Trip", default: .day(monday)))
+        s.addSubtask(to: t.id, title: "Book hotel")
+        let sub = try #require(try s.repos.tasks.subtasks(of: t.id).first)
+        s.schedule(taskId: t.id, day: monday, start: 540, length: 30)
+        let block = try #require(s.blocks(for: monday...monday).first)
+        s.selectedTaskId = sub.id
+        s.selection = [block.id]
+        s.deleteTask(t.id)
+        #expect(s.selectedTaskId == nil)
+        #expect(s.selection.isEmpty)
+    }
+
     // MARK: mentions
 
     @Test func bodyMentionsBecomeLinksAndRenamesFollow() throws {
