@@ -10,7 +10,8 @@ struct TaskRow: View {
     let task: TaskItem
     /// The day this list stands for. Picks which time block to show.
     var contextDay: DayKey?
-    /// Show the planned date as a label (used in the overdue list).
+    /// Show where the task is planned as a label: its day (warm when late), "Week of 5 Oct" or "Someday".
+    /// Used in the overdue list and the Planner screen's list of all tasks.
     var showDate = false
     let lists: [String: ListItem]
     let isExpanded: Bool
@@ -43,13 +44,17 @@ struct TaskRow: View {
         }
         .padding(.vertical, 8).padding(.leading, 12).padding(.trailing, 8)
         .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(theme.surface2))
-        .overlay(alignment: .leading) {
-            if let color = TaskFormat.priorityColor(task.priority, theme), !task.isDone {
-                RoundedRectangle(cornerRadius: 2).fill(color).frame(width: 3).padding(.vertical, 6).padding(.leading, 3)
+        .background {
+            if let tint = TaskPalette.color(named: task.color) {
+                RoundedRectangle(cornerRadius: 10, style: .continuous).fill(tint.opacity(task.isDone ? 0.10 : 0.22))
             }
         }
-        .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous)
-            .strokeBorder(selected ? theme.accent : .clear, lineWidth: 1.5))
+        .overlay(alignment: .leading) {
+            if let tint = TaskPalette.color(named: task.color) {
+                RoundedRectangle(cornerRadius: 2).fill(tint).frame(width: 4).padding(.vertical, 8).padding(.leading, 5)
+            }
+        }
+        .overlay(outline(selected: selected))
         .overlay(alignment: .top) {
             if targeted { Capsule().fill(theme.accent).frame(height: 3).offset(y: -3) }
         }
@@ -59,6 +64,18 @@ struct TaskRow: View {
         .dropDestination(for: String.self) { items, _ in onDrop?(items) ?? false } isTargeted: { targeted = $0 && onDrop != nil }
         .contextMenu { menu(subtasks) }
         .accessibilityElement(children: .contain)
+    }
+
+    /// The priority outline: green, yellow or red and thick. No priority, or a finished task, has none.
+    /// A chosen row with no outline gets a thin accent line. A chosen row with an outline glows instead.
+    @ViewBuilder private func outline(selected: Bool) -> some View {
+        let shape = RoundedRectangle(cornerRadius: 10, style: .continuous)
+        if let color = TaskFormat.priorityColor(task.priority), !task.isDone {
+            shape.strokeBorder(color, lineWidth: TaskFormat.priorityBorderWidth)
+                .shadow(color: selected ? theme.accent.opacity(0.7) : .clear, radius: 5)
+        } else {
+            shape.strokeBorder(selected ? theme.accent : .clear, lineWidth: 1.5)
+        }
     }
 
     private var motionOn: Bool { MotionRules.isOn(setting: store.motionSetting, reduceMotion: reduceMotion) }
@@ -98,7 +115,10 @@ struct TaskRow: View {
         let shown = blocks.first { $0.start.day == contextDay } ?? blocks.first
         let now = store.nowMinute()
         return FlowLayout(spacing: 4) {
-            if showDate, let d = task.planDate { Chip(text: TaskFormat.dayLabel(d), symbol: "calendar", tint: theme.accent2) }
+            if showDate, let place = TaskFormat.planLabel(task) {
+                let late = task.bucket == .day && task.planDate.map { $0 < .today() } == true
+                Chip(text: place, symbol: task.bucket == .someday ? "moon.zzz" : "calendar", tint: late ? theme.accent2 : nil)
+            }
             if let shown {
                 let more = blocks.count - 1
                 Chip(text: PlannerMath.clock(shown.start.minute) + "–" + PlannerMath.clock(shown.end.minute) + (more > 0 ? " +\(more)" : ""),

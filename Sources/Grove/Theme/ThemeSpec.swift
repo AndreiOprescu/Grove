@@ -23,7 +23,7 @@ struct Tone: Equatable {
         self.light = light; self.dark = dark; self.lightAlpha = lightAlpha; self.darkAlpha = darkAlpha
     }
 
-    /// One colour for both modes (the themes that do not change with light and dark).
+    /// One colour for both modes.
     static func fixed(_ hex: UInt32, alpha: Double = 1) -> Tone {
         Tone(hex, hex, lightAlpha: alpha, darkAlpha: alpha)
     }
@@ -32,27 +32,39 @@ struct Tone: Equatable {
     func alpha(dark isDark: Bool) -> Double { isDark ? darkAlpha : lightAlpha }
 }
 
-/// Which look the window is forced into. Grove and Minimal follow the Mac; the other two have one look.
-enum SchemeLock: Equatable { case system, light, dark }
+/// Light or dark, chosen apart from the theme. System follows the Mac. Saved as `appearance.mode`.
+enum AppearanceMode: String, CaseIterable, Identifiable {
+    case system, light, dark
+    var id: String { rawValue }
 
-/// The numbers of one theme (PLAN §6.1). Plain data, so the tests can check it without any view.
-struct ThemeSpec {
-    var id: ThemeID
-    var name: String
-    var scheme: SchemeLock
-    var bg, surface, surface2, ink, muted, accent, accent2, accent3, line: Tone
-    var blobs: [Tone]
-    var radius: CGFloat
-    /// How strong the three ambient circles are.
-    var blobOpacity: Double
+    var name: String {
+        switch self {
+        case .system: "System"
+        case .light: "Light"
+        case .dark: "Dark"
+        }
+    }
 
+    /// The look the windows are forced into. nil follows the Mac.
     var colorScheme: ColorScheme? {
-        switch scheme {
+        switch self {
         case .system: nil
         case .light: .light
         case .dark: .dark
         }
     }
+}
+
+/// The numbers of one theme (PLAN §6.1). Plain data, so the tests can check it without any view.
+/// Every theme has a light and a dark form; `AppearanceMode` picks one.
+struct ThemeSpec {
+    var id: ThemeID
+    var name: String
+    var bg, surface, surface2, ink, muted, accent, accent2, accent3, line: Tone
+    var blobs: [Tone]
+    var radius: CGFloat
+    /// How strong the three ambient circles are.
+    var blobOpacity: Double
 
     var allTones: [Tone] { [bg, surface, surface2, ink, muted, accent, accent2, accent3, line] + blobs }
 
@@ -61,7 +73,7 @@ struct ThemeSpec {
     static let all: [ThemeSpec] = [grove, minimal, futuristic, vintage]
 
     static let grove = ThemeSpec(
-        id: .grove, name: "Grove", scheme: .system,
+        id: .grove, name: "Grove",
         bg: Tone(0xF3EEE3, 0x171C16), surface: Tone(0xFBF8F1, 0x1F261D), surface2: Tone(0xECE5D4, 0x2A3327),
         ink: Tone(0x2F3A2C, 0xE6E9DF), muted: Tone(0x7D8574, 0x8E9886), accent: Tone(0x5E7F4F, 0x8DB57A),
         accent2: Tone(0xC77B4E, 0xE09A6E), accent3: Tone(0xD9B44A, 0xE3C567), line: Tone(0xDDD3BF, 0x333D30),
@@ -69,7 +81,7 @@ struct ThemeSpec {
         radius: 16, blobOpacity: 0.55)
 
     static let minimal = ThemeSpec(
-        id: .minimal, name: "Minimal", scheme: .system,
+        id: .minimal, name: "Minimal",
         bg: Tone(0xF7F7F5, 0x121212), surface: Tone(0xFFFFFF, 0x1B1B1B), surface2: Tone(0xF0F0ED, 0x262626),
         ink: Tone(0x1B1B1A, 0xEDEDEA), muted: Tone(0x8C8C88, 0x8A8A86), accent: Tone(0x1B1B1A, 0xEDEDEA),
         accent2: Tone(0x7C9A7E, 0x93B596), accent3: Tone(0xB9B9B4, 0x6B6B67), line: Tone(0xE6E6E2, 0x2C2C2C),
@@ -77,19 +89,21 @@ struct ThemeSpec {
         radius: 10, blobOpacity: 0.35)
 
     static let futuristic = ThemeSpec(
-        id: .futuristic, name: "Futuristic", scheme: .dark,
-        bg: .fixed(0x070B16), surface: .fixed(0x161E3A, alpha: 0.55), surface2: .fixed(0x3C508C, alpha: 0.22),
-        ink: .fixed(0xE4F0FF), muted: .fixed(0x7F8DB4), accent: .fixed(0x46F0D2),
-        accent2: .fixed(0xA27BFF), accent3: .fixed(0xFF6FB5), line: .fixed(0x78A0FF, alpha: 0.20),
-        blobs: [.fixed(0x1FD1B5), .fixed(0x7B4DFF), .fixed(0xFF4FA3)],
+        id: .futuristic, name: "Futuristic",
+        bg: Tone(0xEEF3FB, 0x070B16), surface: Tone(0xFFFFFF, 0x161E3A, lightAlpha: 0.6, darkAlpha: 0.55),
+        surface2: Tone(0x3C508C, 0x3C508C, lightAlpha: 0.10, darkAlpha: 0.22),
+        ink: Tone(0x0B1530, 0xE4F0FF), muted: Tone(0x56628A, 0x7F8DB4), accent: Tone(0x0B8F7A, 0x46F0D2),
+        accent2: Tone(0x6A3FE0, 0xA27BFF), accent3: Tone(0xD43C86, 0xFF6FB5),
+        line: Tone(0x3C64C8, 0x78A0FF, lightAlpha: 0.22, darkAlpha: 0.20),
+        blobs: [Tone(0x7FE8D6, 0x1FD1B5), Tone(0xB9A2FF, 0x7B4DFF), Tone(0xFFA3CE, 0xFF4FA3)],
         radius: 14, blobOpacity: 0.35)
 
     static let vintage = ThemeSpec(
-        id: .vintage, name: "Vintage", scheme: .light,
-        bg: .fixed(0xE6D8BA), surface: .fixed(0xF3E9D2), surface2: .fixed(0xE7D8B6),
-        ink: .fixed(0x3A2A1B), muted: .fixed(0x87705A), accent: .fixed(0x8C3B2E),
-        accent2: .fixed(0x3F5B4A), accent3: .fixed(0xB8862B), line: .fixed(0xC8B38D),
-        blobs: [.fixed(0xF0D9A8), .fixed(0xE2B98A), .fixed(0xF5E6C0)],
+        id: .vintage, name: "Vintage",
+        bg: Tone(0xE6D8BA, 0x221A12), surface: Tone(0xF3E9D2, 0x2E2318), surface2: Tone(0xE7D8B6, 0x3A2C1F),
+        ink: Tone(0x3A2A1B, 0xEFE3C8), muted: Tone(0x87705A, 0xA8957A), accent: Tone(0x8C3B2E, 0xD9735E),
+        accent2: Tone(0x3F5B4A, 0x8BAF97), accent3: Tone(0xB8862B, 0xD9AA4E), line: Tone(0xC8B38D, 0x4E3E2B),
+        blobs: [Tone(0xF0D9A8, 0x5A4325), Tone(0xE2B98A, 0x6B4630), Tone(0xF5E6C0, 0x4D3F28)],
         radius: 3, blobOpacity: 0.55)
 }
 

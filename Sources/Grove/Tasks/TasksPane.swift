@@ -1,63 +1,53 @@
 import SwiftUI
 import GroveCore
 
-enum TasksTab: String, CaseIterable, Identifiable {
-    case day, week, inbox, someday
-    var id: String { rawValue }
-}
-
-/// The task list next to the planner. Tabs: the chosen day, the week, the inbox, someday.
+/// A task list for the left side of the Today and Planner screens.
+/// `.today` is the list of today. `.unscheduled` is the list that feeds the planner: the tasks that are late and the ones with no day.
 struct TasksPane: View {
-    /// In the Day Spread the pane is a column that takes the width it is given.
-    /// The greeting and the plant are in the page header there, so the pane shows a progress bar instead.
-    var spread = false
+    enum Mode { case today, unscheduled }
+
+    let mode: Mode
     @Environment(AppStore.self) private var store
     @Environment(\.theme) private var theme
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @AppStorage("shell.tasksOpen") private var open = true
-    @AppStorage("tasks.tab") private var tabRaw = TasksTab.day.rawValue
     @State private var expanded: Set<String> = []
     @State private var showDone = false
 
-    private var tab: TasksTab { TasksTab(rawValue: tabRaw) ?? .day }
-
     var body: some View {
         let _ = store.revision
-        let today = store.plantProgress(on: .today())
         let lists = Dictionary(uniqueKeysWithValues: ((try? store.repos.lists.all(includeArchived: true)) ?? []).map { ($0.id, $0) })
+        let waiting = mode == .unscheduled ? store.unscheduledTasks() : nil
         VStack(alignment: .leading, spacing: 10) {
-            if spread {
-                spreadHeader(store.plantProgress(on: store.selectedDay))
-            } else {
-                HStack(alignment: .center, spacing: 8) {
-                    VStack(alignment: .leading, spacing: 1) {
-                        Text("Tasks").themedHeading(theme, 20, weight: .semibold).foregroundStyle(theme.ink)
-                        Text("\(Greeting.now()) · \(today.growthText)")
-                            .font(theme.body(11)).foregroundStyle(theme.muted).lineLimit(1)
-                    }
-                    Spacer()
-                    GrowingPlant(progress: today, height: 38)
-                    Button { open = false } label: { Image(systemName: "sidebar.left") }
-                        .buttonStyle(.plain).foregroundStyle(theme.muted).help("Hide the task list")
-                }
+            switch mode {
+            case .today:
+                todayHeader(store.plantProgress(on: .today()))
+                QuickAddField(placement: .day(.today()), placementLabel: TaskFormat.dayLabel(.today()))
+            case .unscheduled:
+                unscheduledHeader(count: (waiting?.overdue.count ?? 0) + (waiting?.unscheduled.count ?? 0))
+                QuickAddField(placement: .inbox, placementLabel: "Unscheduled")
             }
-            QuickAddField(placement: defaultPlacement, placementLabel: defaultLabel)
-            tabBar
             ScrollView {
-                VStack(alignment: .leading, spacing: 14) { content(lists) }
-                    .padding(.bottom, 8)
+                VStack(alignment: .leading, spacing: 14) {
+                    switch mode {
+                    case .today:
+                        if store.welcomeVisible { WelcomeCard() }
+                        let yesterday = store.rollOverItems()
+                        if !yesterday.isEmpty { RollOverCard(items: yesterday) }
+                        todayContent(lists)
+                    case .unscheduled:
+                        if let waiting { unscheduledContent(waiting, lists) }
+                    }
+                }
+                .padding(.bottom, 8)
             }
             .scrollIndicators(.hidden)
-            NotesTray()
         }
         .padding(12)
-        .frame(width: spread ? nil : 320)
-        .frame(maxWidth: spread ? .infinity : nil, maxHeight: .infinity, alignment: .topLeading)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .panel()
     }
 
-    /// "Tasks", how many of the chosen day are done, and a bar for it.
-    private func spreadHeader(_ progress: PlantProgress) -> some View {
+    /// "Tasks", how many of today are done, and a bar for it.
+    private func todayHeader(_ progress: PlantProgress) -> some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack(alignment: .firstTextBaseline) {
                 Text("Tasks").themedHeading(theme, 20, weight: .semibold).foregroundStyle(theme.ink)
@@ -69,113 +59,48 @@ struct TasksPane: View {
         }
     }
 
-    // MARK: Defaults for quick add
-
-    private var defaultPlacement: TaskPlacement {
-        switch tab {
-        case .day: .day(store.selectedDay)
-        case .week: .week(store.selectedDay.weekStart())
-        case .inbox: .inbox
-        case .someday: .someday
-        }
-    }
-
-    private var defaultLabel: String {
-        switch tab {
-        case .day: TaskFormat.dayLabel(store.selectedDay)
-        case .week: "This week"
-        case .inbox: "Inbox"
-        case .someday: "Someday"
-        }
-    }
-
-    // MARK: Tabs
-
-    private var tabBar: some View {
-        HStack(spacing: 4) {
-            ForEach(TasksTab.allCases) { t in
-                let count = self.count(t)
-                Button { tabRaw = t.rawValue } label: {
-                    VStack(spacing: 3) {
-                        HStack(spacing: 3) {
-                            Text(title(t)).lineLimit(1)
-                            if count > 0 { Text("\(count)").font(.system(size: 9, weight: .bold)).foregroundStyle(theme.muted) }
-                        }
-                        .font(.system(size: 12, weight: t == tab ? .bold : .medium, design: .rounded))
-                        .foregroundStyle(t == tab ? theme.ink : theme.muted)
-                        Capsule().fill(t == tab ? theme.accent : .clear).frame(height: 2)
-                    }
-                    .frame(maxWidth: .infinity)
-                    .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-            }
-        }
-    }
-
-    private func title(_ t: TasksTab) -> String {
-        switch t {
-        case .day: TaskFormat.dayLabel(store.selectedDay)
-        case .week: "Week"
-        case .inbox: "Inbox"
-        case .someday: "Someday"
-        }
-    }
-
-    private func count(_ t: TasksTab) -> Int {
-        switch t {
-        case .day: return store.openTasks(in: .day(store.selectedDay)).count
-        case .week:
-            let monday = store.selectedDay.weekStart()
-            let days = (try? store.repos.tasks.inRange(monday, monday.adding(days: 6))) ?? []
-            return days.filter { $0.status == .open }.count + store.openTasks(in: .week(monday)).count
-        case .inbox: return store.openTasks(in: .inbox).count
-        case .someday: return store.openTasks(in: .someday).count
+    private func unscheduledHeader(count: Int) -> some View {
+        HStack(alignment: .firstTextBaseline) {
+            Text("Tasks").themedHeading(theme, 20, weight: .semibold).foregroundStyle(theme.ink)
+            Spacer()
+            Text(count == 0 ? "Nothing waiting" : "\(count) waiting")
+                .font(theme.body(11)).foregroundStyle(theme.muted)
         }
     }
 
     // MARK: Lists
 
-    @ViewBuilder private func content(_ lists: [String: ListItem]) -> some View {
-        switch tab {
-        case .day:
-            let day = store.selectedDay
-            let overdue = day == .today() ? ((try? store.repos.tasks.overdue(before: day)) ?? []) : []
-            if !overdue.isEmpty {
-                TaskSection(title: "Overdue", tint: theme.accent2, placement: nil, tasks: overdue, showDate: true,
-                            lists: lists, expanded: $expanded)
-            }
-            TaskSection(title: TaskFormat.dayLabel(day), placement: .day(day), tasks: store.openTasks(in: .day(day)),
-                        contextDay: day, emptyText: "Nothing planned. Add a task above, or drop one here.",
-                        lists: lists, expanded: $expanded)
-            let done = ((try? store.repos.tasks.forDay(day)) ?? []).filter { $0.isDone && !store.lingering.contains($0.id) }
-            if !done.isEmpty { doneSection(done, day: day, lists: lists) }
-        case .week:
-            let monday = store.selectedDay.weekStart()
-            ForEach(0..<7, id: \.self) { i in
-                let day = monday.adding(days: i)
-                TaskSection(title: TaskFormat.dateLabel(day) + (day == .today() ? " · Today" : ""),
-                            tint: day == .today() ? theme.accent : nil,
-                            placement: .day(day), tasks: store.openTasks(in: .day(day)), contextDay: day,
-                            emptyText: "Drop a task here", emptyHeight: 24, lists: lists, expanded: $expanded)
-            }
-            TaskSection(title: "Anytime this week", placement: .week(monday), tasks: store.openTasks(in: .week(monday)),
-                        emptyText: "Tasks for the week with no day yet", emptyHeight: 24, lists: lists, expanded: $expanded)
-        case .inbox:
-            TaskSection(title: "Inbox", placement: .inbox, tasks: store.openTasks(in: .inbox),
-                        emptyText: "Inbox is empty. Tasks with no date land here.", lists: lists, expanded: $expanded)
-        case .someday:
-            TaskSection(title: "Someday", placement: .someday, tasks: store.openTasks(in: .someday),
-                        emptyText: "Ideas for later live here.", lists: lists, expanded: $expanded)
-        }
+    /// Today's open tasks, then the ones checked off today. The late ones are in the Tasks panel.
+    @ViewBuilder private func todayContent(_ lists: [String: ListItem]) -> some View {
+        let day = DayKey.today()
+        TaskSection(title: TaskFormat.dayLabel(day), placement: .day(day), tasks: store.openTasks(in: .day(day)),
+                    contextDay: day, emptyText: "Nothing planned. Add a task above, or drop one here.",
+                    lists: lists, expanded: $expanded)
+        let done = ((try? store.repos.tasks.forDay(day)) ?? []).filter { $0.isDone && !store.lingering.contains($0.id) }
+        if !done.isEmpty { doneSection(done, day: day, lists: lists) }
     }
 
-    private func doneSection(_ done: [TaskItem], day: DayKey, lists: [String: ListItem]) -> some View {
+    /// The late tasks, then the tasks with no day. The order comes from the plan, so these lists take no drops and cannot be reordered.
+    /// Rows can still be dragged to the planner. Below them: the tasks checked off today, so a slip can be undone.
+    @ViewBuilder private func unscheduledContent(_ waiting: (overdue: [TaskItem], unscheduled: [TaskItem]),
+                                                 _ lists: [String: ListItem]) -> some View {
+        if !waiting.overdue.isEmpty {
+            TaskSection(title: "Overdue", tint: theme.accent2, placement: nil, tasks: waiting.overdue, showDate: true,
+                        lists: lists, expanded: $expanded)
+        }
+        TaskSection(title: "Unscheduled", placement: nil, tasks: waiting.unscheduled, showDate: true,
+                    emptyText: "Nothing waiting. Every task has a day.", lists: lists, expanded: $expanded)
+        let done = ((try? store.repos.tasks.completed(on: .today())) ?? [])
+            .filter { $0.parentId == nil && !store.lingering.contains($0.id) }
+        if !done.isEmpty { doneSection(done, title: "Done today", day: .today(), lists: lists) }
+    }
+
+    private func doneSection(_ done: [TaskItem], title: String = "Done", day: DayKey, lists: [String: ListItem]) -> some View {
         VStack(alignment: .leading, spacing: 6) {
             Button { showDone.toggle() } label: {
                 HStack(spacing: 4) {
                     Image(systemName: showDone ? "chevron.down" : "chevron.right").font(.system(size: 9, weight: .bold))
-                    Text("Done · \(done.count)").themedHeading(theme, 12, weight: .bold)
+                    Text("\(title) · \(done.count)").themedHeading(theme, 12, weight: .bold)
                     Spacer()
                 }
                 .foregroundStyle(theme.muted)

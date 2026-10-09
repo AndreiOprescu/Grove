@@ -22,6 +22,9 @@ struct PlannerGeometry: Equatable {
 
 /// Rules for how the planner gives up space when the window is tight.
 enum PlannerLayoutRules {
+    /// The lengths, in minutes, in the "Duration" entry of a block's menu.
+    static let durationChoices = [15, 30, 45, 60, 90, 120, 180, 240]
+
     /// How many minutes after a block's start another block would cover its text rows.
     /// A block that shows a short description has one more row than one that shows a title only.
     static func tightMinutes(hourHeight: CGFloat, blockHeight: CGFloat, hasSummary: Bool) -> Int {

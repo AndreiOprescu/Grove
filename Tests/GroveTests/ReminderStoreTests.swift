@@ -9,7 +9,11 @@ final class FakeNotifier: Notifier {
     var status: NotifyAuthorization
     var answer: NotifyAuthorization
     private(set) var sent: [[Reminder]] = []
+    private(set) var asked = 0
+    private(set) var focusEnds: [FocusEnd] = []
+    private(set) var focusCancels = 0
     var onOpen: ((DayKey, ItemRef) -> Void)?
+    var onFocusDone: ((String) -> Void)?
 
     init(status: NotifyAuthorization = .allowed, answer: NotifyAuthorization = .allowed) {
         self.status = status
@@ -17,8 +21,10 @@ final class FakeNotifier: Notifier {
     }
 
     func authorization() async -> NotifyAuthorization { status }
-    func requestAuthorization() async -> NotifyAuthorization { status = answer; return answer }
+    func requestAuthorization() async -> NotifyAuthorization { asked += 1; status = answer; return answer }
     func replaceAll(_ reminders: [Reminder]) async { sent.append(reminders) }
+    func scheduleFocusEnd(_ end: FocusEnd) async { focusEnds.append(end) }
+    func cancelFocusEnd() async { focusCancels += 1 }
 }
 
 /// What the store sends to the notification centre, and when (PLAN §5.6).
@@ -248,7 +254,7 @@ struct ReminderStoreTests {
         s.screen = .notes
         #expect(fake.onOpen != nil)
         fake.onOpen?(monday, ItemRef(.task, "T1"))
-        #expect(s.screen == .today)
+        #expect(s.screen == .planner)   // that Monday is not today
         #expect(s.selectedDay == monday)
         #expect(s.selectedTaskId == "T1")
     }
@@ -259,7 +265,7 @@ struct ReminderStoreTests {
         let s = try makeStore(notifier: fake)
         s.screen = .notes
         fake.onOpen?(monday, ItemRef(.event, "gone"))
-        #expect(s.screen == .today)
+        #expect(s.screen == .planner)   // that Monday is not today
         #expect(s.selectedDay == monday)
     }
 }

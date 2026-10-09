@@ -111,6 +111,30 @@ enum Migrations {
         """
         ALTER TABLE tasks ADD COLUMN summary TEXT NOT NULL DEFAULT '';
         """,
+
+        // 4 — a colour on each task ('' means none)
+        """
+        ALTER TABLE tasks ADD COLUMN color TEXT NOT NULL DEFAULT '';
+        """,
+
+        // 5 — goals: recurring work with a target of minutes per week and no date.
+        // A block with goal_id set adds to the goal when done_at is set. The progress is worked out from the blocks, never stored.
+        """
+        CREATE TABLE goals (
+          id TEXT PRIMARY KEY, title TEXT NOT NULL, notes TEXT NOT NULL DEFAULT '', color TEXT NOT NULL DEFAULT '',
+          target_min INTEGER NOT NULL DEFAULT 300, sort REAL NOT NULL DEFAULT 0, archived INTEGER NOT NULL DEFAULT 0,
+          created_at TEXT NOT NULL, updated_at TEXT NOT NULL
+        );
+        ALTER TABLE events ADD COLUMN goal_id TEXT;
+        ALTER TABLE events ADD COLUMN done_at TEXT;
+        CREATE INDEX events_goal ON events(goal_id);
+        """,
+
+        // 6 — a goal counts hours or sessions. Old goals are hours goals.
+        """
+        ALTER TABLE goals ADD COLUMN kind TEXT NOT NULL DEFAULT 'hours';
+        ALTER TABLE goals ADD COLUMN target_count INTEGER NOT NULL DEFAULT 3;
+        """,
     ]
 
     static func run(on db: Database) throws {

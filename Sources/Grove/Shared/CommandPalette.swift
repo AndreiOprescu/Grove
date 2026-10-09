@@ -152,3 +152,27 @@ struct PaletteButton: View {
         .help("Search and commands (⌘K)")
     }
 }
+
+/// The gear next to the search pill. It opens the Settings window, the same as ⌘,.
+struct SettingsButton: View {
+    @Environment(\.theme) private var theme
+    @Environment(\.openSettings) private var openSettings
+
+    var body: some View {
+        Button {
+            openSettings()
+            NSApp.activate()
+        } label: {
+            Image(systemName: "gearshape")
+                .font(.system(size: 12, weight: .medium))
+                .foregroundStyle(theme.muted)
+                .frame(width: 26, height: 26)
+                .background(Circle().fill(theme.surface2))
+                .overlay(Circle().strokeBorder(theme.line))
+                .contentShape(Circle())
+        }
+        .buttonStyle(.plain)
+        .help("Settings (⌘,)")
+        .accessibilityLabel("Settings")
+    }
+}

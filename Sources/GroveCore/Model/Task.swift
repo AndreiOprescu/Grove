@@ -21,6 +21,8 @@ public struct TaskItem: Identifiable, Codable, Hashable, Sendable {
     public var recurrence: RecurrenceRule?
     public var sourceNoteId: String?
     public var sort: Double
+    /// One of `TaskColor.names`, or "" for no colour. Tints the task on the list and on the timeline.
+    public var color: String = ""
     public var createdAt: String
     public var updatedAt: String
     public var completedAt: String?

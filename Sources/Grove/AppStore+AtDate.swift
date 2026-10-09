@@ -51,6 +51,8 @@ extension AppStore {
         if let span, plan.durationMin != nil || existing == nil { task.estimateMin = span.end - span.start }
         change.tasks[change.tasks.count - 1].after = task
 
+        // One block only: the existing one is moved, any other is removed. A day with no time leaves no block.
+        removeBlocks(ofTask: task.id, except: span == nil ? nil : existing?.id, into: &change)
         if let span {
             if var block = existing {
                 let old = block

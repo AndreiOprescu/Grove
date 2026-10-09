@@ -1,44 +1,52 @@
 import SwiftUI
 import GroveCore
 
-enum PlannerMode: Int, CaseIterable, Identifiable {
-    case day = 1, threeDay = 3, week = 7, month = 30
-    var id: Int { rawValue }
-    var label: String {
-        switch self { case .day: "Day"; case .threeDay: "3 Days"; case .week: "Week"; case .month: "Month" }
-    }
-}
+/// What a top tab shows. Each tab has one fixed view: Today is one day, the Planner is one week, the Calendar is one month.
+enum PlannerKind: Equatable {
+    case today, week, month
 
-extension PlannerMode {
-    /// Where a screen keeps its mode. The Today screen has none: it is always one day.
-    static func storageKey(for screen: Screen) -> String? {
-        switch screen {
-        case .planner: "planner.mode"
-        case .calendar: "calendar.mode"
-        case .today, .notes: nil
+    /// The days of the view. Today is today only. The week holds `selected` and starts on Monday (Sunday with `sundayFirst`).
+    /// The month is its six-week grid.
+    func days(selected: DayKey, today: DayKey, sundayFirst: Bool) -> [DayKey] {
+        switch self {
+        case .today:
+            return [today]
+        case .week:
+            let start = CalendarRules.weekStart(of: selected, sundayFirst: sundayFirst)
+            return (0..<7).map { start.adding(days: $0) }
+        case .month:
+            return CalendarRules.monthGrid(containing: selected, sundayFirst: sundayFirst)
+        }
+    }
+
+    /// The day after a click on Previous (-1) or Next (+1): a week back or forward, or a month. Today does not move.
+    func moved(_ day: DayKey, by direction: Int) -> DayKey {
+        switch self {
+        case .today: day
+        case .week: day.adding(days: direction * 7)
+        case .month: CalendarRules.addMonths(day, direction)
         }
     }
 }
 
 /// The time grid with its header. It fills the Planner and the Calendar screens.
-/// With `column` it is the timeline of the Day Spread: one day, a small header and no week strip.
+/// With `.today` it is the timeline of the Day Spread: one day, a small header and no day headers.
 struct PlannerView: View {
     @Environment(AppStore.self) private var store
     @Environment(\.theme) private var theme
 
-    private let column: Bool
+    private let kind: PlannerKind
 
-    init(modeKey: String = "planner.mode", defaultMode: PlannerMode = .day, column: Bool = false) {
-        _modeRaw = AppStorage(wrappedValue: defaultMode.rawValue, modeKey)
-        self.column = column
+    init(kind: PlannerKind) {
+        self.kind = kind
     }
 
-    @AppStorage private var modeRaw: Int
     @AppStorage("planner.hourHeight") private var hourHeight = 64.0
     @AppStorage("planner.workStart") private var workStart = 9 * 60
     @AppStorage("planner.workEnd") private var workEnd = 18 * 60
-    @AppStorage("shell.tasksOpen") private var tasksOpen = true
     @AppStorage("calendar.moodTint") private var moodTint = false
+    /// Read so the workload bar redraws when the limit changes in Settings.
+    @AppStorage("planner.dailyLimitMin") private var dailyLimit = SettingsRules.defaultDailyLimit
     @AppStorage("calendar.weekStartsSunday") private var sundayFirst = false
 
     @State private var geo = PlannerGeometry()
@@ -46,29 +54,20 @@ struct PlannerView: View {
     @State private var scrollRequest = 0
     @State private var plan: [(task: TaskItem, start: Int)]?
 
-    private var mode: PlannerMode { column ? .day : PlannerMode(rawValue: modeRaw) ?? .day }
-
-    private var days: [DayKey] {
-        switch mode {
-        case .day: [store.selectedDay]
-        case .threeDay: (0..<3).map { store.selectedDay.adding(days: $0) }
-        case .week, .month: (0..<7).map { CalendarRules.weekStart(of: store.selectedDay, sundayFirst: sundayFirst).adding(days: $0) }   // month draws its own grid
-        }
-    }
+    private var days: [DayKey] { kind.days(selected: store.selectedDay, today: .today(), sundayFirst: sundayFirst) }
 
     var body: some View {
         let _ = store.revision   // re-run this view after every saved change
         VStack(spacing: 10) {
-            if column { columnHeader } else { header }
-            if !column, mode == .day || mode == .threeDay { WeekStrip(shown: Set(days)) }
-            if mode == .month {
-                MonthView { _ in modeRaw = PlannerMode.day.rawValue }
+            if kind == .today { columnHeader } else { header }
+            if kind == .month {
+                MonthView { day in store.selectedDay = day; store.screen = .planner }   // opens the Planner on that week
                     .panel()
                     .clipShape(RoundedRectangle(cornerRadius: theme.radius, style: .continuous))
             } else {
                 allDayStrip
                 VStack(spacing: 0) {
-                    if days.count > 1 { dayHeaders }
+                    if kind == .week { dayHeaders }
                     StickyStrip(days: days, gutterWidth: geo.gutterWidth, isDropTarget: dropToStrip,
                                 workStart: workStart, workEnd: workEnd)
                     PlannerGrid(days: days, geo: $geo, dropToStrip: $dropToStrip, scrollRequest: scrollRequest,
@@ -78,8 +77,8 @@ struct PlannerView: View {
                 .clipShape(RoundedRectangle(cornerRadius: theme.radius, style: .continuous))
             }
         }
-        .padding(.horizontal, column ? 0 : 16).padding(.bottom, column ? 0 : 16)
-        .padding(.top, column ? 0 : 34)   // the window buttons sit in this space (title bar is hidden)
+        .padding(.horizontal, kind == .today ? 0 : 16).padding(.bottom, kind == .today ? 0 : 16)
+        .padding(.top, kind == .today ? 0 : 34)   // the window buttons sit in this space (title bar is hidden)
         .onAppear { geo.hourHeight = CGFloat(hourHeight); takePlanRequest() }
         .onChange(of: store.planMyDayRequest) { takePlanRequest() }
         .onChange(of: store.todayRequest) { scrollRequest += 1 }
@@ -97,36 +96,30 @@ struct PlannerView: View {
     private var header: some View {
         let blocks = store.blocks(for: store.selectedDay...store.selectedDay)
         let totals = store.dayTotals(store.selectedDay, blocks: blocks, workStart: workStart, workEnd: workEnd)
-        let over = totals.planned > store.dailyLimitMinutes
-        let stats = mode == .month ? monthStats
-            : "\(over ? "⚠︎ " : "")\(PlannerMath.duration(totals.planned)) planned · \(PlannerMath.duration(totals.free)) free · \(totals.done)/\(totals.total) done"
         return ViewThatFits(in: .horizontal) {
             HStack(spacing: 10) {
                 navButtons
                 VStack(alignment: .leading, spacing: 0) {
                     titleText
-                    statsText(stats, over: over)
+                    statsView(totals, width: 220)
                 }
                 Spacer(minLength: 0)
                 planButton(compact: false)
-                modePicker(width: 250)
                 zoomButtons
             }
             VStack(alignment: .leading, spacing: 6) {
                 HStack(spacing: 10) { navButtons; titleText; Spacer(minLength: 0) }
                 HStack(spacing: 10) {
-                    statsText(stats, over: over)
+                    statsView(totals, width: 220)
                     Spacer(minLength: 0)
                     planButton(compact: false)
-                    modePicker(width: 230)
                     zoomButtons
                 }
             }
             VStack(alignment: .leading, spacing: 6) {
                 HStack(spacing: 10) { navButtons; titleText; Spacer(minLength: 0) }
-                statsText(stats, over: over)
+                statsView(totals, width: 220)
                 HStack(spacing: 10) {
-                    modePicker(width: 230)
                     Spacer(minLength: 0)
                     planButton(compact: true)
                     zoomButtons
@@ -141,8 +134,7 @@ struct PlannerView: View {
     private var columnHeader: some View {
         let blocks = store.blocks(for: store.selectedDay...store.selectedDay)
         let totals = store.dayTotals(store.selectedDay, blocks: blocks, workStart: workStart, workEnd: workEnd)
-        let over = totals.planned > store.dailyLimitMinutes
-        return VStack(alignment: .leading, spacing: 2) {
+        return VStack(alignment: .leading, spacing: 4) {
             HStack(spacing: 8) {
                 Text("Timeline").themedHeading(theme, 20, weight: .semibold).foregroundStyle(theme.ink)
                 Spacer(minLength: 0)
@@ -150,20 +142,30 @@ struct PlannerView: View {
                 zoomButtons
             }
             .buttonStyle(.bordered).controlSize(.small)
-            statsText("\(over ? "⚠︎ " : "")\(PlannerMath.duration(totals.planned)) planned · \(PlannerMath.duration(totals.free)) free · \(totals.done)/\(totals.total) done", over: over)
+            statsView(totals, width: nil)
+        }
+    }
+
+    /// Under the title: the workload bar for a day, the numbers of the month for the month.
+    /// The tooltip keeps the old numbers: free time and tasks done.
+    @ViewBuilder private func statsView(_ totals: (planned: Int, free: Int, done: Int, total: Int), width: CGFloat?) -> some View {
+        if kind == .month {
+            statsText(monthStats, over: false)
+        } else {
+            let _ = dailyLimit
+            WorkloadBar(planned: totals.planned, limit: store.dailyLimitMinutes,
+                        detail: "\(PlannerMath.duration(totals.planned)) planned · \(PlannerMath.duration(totals.free)) free in working hours · \(totals.done)/\(totals.total) done")
+                .frame(width: width)
         }
     }
 
     @ViewBuilder private var navButtons: some View {
-        if !tasksOpen {
-            Button { tasksOpen = true } label: { Image(systemName: "checklist") }
-                .help("Show the task list")
-        }
-        Button { move(-1) } label: { Image(systemName: "chevron.left") }.help("Previous")
+        Button { move(-1) } label: { Image(systemName: "chevron.left") }.help("Previous").accessibilityLabel("Previous")
         Button("Today") { store.selectedDay = .today(); scrollRequest += 1 }
             .fixedSize()
-        Button { move(1) } label: { Image(systemName: "chevron.right") }.help("Next")
+        Button { move(1) } label: { Image(systemName: "chevron.right") }.help("Next").accessibilityLabel("Next")
         Button { store.openDailyNote(store.selectedDay) } label: { Image(systemName: "note.text") }
+            .accessibilityLabel("Note for the day")
             .help(store.selectedDay == .today() ? "Today's note" : "Note for \(store.selectedDay.date.formatted(.dateTime.weekday(.wide).day().month(.abbreviated)))")
     }
 
@@ -184,12 +186,13 @@ struct PlannerView: View {
     }
 
     @ViewBuilder private func planButton(compact: Bool) -> some View {
-        if mode == .month {
+        if kind == .month {
             Toggle(isOn: $moodTint) { Image(systemName: "face.smiling") }
                 .toggleStyle(.button)
-                .help("Tint each day by the mood of its note")
+                .help("Tint each day by the mood of its note").accessibilityLabel("Tint days by mood")
         } else if compact {
             Button { showPlan() } label: { Image(systemName: "wand.and.stars") }
+                .accessibilityLabel("Plan my day")
                 .help("Plan my day: fit today's unscheduled tasks into free working hours")
         } else {
             Button("Plan my day") { showPlan() }
@@ -198,25 +201,18 @@ struct PlannerView: View {
         }
     }
 
-    private func modePicker(width: CGFloat) -> some View {
-        Picker("View", selection: $modeRaw) {
-            ForEach(PlannerMode.allCases) { Text($0.label).tag($0.rawValue) }
-        }
-        .pickerStyle(.segmented).frame(width: width).labelsHidden()
-    }
-
     @ViewBuilder private var zoomButtons: some View {
-        if mode != .month {
+        if kind != .month {
             Button { zoom(1 / 1.2) } label: { Image(systemName: "minus.magnifyingglass") }.help("Zoom out")
             Button { zoom(1.2) } label: { Image(systemName: "plus.magnifyingglass") }.help("Zoom in")
         }
     }
 
     private var title: String {
-        switch mode {
-        case .day: return store.selectedDay.date.formatted(.dateTime.weekday(.wide).day().month(.wide))
+        switch kind {
+        case .today: return store.selectedDay.date.formatted(.dateTime.weekday(.wide).day().month(.wide))
         case .month: return store.selectedDay.date.formatted(.dateTime.month(.wide).year())
-        default:
+        case .week:
             let d = days
             return "\(d.first!.date.formatted(.dateTime.day().month(.abbreviated))) – \(d.last!.date.formatted(.dateTime.day().month(.abbreviated).year()))"
         }
@@ -232,8 +228,7 @@ struct PlannerView: View {
     }
 
     private func move(_ direction: Int) {
-        if mode == .month { store.selectedDay = CalendarRules.addMonths(store.selectedDay, direction); return }
-        store.selectedDay = store.selectedDay.adding(days: direction * (mode == .week ? 7 : mode.rawValue))
+        store.selectedDay = kind.moved(store.selectedDay, by: direction)
     }
 
     private func zoom(_ factor: CGFloat) {
@@ -252,7 +247,7 @@ struct PlannerView: View {
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 6)
                 .contentShape(Rectangle())
-                .onTapGesture { store.selectedDay = day; modeRaw = PlannerMode.day.rawValue }
+                .onTapGesture { store.selectedDay = day }
             }
         }
         .fixedSize(horizontal: false, vertical: true)   // the row is only as tall as its labels

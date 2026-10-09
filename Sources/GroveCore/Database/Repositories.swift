@@ -17,7 +17,7 @@ public final class TaskRepo {
 
     private static let cols = ["id", "title", "notes", "list_id", "parent_id", "priority", "status", "bucket",
                                "plan_date", "plan_week", "due", "estimate_min", "recurrence", "source_note_id",
-                               "sort", "created_at", "updated_at", "completed_at", "summary"]
+                               "sort", "created_at", "updated_at", "completed_at", "summary", "color"]
     private static let select = "SELECT \(cols.joined(separator: ",")) FROM tasks"
     private static let upsert = upsertSQL("tasks", cols)
 
@@ -40,6 +40,7 @@ public final class TaskRepo {
         t.updatedAt = r.text(16)
         t.completedAt = r.optText(17)
         t.summary = r.text(18)
+        t.color = r.text(19)
         return t
     }
 
@@ -53,10 +54,15 @@ public final class TaskRepo {
                 .int(t.priority), .text(t.status.rawValue), .text(t.bucket.rawValue),
                 SQLValue(t.planDate?.string), SQLValue(t.planWeek?.string), SQLValue(t.due),
                 .int(t.estimateMin), SQLValue(t.recurrence?.json()), SQLValue(t.sourceNoteId),
-                .real(t.sort), .text(t.createdAt), .text(t.updatedAt), SQLValue(t.completedAt), .text(t.summary),
+                .real(t.sort), .text(t.createdAt), .text(t.updatedAt), SQLValue(t.completedAt), .text(t.summary), .text(t.color),
             ])
             try search.upsert(.task, id: t.id, title: t.title, body: Self.searchBody(t))
         }
+    }
+
+    /// How many tasks are finished. The garden plant grows with this number.
+    public func doneCount() throws -> Int {
+        try db.queryOne("SELECT COUNT(*) FROM tasks WHERE status = 'done'", map: { $0.int(0) }) ?? 0
     }
 
     public func get(_ id: String) throws -> TaskItem? {
@@ -105,6 +111,11 @@ public final class TaskRepo {
 
     public func someday() throws -> [TaskItem] {
         try db.query(Self.select + " WHERE bucket = 'someday' AND parent_id IS NULL AND status = 'open' ORDER BY sort, created_at, rowid", map: Self.map)
+    }
+
+    /// Every open top-level task, whatever its bucket. The Planner screen's task list.
+    public func openTopLevel() throws -> [TaskItem] {
+        try db.query(Self.select + " WHERE status = 'open' AND parent_id IS NULL ORDER BY sort, created_at, rowid", map: Self.map)
     }
 
     /// Open tasks planned for a day before `day`.
@@ -169,7 +180,8 @@ public final class EventRepo {
     public init(db: Database, search: SearchIndex) { self.db = db; self.search = search }
 
     private static let cols = ["id", "title", "start", "end", "all_day", "kind", "task_id", "color", "location",
-                               "notes", "recurrence", "series_id", "original_date", "created_at", "updated_at"]
+                               "notes", "recurrence", "series_id", "original_date", "created_at", "updated_at",
+                               "goal_id", "done_at"]
     private static let select = "SELECT \(cols.joined(separator: ",")) FROM events"
     private static let upsert = upsertSQL("events", cols)
 
@@ -188,6 +200,8 @@ public final class EventRepo {
         e.originalDate = r.optText(12).map { DayKey($0) }
         e.createdAt = r.text(13)
         e.updatedAt = r.text(14)
+        e.goalId = r.optText(15)
+        e.doneAt = r.optText(16)
         return e
     }
 
@@ -200,6 +214,7 @@ public final class EventRepo {
                 .int(e.allDay ? 1 : 0), .text(e.kind.rawValue), SQLValue(e.taskId), .text(e.color),
                 .text(e.location), .text(e.notes), SQLValue(e.recurrence?.json()), SQLValue(e.seriesId),
                 SQLValue(e.originalDate?.string), .text(e.createdAt), .text(e.updatedAt),
+                SQLValue(e.goalId), SQLValue(e.doneAt),
             ])
             if e.kind == .event {
                 try search.upsert(.event, id: e.id, title: e.title, body: Self.searchBody(e))
@@ -214,6 +229,11 @@ public final class EventRepo {
     /// Time blocks that belong to a task, earliest first.
     public func blocks(forTask taskId: String) throws -> [EventItem] {
         try db.query(Self.select + " WHERE task_id = ? ORDER BY start", [.text(taskId)], map: Self.map)
+    }
+
+    /// Time blocks that belong to a goal, earliest first.
+    public func blocks(forGoal goalId: String) throws -> [EventItem] {
+        try db.query(Self.select + " WHERE goal_id = ? ORDER BY start", [.text(goalId)], map: Self.map)
     }
 
     /// Case-insensitive exact title match, most recently edited first.
@@ -263,6 +283,80 @@ public final class EventRepo {
 
     public func all() throws -> [EventItem] {
         try db.query(Self.select + " ORDER BY start", map: Self.map)
+    }
+}
+
+// MARK: - Goals
+
+public final class GoalRepo {
+    let db: Database
+    public init(db: Database) { self.db = db }
+
+    private static let cols = ["id", "title", "notes", "color", "target_min", "sort", "archived", "created_at", "updated_at",
+                               "kind", "target_count"]
+    private static let select = "SELECT \(cols.joined(separator: ",")) FROM goals"
+    private static let upsertQuery = upsertSQL("goals", cols)
+
+    private static func map(_ r: Row) -> GoalItem {
+        var g = GoalItem(id: r.text(0), title: r.text(1))
+        g.notes = r.text(2)
+        g.color = r.text(3)
+        g.targetMin = r.int(4)
+        g.sort = r.double(5)
+        g.archived = r.bool(6)
+        g.createdAt = r.text(7)
+        g.updatedAt = r.text(8)
+        g.kind = GoalKind(rawValue: r.text(9)) ?? .hours
+        g.targetCount = r.int(10)
+        return g
+    }
+
+    /// Insert or update. Refreshes `updatedAt`.
+    public func upsert(_ goal: GoalItem) throws {
+        var g = goal
+        g.updatedAt = Stamp.now()
+        try db.execute(Self.upsertQuery, [
+            .text(g.id), .text(g.title), .text(g.notes), .text(g.color), .int(g.targetMin), .real(g.sort),
+            .int(g.archived ? 1 : 0), .text(g.createdAt), .text(g.updatedAt), .text(g.kind.rawValue), .int(g.targetCount),
+        ])
+    }
+
+    public func get(_ id: String) throws -> GoalItem? {
+        try db.queryOne(Self.select + " WHERE id = ?", [.text(id)], map: Self.map)
+    }
+
+    public func all(includeArchived: Bool = false) throws -> [GoalItem] {
+        try db.query(Self.select + (includeArchived ? "" : " WHERE archived = 0") + " ORDER BY sort, created_at, rowid", map: Self.map)
+    }
+
+    /// Deletes the goal. Its blocks stay as plain blocks: they lose the goal (and any old done time).
+    public func delete(_ id: String) throws {
+        try db.transaction {
+            try db.execute("UPDATE events SET goal_id = NULL, done_at = NULL WHERE goal_id = ?", [.text(id)])
+            try db.execute("DELETE FROM goals WHERE id = ?", [.text(id)])
+        }
+    }
+
+    /// The minutes of the goal's blocks that start on a day of the closed range.
+    /// `doneOnly` counts only the blocks that are ticked done.
+    public func minutes(goalId: String, from: DayKey, to: DayKey, doneOnly: Bool = false) throws -> Int {
+        try blockTimes(goalId: goalId, from: from, to: to, doneOnly: doneOnly).reduce(0) { sum, row in
+            guard let start = WallTime(row.0), let end = WallTime(row.1) else { return sum }
+            return sum + EventItem(title: "", start: start, end: end).durationMinutes
+        }
+    }
+
+    /// How many of the goal's blocks start on a day of the closed range, whatever their length.
+    /// `doneOnly` counts only the blocks that are ticked done.
+    public func sessions(goalId: String, from: DayKey, to: DayKey, doneOnly: Bool = false) throws -> Int {
+        try blockTimes(goalId: goalId, from: from, to: to, doneOnly: doneOnly).count
+    }
+
+    private func blockTimes(goalId: String, from: DayKey, to: DayKey, doneOnly: Bool) throws -> [(String, String)] {
+        try db.query(
+            "SELECT start, end FROM events WHERE goal_id = ? AND start >= ? AND start < ?"
+                + (doneOnly ? " AND done_at IS NOT NULL" : ""),
+            [.text(goalId), .text(from.string + "T00:00"), .text(to.adding(days: 1).string + "T00:00")]) { ($0.text(0), $0.text(1)) }
     }
 }
 
@@ -497,6 +591,7 @@ public final class Repos {
     public let tasks: TaskRepo
     public let events: EventRepo
     public let notes: NoteRepo
+    public let goals: GoalRepo
     public let lists: ListRepo
     public let tags: TagRepo
     public let links: LinkRepo
@@ -511,6 +606,7 @@ public final class Repos {
         self.tasks = TaskRepo(db: db, search: s)
         self.events = EventRepo(db: db, search: s)
         self.notes = NoteRepo(db: db, search: s)
+        self.goals = GoalRepo(db: db)
         self.lists = ListRepo(db: db)
         self.tags = TagRepo(db: db)
         self.links = LinkRepo(db: db)

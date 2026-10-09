@@ -17,8 +17,8 @@ struct GroveApp: App {
             RootView()
                 .environment(store)
                 .environment(\.theme, store.theme)
-                .preferredColorScheme(store.colorScheme)
                 .frame(minWidth: 1100, minHeight: 620)
+                .onAppear { store.applyAppearance() }
         }
         .windowStyle(.hiddenTitleBar)
         .defaultSize(width: 1280, height: 800)
@@ -38,17 +38,14 @@ struct GroveApp: App {
                     .keyboardShortcut("1", modifiers: .command)
                 Button("Tasks") { store.showTasks() }
                     .keyboardShortcut("2", modifiers: .command)
+                Button("Notes Panel") { store.showLeftPane(.notes) }
+                Button("Goals Panel") { store.showLeftPane(.goals) }
                 Button("Calendar") { store.screen = .calendar }
                     .keyboardShortcut("3", modifiers: .command)
                 Button("Notes") { store.screen = .notes }
                     .keyboardShortcut("4", modifiers: .command)
-                Divider()
-                Button("Day") { store.showMode(.day) }
-                    .keyboardShortcut("1", modifiers: [.command, .option])
-                Button("3 Days") { store.showMode(.threeDay) }
-                    .keyboardShortcut("2", modifiers: [.command, .option])
-                Button("Week") { store.showMode(.week) }
-                    .keyboardShortcut("3", modifiers: [.command, .option])
+                Button("Garden") { store.screen = .garden }
+                    .keyboardShortcut("5", modifiers: .command)
                 Divider()
                 Button("Zoom In") { store.zoomPlanner(by: 1.2) }
                     .keyboardShortcut("=", modifiers: .command)
@@ -60,6 +57,12 @@ struct GroveApp: App {
                 Menu("Theme") {
                     Picker("Theme", selection: Binding(get: { store.themeID }, set: { store.setTheme($0) })) {
                         ForEach(ThemeID.allCases) { Text(ThemeSpec.spec($0).name).tag($0) }
+                    }
+                    .pickerStyle(.inline)
+                }
+                Menu("Appearance") {
+                    Picker("Appearance", selection: Binding(get: { store.appearance }, set: { store.setAppearance($0) })) {
+                        ForEach(AppearanceMode.allCases) { Text($0.name).tag($0) }
                     }
                     .pickerStyle(.inline)
                 }
@@ -83,17 +86,16 @@ struct GroveApp: App {
             MenuBarContent()
                 .environment(store)
                 .environment(\.theme, store.theme)
-                .preferredColorScheme(store.colorScheme)
         } label: {
             Image(systemName: "leaf")
         }
         .menuBarExtraStyle(.window)
-        // ⌘, opens it. It shares the store, so a new theme shows in the main window at once.
+        // ⌘, or the gear at the top right opens it. It shares the store, so a new theme shows in the main window at once.
+        // Light or dark is set on the whole app (`applyAppearance`), so no `.preferredColorScheme` here.
         Settings {
             SettingsView()
                 .environment(store)
                 .environment(\.theme, store.theme)
-                .preferredColorScheme(store.colorScheme)
         }
     }
 }

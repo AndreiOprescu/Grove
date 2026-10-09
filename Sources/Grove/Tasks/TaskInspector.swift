@@ -2,7 +2,7 @@ import SwiftUI
 import AppKit
 import GroveCore
 
-/// The panel on the right for the selected task: title, rich body, plan, tags, subtasks, time blocks, links.
+/// The panel on the right for the selected task: title, rich body, plan, tags, subtasks, links.
 struct TaskInspector: View {
     @Environment(AppStore.self) private var store
     @Environment(\.theme) private var theme
@@ -19,6 +19,8 @@ struct TaskInspector: View {
     @State private var summaryTask: Task<Void, Never>?
     @State private var chipToken = 0
     @State private var newSubtask = ""
+    /// Subtasks whose description and length are showing.
+    @State private var openSubtasks: Set<String> = []
     @State private var newTag = ""
     @FocusState private var titleFocus: Bool
     @FocusState private var summaryFocus: Bool
@@ -63,6 +65,7 @@ struct TaskInspector: View {
         typing = false
         loadedId = id
         newSubtask = ""
+        openSubtasks = []
         newTag = ""
     }
 
@@ -147,7 +150,6 @@ struct TaskInspector: View {
                 details(task, lists: lists)
                 tags(task)
                 subtasks(task)
-                blocks(task)
                 links(task)
             }
             .padding(14)
@@ -174,7 +176,7 @@ struct TaskInspector: View {
                 .onChange(of: titleFocus) { _, now in if !now { commitTitle() } }
 
             Button { store.selectedTaskId = nil } label: { Image(systemName: "xmark") }
-                .buttonStyle(.plain).foregroundStyle(theme.muted).help("Close  (Esc)")
+                .buttonStyle(.plain).foregroundStyle(theme.muted).help("Close  (Esc)").accessibilityLabel("Close")
                 .keyboardShortcut(.cancelAction)
         }
     }
@@ -236,6 +238,7 @@ struct TaskInspector: View {
                 }
                 .pickerStyle(.segmented).labelsHidden().frame(width: 190)
             }
+            row("Colour") { colourPicker(task) }
             row("Takes") {
                 Picker("", selection: Binding(get: { task.estimateMin }, set: { m in store.editTask(task.id, name: "Set Length") { $0.estimateMin = m } })) {
                     ForEach(InspectorOptions.estimates(including: task.estimateMin), id: \.self) { Text(PlannerMath.duration($0)).tag($0) }
@@ -250,7 +253,7 @@ struct TaskInspector: View {
                                displayedComponents: .date)
                         .labelsHidden().datePickerStyle(.compact)
                     Button { store.editTask(task.id, name: "Clear Due Date") { $0.due = nil } } label: { Image(systemName: "xmark.circle.fill") }
-                        .buttonStyle(.plain).foregroundStyle(theme.muted).help("Remove the due date")
+                        .buttonStyle(.plain).foregroundStyle(theme.muted).help("Remove the due date").accessibilityLabel("Remove the due date")
                 } else {
                     Button("Add a due date") { store.editTask(task.id, name: "Set Due Date") { $0.due = (task.planDate ?? store.selectedDay).string } }
                         .buttonStyle(.plain).foregroundStyle(theme.accent)
@@ -286,7 +289,7 @@ struct TaskInspector: View {
                     HStack(spacing: 3) {
                         Text("#" + name)
                         Button { store.setTags(taskId: task.id, to: names.filter { $0 != name }) } label: { Image(systemName: "xmark") }
-                            .buttonStyle(.plain).help("Remove this tag")
+                            .buttonStyle(.plain).help("Remove this tag").accessibilityLabel("Remove tag \(name)")
                     }
                     .font(theme.body(11, weight: .medium))
                     .foregroundStyle(theme.accent2)
@@ -307,67 +310,27 @@ struct TaskInspector: View {
 
     private func subtasks(_ task: TaskItem) -> some View {
         let subs = store.subtasks(of: task.id)
-        return section("Subtasks" + (subs.isEmpty ? "" : "  \(subs.filter(\.isDone).count)/\(subs.count)")) {
+        return section(SubtaskRules.header(subs)) {
             ForEach(subs) { sub in
-                HStack(spacing: 8) {
-                    Button { store.toggleDone(taskId: sub.id) } label: {
-                        CheckBox(isOn: sub.isDone, size: 14)
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel(sub.isDone ? "Mark \(sub.title) as not done" : "Mark \(sub.title) as done")
-                    Text(sub.title).strikethrough(sub.isDone).foregroundStyle(sub.isDone ? theme.muted : theme.ink)
-                    Spacer(minLength: 0)
-                    Button { store.deleteTask(sub.id) } label: { Image(systemName: "trash") }
-                        .buttonStyle(.plain).foregroundStyle(theme.muted).help("Delete this subtask")
+                SubtaskRow(sub: sub, expanded: openSubtasks.contains(sub.id)) {
+                    if openSubtasks.contains(sub.id) { openSubtasks.remove(sub.id) } else { openSubtasks.insert(sub.id) }
                 }
-                .font(theme.body(12))
             }
             HStack(spacing: 8) {
                 Image(systemName: "plus").foregroundStyle(theme.muted)
                 TextField("Add a subtask", text: $newSubtask)
                     .textFieldStyle(.plain)
-                    .onSubmit {
-                        store.addSubtask(to: task.id, title: newSubtask)
-                        newSubtask = ""
-                    }
+                    .onSubmit { addSubtask(to: task.id) }
             }
             .font(theme.body(12))
         }
     }
 
-    // MARK: Time blocks
-
-    private func blocks(_ task: TaskItem) -> some View {
-        let all = store.blocks(ofTask: task.id).sorted { $0.start < $1.start }
-        return section("Time blocks") {
-            ForEach(all) { b in
-                HStack(spacing: 8) {
-                    Image(systemName: "clock").foregroundStyle(theme.accent)
-                    Button {
-                        store.selectedDay = b.start.day
-                        store.selection = [b.id]
-                    } label: {
-                        Text("\(TaskFormat.dayLabel(b.start.day)) · \(PlannerMath.clock(b.start.minute))–\(PlannerMath.clock(b.end.minute))")
-                            .foregroundStyle(theme.ink)
-                    }
-                    .buttonStyle(.plain).help("Show it in the planner")
-                    Spacer(minLength: 0)
-                    Button { store.deleteBlocks([b.id]) } label: { Image(systemName: "trash") }
-                        .buttonStyle(.plain).foregroundStyle(theme.muted).help("Remove this block. The task stays.")
-                }
-                .font(theme.body(12))
-            }
-            Button { addBlock(task) } label: { Label("Add block", systemImage: "plus") }
-                .buttonStyle(.plain).foregroundStyle(theme.accent).font(theme.body(12, weight: .medium))
-        }
-    }
-
-    private func addBlock(_ task: TaskItem) {
-        let day = task.planDate ?? store.selectedDay
-        let start = UserDefaults.standard.object(forKey: "planner.workStart") as? Int ?? 9 * 60
-        let slot = store.nextFreeSlot(day: day, length: PlannerMath.blockLength(task.estimateMin), workStart: start, step: PlannerMath.step) ?? start
-        store.selectedDay = day
-        store.schedule(taskId: task.id, day: day, start: slot)
+    /// Adds the typed subtask. It opens at once, and the others close, so its description and length can be set.
+    private func addSubtask(to id: String) {
+        guard let new = store.addSubtask(to: id, title: newSubtask) else { return }
+        newSubtask = ""
+        openSubtasks = [new]
     }
 
     // MARK: Links
@@ -411,6 +374,25 @@ struct TaskInspector: View {
     }
 
     // MARK: Pieces
+
+    /// None, then the eight colours. The chosen one has a ring.
+    private func colourPicker(_ task: TaskItem) -> some View {
+        HStack(spacing: 6) {
+            Button { store.setTaskColor(task.id, "") } label: {
+                Image(systemName: "circle.slash").font(.system(size: 15))
+                    .foregroundStyle(task.color.isEmpty ? theme.ink : theme.muted)
+            }
+            .buttonStyle(.plain).help("No colour").accessibilityLabel("No colour")
+            ForEach(TaskColor.names, id: \.self) { name in
+                Button { store.setTaskColor(task.id, name) } label: {
+                    Circle().fill(TaskPalette.color(named: name) ?? theme.muted).frame(width: 15, height: 15)
+                        .overlay(Circle().strokeBorder(theme.ink, lineWidth: task.color == name ? 2 : 0).padding(-3))
+                }
+                .buttonStyle(.plain).help(name.capitalized).accessibilityLabel("Colour \(name)")
+                .accessibilityAddTraits(task.color == name ? .isSelected : [])
+            }
+        }
+    }
 
     private func section<Content: View>(_ name: String, @ViewBuilder _ content: () -> Content) -> some View {
         VStack(alignment: .leading, spacing: 8) {

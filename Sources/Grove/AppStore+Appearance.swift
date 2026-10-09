@@ -1,13 +1,32 @@
 import SwiftUI
+import AppKit
 import GroveCore
 
-/// The theme and the motion switch (PLAN §6, §5.8). They are view preferences of this Mac, so they live in
+/// The theme, light or dark, and the motion switch (PLAN §6, §5.8). They are view preferences of this Mac, so they live in
 /// UserDefaults like the planner settings.
 extension AppStore {
     var theme: Theme { Theme.make(themeID) }
 
-    /// The look the window is forced into. nil follows the Mac (Grove, Minimal).
-    var colorScheme: ColorScheme? { ThemeSpec.spec(themeID).colorScheme }
+    /// The look the windows are forced into. nil follows the Mac. The theme has no say in it.
+    var colorScheme: ColorScheme? { appearance.colorScheme }
+
+    /// Light, dark or system. Saved, and put on every window of the app at once.
+    func setAppearance(_ mode: AppearanceMode) {
+        guard mode != appearance else { return }
+        withAnimation(.easeInOut(duration: 0.35)) { appearance = mode }
+        UserDefaults.standard.set(mode.rawValue, forKey: "appearance.mode")
+        applyAppearance()
+    }
+
+    /// Sets the look of the whole app, the Settings window and the menu bar window too.
+    /// `NSApp.appearance` is used because `.preferredColorScheme(nil)` does not always go back to the Mac's look.
+    func applyAppearance() {
+        NSApp?.appearance = switch appearance {
+        case .system: nil
+        case .light: NSAppearance(named: .aqua)
+        case .dark: NSAppearance(named: .darkAqua)
+        }
+    }
 
     /// Switches live: the colours cross-fade in 0.35 s.
     func setTheme(_ id: ThemeID) {
@@ -40,4 +59,9 @@ enum MotionRules {
 
     /// The ambient background only draws while the window is the key window, to save energy.
     static func ambientRuns(motionOn: Bool, windowIsKey: Bool) -> Bool { motionOn && windowIsKey }
+}
+
+extension AppStore {
+    /// How many tasks are finished. The Garden plant grows with this number.
+    func gardenDone() -> Int { (try? repos.tasks.doneCount()) ?? 0 }
 }

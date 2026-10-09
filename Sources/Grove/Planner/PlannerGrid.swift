@@ -106,10 +106,18 @@ struct PlannerGrid: View {
             DispatchQueue.main.async { scrollToNow(animated: false) }
         }
         .onChange(of: store.revision) { reload() }
-        .onChange(of: days) { reload(); draft = nil; renamingId = nil }
+        .onChange(of: days) { reload(); closeDraft(); renamingId = nil }
         .onChange(of: geo.hourHeight) { relayout() }
         .onChange(of: scrollRequest) { scrollToNow(animated: true) }
         .animation(animation, value: layerMap)
+        .overlay {
+            if blocks.isEmpty && draft == nil {
+                Text("Drag a task here, or drag on the grid to plan time.")
+                    .font(theme.body(13)).foregroundStyle(theme.muted)
+                    .multilineTextAlignment(.center).padding(24)
+                    .allowsHitTesting(false)
+            }
+        }
     }
 
     // MARK: Layers
@@ -181,8 +189,8 @@ struct PlannerGrid: View {
             renamingId = nil
         }
         .onTapGesture {
+            closeDraft()
             store.selection = []
-            draft = nil
             renamingId = nil
             focused = true
         }
@@ -195,6 +203,9 @@ struct PlannerGrid: View {
             let minute = PlannerMath.snap(geo.minute(forY: location.y), step: PlannerMath.step)
             if let noteId = DragPayload.noteId(from: raw) {
                 return store.addNoteToPlanner(noteId, on: day, at: minute) != nil
+            }
+            if DragPayload.goalId(from: raw) != nil {
+                return store.dropGoalOnPlanner(raw: raw, day: day, minute: minute)
             }
             guard raw.hasPrefix(DragPayload.taskPrefix) else { return false }
             store.schedule(taskId: String(raw.dropFirst(DragPayload.taskPrefix.count)), day: day, start: minute)
@@ -254,7 +265,7 @@ struct PlannerGrid: View {
                 isRenaming: renamingId == block.id,
                 onTap: { selectBlock(block) },
                 onDoubleTap: { selectBlock(block); if block.kind != .event || block.isTaskBlock { renamingId = block.id } },
-                onToggleDone: { if let t = block.taskId { store.toggleDone(taskId: t) } },
+                onToggleDone: { toggleDone(block) },
                 onRename: { store.rename(blockId: block.id, to: $0); renamingId = nil; focused = true },
                 onCancelRename: { if renamingId == block.id { renamingId = nil; focused = true } },
                 onDrag: { mode, value, ended in blockDrag(block, mode, value, ended) })
@@ -294,14 +305,8 @@ struct PlannerGrid: View {
                     InlineTitleField(
                         initial: "", placeholder: d.asEvent ? "New event" : "New task",
                         onChange: { draft?.text = $0 },
-                        onCommit: { text, command in
-                            guard var current = draft else { return }
-                            current.text = text
-                            store.createFromDraft(title: text, day: current.day, start: current.start, end: current.end,
-                                                  asEvent: command || current.asEvent)
-                            draft = nil
-                            focused = true
-                        },
+                        onCommit: { text, command in commitDraft(text, command: command) },
+                        onBlurCommit: { commitDraft($0, command: false, refocus: false) },
                         onCancel: { draft = nil })
                 }
                 .padding(.horizontal, 9).padding(.vertical, 3)
@@ -313,6 +318,22 @@ struct PlannerGrid: View {
             .offset(x: geo.gutterWidth + CGFloat(i) * dayWidth + 2, y: geo.y(forMinute: d.start))
             .zIndex(20)
         }
+    }
+
+    /// Makes the task (or the event) from the draft. `refocus` gives the keys back to the grid, as Return does.
+    private func commitDraft(_ text: String, command: Bool, refocus: Bool = true) {
+        guard let current = draft else { return }
+        store.createFromDraft(title: text, day: current.day, start: current.start, end: current.end,
+                              asEvent: command || current.asEvent)
+        draft = nil
+        if refocus { focused = true }
+    }
+
+    /// The draft goes because the user clicked elsewhere. What was typed is kept.
+    private func closeDraft() {
+        guard let current = draft else { return }
+        if InlineTitleRules.onBlur(text: current.text) == .commit { commitDraft(current.text, command: false, refocus: false) }
+        draft = nil
     }
 
     @ViewBuilder private func suggestions(_ d: Draft) -> some View {
@@ -385,12 +406,16 @@ struct PlannerGrid: View {
 
     @ViewBuilder private func blockMenu(_ block: PlannerBlock) -> some View {
         let ids = store.selection.contains(block.id) ? Array(store.selection) : [block.id]
+        if block.isGoalBlock {
+            Button("Goal block · \(PlannerMath.duration(block.length))") {}.disabled(true)
+            Divider()
+        }
         if block.kind == .event, !block.isTaskBlock {
             Button("Edit Event…") { if let e = store.event(block.id) { store.editEvent(e) } }
             Divider()
         }
         Menu("Duration") {
-            ForEach([15, 30, 45, 60, 90, 120, 180], id: \.self) { m in
+            ForEach(PlannerLayoutRules.durationChoices, id: \.self) { m in
                 Button(PlannerMath.duration(m)) { store.setDuration(blockIds: ids, minutes: m) }
             }
         }
@@ -402,12 +427,22 @@ struct PlannerGrid: View {
         Divider()
         Button("Duplicate") { store.duplicate(blockIds: ids) }
         Button("Split in Two") { store.split(blockId: block.id) }
+        if block.isGoalBlock {
+            Button(block.isDone ? "Mark Not Done" : "Mark Done") { store.toggleGoalBlockDone(eventId: block.id) }
+        }
         if let t = block.taskId {
             Button(block.isDone ? "Mark Not Done" : "Mark Done") { store.toggleDone(taskId: t) }
+            if store.focus?.blockId == block.id {
+                Button("Stop Focus") { store.stopFocus() }
+            } else if !block.isDone {
+                Button("Start Focus") { if let e = store.event(block.id) { store.startFocus(e) } }
+            }
         }
         Divider()
         if block.isTaskBlock {
             Button("Unschedule") { store.deleteBlocks(ids, name: "Unschedule") }
+        } else if block.isGoalBlock {
+            Button("Delete Goal Block", role: .destructive) { store.deleteBlocks(ids, name: "Delete Goal Block") }
         } else {
             Button("Delete Event", role: .destructive) { store.deleteBlocks(ids, name: "Delete Event") }
         }
@@ -467,9 +502,15 @@ struct PlannerGrid: View {
         }
     }
 
+    /// The check box and the space bar. A task block ticks its task; a goal block adds to the goal's done tally.
+    private func toggleDone(_ block: PlannerBlock) {
+        if let t = block.taskId { store.toggleDone(taskId: t) }
+        else if block.isGoalBlock { store.toggleGoalBlockDone(eventId: block.id) }
+    }
+
     private func selectBlock(_ block: PlannerBlock) {
+        closeDraft()
         store.selectBlock(block, extend: NSEvent.modifierFlags.contains(.command))
-        draft = nil
         focused = true
     }
 
@@ -690,7 +731,7 @@ struct PlannerGrid: View {
             return .handled
         case .space:
             guard !selected.isEmpty else { return .ignored }
-            for b in selected { if let t = b.taskId { store.toggleDone(taskId: t) } }
+            for b in selected { toggleDone(b) }
             return .handled
         case .delete, .deleteForward:
             guard !selected.isEmpty else { return .ignored }

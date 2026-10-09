@@ -116,6 +116,26 @@ struct AtDateStoreTests {
         #expect(blocks[0].start == WallTime(day: tomorrow, minute: 840) && blocks[0].end == WallTime(day: tomorrow, minute: 885))   // keeps its 45 minutes
     }
 
+    @Test func aDayWithNoTimeTakesTheOldBlockAway() throws {
+        let s = try makeStore()
+        let n = s.newNote(title: "Ideas")
+        let t = try #require(s.quickAdd("Write report"))
+        s.schedule(taskId: t.id, day: DayKey.today(), start: 600, length: 45)
+        _ = try #require(s.addToPlanner(line: "- [ ] Write report @tomorrow ⟦t:\(t.id)⟧", inNote: n.id))
+        #expect(s.task(t.id)?.planDate == tomorrow)
+        #expect(s.blocks(ofTask: t.id).isEmpty)
+    }
+
+    @Test func extraBlocksOfTheTaskAreRemovedWhenOneIsMoved() throws {
+        let s = try makeStore()
+        let n = s.newNote(title: "Ideas")
+        let t = try #require(s.quickAdd("Write report"))
+        s.schedule(taskId: t.id, day: DayKey.today(), start: 600, length: 45)
+        try s.repos.events.save(s.blockEvent(for: t, day: DayKey.today().adding(days: 5), start: 900, end: 945))
+        _ = try #require(s.addToPlanner(line: "- [ ] Write report @tomorrow 14:00 ⟦t:\(t.id)⟧", inNote: n.id))
+        #expect(s.blocks(ofTask: t.id).map(\.start) == [WallTime(day: tomorrow, minute: 840)])
+    }
+
     @Test func aMarkWhoseTaskIsGoneMakesANewTask() throws {
         let s = try makeStore()
         let n = s.newNote(title: "Ideas")

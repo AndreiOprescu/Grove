@@ -2,7 +2,7 @@ import Foundation
 
 /// The things the ⌘K palette can do besides open an item.
 public enum PaletteCommandId: String, CaseIterable, Sendable {
-    case newTask, newNote, todayNote, goToday, goToDate, planMyDay, showPlanner, showCalendar, showNotes, toggleTheme, toggleMotion
+    case newTask, newNote, todayNote, goToday, goToDate, planMyDay, showPlanner, showCalendar, showNotes, showGarden, toggleTheme, toggleMotion
 }
 
 public struct PaletteCommand: Equatable, Identifiable, Sendable {
@@ -43,6 +43,7 @@ public enum PaletteRules {
         .init(id: .showPlanner, title: "Open planner", keywords: ["calendar", "schedule", "day"], shortcut: "⌘1", symbol: "calendar.day.timeline.left"),
         .init(id: .showCalendar, title: "Open calendar", keywords: ["month", "schedule"], shortcut: "⌘3", symbol: "calendar"),
         .init(id: .showNotes, title: "Open notes", keywords: ["notebook"], shortcut: "⌘4", symbol: "note.text"),
+        .init(id: .showGarden, title: "Open garden", keywords: ["grow", "tree", "leaf"], shortcut: "⌘5", symbol: "leaf"),
         .init(id: .toggleTheme, title: "Toggle theme", keywords: ["theme", "dark", "light", "colour", "color", "appearance", "look", "switch"], symbol: "paintpalette"),
         .init(id: .toggleMotion, title: "Toggle motion", keywords: ["motion", "animation", "animate", "reduce", "calm"], symbol: "wind"),
     ]

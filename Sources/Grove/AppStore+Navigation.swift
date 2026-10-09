@@ -11,23 +11,31 @@ extension AppStore {
         todayRequest += 1
     }
 
-    /// View ▸ Tasks (⌘2): the Planner screen with the task list open.
+    /// The panel open on the left of the Today and Planner screens, or nil when none is. Saved in `shell.leftPane`;
+    /// the buttons of `LeftDock` and the screens read the same setting.
+    var leftPane: LeftPane? {
+        get { LeftPane(saved: UserDefaults.standard.string(forKey: LeftPane.storageKey) ?? "") }
+        set { UserDefaults.standard.set(LeftPane.savedText(newValue), forKey: LeftPane.storageKey) }
+    }
+
+    /// View ▸ Tasks (⌘2): the Planner screen with the Tasks panel open.
     func showTasks() {
-        UserDefaults.standard.set(true, forKey: "shell.tasksOpen")
+        leftPane = .tasks
         screen = .planner
     }
 
-    /// One day back or forward.
-    func stepDay(_ days: Int) {
-        selectedDay = selectedDay.adding(days: days)
+    /// View ▸ Notes Panel and Goals Panel: the panel on the screen the user is on. The Calendar, the Notes and the Garden
+    /// have no left side, so they go to the Planner first.
+    func showLeftPane(_ pane: LeftPane) {
+        leftPane = pane
+        if !LeftPane.isAvailable(on: screen) { screen = .planner }
     }
 
-    /// View ▸ Day, 3 Days, Week. The Calendar keeps its own mode. Any other screen goes to the Planner.
-    /// "Day" on the Today screen stays there, because that screen is one day already.
-    func showMode(_ mode: PlannerMode) {
-        if screen == .today && mode == .day { return }
-        if screen != .calendar { screen = .planner }
-        if let key = PlannerMode.storageKey(for: screen) { UserDefaults.standard.set(mode.rawValue, forKey: key) }
+    /// Opens `day` where it can be seen. Today goes to the Today screen, which only ever shows today.
+    /// Any other day opens the Planner on its week.
+    func showDay(_ day: DayKey) {
+        selectedDay = day
+        screen = day == .today() ? .today : .planner
     }
 
     /// View ▸ Zoom In and Zoom Out. The planner reads the new height from the same setting.
@@ -41,7 +49,7 @@ extension AppStore {
     /// File ▸ New Event (⇧⌘N): an event of the default length (Settings ▸ Planner, one hour at first)
     /// at the next free time of the chosen day. Its editor opens.
     func newEventNow() {
-        if screen != .planner { screen = .today }   // the Calendar and the Notes have no time grid
+        if screen != .planner { showDay(selectedDay) }   // the Calendar and the Notes have no time grid
         let defaults = UserDefaults.standard
         let workStart = defaults.object(forKey: "planner.workStart") as? Int ?? 9 * 60
         let length = defaults.object(forKey: "planner.defaultLength") as? Int ?? SettingsRules.defaultEventLength

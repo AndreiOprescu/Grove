@@ -10,6 +10,12 @@ struct SettingsRulesTests {
         #expect(SettingsRules.eventLengths.contains(SettingsRules.defaultEventLength))
     }
 
+    @Test func theBusyDayLimitIsWholeHoursFromSixToTwelve() {
+        #expect(SettingsRules.dailyLimits == [360, 420, 480, 540, 600, 660, 720])
+        #expect(SettingsRules.dailyLimits.contains(SettingsRules.defaultDailyLimit))
+        #expect(SettingsRules.defaultDailyLimit == 540)
+    }
+
     @Test func workHoursStayAtLeastOneHourLong() {
         // The start moves past the end: the end follows.
         #expect(SettingsRules.workHours(start: 19 * 60, end: 18 * 60, startChanged: true) == (19 * 60, 20 * 60))

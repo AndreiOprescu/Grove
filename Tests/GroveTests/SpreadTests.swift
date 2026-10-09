@@ -50,8 +50,8 @@ struct ScreenStoreTests {
     private func makeStore() throws -> AppStore { AppStore(repos: Repos(db: try Database.inMemory())) }
 
     @Test func theScreensRunInTheOrderOfTheSwitch() {
-        #expect(Screen.allCases == [.today, .planner, .calendar, .notes])
-        #expect(Screen.allCases.map(\.title) == ["Today", "Planner", "Calendar", "Notes"])
+        #expect(Screen.allCases == [.today, .planner, .calendar, .notes, .garden])
+        #expect(Screen.allCases.map(\.title) == ["Today", "Planner", "Calendar", "Notes", "Garden"])
     }
 
     @Test func theWindowStartsOnToday() throws {
@@ -77,32 +77,52 @@ struct ScreenStoreTests {
         }
     }
 
-    @Test func showTasksOpensThePlannerWithTheTaskList() throws {
-        let key = "shell.tasksOpen"
+    @Test func showTasksOpensThePlannerWithTheTasksPanel() throws {
+        let key = LeftPane.storageKey
         let saved = UserDefaults.standard.object(forKey: key)
         defer { if let saved { UserDefaults.standard.set(saved, forKey: key) } else { UserDefaults.standard.removeObject(forKey: key) } }
-        UserDefaults.standard.set(false, forKey: key)
+        UserDefaults.standard.set("", forKey: key)
         let s = try makeStore()
         s.screen = .notes
         s.showTasks()
-        #expect(s.screen == .planner && UserDefaults.standard.bool(forKey: key))
+        #expect(s.screen == .planner && UserDefaults.standard.string(forKey: key) == LeftPane.tasks.rawValue)
     }
 
-    @Test func stepDayMovesTheSelectedDay() throws {
+    @Test func enteringTheTodayScreenPicksToday() throws {
         let s = try makeStore()
-        let start = s.selectedDay
-        s.stepDay(1)
-        #expect(s.selectedDay == start.adding(days: 1))
-        s.stepDay(-2)
-        #expect(s.selectedDay == start.adding(days: -1))
+        for from in [Screen.planner, .calendar, .notes, .garden] {
+            s.screen = from
+            s.selectedDay = DayKey.today().adding(days: 5)
+            s.screen = .today
+            #expect(s.selectedDay == .today())
+        }
+    }
+
+    @Test func otherScreensKeepTheDayThatWasPicked() throws {
+        let s = try makeStore()
+        let later = DayKey.today().adding(days: 5)
+        s.selectedDay = later
+        for screen in [Screen.planner, .calendar, .notes, .garden] {
+            s.screen = screen
+            #expect(s.selectedDay == later)
+        }
+    }
+
+    @Test func showDayOpensTodayOnTheTodayScreenAndAnyOtherDayOnThePlanner() throws {
+        let s = try makeStore()
+        s.screen = .notes
+        s.showDay(DayKey.today().adding(days: 3))
+        #expect(s.screen == .planner && s.selectedDay == DayKey.today().adding(days: 3))
+        s.showDay(.today())
+        #expect(s.screen == .today && s.selectedDay == .today())
     }
 }
 
-/// The View menu: the mode of the planner, zoom, and a new event. They write the same settings the planner reads.
+/// The View menu: zoom and a new event. They write the same settings the planner reads.
 @MainActor
 @Suite(.serialized)
 struct ViewMenuStoreTests {
-    private let keys = ["planner.mode", "calendar.mode", "planner.hourHeight", "planner.workStart"]
+    private let keys = ["planner.hourHeight", "planner.workStart"]
     private let defaults = UserDefaults.standard
 
     private func makeStore() throws -> AppStore { AppStore(repos: Repos(db: try Database.inMemory())) }
@@ -111,39 +131,6 @@ struct ViewMenuStoreTests {
         keys.forEach(defaults.removeObject(forKey:))
         defer { for (k, v) in zip(keys, saved) { if let v { defaults.set(v, forKey: k) } else { defaults.removeObject(forKey: k) } } }
         try body()
-    }
-
-    @Test func eachScreenKeepsItsOwnModeSetting() {
-        #expect(PlannerMode.storageKey(for: .planner) == "planner.mode")
-        #expect(PlannerMode.storageKey(for: .calendar) == "calendar.mode")
-        #expect(PlannerMode.storageKey(for: .today) == nil)
-        #expect(PlannerMode.storageKey(for: .notes) == nil)
-    }
-
-    @Test func weekFromTheTodayScreenOpensThePlannerInWeekMode() throws {
-        try keep {
-            let s = try makeStore()
-            s.showMode(.week)
-            #expect(s.screen == .planner && defaults.integer(forKey: "planner.mode") == PlannerMode.week.rawValue)
-        }
-    }
-
-    @Test func dayOnTheTodayScreenStaysThere() throws {
-        try keep {
-            let s = try makeStore()
-            s.showMode(.day)
-            #expect(s.screen == .today && defaults.object(forKey: "planner.mode") == nil)
-        }
-    }
-
-    @Test func theCalendarKeepsItsOwnMode() throws {
-        try keep {
-            let s = try makeStore()
-            s.screen = .calendar
-            s.showMode(.threeDay)
-            #expect(s.screen == .calendar && defaults.integer(forKey: "calendar.mode") == PlannerMode.threeDay.rawValue)
-            #expect(defaults.object(forKey: "planner.mode") == nil)
-        }
     }
 
     @Test func zoomStepsAndStaysInRange() throws {
@@ -168,7 +155,7 @@ struct ViewMenuStoreTests {
             let events = s.eventItems(in: day...day)
             #expect(events.count == 1)
             #expect(events.first?.start.minute == 9 * 60 && events.first?.end.minute == 10 * 60)
-            #expect(s.screen == .today && s.editingEvent?.item.id == events.first?.id)
+            #expect(s.screen == .planner && s.editingEvent?.item.id == events.first?.id)   // that day is not today, so the Planner shows it
         }
     }
 

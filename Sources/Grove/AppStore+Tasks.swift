@@ -26,6 +26,29 @@ extension AppStore {
         return list.filter { $0.status == .open || lingering.contains($0.id) }
     }
 
+    /// Every open top-level task, in list order. A task that was just checked off is already done in the database,
+    /// so it is put back in its place while it lingers.
+    private func openTopLevelWithLingering() -> [TaskItem] {
+        var list = (try? repos.tasks.openTopLevel()) ?? []
+        for id in lingering where !list.contains(where: { $0.id == id }) {
+            guard let t = task(id), t.parentId == nil, t.status != .cancelled else { continue }
+            let i = list.firstIndex { ($0.sort, $0.createdAt) > (t.sort, t.createdAt) } ?? list.endIndex
+            list.insert(t, at: i)
+        }
+        return list
+    }
+
+    /// Every open top-level task, split for the Planner screen's list (see `AllTasksRules`).
+    func allOpenTasks() -> (noDay: [TaskItem], byDay: [TaskItem]) {
+        AllTasksRules.split(openTopLevelWithLingering())
+    }
+
+    /// The tasks for the side list that feeds the calendar: overdue ones first, then the ones with no day.
+    /// A task planned for today or later is on the calendar already, so it is in neither list (see `AllTasksRules.unscheduled`).
+    func unscheduledTasks(today: DayKey = .today()) -> (overdue: [TaskItem], unscheduled: [TaskItem]) {
+        AllTasksRules.unscheduled(openTopLevelWithLingering(), today: today)
+    }
+
     func subtasks(of parentId: String) -> [TaskItem] { (try? repos.tasks.subtasks(of: parentId)) ?? [] }
 
     func tagNames(of taskId: String) -> [String] { (try? repos.tags.tags(forTask: taskId)) ?? [] }
@@ -155,12 +178,16 @@ extension AppStore {
 
     // MARK: Editing
 
-    func addSubtask(to parentId: String, title: String) {
+    /// Adds a subtask under `parentId`. Returns its id, or nil when the name is empty or the parent is gone.
+    @discardableResult
+    func addSubtask(to parentId: String, title: String) -> String? {
         let name = title.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !name.isEmpty, task(parentId) != nil else { return }
+        guard !name.isEmpty, task(parentId) != nil else { return nil }
+        let sub = TaskItem(title: name, parentId: parentId, sort: nextSort())
         var m = Mutation(name: "New Subtask")
-        m.tasks.append((nil, TaskItem(title: name, parentId: parentId, sort: nextSort())))
+        m.tasks.append((nil, sub))
         commit(m)
+        return sub.id
     }
 
     /// Changes any fields of a task in one undo step. Does nothing when `change` leaves the task as it was.
@@ -172,6 +199,12 @@ extension AppStore {
         var m = Mutation(name: name)
         m.tasks.append((old, t))
         commit(m)
+    }
+
+    /// Gives a task one of the eight colours, or none (""). A name that is not on the list is ignored.
+    func setTaskColor(_ id: String, _ name: String) {
+        guard TaskColor.isValid(name) else { return }
+        editTask(id, name: "Set Colour") { $0.color = name }
     }
 
     /// Saves the body of a task. Many saves in a row while typing make one undo step.
@@ -215,7 +248,8 @@ extension AppStore {
 
     /// Moves a task to `placement`, in front of `beforeId` (or last when nil).
     /// Its blocks follow it to a new day, and are removed when it leaves the calendar.
-    func moveTask(_ id: String, to placement: TaskPlacement, before beforeId: String? = nil) {
+    /// With `keepingBlocks` false (a drop on a day), the blocks are removed instead: the task is planned for the day with no time.
+    func moveTask(_ id: String, to placement: TaskPlacement, before beforeId: String? = nil, keepingBlocks: Bool = true) {
         guard let old = task(id), old.parentId == nil else { return }
         let before = openTasks(in: placement)
         var siblings = before.filter { $0.id != id }
@@ -226,7 +260,11 @@ extension AppStore {
 
         var ids = siblings.map(\.id)
         ids.insert(id, at: index)
-        if t.bucket == old.bucket, t.planDate == old.planDate, t.planWeek == old.planWeek, ids == before.map(\.id) { return }
+        if t.bucket == old.bucket, t.planDate == old.planDate, t.planWeek == old.planWeek, ids == before.map(\.id) {
+            // Nothing moves in the list. A drop that clears the time still has blocks to remove.
+            if !keepingBlocks { removeBlocks(ofTask: id, into: &m); commit(m) }
+            return
+        }
 
         let prev = index > 0 ? siblings[index - 1] : nil
         let next = index < siblings.count ? siblings[index] : nil
@@ -249,7 +287,8 @@ extension AppStore {
         }
         m.tasks.append((old, t))
 
-        for b in blocks(ofTask: id) {
+        if !keepingBlocks { removeBlocks(ofTask: id, into: &m) }
+        for b in blocks(ofTask: id) where keepingBlocks {
             if case .day(let d) = placement {
                 guard b.start.day != d else { continue }
                 var moved = b
@@ -267,7 +306,12 @@ extension AppStore {
 
     /// Deletes a task with its subtasks and time blocks. Undo brings everything back, tags included.
     func deleteTask(_ id: String) {
-        guard let root = task(id) else { return }
+        if let m = deletion(ofTask: id, name: "Delete Task") { commit(m) }
+    }
+
+    /// The change that deletes a task, its subtasks, their blocks and tags. Nil when the task is gone.
+    func deletion(ofTask id: String, name: String) -> Mutation? {
+        guard let root = task(id) else { return nil }
         var all = [root]
         var queue = [root.id]
         while let parent = queue.popLast() {
@@ -275,13 +319,13 @@ extension AppStore {
             all += kids
             queue += kids.map(\.id)
         }
-        var m = Mutation(name: "Delete Task")
+        var m = Mutation(name: name)
         for t in all {
             m.tasks.append((t, nil))
             for b in blocks(ofTask: t.id) { m.events.append((b, nil)) }
             let names = tagNames(of: t.id)
             if !names.isEmpty { m.tags.append((t.id, names, [])) }
         }
-        commit(m)
+        return m
     }
 }

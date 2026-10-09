@@ -23,6 +23,20 @@ struct TaskFormatTests {
         #expect(TaskFormat.dateLabel("2026-10-01").contains("1"))
     }
 
+    @Test func weekLabelNamesItsMonday() {
+        let text = TaskFormat.weekLabel("2026-10-05")
+        #expect(text.hasPrefix("Week of "))
+        #expect(text.contains("5") && !text.contains("Mon"))
+    }
+
+    @Test func planLabelSaysWhereATaskLives() {
+        #expect(TaskFormat.planLabel(TaskItem(title: "a", bucket: .day, planDate: "2026-10-03"), today: today) == "Tomorrow")
+        #expect(TaskFormat.planLabel(TaskItem(title: "b", bucket: .week, planWeek: "2026-10-05"), today: today)
+                == TaskFormat.weekLabel("2026-10-05"))
+        #expect(TaskFormat.planLabel(TaskItem(title: "c", bucket: .someday), today: today) == "Someday")
+        #expect(TaskFormat.planLabel(TaskItem(title: "d"), today: today) == nil)
+    }
+
     @Test func dueDayInThePastIsLate() {
         let d = TaskFormat.due("2026-10-01", today: today, nowMinute: 600)
         #expect(d.late && d.text == "due Yesterday")

@@ -19,7 +19,7 @@ struct SettingsView: View {
             DataSettings()
                 .tabItem { Label("Data", systemImage: "externaldrive") }
         }
-        .frame(width: 600, height: 470)
+        .frame(width: 600, height: 540)
     }
 }
 
@@ -38,6 +38,14 @@ private struct AppearanceSettings: View {
                     }
                 }
                 .padding(.vertical, 4)
+            }
+            Section("Light or dark") {
+                Picker("Mode", selection: Binding(get: { store.appearance }, set: { store.setAppearance($0) })) {
+                    ForEach(AppearanceMode.allCases) { Text($0.name).tag($0) }
+                }
+                .pickerStyle(.segmented)
+                Text("System follows your Mac. Every theme has a light and a dark look.")
+                    .font(.caption).foregroundStyle(.secondary)
             }
             Section("Motion") {
                 Toggle("Moving background and small animations", isOn: Binding(get: { store.motionSetting }, set: { store.setMotion($0) }))
@@ -108,6 +116,8 @@ private struct PlannerSettings: View {
     @AppStorage("planner.defaultLength") private var defaultLength = SettingsRules.defaultEventLength
     @AppStorage("planner.hourHeight") private var hourHeight = 64.0
     @AppStorage("calendar.weekStartsSunday") private var sundayFirst = false
+    @AppStorage("planner.dailyLimitMin") private var dailyLimit = SettingsRules.defaultDailyLimit
+    @AppStorage("calendar.moodTint") private var moodTint = false
 
     var body: some View {
         Form {
@@ -128,6 +138,14 @@ private struct PlannerSettings: View {
                 Picker("End", selection: Binding(get: { workEnd / 60 }, set: { setHours(start: workStart, end: $0 * 60, startChanged: false) })) {
                     ForEach(1...24, id: \.self) { Text(SettingsRules.hourText($0 * 60)).tag($0) }
                 }
+                Picker("Busy day limit", selection: $dailyLimit) {
+                    ForEach(SettingsRules.dailyLimits, id: \.self) { Text(PlannerMath.duration($0)).tag($0) }
+                }
+                Text("Grove warns you when a day has more time planned than this.")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+            Section("Calendar") {
+                Toggle("Tint days by mood", isOn: $moodTint)
             }
             Section("Week") {
                 Picker("Week starts on", selection: $sundayFirst) {
