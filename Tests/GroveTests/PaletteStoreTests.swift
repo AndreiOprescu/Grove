@@ -131,12 +131,12 @@ struct PaletteStoreTests {
 
     // MARK: Running a row
 
-    @Test func goingToADayShowsItOnTheTodayScreen() throws {
+    @Test func goingToAnotherDayShowsItOnThePlanner() throws {
         let s = try makeStore()
         s.screen = .notes
         s.paletteOpen = true
         s.runPalette(try #require(s.paletteItems(for: "sat", today: friday).first))
-        #expect(s.selectedDay == saturday && s.screen == .today && !s.paletteOpen)
+        #expect(s.selectedDay == saturday && s.screen == .planner && !s.paletteOpen)
     }
 
     @Test func openingAnItemClosesThePaletteAndOpensIt() throws {
@@ -145,7 +145,7 @@ struct PaletteStoreTests {
         s.paletteOpen = true
         s.screen = .notes
         s.runPalette(try #require(s.paletteItems(for: "report", today: friday).first))
-        #expect(!s.paletteOpen && s.screen == .today && s.selectedTaskId == t.id && s.selectedDay == saturday)
+        #expect(!s.paletteOpen && s.screen == .planner && s.selectedTaskId == t.id && s.selectedDay == saturday)
     }
 
     @Test func newTaskFocusesTheQuickAddField() throws {

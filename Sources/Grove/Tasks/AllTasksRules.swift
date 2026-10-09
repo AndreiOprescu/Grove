@@ -21,6 +21,15 @@ enum AllTasksRules {
         return (noDay.map(\.task), byDay.map(\.task))
     }
 
+    /// The tasks the Planner screen's side list offers for dragging onto the calendar (tasks already on a day are left out).
+    /// `overdue`: tasks planned for a day before `today`, earliest day first. Ties keep the order they came in.
+    /// `unscheduled`: tasks with no day, in the order of `split(_:).noDay`.
+    /// A task planned for `today` or a later day is in neither list. A week task is never overdue.
+    static func unscheduled(_ tasks: [TaskItem], today: DayKey) -> (overdue: [TaskItem], unscheduled: [TaskItem]) {
+        let parts = split(tasks)
+        return (parts.byDay.filter { ($0.planDate ?? today) < today }, parts.noDay)
+    }
+
     private static func group(_ bucket: TaskBucket) -> Int {
         switch bucket {
         case .inbox, .day: 0

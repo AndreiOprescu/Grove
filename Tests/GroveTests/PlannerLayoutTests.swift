@@ -11,12 +11,8 @@ struct PlannerLayoutTests {
     /// Smallest width the Planner screen (week mode, sticky strip open) asks for, with `notesPerDay` timeless tasks on each day.
     private func idealWidth(notesPerDay: Int) throws -> CGFloat {
         let defaults = UserDefaults.standard
-        defaults.set(7, forKey: "planner.mode")
         defaults.set(true, forKey: "planner.stickyOpen")
-        defer {
-            defaults.removeObject(forKey: "planner.mode")
-            defaults.removeObject(forKey: "planner.stickyOpen")
-        }
+        defer { defaults.removeObject(forKey: "planner.stickyOpen") }
         let store = AppStore(repos: Repos(db: try Database.inMemory()))
         store.screen = .planner
         let monday = DayKey.today().weekStart()

@@ -41,6 +41,43 @@ struct AllTasksRulesTests {
         #expect(split.noDay.map(\.title) == ["odd"])
         #expect(split.byDay.map(\.title) == ["dated"])
     }
+
+    // MARK: Unscheduled list (overdue first, then tasks with no day)
+
+    @Test func overdueIsOpenDayTasksBeforeTodayEarliestFirst() {
+        let input = [task("yesterday", .day, day: "2026-10-08"), task("long ago", .day, day: "2026-09-20"),
+                     task("also yesterday", .day, day: "2026-10-08")]
+        let r = AllTasksRules.unscheduled(input, today: "2026-10-09")
+        #expect(r.overdue.map(\.title) == ["long ago", "yesterday", "also yesterday"])
+        #expect(r.unscheduled.isEmpty)
+    }
+
+    @Test func aTaskPlannedForTodayOrLaterIsInNeitherList() {
+        let input = [task("today", .day, day: "2026-10-09"), task("tomorrow", .day, day: "2026-10-10"), task("next month", .day, day: "2026-11-01")]
+        let r = AllTasksRules.unscheduled(input, today: "2026-10-09")
+        #expect(r.overdue.isEmpty)
+        #expect(r.unscheduled.isEmpty)
+    }
+
+    @Test func unscheduledIsInboxThenWeeksThenSomedayAndAnUndatedDayTask() {
+        let input = [task("later", .someday), task("week", .week, week: "2026-10-12"), task("inbox", .inbox), task("odd", .day)]
+        let r = AllTasksRules.unscheduled(input, today: "2026-10-09")
+        #expect(r.unscheduled.map(\.title) == ["inbox", "odd", "week", "later"])
+        #expect(r.overdue.isEmpty)
+    }
+
+    @Test func aWeekTaskFromAPastWeekIsUnscheduledNotOverdue() {
+        let r = AllTasksRules.unscheduled([task("old week", .week, week: "2026-09-21")], today: "2026-10-09")
+        #expect(r.overdue.isEmpty)
+        #expect(r.unscheduled.map(\.title) == ["old week"])
+    }
+
+    @Test func eachTaskIsInAtMostOneOfTheTwoLists() {
+        let input = [task("a", .day, day: "2026-10-01"), task("b", .inbox), task("c", .day, day: "2026-10-20"), task("d", .someday)]
+        let r = AllTasksRules.unscheduled(input, today: "2026-10-09")
+        #expect(r.overdue.map(\.title) == ["a"])
+        #expect(r.unscheduled.map(\.title) == ["b", "d"])
+    }
 }
 
 @MainActor
@@ -99,5 +136,64 @@ struct AllTasksStoreTests {
         let sub = try #require(s.subtasks(of: parent.id).first)
         s.toggleDone(taskId: sub.id, linger: true)
         #expect(s.allOpenTasks().noDay.map(\.id) == [parent.id])
+    }
+
+    // MARK: unscheduledTasks()
+
+    @Test func unscheduledTasksHoldsOverdueFirstThenTheTasksWithNoDay() throws {
+        let s = try makeStore()
+        try s.repos.tasks.save(TaskItem(title: "someday", bucket: .someday, sort: 1))
+        try s.repos.tasks.save(TaskItem(title: "today", bucket: .day, planDate: today, sort: 2))
+        try s.repos.tasks.save(TaskItem(title: "inbox", sort: 3))
+        try s.repos.tasks.save(TaskItem(title: "tomorrow", bucket: .day, planDate: today.adding(days: 1), sort: 4))
+        try s.repos.tasks.save(TaskItem(title: "yesterday", bucket: .day, planDate: today.adding(days: -1), sort: 5))
+        try s.repos.tasks.save(TaskItem(title: "last week", bucket: .day, planDate: today.adding(days: -7), sort: 6))
+        let r = s.unscheduledTasks()
+        #expect(r.overdue.map(\.title) == ["last week", "yesterday"])
+        #expect(r.unscheduled.map(\.title) == ["inbox", "someday"])
+    }
+
+    @Test func aScheduledTaskWithABlockIsNotInEitherList() throws {
+        let s = try makeStore()
+        let t = TaskItem(title: "Timed", estimateMin: 30)
+        try s.repos.tasks.save(t)
+        s.schedule(taskId: t.id, day: today.adding(days: 2), start: 600)
+        let r = s.unscheduledTasks()
+        #expect(r.overdue.isEmpty && r.unscheduled.isEmpty)
+    }
+
+    @Test func doneCancelledAndSubtasksAreNotUnscheduled() throws {
+        let s = try makeStore()
+        let late = TaskItem(title: "late", bucket: .day, planDate: today.adding(days: -2), sort: 1)
+        try s.repos.tasks.save(late)
+        try s.repos.tasks.save(TaskItem(title: "late sub", parentId: late.id, bucket: .day, planDate: today.adding(days: -2), sort: 2))
+        try s.repos.tasks.save(TaskItem(title: "late done", status: .done, bucket: .day, planDate: today.adding(days: -2), sort: 3))
+        try s.repos.tasks.save(TaskItem(title: "inbox done", status: .done, sort: 4))
+        try s.repos.tasks.save(TaskItem(title: "inbox cancelled", status: .cancelled, sort: 5))
+        let r = s.unscheduledTasks()
+        #expect(r.overdue.map(\.title) == ["late"])
+        #expect(r.unscheduled.isEmpty)
+    }
+
+    @Test func anOverdueTaskCheckedWithLingerStaysForAMoment() async throws {
+        let s = try makeStore()
+        let a = TaskItem(title: "Alpha", bucket: .day, planDate: today.adding(days: -3), sort: 1)
+        let b = TaskItem(title: "Bravo", bucket: .day, planDate: today.adding(days: -3), sort: 2)
+        try s.repos.tasks.save(a)
+        try s.repos.tasks.save(b)
+        s.toggleDone(taskId: a.id, linger: true)
+        #expect(s.unscheduledTasks().overdue.map(\.id) == [a.id, b.id])
+        try await Task.sleep(for: .milliseconds(1000))
+        #expect(s.unscheduledTasks().overdue.map(\.id) == [b.id])
+    }
+
+    @Test func aNoDayTaskCheckedWithLingerStaysForAMoment() async throws {
+        let s = try makeStore()
+        let a = try #require(s.quickAdd("Alpha"))
+        let b = try #require(s.quickAdd("Bravo"))
+        s.toggleDone(taskId: a.id, linger: true)
+        #expect(s.unscheduledTasks().unscheduled.map(\.id) == [a.id, b.id])
+        try await Task.sleep(for: .milliseconds(1000))
+        #expect(s.unscheduledTasks().unscheduled.map(\.id) == [b.id])
     }
 }

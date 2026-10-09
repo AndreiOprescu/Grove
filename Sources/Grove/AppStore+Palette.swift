@@ -93,7 +93,7 @@ extension AppStore {
             run(id)
         case .goTo(let day):
             paletteOpen = false
-            show(day)
+            showDay(day)
         case .open(let ref):
             paletteOpen = false
             open(ref)
@@ -114,10 +114,10 @@ extension AppStore {
             requestQuickAdd()
         case .newNote: newNote()
         case .todayNote: openDailyNote(.today())
-        case .goToday: show(.today())
+        case .goToday: showDay(.today())
         case .goToDate: break
         case .planMyDay:
-            show(.today())
+            showDay(.today())
             planMyDayRequest += 1
         case .showPlanner: screen = .planner
         case .showCalendar: screen = .calendar
@@ -126,11 +126,5 @@ extension AppStore {
         case .toggleTheme: nextTheme()
         case .toggleMotion: setMotion(!motionSetting)
         }
-    }
-
-    /// The Today screen shows `day`: its timeline, its tasks and its note.
-    private func show(_ day: DayKey) {
-        selectedDay = day
-        screen = .today
     }
 }

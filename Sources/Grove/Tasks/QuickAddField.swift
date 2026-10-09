@@ -21,6 +21,9 @@ struct QuickAddField: View {
                     .focused($focused)
                     .onSubmit(submit)
                     .onExitCommand { text = ""; focused = false }
+                    .onChange(of: focused) { _, isFocused in
+                        if !isFocused, InlineTitleRules.onBlur(text: text) == .commit { save() }
+                    }
             }
             .padding(.horizontal, 10).padding(.vertical, 8)
             .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(theme.surface2))
@@ -36,7 +39,13 @@ struct QuickAddField: View {
                 preview
             }
         }
-        .onChange(of: store.quickAddRequest) { _, _ in focused = true }
+        .onChange(of: store.quickAddRequest) { _, _ in takeRequest() }
+        .onAppear { if store.quickAddRequest != store.quickAddHandled { DispatchQueue.main.async { takeRequest() } } }
+    }
+
+    private func takeRequest() {
+        store.quickAddHandled = store.quickAddRequest
+        focused = true
     }
 
     private var preview: some View {
@@ -52,12 +61,18 @@ struct QuickAddField: View {
         }
     }
 
+    /// Return: save, then stay in the field for the next task.
     private func submit() {
-        guard let task = store.quickAdd(text, default: placement) else { return }
+        if save() { focused = true }
+    }
+
+    /// Saves the text as a task. Also used when focus leaves the field, which must not take focus back.
+    @discardableResult private func save() -> Bool {
+        guard let task = store.quickAdd(text, default: placement) else { return false }
         text = ""
-        focused = true
         let landed = Self.label(for: task)
         if landed != placementLabel { store.showToast("Added to \(landed)") }
+        return true
     }
 
     /// Short name of the place a task lives in.

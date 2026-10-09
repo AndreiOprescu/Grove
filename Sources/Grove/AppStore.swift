@@ -8,11 +8,12 @@ struct Mutation {
     var tasks: [(before: TaskItem?, after: TaskItem?)] = []
     var events: [(before: EventItem?, after: EventItem?)] = []
     var notes: [(before: Note?, after: Note?)] = []
+    var goals: [(before: GoalItem?, after: GoalItem?)] = []
     /// Days taken out of (`add`) or put back into a repeating event. Undo does the opposite, in reverse order.
     var exdates: [(eventId: String, day: DayKey, add: Bool)] = []
     /// Tag names of a task before and after. Tags live in their own table, so they are tracked here.
     var tags: [(taskId: String, before: [String], after: [String])] = []
-    var isEmpty: Bool { tasks.isEmpty && events.isEmpty && notes.isEmpty && tags.isEmpty && exdates.isEmpty }
+    var isEmpty: Bool { tasks.isEmpty && events.isEmpty && notes.isEmpty && goals.isEmpty && tags.isEmpty && exdates.isEmpty }
     /// Typing makes many small changes. Changes with the same key, close in time, become one undo step.
     var mergeKey: String?
     var at = Date()
@@ -20,7 +21,7 @@ struct Mutation {
     /// Joins `next` (a later change of the same one task or note) into this one.
     func merged(with next: Mutation) -> Mutation? {
         guard let key = mergeKey, key == next.mergeKey, next.at.timeIntervalSince(at) < 60,
-              events.isEmpty, next.events.isEmpty, tags.isEmpty, next.tags.isEmpty,
+              events.isEmpty, next.events.isEmpty, goals.isEmpty, next.goals.isEmpty, tags.isEmpty, next.tags.isEmpty,
               exdates.isEmpty, next.exdates.isEmpty else { return nil }
         var m = self
         if tasks.count == 1, next.tasks.count == 1, notes.isEmpty, next.notes.isEmpty,
@@ -41,6 +42,7 @@ struct Mutation {
         tasks += other.tasks
         events += other.events
         notes += other.notes
+        goals += other.goals
         tags += other.tags
         exdates += other.exdates
     }
@@ -60,8 +62,10 @@ final class AppStore {
     var errorMessage: String?
     /// The task shown in the inspector (M3d) and highlighted in the task list.
     var selectedTaskId: String?
-    /// Bumped by ⌘N. The task list focuses its quick-add field when this changes.
+    /// Bumped by ⌘N. The task list focuses its quick-add field when this changes,
+    /// or when the field appears (the panel may have been closed) and this is past `quickAddHandled`.
     var quickAddRequest = 0
+    var quickAddHandled = 0
     /// The ⌘K palette is on screen, and the text in its box.
     var paletteOpen = false
     var paletteText = ""
@@ -75,7 +79,10 @@ final class AppStore {
     /// The event the editor popover shows, or nil.
     var editingEvent: EditingEvent?
     /// Which screen fills the window. The Day Spread (layout B) is the home screen.
-    var screen: Screen = .today
+    /// The Today screen always shows today, so coming to it picks today.
+    var screen: Screen = .today {
+        didSet { if screen == .today, oldValue != .today { selectedDay = .today() } }
+    }
     /// Counts the "go to now" requests (⌘T). The timeline scrolls to the current time when it changes.
     var todayRequest = 0
     /// The note the notes screen shows.
@@ -233,6 +240,7 @@ final class AppStore {
                 for t in m.tasks { if let x = target(t) { try repos.tasks.save(x) } }
                 for e in m.events { if let x = forward ? e.after : e.before { try repos.events.save(x) } }
                 for n in m.notes { if let x = forward ? n.after : n.before { try repos.notes.save(x) } }
+                for g in m.goals { if let x = forward ? g.after : g.before { try repos.goals.upsert(x) } }
                 for x in forward ? m.exdates : m.exdates.reversed() {
                     if x.add == forward { try repos.events.addExdate(x.eventId, x.day) } else { try repos.events.removeExdate(x.eventId, x.day) }
                 }
@@ -245,6 +253,9 @@ final class AppStore {
                 }
                 for n in m.notes where (forward ? n.after : n.before) == nil {
                     if let id = (forward ? n.before : n.after)?.id { try repos.notes.delete(id) }
+                }
+                for g in m.goals where (forward ? g.after : g.before) == nil {
+                    if let id = (forward ? g.before : g.after)?.id { try repos.goals.delete(id) }
                 }
                 for t in m.tasks where target(t) == nil {
                     if let id = source(t)?.id { try repos.tasks.delete(id) }
@@ -300,9 +311,10 @@ final class AppStore {
         }
     }
 
-    /// Opens the task list and puts the cursor in the quick-add field.
+    /// Puts the cursor in the quick-add field of the screen. The Planner opens the Tasks panel for it.
+    /// Today shows its own list (a new task goes to today), so another panel there is closed.
     func requestQuickAdd() {
-        UserDefaults.standard.set(true, forKey: "shell.tasksOpen")
+        leftPane = screen == .planner ? .tasks : nil
         quickAddRequest += 1
     }
 
@@ -343,8 +355,9 @@ final class AppStore {
             out.append(PlannerBlock(
                 id: e.id, title: task?.title ?? e.title, summary: task?.summary ?? "", day: day, startMinute: e.start.minute,
                 endMinute: max(end, e.start.minute + 1), kind: e.kind, taskId: e.taskId,
-                isDone: task?.isDone ?? false, color: task.flatMap { $0.color.isEmpty ? nil : $0.color } ?? e.color,
-                isRecurring: e.seriesId != nil, priority: task?.priority ?? 0))
+                isDone: e.goalId != nil ? e.doneAt != nil : (task?.isDone ?? false),
+                color: task.flatMap { $0.color.isEmpty ? nil : $0.color } ?? e.color,
+                isRecurring: e.seriesId != nil, priority: task?.priority ?? 0, goalId: e.goalId))
         }
         return out
     }
@@ -440,6 +453,12 @@ final class AppStore {
         return t
     }
 
+    /// Adds the removal of the time blocks of a task to `m`, so a task that is put on a day or time has one block only.
+    /// `keep` is the id of a block that stays.
+    func removeBlocks(ofTask id: String, except keep: String? = nil, into m: inout Mutation) {
+        for b in blocks(ofTask: id) where b.id != keep { m.events.append((b, nil)) }
+    }
+
     /// New task and block together, or a plain event.
     func createFromDraft(title: String, day: DayKey, start: Int, end: Int, asEvent: Bool) {
         let name = title.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -463,6 +482,7 @@ final class AppStore {
         let s = PlannerMath.clampMove(start: start, length: len)
         var m = Mutation(name: "Schedule Task")
         m.tasks.append((task, planned(task, on: day)))
+        removeBlocks(ofTask: task.id, into: &m)   // one block only: the old time is gone
         let e = blockEvent(for: task, day: day, start: s, end: s + len)
         m.events.append((nil, e))
         if commit(m) { selection = [e.id] }
@@ -472,7 +492,7 @@ final class AppStore {
     func fit(taskId: String, day: DayKey, workStart: Int, workEnd: Int, step: Int) {
         guard let task = task(taskId) else { return }
         let len = PlannerMath.blockLength(task.estimateMin)
-        let busy = blocks(for: day...day).map(\.span)
+        let busy = blocks(for: day...day).filter { $0.taskId != taskId }.map(\.span)   // its own block is about to go
         let from = day == .today() ? max(workStart, nowMinute()) : workStart
         if let slot = PlannerMath.firstFreeSlot(length: len, busy: busy, from: from, until: 1440, step: step) {
             schedule(taskId: taskId, day: day, start: slot, length: len)
@@ -500,6 +520,7 @@ final class AppStore {
         var m = Mutation(name: "Plan My Day")
         for p in plan {
             m.tasks.append((p.task, planned(p.task, on: day)))
+            removeBlocks(ofTask: p.task.id, into: &m)
             m.events.append((nil, blockEvent(for: p.task, day: day, start: p.start, end: p.start + PlannerMath.blockLength(p.task.estimateMin))))
         }
         commit(m)
@@ -625,6 +646,7 @@ final class AppStore {
             let s = PlannerMath.clampMove(start: old.end.minute, length: len)
             var copy = old
             copy.id = UUID().uuidString
+            copy.doneAt = nil   // a copy of a done goal block is planned, so the hours are not counted twice
             copy.start = WallTime(day: old.start.day, minute: s)
             copy.end = WallTime(day: old.start.day, minute: s + len)
             m.events.append((nil, copy))

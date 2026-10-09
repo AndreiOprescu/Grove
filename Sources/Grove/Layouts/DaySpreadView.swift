@@ -19,10 +19,10 @@ struct DaySpreadView: View {
         VStack(spacing: 12) {
             SpreadHeader()
             HStack(alignment: .top, spacing: 0) {
-                TasksPane(spread: true)
+                LeftSlot(place: .today)
                     .frame(width: tasksWidth)
                 resizeHandle
-                PlannerView(column: true)
+                PlannerView(kind: .today)
                     .frame(minWidth: SpreadRules.timelineMinimum, maxWidth: .infinity)
                 Color.clear.frame(width: SpreadRules.gap)
                 rightColumn
@@ -32,6 +32,12 @@ struct DaySpreadView: View {
         .padding(.horizontal, SpreadRules.side).padding(.bottom, 16)
         .padding(.top, 34)   // the window buttons sit in this space (the title bar is hidden)
         .animation(.easeInOut(duration: 0.2), value: store.selectedTaskId)
+        .onAppear { keepToday() }
+        .onChange(of: store.selectedDay) { keepToday() }   // this screen is always today
+    }
+
+    private func keepToday() {
+        if store.selectedDay != .today() { store.selectedDay = .today() }
     }
 
     @ViewBuilder private var rightColumn: some View {
@@ -68,7 +74,7 @@ struct DaySpreadView: View {
     }
 }
 
-/// The big date, the greeting, the growth of the day, the week strip and the plant.
+/// The big date, the greeting, the growth of the day and the plant. This screen is always today.
 struct SpreadHeader: View {
     @Environment(AppStore.self) private var store
     @Environment(\.theme) private var theme
@@ -87,20 +93,7 @@ struct SpreadHeader: View {
                     .font(theme.body(12)).foregroundStyle(theme.muted).lineLimit(1)
             }
             .layoutPriority(1)
-            HStack(spacing: 6) {
-                Button { store.stepDay(-1) } label: { Image(systemName: "chevron.left") }
-                    .help("Previous day")
-                    .accessibilityLabel("Previous day")
-                Button("Today") { store.showToday() }
-                    .fixedSize()
-                    .disabled(day == .today())
-                Button { store.stepDay(1) } label: { Image(systemName: "chevron.right") }
-                    .help("Next day")
-                    .accessibilityLabel("Next day")
-            }
-            .buttonStyle(.bordered)
             Spacer(minLength: 0)
-            WeekStrip(shown: [day]).frame(maxWidth: 420)
             GrowingPlant(progress: progress, height: 44)
         }
     }

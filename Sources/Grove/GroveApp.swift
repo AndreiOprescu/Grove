@@ -38,19 +38,14 @@ struct GroveApp: App {
                     .keyboardShortcut("1", modifiers: .command)
                 Button("Tasks") { store.showTasks() }
                     .keyboardShortcut("2", modifiers: .command)
+                Button("Notes Panel") { store.showLeftPane(.notes) }
+                Button("Goals Panel") { store.showLeftPane(.goals) }
                 Button("Calendar") { store.screen = .calendar }
                     .keyboardShortcut("3", modifiers: .command)
                 Button("Notes") { store.screen = .notes }
                     .keyboardShortcut("4", modifiers: .command)
                 Button("Garden") { store.screen = .garden }
                     .keyboardShortcut("5", modifiers: .command)
-                Divider()
-                Button("Day") { store.showMode(.day) }
-                    .keyboardShortcut("1", modifiers: [.command, .option])
-                Button("3 Days") { store.showMode(.threeDay) }
-                    .keyboardShortcut("2", modifiers: [.command, .option])
-                Button("Week") { store.showMode(.week) }
-                    .keyboardShortcut("3", modifiers: [.command, .option])
                 Divider()
                 Button("Zoom In") { store.zoomPlanner(by: 1.2) }
                     .keyboardShortcut("=", modifiers: .command)

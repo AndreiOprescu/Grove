@@ -17,10 +17,13 @@ struct PlannerBlock: Identifiable, Equatable {
     var hasNote: Bool = false
     /// The priority of the block's task, 0 to 3. 0 for a block with no task.
     var priority: Int = 0
+    /// The goal this block belongs to, or nil. A goal block has no task; `isDone` comes from the event's `doneAt`.
+    var goalId: String?
 
     var span: Span { Span(id: id, start: startMinute, end: endMinute) }
     var length: Int { endMinute - startMinute }
     var isTaskBlock: Bool { taskId != nil }
+    var isGoalBlock: Bool { goalId != nil }
 }
 
 /// One block's new place, used by moves, resizes and ripple.

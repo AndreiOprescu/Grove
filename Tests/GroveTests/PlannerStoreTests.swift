@@ -104,6 +104,144 @@ struct PlannerStoreTests {
         #expect(saved.bucket == .day && saved.planDate == day)
     }
 
+    // MARK: One block per task: a task dropped on a day or time leaves its old place
+
+    private let past = DayKey.today().adding(days: -2)
+
+    /// An overdue task with its block on a past day.
+    private func overdueTask(_ s: AppStore, at minute: Int = 600) throws -> (task: TaskItem, block: EventItem) {
+        let t = TaskItem(title: "Late", bucket: .day, planDate: past, estimateMin: 45)
+        try s.repos.tasks.save(t)
+        let b = s.blockEvent(for: t, day: past, start: minute, end: minute + 45)
+        try s.repos.events.save(b)
+        return (t, b)
+    }
+
+    @Test func schedulingTwiceLeavesOneBlockAtTheNewTime() throws {
+        let s = try makeStore()
+        let t = TaskItem(title: "Email", estimateMin: 45)
+        try s.repos.tasks.save(t)
+        s.schedule(taskId: t.id, day: day, start: 540)
+        s.schedule(taskId: t.id, day: day.adding(days: 1), start: 780)
+        let blocks = s.blocks(ofTask: t.id)
+        #expect(blocks.count == 1)
+        #expect(blocks[0].start == WallTime(day: day.adding(days: 1), minute: 780))
+        #expect(blocks[0].end == WallTime(day: day.adding(days: 1), minute: 825))
+        #expect(s.blocks(for: day...day).isEmpty)
+        #expect(s.task(t.id)?.planDate == day.adding(days: 1))
+    }
+
+    @Test func schedulingAgainOnTheSameDayMovesTheBlock() throws {
+        let s = try makeStore()
+        let t = TaskItem(title: "Email", estimateMin: 45)
+        try s.repos.tasks.save(t)
+        s.schedule(taskId: t.id, day: day, start: 540)
+        s.schedule(taskId: t.id, day: day, start: 900)
+        #expect(s.blocks(ofTask: t.id).map(\.start.minute) == [900])
+    }
+
+    @Test func droppingAnOverdueTaskSetsTheNewDayAndRemovesItsOldBlock() throws {
+        let s = try makeStore()
+        let (t, old) = try overdueTask(s)
+        #expect(s.unscheduledTasks().overdue.map(\.id) == [t.id])
+        s.schedule(taskId: t.id, day: day, start: 540)
+        let saved = try #require(s.task(t.id))
+        #expect(saved.bucket == .day && saved.planDate == day)
+        let blocks = s.blocks(ofTask: t.id)
+        #expect(blocks.count == 1)
+        #expect(blocks[0].start == WallTime(day: day, minute: 540))
+        #expect(blocks[0].id != old.id)
+        #expect(s.blocks(for: past...past).isEmpty)
+        #expect(s.unscheduledTasks().overdue.isEmpty)
+    }
+
+    @Test func oneUndoBringsBackTheOldBlockAndTheOldPlanDate() throws {
+        let s = try makeStore()
+        let (t, old) = try overdueTask(s)
+        s.schedule(taskId: t.id, day: day, start: 540)
+        #expect(s.undoName == "Schedule Task")
+        s.undo()
+        #expect(s.task(t.id)?.planDate == past)
+        let blocks = s.blocks(ofTask: t.id)
+        #expect(blocks == [old])
+        #expect(s.blocks(for: day...day).isEmpty)
+        s.redo()
+        #expect(s.task(t.id)?.planDate == day)
+        #expect(s.blocks(ofTask: t.id).map(\.start) == [WallTime(day: day, minute: 540)])
+    }
+
+    @Test func droppingOnTheStickyStripPlansTheDayWithNoTimeAndRemovesTheOldBlock() throws {
+        let s = try makeStore()
+        let (t, _) = try overdueTask(s)
+        s.dropTask(t.id, on: day)
+        let saved = try #require(s.task(t.id))
+        #expect(saved.bucket == .day && saved.planDate == day)
+        #expect(s.blocks(ofTask: t.id).isEmpty)
+        #expect(s.timeless(for: [day])[day]?.map(\.id) == [t.id])
+    }
+
+    @Test func droppingOnTheStickyStripOfTheSameDayStillRemovesTheBlock() throws {
+        let s = try makeStore()
+        let t = TaskItem(title: "Email", estimateMin: 45)
+        try s.repos.tasks.save(t)
+        s.schedule(taskId: t.id, day: day, start: 540)
+        s.dropTask(t.id, on: day)
+        #expect(s.blocks(ofTask: t.id).isEmpty)
+        #expect(s.task(t.id)?.planDate == day)
+    }
+
+    @Test func aStripDropIsOneUndoStepThatBringsBackTheBlock() throws {
+        let s = try makeStore()
+        let (t, old) = try overdueTask(s)
+        s.dropTask(t.id, on: day)
+        s.undo()
+        #expect(s.task(t.id)?.planDate == past)
+        #expect(s.blocks(ofTask: t.id) == [old])
+    }
+
+    @Test func movingATaskFromAMenuStillCarriesItsBlockAlong() throws {
+        let s = try makeStore()
+        let (t, _) = try overdueTask(s, at: 600)
+        s.moveTask(t.id, to: .day(day))
+        let blocks = s.blocks(ofTask: t.id)
+        #expect(blocks.count == 1)
+        #expect(blocks[0].start == WallTime(day: day, minute: 600))
+    }
+
+    @Test func fitReplacesTheOldBlock() throws {
+        let s = try makeStore()
+        let (t, _) = try overdueTask(s)
+        s.fit(taskId: t.id, day: day, workStart: 540, workEnd: 1020, step: 15)
+        let blocks = s.blocks(ofTask: t.id)
+        #expect(blocks.count == 1)
+        #expect(blocks[0].start == WallTime(day: day, minute: 540))
+        #expect(s.blocks(for: past...past).isEmpty)
+        #expect(s.task(t.id)?.planDate == day)
+    }
+
+    @Test func fitDoesNotCountTheTasksOwnBlockOnThatDayAsBusy() throws {
+        let s = try makeStore()
+        let t = TaskItem(title: "Email", estimateMin: 45)
+        try s.repos.tasks.save(t)
+        s.schedule(taskId: t.id, day: day, start: 540)
+        s.fit(taskId: t.id, day: day, workStart: 540, workEnd: 1020, step: 15)
+        #expect(s.blocks(ofTask: t.id).map(\.start.minute) == [540])
+    }
+
+    @Test func planMyDayReplacesTheOldBlocksOfItsTasks() throws {
+        let s = try makeStore()
+        let (a, _) = try overdueTask(s)
+        let b = TaskItem(title: "Fresh", estimateMin: 30)
+        try s.repos.tasks.save(b)
+        s.applyPlan([(task: a, start: 540), (task: b, start: 600)], day: day)
+        #expect(s.blocks(ofTask: a.id).map(\.start) == [WallTime(day: day, minute: 540)])
+        #expect(s.blocks(ofTask: b.id).map(\.start) == [WallTime(day: day, minute: 600)])
+        #expect(s.blocks(for: past...past).isEmpty)
+        s.undo()
+        #expect(s.blocks(ofTask: a.id).map(\.start.day) == [past])
+        #expect(s.blocks(ofTask: b.id).isEmpty)
+    }
+
     @Test func aShortEstimateMakesABlockOfAtLeastFifteenMinutes() throws {
         let s = try makeStore()
         let short = TaskItem(title: "Call", estimateMin: 10)

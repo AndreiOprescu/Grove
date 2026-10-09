@@ -2,7 +2,7 @@ import SwiftUI
 import AppKit
 import GroveCore
 
-/// The panel on the right for the selected task: title, rich body, plan, tags, subtasks, time blocks, links.
+/// The panel on the right for the selected task: title, rich body, plan, tags, subtasks, links.
 struct TaskInspector: View {
     @Environment(AppStore.self) private var store
     @Environment(\.theme) private var theme
@@ -19,6 +19,8 @@ struct TaskInspector: View {
     @State private var summaryTask: Task<Void, Never>?
     @State private var chipToken = 0
     @State private var newSubtask = ""
+    /// Subtasks whose description and length are showing.
+    @State private var openSubtasks: Set<String> = []
     @State private var newTag = ""
     @FocusState private var titleFocus: Bool
     @FocusState private var summaryFocus: Bool
@@ -63,6 +65,7 @@ struct TaskInspector: View {
         typing = false
         loadedId = id
         newSubtask = ""
+        openSubtasks = []
         newTag = ""
     }
 
@@ -147,7 +150,6 @@ struct TaskInspector: View {
                 details(task, lists: lists)
                 tags(task)
                 subtasks(task)
-                blocks(task)
                 links(task)
             }
             .padding(14)
@@ -308,67 +310,27 @@ struct TaskInspector: View {
 
     private func subtasks(_ task: TaskItem) -> some View {
         let subs = store.subtasks(of: task.id)
-        return section("Subtasks" + (subs.isEmpty ? "" : "  \(subs.filter(\.isDone).count)/\(subs.count)")) {
+        return section(SubtaskRules.header(subs)) {
             ForEach(subs) { sub in
-                HStack(spacing: 8) {
-                    Button { store.toggleDone(taskId: sub.id) } label: {
-                        CheckBox(isOn: sub.isDone, size: 14)
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel(sub.isDone ? "Mark \(sub.title) as not done" : "Mark \(sub.title) as done")
-                    Text(sub.title).strikethrough(sub.isDone).foregroundStyle(sub.isDone ? theme.muted : theme.ink)
-                    Spacer(minLength: 0)
-                    Button { store.deleteTask(sub.id) } label: { Image(systemName: "trash") }
-                        .buttonStyle(.plain).foregroundStyle(theme.muted).help("Delete this subtask").accessibilityLabel("Delete subtask \(sub.title)")
+                SubtaskRow(sub: sub, expanded: openSubtasks.contains(sub.id)) {
+                    if openSubtasks.contains(sub.id) { openSubtasks.remove(sub.id) } else { openSubtasks.insert(sub.id) }
                 }
-                .font(theme.body(12))
             }
             HStack(spacing: 8) {
                 Image(systemName: "plus").foregroundStyle(theme.muted)
                 TextField("Add a subtask", text: $newSubtask)
                     .textFieldStyle(.plain)
-                    .onSubmit {
-                        store.addSubtask(to: task.id, title: newSubtask)
-                        newSubtask = ""
-                    }
+                    .onSubmit { addSubtask(to: task.id) }
             }
             .font(theme.body(12))
         }
     }
 
-    // MARK: Time blocks
-
-    private func blocks(_ task: TaskItem) -> some View {
-        let all = store.blocks(ofTask: task.id).sorted { $0.start < $1.start }
-        return section("Time blocks") {
-            ForEach(all) { b in
-                HStack(spacing: 8) {
-                    Image(systemName: "clock").foregroundStyle(theme.accent)
-                    Button {
-                        store.selectedDay = b.start.day
-                        store.selection = [b.id]
-                    } label: {
-                        Text("\(TaskFormat.dayLabel(b.start.day)) · \(PlannerMath.clock(b.start.minute))–\(PlannerMath.clock(b.end.minute))")
-                            .foregroundStyle(theme.ink)
-                    }
-                    .buttonStyle(.plain).help("Show it in the planner")
-                    Spacer(minLength: 0)
-                    Button { store.deleteBlocks([b.id]) } label: { Image(systemName: "trash") }
-                        .buttonStyle(.plain).foregroundStyle(theme.muted).help("Remove this block. The task stays.")
-                }
-                .font(theme.body(12))
-            }
-            Button { addBlock(task) } label: { Label("Add block", systemImage: "plus") }
-                .buttonStyle(.plain).foregroundStyle(theme.accent).font(theme.body(12, weight: .medium))
-        }
-    }
-
-    private func addBlock(_ task: TaskItem) {
-        let day = task.planDate ?? store.selectedDay
-        let start = UserDefaults.standard.object(forKey: "planner.workStart") as? Int ?? 9 * 60
-        let slot = store.nextFreeSlot(day: day, length: PlannerMath.blockLength(task.estimateMin), workStart: start, step: PlannerMath.step) ?? start
-        store.selectedDay = day
-        store.schedule(taskId: task.id, day: day, start: slot)
+    /// Adds the typed subtask. It opens at once, and the others close, so its description and length can be set.
+    private func addSubtask(to id: String) {
+        guard let new = store.addSubtask(to: id, title: newSubtask) else { return }
+        newSubtask = ""
+        openSubtasks = [new]
     }
 
     // MARK: Links

@@ -2,11 +2,11 @@ import SwiftUI
 import GroveCore
 
 /// Six weeks, Monday first (Sunday first in Settings). Each day shows its events, a dot for each open task (up to three)
-/// and a leaf when it has a daily note. A click opens the day. A double-click makes an all-day event.
+/// and a leaf when it has a daily note. A click opens the Planner on that week. A double-click makes an all-day event.
 struct MonthView: View {
     @Environment(AppStore.self) private var store
     @Environment(\.theme) private var theme
-    /// Called after a click on a day, so the planner can switch to its day view.
+    /// Called after a click on a day, so the Calendar can open the Planner on that week.
     let openDay: (DayKey) -> Void
     @State private var targeted: DayKey?
     /// Colours each day by the mood of its daily note. The planner header turns it on and off.

@@ -13,14 +13,14 @@ extension AppStore {
         return (try? RollOver.items(repos, today: today)) ?? []
     }
 
-    /// "Move to today": the tasks get today as their day and lose yesterday's blocks, so they show as sticky notes.
+    /// "Move to today": the tasks get today as their day and lose their blocks, so they show as sticky notes.
     /// One undo step.
     func moveRollOver() {
         let today = rollOverToday
         var m = Mutation(name: "Move to Today")
         for item in rollOverItems() {
             m.tasks.append((item.task, placed(item.task, in: .day(today))))
-            for b in item.blocks { m.events.append((b, nil)) }
+            removeBlocks(ofTask: item.task.id, into: &m)   // yesterday's and any other: it is a sticky note now
         }
         commit(m)
         RollOver.markHandled(repos, today: today)

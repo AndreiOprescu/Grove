@@ -76,8 +76,7 @@ extension AppStore {
     /// A click on a notification: open the item on its day, and bring Grove to the front.
     func openFromNotification(day: DayKey, ref: ItemRef) {
         open(ref)
-        selectedDay = day   // also when the item is gone: the day still opens
-        screen = .today
+        showDay(day)   // also when the item is gone: the day still opens
         NSApp?.activate(ignoringOtherApps: true)
     }
 }

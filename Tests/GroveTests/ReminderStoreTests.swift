@@ -254,7 +254,7 @@ struct ReminderStoreTests {
         s.screen = .notes
         #expect(fake.onOpen != nil)
         fake.onOpen?(monday, ItemRef(.task, "T1"))
-        #expect(s.screen == .today)
+        #expect(s.screen == .planner)   // that Monday is not today
         #expect(s.selectedDay == monday)
         #expect(s.selectedTaskId == "T1")
     }
@@ -265,7 +265,7 @@ struct ReminderStoreTests {
         let s = try makeStore(notifier: fake)
         s.screen = .notes
         fake.onOpen?(monday, ItemRef(.event, "gone"))
-        #expect(s.screen == .today)
+        #expect(s.screen == .planner)   // that Monday is not today
         #expect(s.selectedDay == monday)
     }
 }

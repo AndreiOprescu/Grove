@@ -5,21 +5,30 @@ import GroveCore
 enum DragMode { case move, resizeTop, resizeBottom, create }
 
 /// A text field that grabs focus when it appears. Return saves. Esc cancels.
+/// Clicking away saves what was typed (`InlineTitleRules`), or cancels when there is nothing to save.
 struct InlineTitleField: View {
     @Environment(\.theme) private var theme
     @State private var text: String
+    /// Set by the first of Return, Esc or blur, so the others that follow do nothing.
+    @State private var finished = false
+    let initial: String
     let placeholder: String
     var onChange: (String) -> Void = { _ in }
     let onCommit: (String, _ commandHeld: Bool) -> Void
+    /// Saves on blur. Defaults to `onCommit(text, false)`. Set it when Return does more (such as taking back the keys).
+    let onBlurCommit: ((String) -> Void)?
     let onCancel: () -> Void
     @FocusState private var focused: Bool
 
     init(initial: String, placeholder: String, onChange: @escaping (String) -> Void = { _ in },
-         onCommit: @escaping (String, Bool) -> Void, onCancel: @escaping () -> Void) {
+         onCommit: @escaping (String, Bool) -> Void, onBlurCommit: ((String) -> Void)? = nil,
+         onCancel: @escaping () -> Void) {
         _text = State(initialValue: initial)
+        self.initial = initial
         self.placeholder = placeholder
         self.onChange = onChange
         self.onCommit = onCommit
+        self.onBlurCommit = onBlurCommit
         self.onCancel = onCancel
     }
 
@@ -28,11 +37,25 @@ struct InlineTitleField: View {
             .textFieldStyle(.plain)
             .font(theme.body(12, weight: .semibold))
             .focused($focused)
-            .onSubmit { onCommit(text, NSEvent.modifierFlags.contains(.command)) }
-            .onExitCommand { onCancel() }
+            .onSubmit { finish { onCommit(text, NSEvent.modifierFlags.contains(.command)) } }
+            .onExitCommand { finish(onCancel) }
             .onChange(of: text) { _, new in onChange(new) }
-            .onChange(of: focused) { _, isFocused in if !isFocused { onCancel() } }
+            .onChange(of: focused) { _, isFocused in
+                guard !isFocused else { return }
+                finish {
+                    switch InlineTitleRules.onBlur(text: text, initial: initial) {
+                    case .commit: if let onBlurCommit { onBlurCommit(text) } else { onCommit(text, false) }
+                    case .cancel: onCancel()
+                    }
+                }
+            }
             .onAppear { DispatchQueue.main.async { focused = true } }
+    }
+
+    private func finish(_ action: () -> Void) {
+        guard !finished else { return }
+        finished = true
+        action()
     }
 }
 
@@ -91,13 +114,19 @@ struct BlockView: View {
                 .onTapGesture(count: 2, perform: onDoubleTap)
                 .onTapGesture(perform: onTap)
                 .pointerStyle(.grabIdle)
-                .help(block.summary.isEmpty ? "\(block.title) · \(PlannerMath.label(start: start, end: end))"
-                      : "\(block.title) · \(PlannerMath.label(start: start, end: end))\n\(block.summary)")
+                .help(helpText)
 
             handle(.top)
             handle(.bottom)
         }
         .frame(width: size.width, height: size.height)
+    }
+
+    /// The tooltip: title and time, the short description of a task, or "Goal block" in front of a goal block's title.
+    private var helpText: String {
+        let line = "\(block.title) · \(PlannerMath.label(start: start, end: end))"
+        if block.isGoalBlock { return "Goal block · " + line }
+        return block.summary.isEmpty ? line : line + "\n" + block.summary
     }
 
     @ViewBuilder private var content: some View {
@@ -107,8 +136,15 @@ struct BlockView: View {
         } else if compact {
             HStack(spacing: 5) {
                 checkbox
+                if block.isGoalBlock {
+                    Image(systemName: "target").font(.system(size: 9, weight: .bold)).foregroundStyle(tint)
+                }
                 Text(block.title).font(theme.body(11, weight: .semibold)).lineLimit(1)
                     .strikethrough(block.isDone)
+                if block.isGoalBlock {
+                    Text(PlannerMath.duration(length)).font(theme.number(10, weight: .bold)).foregroundStyle(tint)
+                        .lineLimit(1).fixedSize()
+                }
             }
             .foregroundStyle(theme.ink)
         } else {
@@ -118,6 +154,9 @@ struct BlockView: View {
                     timeRow("\(PlannerMath.clock(start))–\(PlannerMath.clock(end)) · \(PlannerMath.duration(length))")
                         .fixedSize(horizontal: true, vertical: false)
                     timeRow("\(PlannerMath.clock(start))–\(PlannerMath.clock(end))")
+                        .fixedSize(horizontal: true, vertical: false)
+                    // Last resort. A goal block keeps its length, the number the user plans it by.
+                    timeRow(block.isGoalBlock ? PlannerMath.duration(length) : "\(PlannerMath.clock(start))–\(PlannerMath.clock(end))")
                 }
                 let lines = PlannerLayoutRules.blockTextLines(height: size.height, hasSummary: !block.summary.isEmpty)
                 HStack(alignment: .top, spacing: 5) {
@@ -138,15 +177,18 @@ struct BlockView: View {
         }
     }
 
+    /// The time row. A goal block starts it with the target symbol.
     private func timeRow(_ text: String) -> some View {
-        Text(text)
-            .font(theme.number(10, weight: .bold))
-            .lineLimit(1)
-            .foregroundStyle(tint)
+        HStack(spacing: 3) {
+            if block.isGoalBlock { Image(systemName: "target").font(.system(size: 9, weight: .bold)) }
+            Text(text).lineLimit(1)
+        }
+        .font(theme.number(10, weight: .bold))
+        .foregroundStyle(tint)
     }
 
     @ViewBuilder private var checkbox: some View {
-        if block.isTaskBlock {
+        if block.isTaskBlock || block.isGoalBlock {
             Button(action: onToggleDone) {
                 CheckBox(isOn: block.isDone, size: compact ? 12 : 14)
             }

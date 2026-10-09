@@ -90,9 +90,10 @@ extension AppStore {
 
     // MARK: Dropping a task
 
-    /// A task dropped on a day in the week strip or the month view.
+    /// A task dropped on a day (the sticky strip, the week strip or the month view): planned for that day with no time.
+    /// Its old time blocks are removed, so it is in one place only.
     func dropTask(_ id: String, on day: DayKey) {
-        moveTask(id, to: .day(day))
+        moveTask(id, to: .day(day), keepingBlocks: false)
         showToast("Planned for " + day.date.formatted(.dateTime.weekday(.abbreviated).day().month(.abbreviated)))
     }
 }

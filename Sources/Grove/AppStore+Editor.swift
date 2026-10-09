@@ -59,15 +59,13 @@ extension AppStore {
         switch ref.type {
         case .task:
             if let t = task(ref.id) {
-                if let day = t.planDate { selectedDay = day }
                 selectedTaskId = t.id
-                screen = .today   // the task panel shows there, in place of the note
+                if let day = t.planDate { showDay(day) } else { screen = .today }   // the task panel shows there, in place of the note
             }
         case .event:
             if let e = event(ref.id) {
-                selectedDay = e.start.day
                 selection = [e.id]
-                screen = .today
+                showDay(e.start.day)
             }
         case .note:
             openNote(ref.id)

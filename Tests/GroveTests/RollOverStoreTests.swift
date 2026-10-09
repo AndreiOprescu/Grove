@@ -47,6 +47,18 @@ struct RollOverStoreTests {
         #expect(s.rollOverItems().isEmpty)
     }
 
+    @Test func moveLeavesTheTaskNoBlockAtAll() throws {
+        let s = try makeStore()
+        let p = try plan(s, "Write report")
+        // A second block of the same task, on another day, goes too.
+        try s.repos.events.save(s.blockEvent(for: p.task, day: today.adding(days: 2), start: 600, end: 660))
+        s.moveRollOver()
+        #expect(s.blocks(ofTask: p.task.id).isEmpty)
+        #expect(s.task(p.task.id)?.planDate == today)
+        s.undo()
+        #expect(s.blocks(ofTask: p.task.id).count == 2)
+    }
+
     @Test func moveIsOneUndoStep() throws {
         let s = try makeStore()
         let p = try plan(s, "A")
