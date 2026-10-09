@@ -326,3 +326,8 @@ Format: date · decision · why · how to undo
 - 2026-10-09 · Cross-platform port F1: CI installs Flutter with `git clone` of the pinned tag (3.47.7), not a third-party action · no new dependency in CI; only first-party `actions/*` are used
 - 2026-10-09 · Cross-platform port F1: CI runs on pushes to `feat/cross-platform-flutter` and on PRs, only when `app/`, the Flutter scripts or the workflow change · Swift-only changes do not start Flutter builds
 - 2026-10-09 · Cross-platform port F1: `cupertino_icons` is removed from the template · not needed; fewer packages
+- 2026-10-10 · Cross-platform port F2: Dart models are immutable with `copyWith` (Swift structs are copied on write; a mutable Dart class would share changes). A nullable field is cleared with `copyWith(field: null)` · keeps Swift value meaning and safe undo snapshots
+- 2026-10-10 · Cross-platform port F2: `DayKey.parse` and `WallTime.parse` accept digits only ("2026-02-28", "14:05"). Swift also let through odd text such as "2026--01-01" or "+1" · stricter on bad input only; every real date reads the same
+- 2026-10-10 · Cross-platform port F2: day maths in Dart runs on UTC midnights · a daylight saving change can never add or lose a day
+- 2026-10-10 · Cross-platform port F2: new ids are made in-house (random v4, upper case like Swift `UUID().uuidString`), not with the `uuid` package · one dependency less
+- 2026-10-10 · Cross-platform port F2: Swift method `days(until:)` is `daysUntil`, `range(through:)` is `rangeThrough`, `WallTime(string)` is `WallTime.parse` · Dart has no argument labels; field names stay the same
