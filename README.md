@@ -12,7 +12,8 @@
   <img alt="Swift 6" src="https://img.shields.io/badge/Swift-6-C77B4E?style=flat-square&logo=swift&logoColor=white">
   <img alt="Zero dependencies" src="https://img.shields.io/badge/dependencies-zero-7FA36B?style=flat-square">
   <img alt="Local-first" src="https://img.shields.io/badge/data-stays%20on%20your%20Mac-D9B44A?style=flat-square">
-  <img alt="1028 tests" src="https://img.shields.io/badge/tests-1028%20passing-8DB57A?style=flat-square">
+  <img alt="MIT license" src="https://img.shields.io/badge/license-MIT-A9C79A?style=flat-square">
+  <img alt="1030 tests" src="https://img.shields.io/badge/tests-1030%20passing-8DB57A?style=flat-square">
 </p>
 
 <p align="center">
@@ -22,7 +23,12 @@
   <a href="#-how-it-works-for-the-curious"><b>How it works</b></a>
 </p>
 
-<!-- SHOT: today (light + dark) -->
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/images/today-tab-dark-mode.png">
+    <img src="docs/images/today-screen-light-mode.png" alt="Grove Today view: the day timeline, open tasks and the daily note" width="100%">
+  </picture>
+</p>
 
 ---
 
@@ -78,7 +84,9 @@ The heart of Grove. A timeline of your day, with your tasks on the side.
 ### Planner — your week at a glance
 Seven days side by side. Drag blocks between days. Zoom in and out with `⌘ =` and `⌘ −`.
 
-<!-- SHOT: planner -->
+<p align="center">
+  <img src="docs/images/planner-tab.png" alt="Grove Planner: a full week of blocks, goals and sticky notes" width="100%">
+</p>
 
 ### Tasks that understand you
 Type one line. Grove reads it.
@@ -101,7 +109,10 @@ Some things have no date. You just want to do them *enough*.
 - Tick the block done when you did it.
 - The goal shows **done** and **planned** for the week, side by side. Next week starts fresh.
 
-<!-- SHOT: goals -->
+<p align="center">
+  <img src="docs/images/planner-screen-futuristic-theme.png" alt="Grove Goals panel in the Futuristic theme" width="100%">
+  <br><sub>The Goals panel, here in the Futuristic theme.</sub>
+</p>
 
 ### Notes, linked to your life
 - A **daily note** for every day and a **weekly note** for every week.
@@ -109,25 +120,31 @@ Some things have no date. You just want to do them *enough*.
 - Checkboxes in a note become real tasks.
 - Add images. Tag how the day felt, and tint your calendar by **mood**.
 
-<!-- SHOT: notes -->
+<p align="center">
+  <img src="docs/images/notes-screen.png" alt="Grove Notes: a daily note with links to tasks" width="100%">
+</p>
 
 ### Calendar
 A month view with your events, a dot for each open task and a leaf for each day with a note.
 Click a day to jump to that week.
 
+<p align="center">
+  <img src="docs/images/calendar-screen.png" alt="Grove Calendar: a month view tinted by mood" width="100%">
+</p>
+
 ### Garden 🌿
 Every task you finish helps a small plant grow, through twelve stages.
 It is a quiet reward for a good day.
 
-<!-- SHOT: garden -->
+<p align="center">
+  <img src="docs/images/plant-page.png" alt="Grove Garden: a budding plant and its stages" width="100%">
+</p>
 
 ### Four themes, light and dark
 **Grove** (natural, the default), **Minimal**, **Futuristic** and **Vintage**.
 Each one has its own colours, fonts and shapes, in a light look and a dark look.
 Soft light drifts in the background. Motion can be turned off, and Grove follows
 the macOS *Reduce motion* setting.
-
-<!-- SHOT: themes -->
 
 ### Small things that feel good
 - **Command palette** (`⌘ K`) to find and do anything.
@@ -248,7 +265,7 @@ undo and redo for free, and keeps the database and the screen in step.
 `scripts/make_icon.swift`. The garden, the plant and the drifting background light
 are drawn by SwiftUI at run time.
 
-**Tested.** 1028 tests with Swift Testing. Run them with:
+**Tested.** 1030 tests with Swift Testing. Run them with:
 
 ```bash
 ./scripts/test.sh
@@ -288,6 +305,12 @@ docs/                assumptions, acceptance proof
 - [ ] Windows, Android and iOS with Flutter
 - [ ] Optional sync between devices
 - [ ] A ready-made download for macOS
+
+---
+
+## 📄 License
+
+Grove is free and open source under the [MIT License](LICENSE).
 
 ---
 
