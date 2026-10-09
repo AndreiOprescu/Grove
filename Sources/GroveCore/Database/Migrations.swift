@@ -129,6 +129,13 @@ enum Migrations {
         ALTER TABLE events ADD COLUMN done_at TEXT;
         CREATE INDEX events_goal ON events(goal_id);
         """,
+
+        // 6 — a goal counts hours or sessions. Old goals are hours goals.
+        // events.done_at stays but is no longer read: every block of a goal counts.
+        """
+        ALTER TABLE goals ADD COLUMN kind TEXT NOT NULL DEFAULT 'hours';
+        ALTER TABLE goals ADD COLUMN target_count INTEGER NOT NULL DEFAULT 3;
+        """,
     ]
 
     static func run(on db: Database) throws {

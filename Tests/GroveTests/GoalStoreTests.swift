@@ -3,7 +3,7 @@ import Foundation
 import GroveCore
 @testable import Grove
 
-/// Goals in the store: a target of hours per week, blocks dragged into days, hours added when a block is done.
+/// Goals in the store: a weekly target of hours or sessions, blocks dragged into days. Every block in the week counts.
 @MainActor
 struct GoalStoreTests {
     func makeStore() throws -> AppStore { AppStore(repos: Repos(db: try Database.inMemory())) }
@@ -12,13 +12,13 @@ struct GoalStoreTests {
     let monday = DayKey("2026-10-05")
     let sunday = DayKey("2026-10-11")
 
-    private func progress(_ s: AppStore, _ id: String, sundayFirst: Bool = false) -> (done: Int, planned: Int, target: Int) {
+    private func progress(_ s: AppStore, _ id: String, sundayFirst: Bool = false) -> GoalProgress {
         s.goalProgress(id, weekOf: DayKey("2026-10-07"), sundayFirst: sundayFirst)
     }
 
     @discardableResult
     private func makeGoal(_ s: AppStore, _ title: String = "Read", target: Int = 300) throws -> GoalItem {
-        try #require(s.addGoal(title: title, targetMin: target))
+        try #require(s.addGoal(title: title, target: target))
     }
 
     // MARK: Goals
@@ -27,7 +27,7 @@ struct GoalStoreTests {
         let s = try makeStore()
         let a = try makeGoal(s, "Read", target: 360)
         let b = try makeGoal(s, "Run", target: 120)
-        #expect(a.targetMin == 360 && a.title == "Read" && a.color == "")
+        #expect(a.targetMin == 360 && a.title == "Read" && a.color == "" && a.kind == .hours)
         #expect(s.goals().map(\.title) == ["Read", "Run"])
         #expect(b.sort > a.sort)
         #expect(s.undoName == "New Goal")
@@ -35,7 +35,7 @@ struct GoalStoreTests {
 
     @Test func aGoalWithoutATitleIsNotAdded() throws {
         let s = try makeStore()
-        #expect(s.addGoal(title: "   ", targetMin: 300) == nil)
+        #expect(s.addGoal(title: "   ", target: 300) == nil)
         #expect(s.goals().isEmpty)
         #expect(s.undoName == nil)
     }
@@ -47,6 +47,34 @@ struct GoalStoreTests {
         #expect(a.title == "Read")
         #expect(a.targetMin == GoalRules.minTarget)
         #expect(b.targetMin == GoalRules.maxTarget)
+    }
+
+    @Test func aSessionGoalKeepsItsCountAndTheDefaultHours() throws {
+        let s = try makeStore()
+        let g = try #require(s.addGoal(title: "Gym", kind: .sessions, target: 4))
+        #expect(g.kind == .sessions && g.targetCount == 4 && g.targetMin == GoalRules.defaultTarget)
+        let d = try #require(s.addGoal(title: "Swim", kind: .sessions))
+        #expect(d.targetCount == GoalRules.defaultCount)
+        let low = try #require(s.addGoal(title: "Yoga", kind: .sessions, target: 0))
+        let high = try #require(s.addGoal(title: "Walk", kind: .sessions, target: 500))
+        #expect(low.targetCount == GoalRules.minCount && high.targetCount == GoalRules.maxCount)
+    }
+
+    @Test func changingTheKindAndCountIsOneUndoStepEach() throws {
+        let s = try makeStore()
+        let g = try makeGoal(s)
+        s.updateGoal(g.id, kind: .sessions)
+        #expect(s.goal(g.id)?.kind == .sessions && s.undoName == "Edit Goal")
+        s.updateGoal(g.id, targetCount: 5)
+        #expect(s.goal(g.id)?.targetCount == 5)
+        s.updateGoal(g.id, targetCount: 1000)
+        #expect(s.goal(g.id)?.targetCount == GoalRules.maxCount)
+        s.undo()
+        #expect(s.goal(g.id)?.targetCount == 5)
+        s.undo()
+        #expect(s.goal(g.id)?.targetCount == 3)
+        s.undo()
+        #expect(s.goal(g.id)?.kind == .hours)
     }
 
     @Test func addingAGoalBumpsTheRevision() throws {
@@ -166,7 +194,7 @@ struct GoalStoreTests {
         s.scheduleGoal(goalId: g.id, day: monday.adding(days: 2), start: 600, length: 30)
         #expect(try s.repos.events.all().count == 2)
         #expect(s.goals().count == 1)
-        #expect(progress(s, g.id).planned == 90)
+        #expect(progress(s, g.id).value == 90)
     }
 
     // MARK: Progress
@@ -174,98 +202,92 @@ struct GoalStoreTests {
     @Test func aNewGoalHasNoProgressAndShowsItsTarget() throws {
         let s = try makeStore()
         let g = try makeGoal(s, target: 300)
-        let p = progress(s, g.id)
-        #expect(p.done == 0 && p.planned == 0 && p.target == 300)
+        #expect(progress(s, g.id) == GoalProgress(kind: .hours, value: 0, target: 300))
     }
 
-    @Test func markingABlockDoneAddsItsHoursAndMarkingAgainTakesThemBack() throws {
+    @Test func aBlockCountsAsSoonAsItIsInTheWeek() throws {
         let s = try makeStore()
         let g = try makeGoal(s)
         s.scheduleGoal(goalId: g.id, day: monday, start: 600, length: 120)
-        let id = try #require(s.selection.first)
-        #expect(progress(s, g.id) == (done: 0, planned: 120, target: 300))
-        s.toggleGoalBlockDone(eventId: id)
-        #expect(progress(s, g.id) == (done: 120, planned: 0, target: 300))
-        #expect(try s.repos.events.get(id)?.doneAt != nil)
-        s.toggleGoalBlockDone(eventId: id)
-        #expect(progress(s, g.id) == (done: 0, planned: 120, target: 300))
-        #expect(try s.repos.events.get(id)?.doneAt == nil)
+        #expect(progress(s, g.id) == GoalProgress(kind: .hours, value: 120, target: 300))
+        let e = try #require(try s.repos.events.all().first)
+        #expect(e.doneAt == nil)
     }
 
-    @Test func aDoneGoalBlockShowsAsDoneOnTheGrid() throws {
+    @Test func aSessionGoalCountsOneForEachBlock() throws {
+        let s = try makeStore()
+        let g = try #require(s.addGoal(title: "Gym", kind: .sessions, target: 2))
+        s.scheduleGoal(goalId: g.id, day: monday, start: 600, length: 30)
+        s.scheduleGoal(goalId: g.id, day: sunday, start: 600, length: 240)
+        #expect(progress(s, g.id) == GoalProgress(kind: .sessions, value: 2, target: 2))
+        s.scheduleGoal(goalId: g.id, day: sunday, start: 900, length: 60)
+        #expect(progress(s, g.id).value == 3)   // over the target is fine
+    }
+
+    @Test func switchingTheKindKeepsTheBlocksAndChangesWhatIsCounted() throws {
+        let s = try makeStore()
+        let g = try makeGoal(s)
+        s.scheduleGoal(goalId: g.id, day: monday, start: 600, length: 90)
+        s.scheduleGoal(goalId: g.id, day: monday, start: 800, length: 30)
+        #expect(progress(s, g.id) == GoalProgress(kind: .hours, value: 120, target: 300))
+        s.updateGoal(g.id, kind: .sessions)
+        #expect(progress(s, g.id) == GoalProgress(kind: .sessions, value: 2, target: 3))
+        #expect(try s.repos.events.all().count == 2)
+    }
+
+    @Test func hoursCanGoOverTheTarget() throws {
+        let s = try makeStore()
+        let g = try makeGoal(s, target: 60)
+        s.scheduleGoal(goalId: g.id, day: monday, start: 600, length: 240)
+        #expect(progress(s, g.id).value == 240)
+    }
+
+    @Test func aGoalBlockIsNeverShownAsDone() throws {
         let s = try makeStore()
         let g = try makeGoal(s)
         s.scheduleGoal(goalId: g.id, day: monday, start: 600)
-        let id = try #require(s.selection.first)
-        #expect(s.blocks(for: monday...monday).first?.isDone == false)
-        s.toggleGoalBlockDone(eventId: id)
         let b = try #require(s.blocks(for: monday...monday).first)
-        #expect(b.isDone && b.goalId == g.id && !b.isTaskBlock)
+        #expect(!b.isDone && b.goalId == g.id && !b.isTaskBlock)
     }
 
-    @Test func markingABlockDoneIsOneUndoStep() throws {
+    @Test func anOldDoneMarkIsIgnored() throws {
+        let s = try makeStore()
+        let g = try makeGoal(s)
+        let e = EventItem(title: "Read", start: WallTime(day: monday, minute: 600), end: WallTime(day: monday, minute: 660),
+                          kind: .block, color: "accent", goalId: g.id, doneAt: "2026-10-05T12:00:00")
+        try s.repos.events.save(e)
+        #expect(s.blocks(for: monday...monday).first?.isDone == false)
+        #expect(progress(s, g.id).value == 60)
+    }
+
+    @Test func resizingABlockChangesTheHours() throws {
         let s = try makeStore()
         let g = try makeGoal(s)
         s.scheduleGoal(goalId: g.id, day: monday, start: 600, length: 60)
         let id = try #require(s.selection.first)
-        s.toggleGoalBlockDone(eventId: id)
-        #expect(s.undoName == "Complete Goal Block")
-        s.undo()
-        #expect(progress(s, g.id).done == 0 && progress(s, g.id).planned == 60)
-        s.redo()
-        #expect(progress(s, g.id).done == 60 && progress(s, g.id).planned == 0)
-        s.toggleGoalBlockDone(eventId: id)
-        #expect(s.undoName == "Reopen Goal Block")
-        s.undo()
-        #expect(progress(s, g.id).done == 60)
-    }
-
-    @Test func aSecondBlockInTheSameWeekAddsMoreHours() throws {
-        let s = try makeStore()
-        let g = try makeGoal(s)
-        s.scheduleGoal(goalId: g.id, day: monday, start: 600, length: 60)
-        let first = try #require(s.selection.first)
-        s.scheduleGoal(goalId: g.id, day: sunday, start: 600, length: 90)
-        let second = try #require(s.selection.first)
-        s.toggleGoalBlockDone(eventId: first)
-        #expect(progress(s, g.id).done == 60)
-        s.toggleGoalBlockDone(eventId: second)
-        #expect(progress(s, g.id) == (done: 150, planned: 0, target: 300))
-    }
-
-    @Test func resizingADoneBlockChangesTheHours() throws {
-        let s = try makeStore()
-        let g = try makeGoal(s)
-        s.scheduleGoal(goalId: g.id, day: monday, start: 600, length: 60)
-        let id = try #require(s.selection.first)
-        s.toggleGoalBlockDone(eventId: id)
         s.applyEdits([BlockEdit(id: id, day: monday, start: 600, end: 750)], ripple: false, name: "Resize Block")
-        #expect(progress(s, g.id).done == 150)
+        #expect(progress(s, g.id).value == 150)
         s.applyEdits([BlockEdit(id: id, day: monday, start: 600, end: 630)], ripple: false, name: "Resize Block")
-        #expect(progress(s, g.id).done == 30)
-        #expect(try s.repos.events.get(id)?.doneAt != nil)   // resizing keeps it done
+        #expect(progress(s, g.id).value == 30)
     }
 
     @Test func aNewWeekStartsAtZeroByItself() throws {
         let s = try makeStore()
         let g = try makeGoal(s)
         s.scheduleGoal(goalId: g.id, day: monday, start: 600, length: 60)
-        s.toggleGoalBlockDone(eventId: try #require(s.selection.first))
-        let nextWeek = DayKey("2026-10-14")
-        #expect(s.goalProgress(g.id, weekOf: nextWeek, sundayFirst: false) == (done: 0, planned: 0, target: 300))
-        #expect(s.goalProgress(g.id, weekOf: DayKey("2026-09-30"), sundayFirst: false).done == 0)
+        #expect(s.goalProgress(g.id, weekOf: DayKey("2026-10-14"), sundayFirst: false) == GoalProgress(kind: .hours, value: 0, target: 300))
+        #expect(s.goalProgress(g.id, weekOf: DayKey("2026-09-30"), sundayFirst: false).value == 0)
     }
 
-    @Test func movingADoneBlockToAnotherWeekMovesItsHours() throws {
+    @Test func movingABlockToAnotherWeekMovesItsHours() throws {
         let s = try makeStore()
         let g = try makeGoal(s)
         s.scheduleGoal(goalId: g.id, day: monday, start: 600, length: 60)
         let id = try #require(s.selection.first)
-        s.toggleGoalBlockDone(eventId: id)
         let later = monday.adding(days: 7)
         s.applyEdits([BlockEdit(id: id, day: later, start: 600, end: 660)], ripple: false, name: "Move Block")
-        #expect(progress(s, g.id).done == 0)
-        #expect(s.goalProgress(g.id, weekOf: later, sundayFirst: false).done == 60)
+        #expect(progress(s, g.id).value == 0)
+        #expect(s.goalProgress(g.id, weekOf: later, sundayFirst: false).value == 60)
     }
 
     @Test func theWeekRunsMondayToSundayOrSundayToSaturday() throws {
@@ -273,14 +295,12 @@ struct GoalStoreTests {
         let g = try makeGoal(s)
         let sundayBefore = monday.adding(days: -1)   // 2026-10-04
         s.scheduleGoal(goalId: g.id, day: sundayBefore, start: 600, length: 60)
-        s.toggleGoalBlockDone(eventId: try #require(s.selection.first))
         s.scheduleGoal(goalId: g.id, day: sunday, start: 600, length: 30)
-        s.toggleGoalBlockDone(eventId: try #require(s.selection.first))
         // Monday first: 10-04 belongs to the week before, 10-11 closes this one.
-        #expect(progress(s, g.id, sundayFirst: false).done == 30)
+        #expect(progress(s, g.id, sundayFirst: false).value == 30)
         // Sunday first: 10-04 opens this week, 10-11 opens the next.
-        #expect(progress(s, g.id, sundayFirst: true).done == 60)
-        #expect(s.goalProgress(g.id, weekOf: DayKey("2026-10-12"), sundayFirst: true).done == 30)
+        #expect(progress(s, g.id, sundayFirst: true).value == 60)
+        #expect(s.goalProgress(g.id, weekOf: DayKey("2026-10-12"), sundayFirst: true).value == 30)
     }
 
     @Test func theWeekSettingIsReadFromTheSameKeyAsThePlanner() throws {
@@ -290,21 +310,10 @@ struct GoalStoreTests {
         let s = try makeStore()
         let g = try makeGoal(s)
         s.scheduleGoal(goalId: g.id, day: monday.adding(days: -1), start: 600, length: 60)
-        s.toggleGoalBlockDone(eventId: try #require(s.selection.first))
         UserDefaults.standard.set(false, forKey: key)
-        #expect(s.goalProgress(g.id, weekOf: DayKey("2026-10-07")).done == 0)
+        #expect(s.goalProgress(g.id, weekOf: DayKey("2026-10-07")).value == 0)
         UserDefaults.standard.set(true, forKey: key)
-        #expect(s.goalProgress(g.id, weekOf: DayKey("2026-10-07")).done == 60)
-    }
-
-    @Test func togglingABlockThatIsNotAGoalBlockChangesNothing() throws {
-        let s = try makeStore()
-        s.createFromDraft(title: "Dentist", day: monday, start: 600, end: 660, asEvent: true)
-        let id = try #require(s.blocks(for: monday...monday).first).id
-        let before = s.undoName
-        s.toggleGoalBlockDone(eventId: id)
-        #expect(try s.repos.events.get(id)?.doneAt == nil)
-        #expect(s.undoName == before)
+        #expect(s.goalProgress(g.id, weekOf: DayKey("2026-10-07")).value == 60)
     }
 
     // MARK: Deleting a goal
@@ -313,14 +322,12 @@ struct GoalStoreTests {
         let s = try makeStore()
         let g = try makeGoal(s)
         s.scheduleGoal(goalId: g.id, day: monday, start: 600, length: 60)
-        let done = try #require(s.selection.first)
         s.scheduleGoal(goalId: g.id, day: monday, start: 720, length: 60)
-        s.toggleGoalBlockDone(eventId: done)
         s.deleteGoal(g.id)
         #expect(s.goals().isEmpty && s.goal(g.id) == nil)
         let events = try s.repos.events.all()
         #expect(events.count == 2)
-        #expect(events.allSatisfy { $0.goalId == nil && $0.doneAt == nil && $0.kind == .block })
+        #expect(events.allSatisfy { $0.goalId == nil && $0.kind == .block })
         #expect(s.blocks(for: monday...monday).count == 2)
         #expect(s.blocks(for: monday...monday).allSatisfy { $0.goalId == nil && !$0.isDone })
     }
@@ -330,13 +337,12 @@ struct GoalStoreTests {
         let g = try makeGoal(s)
         s.scheduleGoal(goalId: g.id, day: monday, start: 600, length: 60)
         let id = try #require(s.selection.first)
-        s.toggleGoalBlockDone(eventId: id)
         s.deleteGoal(g.id)
         #expect(s.undoName == "Delete Goal")
         s.undo()
         #expect(s.goal(g.id)?.title == "Read")
         #expect(try s.repos.events.get(id)?.goalId == g.id)
-        #expect(progress(s, g.id).done == 60)
+        #expect(progress(s, g.id).value == 60)
         s.redo()
         #expect(s.goal(g.id) == nil)
         #expect(try s.repos.events.get(id)?.goalId == nil)
@@ -348,7 +354,6 @@ struct GoalStoreTests {
         let s = try makeStore()
         let g = try makeGoal(s)
         s.scheduleGoal(goalId: g.id, day: monday, start: 600, length: 60)
-        s.toggleGoalBlockDone(eventId: try #require(s.selection.first))
         s.createFromDraft(title: "Write", day: monday, start: 720, end: 780, asEvent: false)
         let totals = s.dayTotals(monday, blocks: s.blocks(for: monday...monday), workStart: 540, workEnd: 1020)
         #expect(totals.planned == 120)
@@ -356,27 +361,27 @@ struct GoalStoreTests {
         #expect(s.plannedMinutes(on: monday) == 120)
     }
 
-    @Test func duplicatingADoneGoalBlockMakesAPlannedOne() throws {
+    @Test func duplicatingAGoalBlockAddsItsHoursAgain() throws {
         let s = try makeStore()
         let g = try makeGoal(s)
         s.scheduleGoal(goalId: g.id, day: monday, start: 600, length: 60)
         let id = try #require(s.selection.first)
-        s.toggleGoalBlockDone(eventId: id)
         s.duplicate(blockIds: [id])
         let events = try s.repos.events.all()
         #expect(events.count == 2)
         #expect(events.allSatisfy { $0.goalId == g.id })
-        #expect(progress(s, g.id) == (done: 60, planned: 60, target: 300))
+        #expect(progress(s, g.id).value == 120)
     }
 
-    @Test func splittingADoneGoalBlockKeepsTheHours() throws {
+    @Test func splittingAGoalBlockKeepsTheHoursAndAddsASession() throws {
         let s = try makeStore()
         let g = try makeGoal(s)
         s.scheduleGoal(goalId: g.id, day: monday, start: 600, length: 120)
         let id = try #require(s.selection.first)
-        s.toggleGoalBlockDone(eventId: id)
         s.split(blockId: id)
-        #expect(progress(s, g.id) == (done: 120, planned: 0, target: 300))
+        #expect(progress(s, g.id).value == 120)
+        s.updateGoal(g.id, kind: .sessions)
+        #expect(progress(s, g.id).value == 2)
     }
 
     @Test func deletingAGoalBlockRemovesItsHours() throws {
@@ -384,9 +389,8 @@ struct GoalStoreTests {
         let g = try makeGoal(s)
         s.scheduleGoal(goalId: g.id, day: monday, start: 600, length: 60)
         let id = try #require(s.selection.first)
-        s.toggleGoalBlockDone(eventId: id)
         s.deleteBlocks([id])
-        #expect(progress(s, g.id).done == 0)
+        #expect(progress(s, g.id).value == 0)
         #expect(s.goal(g.id) != nil)
     }
 }
@@ -412,6 +416,21 @@ struct GoalRulesTests {
         let day = DayKey("2026-10-11")
         #expect(GoalRules.week(of: day, sundayFirst: false).lowerBound == DayKey("2026-10-05"))
         #expect(GoalRules.week(of: day, sundayFirst: true).lowerBound == day)
+    }
+
+    @Test func aCountStaysBetweenOneAndNinetyNine() {
+        #expect(GoalRules.clampCount(0) == 1)
+        #expect(GoalRules.clampCount(3) == 3)
+        #expect(GoalRules.clampCount(500) == 99)
+        #expect(GoalRules.defaultCount == 3)
+    }
+
+    @Test func theTargetOfAGoalIsItsHoursOrItsCount() {
+        var g = GoalItem(title: "x", targetMin: 240)
+        #expect(GoalRules.target(of: g) == 240)
+        g.kind = .sessions
+        g.targetCount = 4
+        #expect(GoalRules.target(of: g) == 4)
     }
 
     @Test func aBlockUsesTheGoalColourOrTheAccent() {

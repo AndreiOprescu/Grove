@@ -301,3 +301,8 @@ Format: date · decision · why · how to undo
 - 2026-10-09 · Duration menu: 4 h (240 min) added for every block, not only goal blocks (`PlannerLayoutRules.durationChoices`) · one list is simpler and a long task block may want it too
 - 2026-10-09 · Goal block: space bar on a selected goal block marks it done or not done, like a task block · same key as tasks
 - 2026-10-09 · cleanup: deleted unused Sources/Grove/Calendar/WeekStrip.swift · nothing used it after the fixed views
+- 2026-10-09 · Goal kinds: a goal is Hours or Sessions. Sessions starts at 3 per week, steps by 1, and stays between 1 and 99 · a week has few sessions and 99 is a safe top
+- 2026-10-09 · Goal kinds: a goal block counts as soon as it is placed, also on a later day of the week. The done tick, "Mark Done" and the space bar on goal blocks are removed. Old `done_at` values stay in the database but are not read · the owner asked for no tick and a tally that can go over
+- 2026-10-09 · Goal kinds: switching a goal between Hours and Sessions keeps its blocks; only what is counted changes. Each kind keeps its own target · no data is lost when the user switches back
+- 2026-10-09 · Goals panel: the add row keeps the chosen kind after a goal is added; the target goes back to the default of that kind · quick to add several goals of one kind
+- 2026-10-09 · Goals panel: a click on a goal row opens an editor under it (name, kind, target, colour); one goal open at a time. Right-click ▸ Edit… opens the same editor. The popover is removed. The name saves on Return or when the editor closes; Escape undoes the name edit; the rest saves at once, one undo step each · the owner asked for click to edit; this replaces the two "right-click popover" and "a click does nothing" lines above

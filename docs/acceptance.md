@@ -34,11 +34,14 @@ P = proven by automated tests. PT = logic is tested, the screen or gesture is no
 | 26 | Survive relaunch, backup, JSON | P / PT | `DatabaseTests.migrationsAreIdempotent`, `dailyBackupIsCreatedOnceAndTrimmed`, `DataExportTests.importGivesBackEverythingThatWasExported`. Click: Settings ▸ Data ▸ Export, change, Import. |
 | 27 | `scripts/test.sh` passes | P | 845 / 845 |
 | 28 | Today = today only; Planner = week only; Calendar = month only | P | `PlannerKindTests.todayShowsOnlyToday`, `weekShowsSevenDaysFromMonday`, `monthShowsTheSixWeekGrid` |
-| 29 | Goals: weekly-hour recurring items, drag a goal into a day, tick to add hours. Migration 5 (goals table, events.goal_id, events.done_at) | P | `GoalStoreTests.draggingAGoalIntoADayMakesAGoalBlock`, `markingABlockDoneAddsItsHoursAndMarkingAgainTakesThemBack`, `GoalTests.upgradingAVersionFourDatabaseKeepsItsData` |
+| 29 | Goals: weekly-hour recurring items, drag a goal into a day (the tick was replaced by row 36). Migration 5 (goals table, events.goal_id, events.done_at) | P | `GoalStoreTests.draggingAGoalIntoADayMakesAGoalBlock`, `GoalTests.upgradingAVersionFourDatabaseKeepsItsData` |
 | 30 | Left dock: Notes, Tasks, Goals panels. One open at a time | P | `LeftPaneTests.aTapOnTheOpenPanelClosesIt`, `aTapOnAnotherPanelSwitchesToItSoOnlyOneIsOpen`, `onlyTodayAndThePlannerHaveTheButtons` |
 | 31 | Tasks panel shows unscheduled + overdue only. Drop task on calendar moves it (one block, old slot removed) | PT | `AllTasksRulesTests.noDayYetRunsInboxThenWeeksThenSomeday`, `PlannerStoreTests.movingTaskBlockToAnotherDayUpdatesTaskPlanDate`. Click: drag task to another day. |
 | 32 | "Time blocks" section removed from task panel | M | Click: select a task, look in the inspector. Time blocks are gone. |
 | 33 | New task kept when clicked away (quick add and planner draft) | P | `InlineTitleRulesTests.textLeftInTheFieldIsKept`, `emptyOrBlankTextIsDropped`. Blur with non-empty text saves, empty text cancels. |
 | 34 | Subtasks with name, description, duration, own done | P | `InspectorStoreTests.addingASubtaskReturnsItAndKeepsTheName`, `aSubtaskKeepsItsOwnDescriptionAndDuration`, `doneOnOneSubtaskLeavesTheOthersAndTheParentAlone` |
+| 35 | Goals have two kinds: Hours and Sessions. Migration 6 (goals.kind, goals.target_count) | P | `GoalStoreTests.aSessionGoalCountsOneForEachBlock`, `switchingTheKindKeepsTheBlocksAndChangesWhatIsCounted`, `GoalTests.upgradingAVersionFiveDatabaseMakesTheOldGoalsHourGoals`, `anExportFileWithGoalsButNoKindImportsThemAsHourGoals` |
+| 36 | Goal block counts when placed, no done tick, tally can go over | P | `GoalStoreTests.aBlockCountsAsSoonAsItIsInTheWeek`, `hoursCanGoOverTheTarget`, `aGoalBlockIsNeverShownAsDone`, `anOldDoneMarkIsIgnored`, `GoalDropFlowTests.dropResizeAddAndNextWeek` |
+| 37 | Click a goal to edit name, kind, target per week | PT | `GoalStoreTests.changingTheKindAndCountIsOneUndoStepEach`, `GoalPaneRulesTests.theSessionStepperMovesByOne`. Click: click a goal, change each field, click again. Test run: 1016 / 1016 |
 
 Not covered by any test: planner gestures and the key handler (lines 3, 4, 5, 7, 10, 11), the ⌘Z key itself, and all looks.
