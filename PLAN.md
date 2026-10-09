@@ -349,7 +349,9 @@ that item (delete + insert row).
 The planner is a vertical time grid. It appears:
 - as the left column of Layout B (day mode),
 - as the main view of the **Planner** screen in every layout (sidebar item / ⌘1),
-- as Calendar Day / 3-Day / Week view (same component, `dayCount` = 1, 3 or 7).
+- as the fixed week view of the **Planner** screen (7 days) and as the one-day timeline of the
+  **Today** screen (today only). Owner request, 2026-10-09: there is no Day / 3-Day mode and no
+  mode picker. Each top tab has one view: Today = today, Planner = week, Calendar = month.
 
 Reference behaviour: `design/layouts.html`, Layout B timeline (drag, resize, overlap).
 
@@ -509,7 +511,7 @@ Use `.focusable()` + `.onKeyPress`.
 
 #### 5.1.7 Planner extras
 
-- **Sticky-note strip** (right under the day numbers in Day, 3 Days and Week, and on the
+- **Sticky-note strip** (right under the day numbers in the week view, and on the
   Today screen timeline; can fold): each day's open tasks that are planned for that day
   but have no block, drawn as sticky notes (priority, then order). Each note shows its
   length. Drag a note onto the grid to give it a time. Drag a block up onto the strip to
@@ -535,14 +537,21 @@ Use `.focusable()` + `.onKeyPress`.
   task: "No day yet" first (inbox → week tasks, earliest week first → someday), then
   "By day" (one flat list, earliest day first, late ones on top, no day headings). Quick
   add there goes to the Inbox. The Today page keeps its tabs (Today / Week / Inbox / Someday).
+  **Superseded 2026-10-09:** the lists live in three separate left panels (Notes, Tasks,
+  Goals), opened from a dock of three buttons at the top left of the Today and Planner
+  screens. One panel is open at a time. The **Tasks** panel shows only unscheduled tasks
+  (no day yet: inbox, week, someday) and overdue ones; a task with a day today or later is
+  not listed. Dropping a task on the planner moves it: it keeps one block, at the new time,
+  and the old date and time are removed. The **Today** page shows only today's tasks (no
+  tabs). A new task is kept when the user clicks away without pressing Enter.
 - **Week view of tasks** (used by Layout C and the "This Week" sidebar item): 7 day columns
   + "Anytime this week" column. Drag tasks between columns (changes `plan_date`; to the
   "anytime" column sets bucket `week`).
 - **Row**: checkbox (spring + check-burst), title, chips: list, time block (if any),
   due, estimate, repeat icon, note icon, tags. Priority = coloured 3pt bar on the left.
 - **Inspector / detail popover**: title, body (rich, see below), list, tags, priority,
-  bucket/date, due, estimate, repeat rule, subtasks (inline add), time blocks (list with
-  "Add block"), "Linked here" (backlinks), "Created from note X" link.
+  bucket/date, due, estimate, repeat rule, subtasks (inline add; each has a name, a description, a duration and its own done box),
+  "Linked here" (backlinks), "Created from note X" link.
 - **Rich task body** (owner request, 2026-10-02). `tasks.notes` holds the body as plain
   Markdown text. The inspector edits it with the same `RichTextEditor` that notes use (M5
   reuses it). It supports: `-` bullets and `1.` numbered lists (Return continues the list,
@@ -576,11 +585,11 @@ Use `.focusable()` + `.onKeyPress`.
 ### 5.3 Calendar
 
 - **Month view**: 6×7 grid. Each cell: day number, up to 3 event pills, "+n", small dots
-  for open tasks (count), a leaf glyph if the day has a daily note with text. Click → day
-  in planner. Double-click → new all-day event. Drag tasks/blocks/notes onto a day.
+  for open tasks (count), a leaf glyph if the day has a daily note with text. Click → that
+  week in the Planner. Double-click → new all-day event. Drag tasks/blocks/notes onto a day.
 - **Week strip** (top of Layout B and the planner header): Mon–Sun with dots = number of
   items (max 3 dots). Click switches day. ‹ › buttons. Today highlighted with accent.
-- **Day / 3-Day / Week** = the planner (§5.1) with `dayCount` 1/3/7.
+- The Calendar screen shows the month view only. The week view is the Planner screen (§5.1).
 - **Event editor** (popover): title, all-day toggle, start, end, colour, location, notes,
   repeat, linked notes, "Create meeting note" button.
 - **RecurrenceEngine.occurrences(rule, seriesStart, in range) -> [DayKey]** minus exdates,
@@ -683,6 +692,20 @@ Use `.focusable()` + `.onKeyPress`.
   (daily/weekly templates), **Data** (export, import, show folder, backups list).
 - Settings are stored in the `settings` table (JSON values) and mirrored in `AppStore`.
 
+### 5.9 Goals (owner request, 2026-10-09)
+
+A goal is a recurring item with **no date** and a **target of hours per week**.
+- Table `goals` (migration 5): `id, title, notes, color, target_min (default 300), sort,
+  archived, created_at, updated_at`. Events get `goal_id` and `done_at` (migration 5).
+- The **Goals** panel (left dock) lists goals with "done / target h" and a bar for the week of
+  the chosen day. Add a goal with a name and a weekly target (0.5 h steps, 5 h at first).
+- Drag a goal onto a day in the Today timeline or the Planner week: it makes a 1 h block.
+  Set the hours by resizing the block or with its right-click menu (15 min to 4 h).
+- Tick the block done: its hours count for that week. Un-tick: they are taken away.
+  Progress is worked out from the done blocks of the planner week; it is never stored, so
+  a new week starts at zero. The goal stays, so more blocks can be added in the same week.
+- Deleting a goal keeps its blocks as plain blocks. Goals are in export, import and backup.
+
 ---
 
 ## 6. Themes
@@ -777,10 +800,11 @@ Command palette, Settings. Use the matching mock in `design/layouts.html` as the
   (`.inspector(isPresented:)`) for the selected task/event/note.
 - **B · Day Spread** (recommended) — header: big date, greeting + "% of today grown", week
   strip, search pill. Three columns: **Tasks** on the left, 300–420pt resizable
-  (tabs Today/Week/Someday, progress bar, unscheduled section, quick add) · **Planner (day
+  (today's tasks only, progress bar, quick add; since 2026-10-09 the left slot can instead
+  show the Notes, Tasks or Goals panel) · **Planner (day
   mode)** in the centre, taking the rest of the width · **Today's
   note** (editor + Linked here + mood + focus). A toolbar segmented control switches the
-  whole window to Planner (full width, 3-day/week) · Calendar (month) · Notes (full).
+  whole window to Planner (full width, week) · Calendar (month) · Notes (full).
 - **C · Week Board** — header "Week 40" with ‹ ›. Grid: Inbox column + 7 day columns,
   each with event pills then tasks (drag between). Bottom drawer (collapsible, 150pt):
   weekly note · weekly goals · pinned notes. Toolbar toggle "Board / Planner" switches
