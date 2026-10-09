@@ -171,8 +171,17 @@ private struct StickyNote: View {
         .rotationEffect(.degrees(StickyRules.tilt(for: task.id)))
         .contentShape(Rectangle())
         .onTapGesture { store.selectedTaskId = store.selectedTaskId == task.id ? nil : task.id }
+        .contextMenu {
+            Button(task.isDone ? "Mark Not Done" : "Mark Done") { store.toggleDone(taskId: task.id) }
+            Button("Fit in Next Gap") {
+                store.fit(taskId: task.id, day: day, workStart: workStart, workEnd: workEnd, step: PlannerMath.step)
+            }
+            Divider()
+            Button("Delete Task", role: .destructive) { store.deleteTask(task.id) }
+        }
         .draggable(DragPayload.task(task.id))
         .accessibilityElement(children: .contain)
+        .accessibilityAction(named: "Delete task") { store.deleteTask(task.id) }
         .accessibilityLabel("\(task.title), \(length), no time yet. Drag onto the timeline.")
     }
 

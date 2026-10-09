@@ -92,6 +92,8 @@ final class AppStore {
     /// The look of the window and the motion switch. Both are saved in UserDefaults (see `AppStore+Appearance`).
     var themeID: ThemeID = ThemeID(rawValue: UserDefaults.standard.string(forKey: "appearance.theme") ?? "") ?? .default
     var motionSetting: Bool = UserDefaults.standard.object(forKey: "appearance.motion") as? Bool ?? true
+    /// Light, dark or the Mac's choice. Apart from the theme.
+    var appearance: AppearanceMode = AppearanceMode(rawValue: UserDefaults.standard.string(forKey: "appearance.mode") ?? "") ?? .system
 
     /// Reminders (PLAN §5.6). Saved in UserDefaults. The switch is on and the lead is 5 minutes until the user changes them.
     var notifyEnabled: Bool = UserDefaults.standard.object(forKey: "notifications.enabled") as? Bool ?? true
@@ -191,7 +193,7 @@ final class AppStore {
     /// Planned time per day above this many minutes triggers an alert. Default 9 hours.
     var dailyLimitMinutes: Int {
         let v = UserDefaults.standard.integer(forKey: "planner.dailyLimitMin")
-        return v > 0 ? v : 9 * 60
+        return v > 0 ? v : SettingsRules.defaultDailyLimit
     }
 
     /// Minutes of the day that have at least one block. Overlaps count once.
@@ -646,7 +648,7 @@ final class AppStore {
             let s = PlannerMath.clampMove(start: old.end.minute, length: len)
             var copy = old
             copy.id = UUID().uuidString
-            copy.doneAt = nil   // a copy of a done goal block is planned, so the hours are not counted twice
+            copy.doneAt = nil   // a copy of a done goal block is planned, so it is not counted done twice
             copy.start = WallTime(day: old.start.day, minute: s)
             copy.end = WallTime(day: old.start.day, minute: s + len)
             m.events.append((nil, copy))

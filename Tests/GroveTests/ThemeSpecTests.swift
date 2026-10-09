@@ -57,24 +57,26 @@ struct ThemeSpecTests {
 
     // MARK: Light and dark
 
-    @Test func groveAndMinimalFollowTheSystem() {
-        #expect(ThemeSpec.spec(.grove).scheme == .system)
-        #expect(ThemeSpec.spec(.minimal).scheme == .system)
-        #expect(ThemeSpec.spec(.grove).colorScheme == nil)
-    }
-
-    @Test func futuristicIsDarkOnlyAndVintageIsLightOnly() {
-        #expect(ThemeSpec.spec(.futuristic).scheme == .dark)
-        #expect(ThemeSpec.spec(.futuristic).colorScheme == .dark)
-        #expect(ThemeSpec.spec(.vintage).scheme == .light)
-        #expect(ThemeSpec.spec(.vintage).colorScheme == .light)
-    }
-
-    @Test func aLockedThemeLooksTheSameInBothVariants() {
-        for id in [ThemeID.futuristic, .vintage] {
-            let s = ThemeSpec.spec(id)
-            for t in s.allTones { #expect(t.light == t.dark && t.lightAlpha == t.darkAlpha) }
+    @Test func everyThemeHasALightAndADarkLook() {
+        for s in ThemeSpec.all {
+            #expect(s.bg.light != s.bg.dark, "\(s.name) has one look only")
+            #expect(ColorMath.luminance(s.bg.light) > ColorMath.luminance(s.bg.dark), "\(s.name): light is not lighter")
+            #expect(ColorMath.luminance(s.ink.light) < ColorMath.luminance(s.ink.dark), "\(s.name): ink does not flip")
         }
+    }
+
+    @Test func theNewVariantsKeepTheThemeColours() {
+        let v = ThemeSpec.spec(.vintage), f = ThemeSpec.spec(.futuristic)
+        #expect(v.bg.dark == 0x221A12 && v.ink.dark == 0xEFE3C8 && v.accent.dark == 0xD9735E)
+        #expect(f.bg.light == 0xEEF3FB && f.ink.light == 0x0B1530 && f.accent.light == 0x0B8F7A)
+    }
+
+    @Test func aThemeNoLongerChoosesLightOrDark() {
+        #expect(AppearanceMode.allCases == [.system, .light, .dark])
+        #expect(AppearanceMode.system.colorScheme == nil)
+        #expect(AppearanceMode.light.colorScheme == .light)
+        #expect(AppearanceMode.dark.colorScheme == .dark)
+        #expect(AppearanceMode.allCases.map(\.name) == ["System", "Light", "Dark"])
     }
 
     // MARK: Blobs

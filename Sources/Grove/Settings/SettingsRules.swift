@@ -5,6 +5,9 @@ import GroveCore
 enum SettingsRules {
     static let eventLengths = [15, 30, 45, 60, 90, 120]
     static let defaultEventLength = 60
+    /// The busy-day limit, whole hours from 6 to 12, in minutes. Planned time above it shows a warning.
+    static let dailyLimits = Array(stride(from: 360, through: 720, by: 60))
+    static let defaultDailyLimit = 540
     /// How strong the moving circles look, 0% to 150%. 100% is the theme as designed.
     static let intensityRange = 0.0...1.5
 

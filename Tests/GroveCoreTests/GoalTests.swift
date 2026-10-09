@@ -3,7 +3,7 @@ import Foundation
 import SQLite3
 @testable import GroveCore
 
-/// Goals: a target of hours per week and no date. Time blocks add to a goal when they are done.
+/// Goals: a weekly target of hours or of sessions, and no date. Every block of the goal in the week counts.
 /// The progress is never stored. It is worked out from the blocks (PLAN: goals).
 struct GoalTests {
     private func makeRepos() throws -> Repos { Repos(db: try Database.inMemory()) }
@@ -27,7 +27,8 @@ struct GoalTests {
     @Test func aNewGoalHasNoColourFiveHoursAndNoNotes() {
         let g = GoalItem(title: "Read")
         #expect(g.color == "" && g.notes == "")
-        #expect(g.targetMin == 300)
+        #expect(g.kind == .hours)
+        #expect(g.targetMin == 300 && g.targetCount == 3)
         #expect(!g.archived)
         #expect(g.sort == 0)
         #expect(!g.createdAt.isEmpty && g.createdAt == g.updatedAt)
@@ -55,13 +56,17 @@ struct GoalTests {
         try r.goals.upsert(g)
         let got = try #require(try r.goals.get("G1"))
         #expect(got.title == "Read" && got.notes == "Novels only" && got.color == "teal")
-        #expect(got.targetMin == 360 && got.sort == 2 && !got.archived)
+        #expect(got.kind == .hours && got.targetMin == 360 && got.targetCount == 3 && got.sort == 2 && !got.archived)
         g.title = "Read more"
         g.targetMin = 420
+        g.kind = .sessions
+        g.targetCount = 4
         g.archived = true
         try r.goals.upsert(g)
         #expect(try r.goals.get("G1")?.title == "Read more")
         #expect(try r.goals.get("G1")?.targetMin == 420)
+        #expect(try r.goals.get("G1")?.kind == .sessions)
+        #expect(try r.goals.get("G1")?.targetCount == 4)
         #expect(try r.goals.get("G1")?.archived == true)
         #expect(try r.db.query("SELECT COUNT(*) FROM goals") { $0.int(0) } == [1])   // an update, not a second row
         try r.goals.delete("G1")
@@ -103,71 +108,83 @@ struct GoalTests {
 
     // MARK: Progress is worked out from the blocks
 
-    @Test func doneMinutesAddUpOnlyDoneBlocks() throws {
+    @Test func minutesAddUpEveryBlockOfTheGoalInTheRange() throws {
         let r = try makeRepos()
-        try block(r, goal: "G1", day: monday, from: 600, to: 660, done: true)                       // 60
-        try block(r, goal: "G1", day: monday.adding(days: 2), from: 540, to: 600, done: true)       // 60
-        try block(r, goal: "G1", day: monday.adding(days: 3), from: 540, to: 570, done: false)      // planned, 30
-        #expect(try r.goals.doneMinutes(goalId: "G1", from: monday, to: sunday) == 120)
-        #expect(try r.goals.plannedMinutes(goalId: "G1", from: monday, to: sunday) == 30)
+        try block(r, goal: "G1", day: monday, from: 600, to: 660)                          // 60
+        try block(r, goal: "G1", day: monday.adding(days: 2), from: 540, to: 600, done: true) // 60, done
+        try block(r, goal: "G1", day: monday.adding(days: 3), from: 540, to: 570)          // 30
+        #expect(try r.goals.minutes(goalId: "G1", from: monday, to: sunday) == 150)
+        #expect(try r.goals.minutes(goalId: "G1", from: monday, to: sunday, doneOnly: true) == 60)
     }
 
-    @Test func plannedMinutesDoNotCountDoneBlocks() throws {
+    @Test func doneOnlyCountsTheDoneBlocks() throws {
         let r = try makeRepos()
-        try block(r, goal: "G1", day: monday, from: 600, to: 720, done: true)
-        try block(r, goal: "G1", day: monday, from: 800, to: 830, done: false)
-        try block(r, goal: "G1", day: sunday, from: 800, to: 845, done: false)
-        #expect(try r.goals.plannedMinutes(goalId: "G1", from: monday, to: sunday) == 75)
+        try block(r, goal: "G1", day: monday, from: 600, to: 615)
+        try block(r, goal: "G1", day: monday, from: 700, to: 940, done: true)
+        try block(r, goal: "G1", day: sunday, from: 800, to: 845, done: true)
+        #expect(try r.goals.sessions(goalId: "G1", from: monday, to: sunday, doneOnly: true) == 2)
+        #expect(try r.goals.minutes(goalId: "G1", from: monday, to: sunday, doneOnly: true) == 285)
+        #expect(try r.goals.minutes(goalId: "G2", from: monday, to: sunday, doneOnly: true) == 0)
+    }
+
+    @Test func sessionsCountTheBlocksWhateverTheirLength() throws {
+        let r = try makeRepos()
+        try block(r, goal: "G1", day: monday, from: 600, to: 615)
+        try block(r, goal: "G1", day: monday, from: 700, to: 940)
+        try block(r, goal: "G1", day: sunday, from: 800, to: 845, done: true)
+        #expect(try r.goals.sessions(goalId: "G1", from: monday, to: sunday) == 3)
     }
 
     @Test func theFirstAndLastDayOfTheRangeCount() throws {
         let r = try makeRepos()
-        try block(r, goal: "G1", day: monday, done: true)
-        try block(r, goal: "G1", day: sunday, done: true)
-        #expect(try r.goals.doneMinutes(goalId: "G1", from: monday, to: sunday) == 120)
+        try block(r, goal: "G1", day: monday)
+        try block(r, goal: "G1", day: sunday)
+        #expect(try r.goals.minutes(goalId: "G1", from: monday, to: sunday) == 120)
+        #expect(try r.goals.sessions(goalId: "G1", from: monday, to: sunday) == 2)
     }
 
     @Test func theDayBeforeAndTheDayAfterTheRangeDoNotCount() throws {
         let r = try makeRepos()
-        try block(r, goal: "G1", day: monday.adding(days: -1), from: 1380, to: 1440, done: true)   // Sunday before, 23:00 to midnight
-        try block(r, goal: "G1", day: sunday.adding(days: 1), from: 0, to: 60, done: true)         // Monday after
-        try block(r, goal: "G1", day: sunday.adding(days: 1), from: 0, to: 60, done: false)
-        #expect(try r.goals.doneMinutes(goalId: "G1", from: monday, to: sunday) == 0)
-        #expect(try r.goals.plannedMinutes(goalId: "G1", from: monday, to: sunday) == 0)
+        try block(r, goal: "G1", day: monday.adding(days: -1), from: 1380, to: 1440)   // Sunday before, 23:00 to midnight
+        try block(r, goal: "G1", day: sunday.adding(days: 1), from: 0, to: 60)         // Monday after
+        #expect(try r.goals.minutes(goalId: "G1", from: monday, to: sunday) == 0)
+        #expect(try r.goals.sessions(goalId: "G1", from: monday, to: sunday) == 0)
     }
 
     @Test func aSundayFirstWeekHoldsTheSundayBeforeButNotTheNextOne() throws {
         let r = try makeRepos()
         let firstSunday = monday.adding(days: -1)   // 2026-10-04
-        try block(r, goal: "G1", day: firstSunday, done: true)
-        try block(r, goal: "G1", day: sunday, done: true)    // Sunday 2026-10-11 starts the next Sunday-first week
-        #expect(try r.goals.doneMinutes(goalId: "G1", from: firstSunday, to: firstSunday.adding(days: 6)) == 60)
-        #expect(try r.goals.doneMinutes(goalId: "G1", from: monday, to: sunday) == 60)
+        try block(r, goal: "G1", day: firstSunday)
+        try block(r, goal: "G1", day: sunday)       // Sunday 2026-10-11 starts the next Sunday-first week
+        #expect(try r.goals.minutes(goalId: "G1", from: firstSunday, to: firstSunday.adding(days: 6)) == 60)
+        #expect(try r.goals.minutes(goalId: "G1", from: monday, to: sunday) == 60)
     }
 
     @Test func otherGoalsAndPlainBlocksAreNotCounted() throws {
         let r = try makeRepos()
-        try block(r, goal: "G2", day: monday, done: true)
-        try block(r, goal: nil, day: monday, done: true)
-        try block(r, goal: "G1", day: monday, from: 600, to: 645, done: true)
-        #expect(try r.goals.doneMinutes(goalId: "G1", from: monday, to: sunday) == 45)
-        #expect(try r.goals.doneMinutes(goalId: "G2", from: monday, to: sunday) == 60)
+        try block(r, goal: "G2", day: monday)
+        try block(r, goal: nil, day: monday)
+        try block(r, goal: "G1", day: monday, from: 600, to: 645)
+        #expect(try r.goals.minutes(goalId: "G1", from: monday, to: sunday) == 45)
+        #expect(try r.goals.minutes(goalId: "G2", from: monday, to: sunday) == 60)
+        #expect(try r.goals.sessions(goalId: "G1", from: monday, to: sunday) == 1)
     }
 
     @Test func aLongerBlockCountsItsWholeLength() throws {
         let r = try makeRepos()
-        try block(r, goal: "G1", day: monday, from: 480, to: 720, done: true)
-        #expect(try r.goals.doneMinutes(goalId: "G1", from: monday, to: monday) == 240)
+        try block(r, goal: "G1", day: monday, from: 480, to: 720)
+        #expect(try r.goals.minutes(goalId: "G1", from: monday, to: monday) == 240)
     }
 
     @Test func aBlockThatRunsPastMidnightCountsOnItsStartDayWithItsWholeLength() throws {
         let r = try makeRepos()
         var e = EventItem(id: "N", title: "Night", start: WallTime(day: sunday, minute: 1380), end: WallTime(day: sunday.adding(days: 1), minute: 60),
-                          kind: .block, goalId: "G1", doneAt: "2026-10-12T01:00:00")
+                          kind: .block, goalId: "G1")
         e.color = "accent"
         try r.events.save(e)
-        #expect(try r.goals.doneMinutes(goalId: "G1", from: monday, to: sunday) == 120)
-        #expect(try r.goals.doneMinutes(goalId: "G1", from: sunday.adding(days: 1), to: sunday.adding(days: 7)) == 0)
+        #expect(try r.goals.minutes(goalId: "G1", from: monday, to: sunday) == 120)
+        #expect(try r.goals.minutes(goalId: "G1", from: sunday.adding(days: 1), to: sunday.adding(days: 7)) == 0)
+        #expect(try r.goals.sessions(goalId: "G1", from: monday, to: sunday) == 1)
     }
 
     // MARK: Deleting a goal
@@ -186,8 +203,8 @@ struct GoalTests {
             #expect(e.goalId == nil && e.doneAt == nil && e.kind == .block)
         }
         #expect(try r.events.get("E3")?.goalId == "G2")
-        #expect(try r.goals.doneMinutes(goalId: "G1", from: monday, to: sunday) == 0)
-        #expect(try r.goals.doneMinutes(goalId: "G2", from: monday, to: sunday) == 60)
+        #expect(try r.goals.minutes(goalId: "G1", from: monday, to: sunday) == 0)
+        #expect(try r.goals.minutes(goalId: "G2", from: monday, to: sunday) == 60)
     }
 
     // MARK: The database upgrade
@@ -217,11 +234,28 @@ struct GoalTests {
         #expect(try r.goals.get("g1")?.title == "Read")
     }
 
+    @Test func upgradingAVersionFiveDatabaseMakesTheOldGoalsHourGoals() throws {
+        let path = FileManager.default.temporaryDirectory.appendingPathComponent("grove-m6-\(UUID().uuidString).sqlite").path
+        defer { for s in ["", "-wal", "-shm"] { try? FileManager.default.removeItem(atPath: path + s) } }
+        var handle: OpaquePointer?
+        #expect(sqlite3_open(path, &handle) == SQLITE_OK)
+        let seed = Migrations.all[0...4].joined(separator: ";") + """
+            ;PRAGMA user_version = 5;
+            INSERT INTO goals (id, title, target_min, created_at, updated_at) VALUES ('g1', 'Read', 360, '2026-10-01T09:00:00', '2026-10-01T09:00:00');
+            """
+        #expect(sqlite3_exec(handle, seed, nil, nil, nil) == SQLITE_OK)
+        sqlite3_close(handle)
+        let r = Repos(db: try Database(path: path))
+        #expect(r.db.userVersion == Migrations.all.count)
+        let g = try #require(try r.goals.get("g1"))
+        #expect(g.title == "Read" && g.kind == .hours && g.targetMin == 360 && g.targetCount == 3)
+    }
+
     // MARK: Export and import
 
     private func fill(_ r: Repos) throws {
         try r.goals.upsert(GoalItem(id: "G1", title: "Read", notes: "Novels", color: "blue", targetMin: 360, sort: 1))
-        try r.goals.upsert(GoalItem(id: "G2", title: "Run", targetMin: 180, sort: 2, archived: true))
+        try r.goals.upsert(GoalItem(id: "G2", title: "Run", targetMin: 180, sort: 2, archived: true, kind: .sessions, targetCount: 4))
         try block(r, goal: "G1", day: monday, from: 600, to: 690, done: true, id: "E1")
         try block(r, goal: "G1", day: monday.adding(days: 1), from: 600, to: 660, done: false, id: "E2")
         try r.tasks.save(TaskItem(id: "T1", title: "Write"))
@@ -234,11 +268,11 @@ struct GoalTests {
         #expect(try b.goals.all(includeArchived: true) == a.goals.all(includeArchived: true))
         #expect(try b.goals.get("G1")?.notes == "Novels")
         #expect(try b.goals.get("G2")?.archived == true)
+        #expect(try b.goals.get("G2")?.kind == .sessions && b.goals.get("G2")?.targetCount == 4)
         let e1 = try #require(try b.events.get("E1"))
-        #expect(e1.goalId == "G1" && e1.doneAt == "2026-10-05T12:00:00")
-        #expect(try b.events.get("E2")?.doneAt == nil)
-        #expect(try b.goals.doneMinutes(goalId: "G1", from: monday, to: sunday) == 90)
-        #expect(try b.goals.plannedMinutes(goalId: "G1", from: monday, to: sunday) == 60)
+        #expect(e1.goalId == "G1")
+        #expect(try b.goals.minutes(goalId: "G1", from: monday, to: sunday) == 150)
+        #expect(try b.goals.sessions(goalId: "G1", from: monday, to: sunday) == 2)
     }
 
     @Test func theFileHoldsTheGoalsTable() throws {
@@ -257,6 +291,25 @@ struct GoalTests {
         try DataExport.importData(DataExport.export(from: a.db), into: b)
         #expect(try b.goals.get("OLD") == nil)
         #expect(try b.goals.all(includeArchived: true).count == 2)
+    }
+
+    @Test func anExportFileWithGoalsButNoKindImportsThemAsHourGoals() throws {
+        let a = try makeRepos(); try fill(a)
+        var obj = try #require(try JSONSerialization.jsonObject(with: DataExport.export(from: a.db)) as? [String: Any])
+        var tables = try #require(obj["tables"] as? [String: [[String: Any]]])
+        tables["goals"] = tables["goals"]?.map { row in          // a version 5 file has no kind and no count
+            var row = row
+            row["kind"] = nil
+            row["target_count"] = nil
+            return row
+        }
+        obj["tables"] = tables
+        obj["schema"] = 5
+        let b = try makeRepos()
+        try DataExport.importData(JSONSerialization.data(withJSONObject: obj), into: b)
+        let goals = try b.goals.all(includeArchived: true)
+        #expect(goals.count == 2 && goals.allSatisfy { $0.kind == .hours && $0.targetCount == 3 })
+        #expect(try b.goals.get("G2")?.targetMin == 180)
     }
 
     @Test func anOldExportFileWithoutGoalsStillImports() throws {

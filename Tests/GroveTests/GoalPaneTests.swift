@@ -18,39 +18,49 @@ struct GoalPaneRulesTests {
         #expect(GoalRules.hours(2400) == "40")
     }
 
-    @Test func progressTextIsDoneOverTargetInHours() {
-        #expect(GoalRules.progressText(done: 150, target: 300) == "2.5 / 5 h")
-        #expect(GoalRules.progressText(done: 0, target: 300) == "0 / 5 h")
-        #expect(GoalRules.progressText(done: 360, target: 300) == "6 / 5 h")   // over target is fine
+    @Test func progressTextIsHoursDoneOverTarget() {
+        #expect(GoalRules.progressText(GoalProgress(kind: .hours, done: 150, planned: 240, target: 300)) == "2.5 / 5 h done")
+        #expect(GoalRules.progressText(GoalProgress(kind: .hours, done: 0, planned: 0, target: 300)) == "0 / 5 h done")
+        #expect(GoalRules.progressText(GoalProgress(kind: .hours, done: 420, planned: 420, target: 300)) == "7 / 5 h done")   // over target is fine
     }
 
-    @Test func plannedTextAppearsOnlyWhenSomethingIsPlanned() {
-        #expect(GoalRules.plannedText(0) == nil)
-        #expect(GoalRules.plannedText(60) == "+1h planned")
-        #expect(GoalRules.plannedText(90) == "+1.5h planned")
+    @Test func progressTextIsSessionsDoneOverTarget() {
+        #expect(GoalRules.progressText(GoalProgress(kind: .sessions, done: 3, planned: 4, target: 5)) == "3 / 5 sessions done")
+        #expect(GoalRules.progressText(GoalProgress(kind: .sessions, done: 0, planned: 0, target: 1)) == "0 / 1 session done")
+        #expect(GoalRules.progressText(GoalProgress(kind: .sessions, done: 7, planned: 7, target: 5)) == "7 / 5 sessions done")
     }
 
-    @Test func targetTextIsHoursPerWeek() {
-        #expect(GoalRules.targetText(300) == "5 h / week")
-        #expect(GoalRules.targetText(150) == "2.5 h / week")
+    @Test func plannedTextCountsEveryBlockOfTheWeek() {
+        #expect(GoalRules.plannedText(GoalProgress(kind: .hours, done: 60, planned: 240, target: 300)) == "4 h planned")
+        #expect(GoalRules.plannedText(GoalProgress(kind: .hours, done: 0, planned: 90, target: 300)) == "1.5 h planned")
+        #expect(GoalRules.plannedText(GoalProgress(kind: .sessions, done: 0, planned: 1, target: 3)) == "1 session planned")
+        #expect(GoalRules.plannedText(GoalProgress(kind: .sessions, done: 1, planned: 2, target: 3)) == "2 sessions planned")
+        #expect(GoalRules.plannedText(GoalProgress(kind: .hours, done: 0, planned: 0, target: 300)) == "Nothing planned yet")
     }
 
-    @Test func theBarHasADonePartAndALighterPlannedPart() {
-        let a = GoalRules.bar(done: 150, planned: 60, target: 300)
-        #expect(abs(a.done - 0.5) < 1e-9 && abs(a.planned - 0.2) < 1e-9)
-        let none = GoalRules.bar(done: 0, planned: 0, target: 300)
-        #expect(none.done == 0 && none.planned == 0)
+    @Test func targetTextIsPerWeek() {
+        #expect(GoalRules.targetText(.hours, 300) == "5 h / week")
+        #expect(GoalRules.targetText(.hours, 150) == "2.5 h / week")
+        #expect(GoalRules.targetText(.sessions, 3) == "3 sessions / week")
+        #expect(GoalRules.targetText(.sessions, 1) == "1 session / week")
     }
 
-    @Test func theBarStopsAtFull() {
-        let over = GoalRules.bar(done: 360, planned: 60, target: 300)
-        #expect(over.done == 1 && over.planned == 0)
-        let clipped = GoalRules.bar(done: 240, planned: 120, target: 300)
-        #expect(abs(clipped.done - 0.8) < 1e-9 && abs(clipped.planned - 0.2) < 1e-9)
-        let zero = GoalRules.bar(done: 10, planned: 10, target: 0)
-        #expect(zero.done == 0 && zero.planned == 0)
-        let negative = GoalRules.bar(done: -5, planned: -5, target: 300)
-        #expect(negative.done == 0 && negative.planned == 0)
+    @Test func theKindsHaveShortNames() {
+        #expect(GoalRules.kindName(.hours) == "Hours")
+        #expect(GoalRules.kindName(.sessions) == "Sessions")
+    }
+
+    @Test func theBarIsSolidForDoneAndLighterForPlannedAndStopsAtFull() {
+        func bar(_ d: Int, _ p: Int, _ t: Int) -> (done: Double, planned: Double) {
+            GoalRules.bar(GoalProgress(kind: .hours, done: d, planned: p, target: t))
+        }
+        #expect(bar(60, 150, 300) == (0.2, 0.5))
+        #expect(bar(0, 0, 300) == (0, 0))
+        #expect(bar(0, 360, 300) == (0, 1))
+        #expect(bar(360, 360, 300) == (1, 1))
+        #expect(bar(10, 10, 0) == (0, 0))
+        #expect(bar(-5, -5, 300) == (0, 0))
+        #expect(bar(2, 4, 5) == (0.4, 0.8))
     }
 
     @Test func theWeekLabelSaysThisWeekOrNamesTheDays() {
@@ -65,17 +75,23 @@ struct GoalPaneRulesTests {
     }
 
     @Test func theTargetStepperMovesInHalfHours() {
-        #expect(GoalRules.stepTarget(300, up: true) == 330)
-        #expect(GoalRules.stepTarget(300, up: false) == 270)
-        #expect(GoalRules.stepTarget(GoalRules.targetStep, up: false) == GoalRules.targetStep)   // never below half an hour
-        #expect(GoalRules.stepTarget(GoalRules.maxTarget, up: true) == GoalRules.maxTarget)
+        #expect(GoalRules.stepTarget(300, kind: .hours, up: true) == 330)
+        #expect(GoalRules.stepTarget(300, kind: .hours, up: false) == 270)
+        #expect(GoalRules.stepTarget(GoalRules.targetStep, kind: .hours, up: false) == GoalRules.targetStep)   // never below half an hour
+        #expect(GoalRules.stepTarget(GoalRules.maxTarget, kind: .hours, up: true) == GoalRules.maxTarget)
         #expect(GoalRules.defaultTarget == 300)
     }
 
+    @Test func theSessionStepperMovesByOne() {
+        #expect(GoalRules.stepTarget(3, kind: .sessions, up: true) == 4)
+        #expect(GoalRules.stepTarget(3, kind: .sessions, up: false) == 2)
+        #expect(GoalRules.stepTarget(1, kind: .sessions, up: false) == 1)
+        #expect(GoalRules.stepTarget(99, kind: .sessions, up: true) == 99)
+    }
+
     @Test func aGoalRowReadsAsOneSentenceForVoiceOver() {
-        #expect(GoalRules.accessibilityText(title: "Read", done: 150, planned: 60, target: 300)
-                == "Read, 2.5 / 5 h, +1h planned")
-        #expect(GoalRules.accessibilityText(title: "Run", done: 0, planned: 0, target: 120) == "Run, 0 / 2 h")
+        #expect(GoalRules.accessibilityText(title: "Read", GoalProgress(kind: .hours, done: 150, planned: 240, target: 300)) == "Read, 2.5 / 5 h done, 4 h planned")
+        #expect(GoalRules.accessibilityText(title: "Gym", GoalProgress(kind: .sessions, done: 0, planned: 1, target: 3)) == "Gym, 0 / 3 sessions done, 1 session planned")
     }
 
     @Test func theDurationMenuOffersFourHours() {
@@ -106,7 +122,7 @@ struct GoalDragPayloadTests {
     }
 }
 
-/// Drop a goal, tick it, hours go up (PLAN: goals panel).
+/// Drop a goal, the planned tally goes up; tick the block, the done tally goes up (PLAN: goals panel).
 @MainActor
 struct GoalDropFlowTests {
     func makeStore() throws -> AppStore { AppStore(repos: Repos(db: try Database.inMemory())) }
@@ -116,52 +132,48 @@ struct GoalDropFlowTests {
     let wednesday = DayKey("2026-10-07")
     let nextMonday = DayKey("2026-10-12")
 
-    private func week(_ s: AppStore, _ id: String) -> (done: Int, planned: Int, target: Int) {
+    private func week(_ s: AppStore, _ id: String) -> GoalProgress {
         s.goalProgress(id, weekOf: wednesday, sundayFirst: false)
     }
 
-    @Test func dropTickAddUntickAndNextWeek() throws {
+    @Test func dropResizeAddAndNextWeek() throws {
         let s = try makeStore()
-        let g = try #require(s.addGoal(title: "Read", targetMin: GoalRules.defaultTarget))
+        let g = try #require(s.addGoal(title: "Read"))
 
-        // First drop: one hour by default. It is planned, not done.
+        // First drop: one hour by default. It counts at once.
         s.dropGoalOnPlanner(raw: DragPayload.goal(g.id), day: monday, minute: 600)
-        let first = try #require(s.selection.first)
-        #expect(week(s, g.id) == (done: 0, planned: 60, target: 300))
+        #expect(week(s, g.id) == GoalProgress(kind: .hours, done: 0, planned: 60, target: 300))
 
-        s.toggleGoalBlockDone(eventId: first)
-        #expect(week(s, g.id) == (done: 60, planned: 0, target: 300))
-
-        // A second block, longer, the same week. The goal is still there.
+        // A second block, made longer, the same week. The goal is still there.
         s.dropGoalOnPlanner(raw: DragPayload.goal(g.id), day: wednesday, minute: 840)
         let second = try #require(s.selection.first)
         s.setDuration(blockIds: [second], minutes: 240)
-        #expect(week(s, g.id) == (done: 60, planned: 240, target: 300))
-        s.toggleGoalBlockDone(eventId: second)
-        #expect(week(s, g.id) == (done: 300, planned: 0, target: 300))
+        #expect(week(s, g.id) == GoalProgress(kind: .hours, done: 0, planned: 300, target: 300))
         #expect(s.goals().map(\.id) == [g.id])
 
-        // Un-tick takes the hours back.
-        s.toggleGoalBlockDone(eventId: first)
-        #expect(week(s, g.id) == (done: 240, planned: 60, target: 300))
+        // Past the target is fine.
+        s.dropGoalOnPlanner(raw: DragPayload.goal(g.id), day: wednesday, minute: 600)
+        #expect(week(s, g.id).planned == 360)
+
+        // Ticking a block moves it from planned to done.
+        s.toggleGoalBlockDone(eventId: second)
+        #expect(week(s, g.id) == GoalProgress(kind: .hours, done: 240, planned: 360, target: 300))
 
         // A block next week does not count this week.
         s.dropGoalOnPlanner(raw: DragPayload.goal(g.id), day: nextMonday, minute: 600)
-        s.toggleGoalBlockDone(eventId: try #require(s.selection.first))
-        #expect(week(s, g.id) == (done: 240, planned: 60, target: 300))
-        #expect(s.goalProgress(g.id, weekOf: nextMonday, sundayFirst: false) == (done: 60, planned: 0, target: 300))
+        #expect(week(s, g.id).planned == 360)
+        #expect(s.goalProgress(g.id, weekOf: nextMonday, sundayFirst: false).planned == 60)
     }
 
-    @Test func theDropKeepsTheDurationMenuChoiceAndTheDoneMark() throws {
+    @Test func aSessionGoalCountsEachDrop() throws {
         let s = try makeStore()
-        let g = try #require(s.addGoal(title: "Run", targetMin: 120))
+        let g = try #require(s.addGoal(title: "Gym", kind: .sessions, target: 3))
         s.dropGoalOnPlanner(raw: DragPayload.goal(g.id), day: monday, minute: 480)
         let id = try #require(s.selection.first)
-        s.toggleGoalBlockDone(eventId: id)
         s.setDuration(blockIds: [id], minutes: 90)
-        #expect(try s.repos.events.get(id)?.goalId == g.id)
-        #expect(try s.repos.events.get(id)?.doneAt != nil)
-        #expect(week(s, g.id).done == 90)
+        #expect(week(s, g.id) == GoalProgress(kind: .sessions, done: 0, planned: 1, target: 3))
+        s.dropGoalOnPlanner(raw: DragPayload.goal(g.id), day: wednesday, minute: 480)
+        #expect(week(s, g.id).planned == 2)
     }
 
     @Test func aDropSnapsToTheMinuteItIsGiven() throws {
@@ -190,8 +202,6 @@ struct GoalDropFlowTests {
         s.dropGoalOnPlanner(raw: DragPayload.goal(g.id), day: monday, minute: 600)
         #expect(s.revision > seen); seen = s.revision
         let id = try #require(s.selection.first)
-        s.toggleGoalBlockDone(eventId: id)
-        #expect(s.revision > seen); seen = s.revision
         s.applyEdits([BlockEdit(id: id, day: monday, start: 600, end: 720)], ripple: false, name: "Resize Block")
         #expect(s.revision > seen)
     }

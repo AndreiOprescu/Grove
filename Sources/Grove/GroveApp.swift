@@ -17,8 +17,8 @@ struct GroveApp: App {
             RootView()
                 .environment(store)
                 .environment(\.theme, store.theme)
-                .preferredColorScheme(store.colorScheme)
                 .frame(minWidth: 1100, minHeight: 620)
+                .onAppear { store.applyAppearance() }
         }
         .windowStyle(.hiddenTitleBar)
         .defaultSize(width: 1280, height: 800)
@@ -60,6 +60,12 @@ struct GroveApp: App {
                     }
                     .pickerStyle(.inline)
                 }
+                Menu("Appearance") {
+                    Picker("Appearance", selection: Binding(get: { store.appearance }, set: { store.setAppearance($0) })) {
+                        ForEach(AppearanceMode.allCases) { Text($0.name).tag($0) }
+                    }
+                    .pickerStyle(.inline)
+                }
                 Toggle("Motion", isOn: Binding(get: { store.motionSetting }, set: { store.setMotion($0) }))
             }
             CommandMenu("Go") {
@@ -80,17 +86,16 @@ struct GroveApp: App {
             MenuBarContent()
                 .environment(store)
                 .environment(\.theme, store.theme)
-                .preferredColorScheme(store.colorScheme)
         } label: {
             Image(systemName: "leaf")
         }
         .menuBarExtraStyle(.window)
-        // ⌘, opens it. It shares the store, so a new theme shows in the main window at once.
+        // ⌘, or the gear at the top right opens it. It shares the store, so a new theme shows in the main window at once.
+        // Light or dark is set on the whole app (`applyAppearance`), so no `.preferredColorScheme` here.
         Settings {
             SettingsView()
                 .environment(store)
                 .environment(\.theme, store.theme)
-                .preferredColorScheme(store.colorScheme)
         }
     }
 }

@@ -441,6 +441,9 @@ struct PlannerGrid: View {
         Divider()
         if block.isTaskBlock {
             Button("Unschedule") { store.deleteBlocks(ids, name: "Unschedule") }
+            if let t = block.taskId {
+                Button("Delete Task", role: .destructive) { store.deleteTask(t) }
+            }
         } else if block.isGoalBlock {
             Button("Delete Goal Block", role: .destructive) { store.deleteBlocks(ids, name: "Delete Goal Block") }
         } else {
@@ -502,7 +505,7 @@ struct PlannerGrid: View {
         }
     }
 
-    /// The check box, the menu and the space bar. A task block ticks its task; a goal block adds its hours to the goal.
+    /// The check box and the space bar. A task block ticks its task; a goal block adds to the goal's done tally.
     private func toggleDone(_ block: PlannerBlock) {
         if let t = block.taskId { store.toggleDone(taskId: t) }
         else if block.isGoalBlock { store.toggleGoalBlockDone(eventId: block.id) }

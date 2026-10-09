@@ -292,7 +292,8 @@ public final class GoalRepo {
     let db: Database
     public init(db: Database) { self.db = db }
 
-    private static let cols = ["id", "title", "notes", "color", "target_min", "sort", "archived", "created_at", "updated_at"]
+    private static let cols = ["id", "title", "notes", "color", "target_min", "sort", "archived", "created_at", "updated_at",
+                               "kind", "target_count"]
     private static let select = "SELECT \(cols.joined(separator: ",")) FROM goals"
     private static let upsertQuery = upsertSQL("goals", cols)
 
@@ -305,6 +306,8 @@ public final class GoalRepo {
         g.archived = r.bool(6)
         g.createdAt = r.text(7)
         g.updatedAt = r.text(8)
+        g.kind = GoalKind(rawValue: r.text(9)) ?? .hours
+        g.targetCount = r.int(10)
         return g
     }
 
@@ -314,7 +317,7 @@ public final class GoalRepo {
         g.updatedAt = Stamp.now()
         try db.execute(Self.upsertQuery, [
             .text(g.id), .text(g.title), .text(g.notes), .text(g.color), .int(g.targetMin), .real(g.sort),
-            .int(g.archived ? 1 : 0), .text(g.createdAt), .text(g.updatedAt),
+            .int(g.archived ? 1 : 0), .text(g.createdAt), .text(g.updatedAt), .text(g.kind.rawValue), .int(g.targetCount),
         ])
     }
 
@@ -326,7 +329,7 @@ public final class GoalRepo {
         try db.query(Self.select + (includeArchived ? "" : " WHERE archived = 0") + " ORDER BY sort, created_at, rowid", map: Self.map)
     }
 
-    /// Deletes the goal. Its blocks stay as plain blocks: they lose the goal and the done time.
+    /// Deletes the goal. Its blocks stay as plain blocks: they lose the goal (and any old done time).
     public func delete(_ id: String) throws {
         try db.transaction {
             try db.execute("UPDATE events SET goal_id = NULL, done_at = NULL WHERE goal_id = ?", [.text(id)])
@@ -334,24 +337,26 @@ public final class GoalRepo {
         }
     }
 
-    /// Minutes of the goal's blocks that are marked done and start on a day of the closed range.
-    public func doneMinutes(goalId: String, from: DayKey, to: DayKey) throws -> Int {
-        try minutes(goalId: goalId, done: true, from: from, to: to)
-    }
-
-    /// Minutes of the goal's blocks that are not done yet and start on a day of the closed range.
-    public func plannedMinutes(goalId: String, from: DayKey, to: DayKey) throws -> Int {
-        try minutes(goalId: goalId, done: false, from: from, to: to)
-    }
-
-    private func minutes(goalId: String, done: Bool, from: DayKey, to: DayKey) throws -> Int {
-        let rows = try db.query(
-            "SELECT start, end FROM events WHERE goal_id = ? AND done_at IS \(done ? "NOT " : "")NULL AND start >= ? AND start < ?",
-            [.text(goalId), .text(from.string + "T00:00"), .text(to.adding(days: 1).string + "T00:00")]) { ($0.text(0), $0.text(1)) }
-        return rows.reduce(0) { sum, row in
+    /// The minutes of the goal's blocks that start on a day of the closed range.
+    /// `doneOnly` counts only the blocks that are ticked done.
+    public func minutes(goalId: String, from: DayKey, to: DayKey, doneOnly: Bool = false) throws -> Int {
+        try blockTimes(goalId: goalId, from: from, to: to, doneOnly: doneOnly).reduce(0) { sum, row in
             guard let start = WallTime(row.0), let end = WallTime(row.1) else { return sum }
             return sum + EventItem(title: "", start: start, end: end).durationMinutes
         }
+    }
+
+    /// How many of the goal's blocks start on a day of the closed range, whatever their length.
+    /// `doneOnly` counts only the blocks that are ticked done.
+    public func sessions(goalId: String, from: DayKey, to: DayKey, doneOnly: Bool = false) throws -> Int {
+        try blockTimes(goalId: goalId, from: from, to: to, doneOnly: doneOnly).count
+    }
+
+    private func blockTimes(goalId: String, from: DayKey, to: DayKey, doneOnly: Bool) throws -> [(String, String)] {
+        try db.query(
+            "SELECT start, end FROM events WHERE goal_id = ? AND start >= ? AND start < ?"
+                + (doneOnly ? " AND done_at IS NOT NULL" : ""),
+            [.text(goalId), .text(from.string + "T00:00"), .text(to.adding(days: 1).string + "T00:00")]) { ($0.text(0), $0.text(1)) }
     }
 }
 

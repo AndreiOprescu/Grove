@@ -1,8 +1,9 @@
 import SwiftUI
 import GroveCore
 
-/// Goals: recurring work with a target of minutes per week and no date.
-/// A goal is dragged into a day as a block. A block marked done adds its length to the goal that week.
+/// Goals: recurring work with a weekly target of hours or sessions, and no date.
+/// A goal is dragged into a day as a block. Every block is planned time for the goal that week;
+/// a block ticked done is done time too. The goal itself is never done: it stays for the next week.
 /// Progress is worked out from the blocks each time, never stored. Every write is a single undo step.
 extension AppStore {
     // MARK: Reading
@@ -17,13 +18,20 @@ extension AppStore {
     /// The planner's setting: does the week start on Sunday?
     var weekStartsSunday: Bool { UserDefaults.standard.bool(forKey: "calendar.weekStartsSunday") }
 
-    /// Minutes done and planned this week, and the weekly target. The week is the one that holds `day`,
-    /// the same week the planner shows. `sundayFirst` defaults to the planner setting.
-    func goalProgress(_ id: String, weekOf day: DayKey, sundayFirst: Bool? = nil) -> (done: Int, planned: Int, target: Int) {
+    /// The goal's week: done and planned (done blocks included), and the weekly target.
+    /// Minutes for an hours goal, blocks for a sessions goal.
+    /// The week is the one that holds `day`, the same week the planner shows. `sundayFirst` defaults to the planner setting.
+    func goalProgress(_ id: String, weekOf day: DayKey, sundayFirst: Bool? = nil) -> GoalProgress {
+        guard let g = goal(id) else { return GoalProgress(kind: .hours, done: 0, planned: 0, target: 0) }
         let week = GoalRules.week(of: day, sundayFirst: sundayFirst ?? weekStartsSunday)
-        let done = (try? repos.goals.doneMinutes(goalId: id, from: week.lowerBound, to: week.upperBound)) ?? 0
-        let planned = (try? repos.goals.plannedMinutes(goalId: id, from: week.lowerBound, to: week.upperBound)) ?? 0
-        return (done, planned, goal(id)?.targetMin ?? 0)
+        func tally(doneOnly: Bool) -> Int {
+            let (from, to) = (week.lowerBound, week.upperBound)
+            return switch g.kind {
+            case .hours: (try? repos.goals.minutes(goalId: id, from: from, to: to, doneOnly: doneOnly)) ?? 0
+            case .sessions: (try? repos.goals.sessions(goalId: id, from: from, to: to, doneOnly: doneOnly)) ?? 0
+            }
+        }
+        return GoalProgress(kind: g.kind, done: tally(doneOnly: true), planned: tally(doneOnly: false), target: GoalRules.target(of: g))
     }
 
     // MARK: Writing
@@ -33,27 +41,32 @@ extension AppStore {
         ((try? repos.db.queryOne("SELECT COALESCE(MAX(sort), 0) FROM goals") { $0.double(0) }) ?? 0) + 1
     }
 
-    /// A new goal. Nil when the title is empty.
+    /// A new goal. `target` is in the kind's unit (minutes or sessions); nil gives the default. Nil when the title is empty.
     @discardableResult
-    func addGoal(title: String, targetMin: Int = GoalRules.defaultTarget) -> GoalItem? {
+    func addGoal(title: String, kind: GoalKind = .hours, target: Int? = nil) -> GoalItem? {
         let name = GoalRules.cleanTitle(title)
         guard !name.isEmpty else { return nil }
-        let g = GoalItem(title: name, targetMin: GoalRules.clampTarget(targetMin), sort: nextGoalSort())
+        var g = GoalItem(title: name, sort: nextGoalSort(), kind: kind)
+        let value = GoalRules.clamp(target ?? GoalRules.defaultTarget(for: kind), kind: kind)
+        if kind == .hours { g.targetMin = value } else { g.targetCount = value }
         var m = Mutation(name: "New Goal")
         m.goals.append((nil, g))
         return commit(m) ? g : nil
     }
 
     /// Changes the fields that are given. An empty title or a colour that is not one of the eight is ignored.
-    /// Blocks that are already in the planner keep the title and colour they had.
+    /// Blocks that are already in the planner keep the title and colour they had. A new kind keeps the blocks
+    /// and only changes what is counted.
     func updateGoal(_ id: String, title: String? = nil, notes: String? = nil, color: String? = nil,
-                    targetMin: Int? = nil, archived: Bool? = nil) {
+                    kind: GoalKind? = nil, targetMin: Int? = nil, targetCount: Int? = nil, archived: Bool? = nil) {
         guard let old = goal(id) else { return }
         var g = old
         if let title, !GoalRules.cleanTitle(title).isEmpty { g.title = GoalRules.cleanTitle(title) }
         if let notes { g.notes = notes }
         if let color, TaskColor.isValid(color) { g.color = color }
+        if let kind { g.kind = kind }
         if let targetMin { g.targetMin = GoalRules.clampTarget(targetMin) }
+        if let targetCount { g.targetCount = GoalRules.clampCount(targetCount) }
         if let archived { g.archived = archived }
         guard g != old else { return }
         var m = Mutation(name: "Edit Goal")
@@ -61,7 +74,7 @@ extension AppStore {
         commit(m)
     }
 
-    /// Deletes the goal. Its blocks stay in the planner as plain blocks (no goal, not done). Undo brings both back.
+    /// Deletes the goal. Its blocks stay in the planner as plain blocks. Undo brings both back.
     func deleteGoal(_ id: String) {
         guard let old = goal(id) else { return }
         var m = Mutation(name: "Delete Goal")
@@ -97,7 +110,7 @@ extension AppStore {
         return true
     }
 
-    /// Marks a goal block done, or not done. Done blocks add their length to the goal. One undo step.
+    /// Ticks a goal block done, or back to planned. A done block adds to the goal's done tally. One undo step.
     func toggleGoalBlockDone(eventId: String) {
         guard let old = try? repos.events.get(eventId), old.goalId != nil else { return }
         var new = old
