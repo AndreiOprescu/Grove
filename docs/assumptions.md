@@ -301,3 +301,6 @@ Format: date · decision · why · how to undo
 - 2026-10-09 · Duration menu: 4 h (240 min) added for every block, not only goal blocks (`PlannerLayoutRules.durationChoices`) · one list is simpler and a long task block may want it too
 - 2026-10-09 · Goal block: space bar on a selected goal block marks it done or not done, like a task block · same key as tasks
 - 2026-10-09 · cleanup: deleted unused Sources/Grove/Calendar/WeekStrip.swift · nothing used it after the fixed views
+- 2026-10-09 · Cross-platform port: branch `feat/cross-platform-flutter` starts from `feat/grove-v1`, not `main` · `main` is 8 commits behind and the port must follow the newest Swift code; PR #1 is still a draft
+- 2026-10-09 · Cross-platform port: the Flutter app lives in `app/` in this repo, next to the Swift app · the Swift code and tests stay in view as the spec until parity (ADR 0001)
+- 2026-10-09 · Cross-platform port: on narrow (phone) screens the Day Spread shows one day column instead of the spread; same themes, colours and blocks · a phone is too narrow for the spread
