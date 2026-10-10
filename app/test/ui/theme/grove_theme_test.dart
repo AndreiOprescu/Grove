@@ -107,6 +107,49 @@ void main() {
       }
     });
 
+    test('each theme uses its font files', () {
+      String? family(TextStyle style) => style.fontFamily;
+      final grove = light(ThemeId.grove);
+      expect(family(grove.heading(20)), 'Newsreader');
+      expect(family(grove.body(13)), 'Nunito');
+      expect(family(grove.number(12)), 'Nunito');
+
+      final minimal = light(ThemeId.minimal);
+      expect(family(minimal.heading(20)), 'Inter');
+      expect(family(minimal.body(13)), 'Inter');
+      expect(family(minimal.number(12)), 'Inter');
+
+      final futuristic = light(ThemeId.futuristic);
+      expect(family(futuristic.heading(20)), 'Archivo');
+      expect(family(futuristic.body(13)), 'Inter');
+      expect(family(futuristic.number(12)), 'JetBrains Mono');
+
+      final vintage = light(ThemeId.vintage);
+      expect(family(vintage.heading(20)), 'Libre Baskerville');
+      expect(family(vintage.body(13)), 'Courier Prime');
+      expect(family(vintage.number(12)), 'Courier Prime');
+    });
+
+    test('Futuristic titles are wide', () {
+      expect(
+        light(ThemeId.futuristic).heading(20).fontVariations,
+        contains(const FontVariation.width(125)),
+      );
+    });
+
+    test('fonts with an optical size get the size of the text', () {
+      for (final style in [
+        light(ThemeId.grove).heading(28),
+        light(ThemeId.minimal).heading(28),
+        light(ThemeId.minimal).body(28),
+      ]) {
+        expect(
+          style.fontVariations,
+          contains(const FontVariation.opticalSize(28)),
+        );
+      }
+    });
+
     test('Vintage titles are italic', () {
       expect(light(ThemeId.vintage).heading(20).fontStyle, FontStyle.italic);
       expect(

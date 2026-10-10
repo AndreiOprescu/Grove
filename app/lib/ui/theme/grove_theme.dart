@@ -5,6 +5,7 @@ import 'dart:ui' show FontFeature, FontVariation, lerpDouble;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
+import 'fonts.dart';
 import 'theme_spec.dart';
 
 /// Colour, font and shape tokens of one theme (PLAN §6), in light or dark.
@@ -115,17 +116,11 @@ class GroveTheme {
   /// The surface with nothing showing through, for menus and pop-ups.
   Color get solidSurface => Color.alphaBlend(surface, bg);
 
-  // Fonts. No font files are bundled: each list names the font of the Mac
-  // app first, then the nearest font that ships with Windows and Android.
+  // Fonts. The first family of each style is a font file in the app
+  // (fonts.dart), so the letters are the same on every system. The lists
+  // name system fonts for a letter the file does not have.
 
   static const _serif = ['New York', 'Georgia', 'Noto Serif', 'serif'];
-  static const _rounded = [
-    'SF Pro Rounded',
-    'Segoe UI Variable Text',
-    'Segoe UI',
-    'Roboto',
-    'sans-serif',
-  ];
   static const _sans = [
     'Segoe UI Variable Text',
     'Segoe UI',
@@ -139,36 +134,41 @@ class GroveTheme {
     'Roboto Mono',
     'monospace',
   ];
-  static const _baskerville = ['Georgia', 'Noto Serif', 'serif'];
   static const _typewriter = ['Courier New', 'Cutive Mono', 'monospace'];
   static const _tabular = [FontFeature.tabularFigures()];
+
+  /// Inter draws small text more open and large text tighter. Flutter does
+  /// not pick the optical size by itself.
+  TextStyle _inter(double size, FontWeight weight) => TextStyle(
+    fontFamily: GroveFonts.inter,
+    fontFamilyFallback: _sans,
+    fontSize: size,
+    fontWeight: weight,
+    fontVariations: [FontVariation.opticalSize(size)],
+  );
 
   /// Titles and headings.
   TextStyle heading(double size, {FontWeight weight = FontWeight.w600}) =>
       switch (kind) {
         ThemeId.grove => TextStyle(
-          fontFamily: '.AppleSystemUIFontSerif',
+          fontFamily: GroveFonts.newsreader,
           fontFamilyFallback: _serif,
           fontSize: size,
           fontWeight: weight,
+          fontVariations: [FontVariation.opticalSize(size)],
         ),
-        ThemeId.minimal => TextStyle(
-          fontFamily: '.AppleSystemUIFont',
-          fontFamilyFallback: _sans,
-          fontSize: size,
-          fontWeight: weight,
-        ),
+        ThemeId.minimal => _inter(size, weight),
         ThemeId.futuristic => TextStyle(
-          fontFamily: '.AppleSystemUIFont',
+          fontFamily: GroveFonts.archivo,
           fontFamilyFallback: _sans,
           fontSize: size,
           fontWeight: weight,
-          // wider letters where the font can do it (Swift: `.width(.expanded)`)
+          // the widest letters of the font (Swift: `.width(.expanded)`)
           fontVariations: const [FontVariation.width(125)],
         ),
         ThemeId.vintage => TextStyle(
-          fontFamily: 'Baskerville',
-          fontFamilyFallback: _baskerville,
+          fontFamily: GroveFonts.libreBaskerville,
+          fontFamilyFallback: _serif,
           fontSize: size,
           fontWeight: weight,
           fontStyle: FontStyle.italic,
@@ -179,19 +179,14 @@ class GroveTheme {
   TextStyle body(double size, {FontWeight weight = FontWeight.w400}) =>
       switch (kind) {
         ThemeId.grove => TextStyle(
-          fontFamily: '.AppleSystemUIFontRounded',
-          fontFamilyFallback: _rounded,
-          fontSize: size,
-          fontWeight: weight,
-        ),
-        ThemeId.minimal || ThemeId.futuristic => TextStyle(
-          fontFamily: '.AppleSystemUIFont',
+          fontFamily: GroveFonts.nunito,
           fontFamilyFallback: _sans,
           fontSize: size,
           fontWeight: weight,
         ),
+        ThemeId.minimal || ThemeId.futuristic => _inter(size, weight),
         ThemeId.vintage => TextStyle(
-          fontFamily: 'American Typewriter',
+          fontFamily: GroveFonts.courierPrime,
           fontFamilyFallback: _typewriter,
           fontSize: size,
           fontWeight: weight,
@@ -202,7 +197,7 @@ class GroveTheme {
   TextStyle number(double size, {FontWeight weight = FontWeight.w400}) =>
       switch (kind) {
         ThemeId.futuristic => TextStyle(
-          fontFamily: 'SF Mono',
+          fontFamily: GroveFonts.jetBrainsMono,
           fontFamilyFallback: _mono,
           fontSize: size,
           fontWeight: weight,

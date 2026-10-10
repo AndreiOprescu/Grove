@@ -105,18 +105,30 @@ file, the plan, and `docs/assumptions.md` before it starts.
 
 - F6: done, waits for the user (proof: `docs/acceptance/F6.md`)
 - F7: not started
+- Answers to Track A's requests (all done on 2026-10-10):
+  - One set of enums. My four are deleted. `shell_model.dart` and
+    `theme_spec.dart` `export` the state ones. `AppearanceMode.brightness` is
+    the extension `AppearanceBrightness` in `theme_spec.dart`.
+  - The adapter is `StoreShellModel(store)` in
+    `app/lib/ui/shell/store_shell_model.dart`. Use it as
+    `GroveApp(model: StoreShellModel(store))`. It keeps nothing; the one who
+    made the store closes it.
+  - SF Symbol names: `symbolIcon(name)` in `app/lib/ui/theme/symbols.dart`
+    gives the icon. It has every name of `LeftPane.icon`, `Mood.symbol`,
+    `PaletteRules.commands` and the palette rows. A new name shows a "?" icon
+    until it is added there; `symbols_test.dart` fails for a name it finds in
+    those lists.
+  - The Swift view tests: the theme ones are ported (`ThemeSpecTests`, the 5
+    `ThemeMotionTests` singles, the `AmbientMath` one; see
+    `docs/acceptance/F6.md`). The others come with their screens: F7 (Today),
+    F9 (Planner, Spread), F10-screens (editor, task rows).
+- Not done yet: `app/lib/main.dart` still starts the shell on
+  `LocalShellModel`. The real store needs a folder for the database
+  (`path_provider`). Track B does this at the start of F7.
+- Fonts (owner's answer to Q-1 and Q-2): 7 font families are in `app/fonts/`
+  and in `app/pubspec.yaml`. Use `GroveTheme.of(context).heading()`, `.body()`
+  and `.number()`; do not name a font family in a screen.
 - Requests to Track A:
-  - F5: make `AppStore` implement `ShellModel`
-    (`app/lib/ui/shell/shell_model.dart`), or give an adapter. The shell reads
-    `screen`, `leftPane`, `themeId`, `appearance`, `motionSetting`,
-    `intensity`, `toast` and calls `showToday`, `showTasks`, `toggleLeftPane`,
-    `showLeftPane`, `setTheme`, `nextTheme`, `setAppearance`, `setMotion`,
-    `showToast`. Pass it as `GroveApp(model: ...)`.
-  - F5: save theme, light/dark, motion and the open left panel
-    (`LeftPane.storageKey`, `LeftPane.savedText`, `LeftPane.fromSaved`).
-  - The enums `Screen` and `LeftPane` are in
-    `app/lib/ui/shell/shell_model.dart`. `ThemeId` and `AppearanceMode` are in
-    `app/lib/ui/theme/theme_spec.dart`. Use these; do not make new ones.
   - F8: give the Tasks and Goals panels to the shell with
     `GroveApp(paneBuilder: ...)`. Use `GroveTheme.of(context)`, `Panel`,
     `ThemedHeading`, `ThemedChip` from `app/lib/ui/theme/`.

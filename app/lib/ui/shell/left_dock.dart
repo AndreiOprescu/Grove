@@ -1,16 +1,13 @@
 // Port of the `LeftDock` view of Sources/Grove/Layouts/LeftDock.swift.
 import 'package:flutter/material.dart';
 
+import '../theme/symbols.dart';
 import 'shell_button.dart';
 import 'shell_layout.dart';
 import 'shell_model.dart';
 
-/// The picture of a left panel on its dock button.
-IconData paneIcon(LeftPane pane) => switch (pane) {
-  LeftPane.notes => Icons.sticky_note_2_outlined,
-  LeftPane.tasks => Icons.checklist,
-  LeftPane.goals => Icons.track_changes,
-};
+/// The picture of a left panel on its dock button. The state layer names it.
+IconData paneIcon(LeftPane pane) => symbolIcon(pane.icon);
 
 /// Three small buttons at the top left, level with the screen switch. Each
 /// opens its panel; a click on the open one closes it. Only the Today and
