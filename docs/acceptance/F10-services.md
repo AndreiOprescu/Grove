@@ -2,7 +2,7 @@
 
 Plan: `docs/cross-platform-plan.md` (milestone F10). Track A, branch `feat/xp-engine` (`docs/tracks.md`).
 Check: `./scripts/flutter_test.sh` (2026-10-10: 1291 tests passed, analyze clean, format clean). 72 of them are new: 66 in `app/test/services/`, 6 in `app/test/state/daily_backup_test.dart`.
-CI run CI_RUN (commit CI_SHA): CI_RESULT.
+CI run 38065249067 (commit 90067d7): green on Android, Windows, macOS, iOS. The run before it (38064435235, commit 95e500f) was green on Windows, macOS and iOS and red on the Linux machine of the Android job: the tests could not build the tray's native library there. Commit 90067d7 adds three Linux packages to that CI job; no app code changed.
 
 Scope (`docs/tracks.md`): "reminders on all 4 OS (`flutter_local_notifications`), system tray on Mac and Windows (`tray_manager`), backup schedule. No screens."
 Acceptance of F10 in the plan: "Notifications fire on each OS. Goldens green." The goldens (pictures of screens) belong to F10-screens (Track B).
