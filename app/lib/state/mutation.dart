@@ -1,3 +1,4 @@
+import '../core/model/block_subtask.dart';
 import '../core/model/day_key.dart';
 import '../core/model/event.dart';
 import '../core/model/goal.dart';
@@ -25,6 +26,9 @@ class Mutation {
   final List<Change<Note>> notes = [];
   final List<Change<GoalItem>> goals = [];
 
+  /// Subtasks of goal blocks.
+  final List<Change<BlockSubtaskItem>> blockSubtasks = [];
+
   /// Undo does the opposite, in reverse order.
   final List<ExdateChange> exdates = [];
 
@@ -41,6 +45,7 @@ class Mutation {
       events.isEmpty &&
       notes.isEmpty &&
       goals.isEmpty &&
+      blockSubtasks.isEmpty &&
       tags.isEmpty &&
       exdates.isEmpty;
 
@@ -57,6 +62,8 @@ class Mutation {
         next.events.isNotEmpty ||
         goals.isNotEmpty ||
         next.goals.isNotEmpty ||
+        blockSubtasks.isNotEmpty ||
+        next.blockSubtasks.isNotEmpty ||
         tags.isNotEmpty ||
         next.tags.isNotEmpty ||
         exdates.isNotEmpty ||
@@ -89,6 +96,7 @@ class Mutation {
     events.addAll(other.events);
     notes.addAll(other.notes);
     goals.addAll(other.goals);
+    blockSubtasks.addAll(other.blockSubtasks);
     tags.addAll(other.tags);
     exdates.addAll(other.exdates);
   }

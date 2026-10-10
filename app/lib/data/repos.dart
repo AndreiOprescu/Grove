@@ -1,3 +1,6 @@
+import 'dart:convert';
+
+import '../core/model/block_subtask.dart';
 import '../core/model/day_key.dart';
 import '../core/model/event.dart';
 import '../core/model/goal.dart';
@@ -519,6 +522,79 @@ class GoalRepo {
 
 // Notes.
 
+/// The subtasks of goal blocks. A subtask belongs to one event.
+class BlockSubtaskRepo {
+  BlockSubtaskRepo(this.db);
+
+  final Database db;
+
+  static const _cols = [
+    'id',
+    'event_id',
+    'title',
+    'done_at',
+    'sort',
+    'created_at',
+    'updated_at',
+  ];
+  static final _select = 'SELECT ${_cols.join(',')} FROM block_subtasks';
+  static const _order = 'ORDER BY sort, created_at, rowid';
+  static final _upsert = _upsertSql('block_subtasks', _cols);
+
+  static BlockSubtaskItem _map(Row r) => BlockSubtaskItem(
+    id: r.text(0),
+    eventId: r.text(1),
+    title: r.text(2),
+    doneAt: r.optText(3),
+    sort: r.asDouble(4),
+    createdAt: r.text(5),
+    updatedAt: r.text(6),
+  );
+
+  /// Insert or update. Refreshes `updatedAt`. Throws when the block does not
+  /// exist (foreign key).
+  void save(BlockSubtaskItem sub) {
+    final s = sub.copyWith(updatedAt: Stamp.now());
+    db.execute(_upsert, [
+      s.id,
+      s.eventId,
+      s.title,
+      s.doneAt,
+      s.sort,
+      s.createdAt,
+      s.updatedAt,
+    ]);
+  }
+
+  BlockSubtaskItem? get(String id) =>
+      db.query('$_select WHERE id = ?', [id], _map).firstOrNull;
+
+  /// The subtasks of one block, in list order.
+  List<BlockSubtaskItem> forEvent(String eventId) =>
+      db.query('$_select WHERE event_id = ? $_order', [eventId], _map);
+
+  /// The subtasks of many blocks in one query, by event id. A block with no
+  /// subtasks has no entry. The ids go in as one JSON list, so the SQL text
+  /// is the same for any number of blocks.
+  Map<String, List<BlockSubtaskItem>> forEvents(Iterable<String> eventIds) {
+    final ids = eventIds.toList();
+    final out = <String, List<BlockSubtaskItem>>{};
+    if (ids.isEmpty) return out;
+    final rows = db.query(
+      '$_select WHERE event_id IN (SELECT value FROM json_each(?)) $_order',
+      [jsonEncode(ids)],
+      _map,
+    );
+    for (final s in rows) {
+      (out[s.eventId] ??= []).add(s);
+    }
+    return out;
+  }
+
+  void delete(String id) =>
+      db.execute('DELETE FROM block_subtasks WHERE id = ?', [id]);
+}
+
 class NoteRepo {
   NoteRepo(this.db, this.search);
 
@@ -831,6 +907,7 @@ class Repos {
   Repos(this.db)
     : search = SearchIndex(db),
       goals = GoalRepo(db),
+      blockSubtasks = BlockSubtaskRepo(db),
       lists = ListRepo(db),
       tags = TagRepo(db),
       links = LinkRepo(db),
@@ -855,6 +932,7 @@ class Repos {
   late final EventRepo events;
   late final NoteRepo notes;
   final GoalRepo goals;
+  final BlockSubtaskRepo blockSubtasks;
   final ListRepo lists;
   final TagRepo tags;
   final LinkRepo links;

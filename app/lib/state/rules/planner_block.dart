@@ -1,6 +1,8 @@
 import '../../core/model/day_key.dart';
 import '../../core/model/event.dart';
+import '../../core/model/ids.dart';
 import '../../core/planner/planner_math.dart';
+import 'block_subtask_row.dart';
 
 /// What the grid draws. Built from an event (and its task, if any).
 class PlannerBlock {
@@ -19,6 +21,7 @@ class PlannerBlock {
     this.hasNote = false,
     this.priority = 0,
     this.goalId,
+    this.subtasks = const [],
   });
 
   /// The event id.
@@ -43,6 +46,10 @@ class PlannerBlock {
   /// The goal this block belongs to, or null. A goal block has no task;
   /// [isDone] comes from the event's `doneAt`.
   final String? goalId;
+
+  /// The rows to show in the block, in list order. For a task block: the
+  /// subtasks of its task, without cancelled ones. For a goal block: its own.
+  final List<BlockSubtask> subtasks;
 
   Span get span => Span(id: id, start: startMinute, end: endMinute);
   int get length => endMinute - startMinute;
@@ -73,11 +80,12 @@ class PlannerBlock {
     for (var i = 0; i < a.length; i++) {
       if (a[i] != b[i]) return false;
     }
-    return true;
+    return sameList(subtasks, other.subtasks);
   }
 
   @override
-  int get hashCode => Object.hashAll(_props);
+  int get hashCode =>
+      Object.hash(Object.hashAll(_props), Object.hashAll(subtasks));
 
   @override
   String toString() =>

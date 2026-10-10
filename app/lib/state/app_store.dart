@@ -4,6 +4,7 @@ import 'dart:math';
 
 import 'package:flutter/foundation.dart';
 
+import '../core/model/block_subtask.dart';
 import '../core/model/day_key.dart';
 import '../core/model/event.dart';
 import '../core/model/goal.dart';
@@ -28,6 +29,7 @@ import 'mutation.dart';
 import 'notifier.dart';
 import 'prefs.dart';
 import 'rules/all_tasks_rules.dart';
+import 'rules/block_subtask_row.dart';
 import 'rules/calendar_rules.dart';
 import 'rules/day_range.dart';
 import 'rules/day_rules.dart';
@@ -42,6 +44,7 @@ import 'rules/now_next.dart';
 import 'rules/plant_math.dart';
 import 'rules/planner_block.dart';
 import 'rules/settings_rules.dart';
+import 'rules/subtask_rules.dart';
 import 'rules/task_placement.dart';
 import 'rules/text.dart';
 import 'screen.dart';
@@ -49,6 +52,7 @@ import 'theme_id.dart';
 
 part 'store_appearance.dart';
 part 'store_at_date.dart';
+part 'store_block_subtasks.dart';
 part 'store_calendar.dart';
 part 'store_daily.dart';
 part 'store_data.dart';
@@ -325,6 +329,14 @@ class AppStore extends ChangeNotifier {
     _changed();
   }
 
+  /// The goal block (an event id) whose subtask editor is open, or null.
+  String? _editingBlockSubtasks;
+  String? get editingBlockSubtasks => _editingBlockSubtasks;
+  set editingBlockSubtasks(String? v) {
+    _editingBlockSubtasks = v;
+    _changed();
+  }
+
   /// Which screen fills the window. The Today screen always shows today, so
   /// coming to it picks today.
   Screen _screen = Screen.today;
@@ -430,6 +442,7 @@ class AppStore extends ChangeNotifier {
     _noteFilter = NoteFilter.all;
     _noteQuery = '';
     _editingEvent = null;
+    _editingBlockSubtasks = null;
     _recurringPrompt = null;
     _overloadWarning = null;
     _lingering = {};
@@ -447,6 +460,7 @@ class AppStore extends ChangeNotifier {
   /// Applies a change, saves it, and records it for undo.
   bool commit(Mutation m) {
     if (m.isEmpty) return false;
+    _addSubtasksOfDeletedBlocks(m);
     final days = _plannedDays(m);
     final before = {for (final d in days) d: plannedMinutes(d)};
     if (!_apply(m, forward: true)) return false;
@@ -460,6 +474,26 @@ class AppStore extends ChangeNotifier {
     _redoStack.clear();
     if (_undoStack.length > 200) _undoStack.removeAt(0);
     return true;
+  }
+
+  /// Deleting a block also deletes its subtasks (the database does that).
+  /// This puts them in the change, so undo brings them back.
+  void _addSubtasksOfDeletedBlocks(Mutation m) {
+    final deleted = [
+      for (final e in m.events)
+        if (e.after == null) ?e.before?.id,
+    ];
+    if (deleted.isEmpty) return;
+    final subs = _try(() => repos.blockSubtasks.forEvents(deleted));
+    if (subs == null || subs.isEmpty) return;
+    final listed = {
+      for (final c in m.blockSubtasks) ?(c.before ?? c.after)?.id,
+    };
+    for (final id in deleted) {
+      for (final sub in subs[id] ?? const <BlockSubtaskItem>[]) {
+        if (listed.add(sub.id)) m.blockSubtasks.add((before: sub, after: null));
+      }
+    }
   }
 
   // Busy-day limit
@@ -537,6 +571,11 @@ class AppStore extends ChangeNotifier {
           final x = target(e);
           if (x != null) repos.events.save(x);
         }
+        // After the events: a subtask needs its block.
+        for (final b in m.blockSubtasks) {
+          final x = target(b);
+          if (x != null) repos.blockSubtasks.save(x);
+        }
         for (final n in m.notes) {
           final x = target(n);
           if (x != null) repos.notes.save(x);
@@ -559,6 +598,10 @@ class AppStore extends ChangeNotifier {
         for (final c in m.tags) {
           if (gone.contains(c.taskId)) continue;
           repos.tags.setTaskTags(c.taskId, forward ? c.after : c.before);
+        }
+        for (final b in m.blockSubtasks) {
+          final id = source(b)?.id;
+          if (target(b) == null && id != null) repos.blockSubtasks.delete(id);
         }
         for (final e in m.events) {
           final id = source(e)?.id;

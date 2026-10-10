@@ -138,6 +138,17 @@ abstract final class Migrations {
     ALTER TABLE goals ADD COLUMN kind TEXT NOT NULL DEFAULT 'hours';
     ALTER TABLE goals ADD COLUMN target_count INTEGER NOT NULL DEFAULT 3;
     ''',
+
+    // 7 — subtasks of one goal block. They hang off the event, not the goal, so each block has its own list.
+    // A new table only: no old row changes.
+    '''
+    CREATE TABLE block_subtasks (
+      id TEXT PRIMARY KEY, event_id TEXT NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+      title TEXT NOT NULL, done_at TEXT, sort REAL NOT NULL DEFAULT 0,
+      created_at TEXT NOT NULL, updated_at TEXT NOT NULL
+    );
+    CREATE INDEX block_subtasks_event ON block_subtasks(event_id);
+    ''',
   ];
 
   static void run(Database db) {
@@ -162,6 +173,7 @@ abstract final class SyncMigrations {
     'goals',
     'tasks',
     'events',
+    'block_subtasks',
     'event_exdates',
     'links',
     'tags',
@@ -172,7 +184,13 @@ abstract final class SyncMigrations {
   ];
 
   /// Tables that already had `updated_at` in the shared schema.
-  static const _hadUpdatedAt = {'notes', 'goals', 'tasks', 'events'};
+  static const _hadUpdatedAt = {
+    'notes',
+    'goals',
+    'tasks',
+    'events',
+    'block_subtasks',
+  };
 
   /// The columns each sync migration added, by table. The export leaves them out.
   static final Map<String, Set<String>> addedColumns = {
@@ -195,6 +213,10 @@ abstract final class SyncMigrations {
     ),
     // 2 — the outbox: the local changes that the remote does not have yet.
     SyncSchema.createOutbox,
+    // 3 — `block_subtasks` (shared migration 7) joins the sync. A database
+    // from before it has the table with no sync columns and no outbox lines.
+    // On a new database, 1 and 2 did the work and this changes nothing.
+    (db) => SyncSchema.addTable(db, 'block_subtasks'),
   ];
 
   static const _key = 'schema';

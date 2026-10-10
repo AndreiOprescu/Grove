@@ -72,6 +72,10 @@ file, the plan, and `docs/assumptions.md` before it starts.
 
 - F5: done, waits for the user (proof: `docs/acceptance/F5.md`)
 - F11-core: done, waits for the user (proof: `docs/acceptance/F11-core.md`)
+- F10-services: done, waits for the user (proof:
+  `docs/acceptance/F10-services.md`)
+- Migration 7 (`block_subtasks`, Swift PR #3 and PR #4): done, waits for the
+  user (proof: `docs/acceptance/migration-7.md`)
 - Sync for Track B (nothing to do now):
   - The engine is `SyncEngine(repos: ..., remote: ...)` in
     `package:grove/sync/sync.dart`. `await engine.sync()` pushes and pulls.
@@ -92,7 +96,54 @@ file, the plan, and `docs/assumptions.md` before it starts.
   - It saves the theme, light/dark, motion, intensity and the open left panel
     in `Prefs` (`FilePrefs(path)` for the real app, `MemoryPrefs()` for tests).
   - Make it with `AppStore(repos: Repos(Database.open(path)), prefs: ...)`.
+- Answers to Track B's requests of F7:
+  - Subtasks in blocks (Swift PR #3): done. `store.blocks(days)` gives each
+    `PlannerBlock` a list `subtasks` of `BlockSubtask` (`id`, `title`,
+    `isDone`). A task block has the subtasks of its task, in panel order,
+    without cancelled ones. `SubtaskRules.moreLabel(hidden:, shown:, done:,
+    total:)` and `SubtaskRules.badge(done:, total:)` are in
+    `app/lib/state/rules/subtask_rules.dart`.
+  - The class `BlockSubtask` is in
+    `app/lib/state/rules/block_subtask_row.dart`. `state.dart` does NOT export
+    it, because your `planner_geometry.dart` has a class with the same name
+    and the build would stop. To change over: delete your class and
+    `import 'package:grove/state/rules/block_subtask_row.dart';`. Then you do
+    not need `store.subtasks(taskId)` for each block.
+  - Subtasks on goal blocks (Swift PR #4): done. Table `block_subtasks`
+    (shared migration 7), in the export file and in the sync. The same
+    `PlannerBlock.subtasks` list has them for a goal block. Store calls:
+    `blockSubtasks(eventId)`, `addBlockSubtask(to:, title:)`,
+    `toggleBlockSubtask(id)`, `renameBlockSubtask(id, to:)`,
+    `deleteBlockSubtask(id)`, `openBlockSubtasks(eventId)`,
+    `closeBlockSubtasks()`, and the field `editingBlockSubtasks` (an event id
+    or null). Each edit is one undo step.
+  - Yours to build (view code): the rows in a goal block, the menu lines
+    "Add Subtasks…" (a goal block with none) and "Subtasks…" (a block that
+    has some), and the editor window that shows when `editingBlockSubtasks`
+    is not null. See the Mac files `BlockSubtaskEditor.swift` and
+    `BlockView.swift` on the branch `feat/planner-subtasks`.
+  - The clock (`clockOverride` for the whole store) and the owner of the event
+    editor window: the answers come with F8.
 - Requests to Track B:
+  - Start the services where you open the real store (you planned this for the
+    start of F7). In `app/lib/main.dart`, after
+    `WidgetsFlutterBinding.ensureInitialized()`:
+
+    ```dart
+    import 'package:grove/services/services.dart';
+
+    final prefs = FilePrefs('$dir${Platform.pathSeparator}prefs.json');
+    final notifier = AppServices.notifier(prefs);
+    final store = AppStore.open(dataDir: dir, notifier: notifier, prefs: prefs);
+    AppServices.forThisDevice(store).start();
+    ```
+
+    That gives reminders on the 4 systems, the tray icon on the Mac and on
+    Windows, and the daily backup. `AppStore.open` makes `Backups/` and
+    `prefs.json` in `dir`. `app/tool/services_check.dart` is a working example.
+  - The permission question: call `store.askForNotifications()` from your
+    welcome card and from the Settings screen, as the Mac app does. Nothing
+    asks today. `store.notifyStatus` has the three states.
   - The state layer cannot import `app/lib/ui/`. So keep one set of enums, the
     one in `app/lib/state/`: `Screen` (`screen.dart`), `LeftPane`
     (`rules/left_pane.dart`), `ThemeId` and `AppearanceMode` (`theme_id.dart`).

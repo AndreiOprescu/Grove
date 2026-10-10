@@ -175,6 +175,30 @@ abstract final class SyncSchema {
     }
   }
 
+  /// Puts a table that came after sync migration 2 into the sync: the sync
+  /// columns it does not have yet, and its rows in the outbox with stamp 0.
+  /// Safe to run again. The triggers come from [ensureTriggers].
+  static void addTable(Database db, String name) {
+    final has = db
+        .query('PRAGMA table_info($name)', const [], (r) => r.text(1))
+        .toSet();
+    const types = {
+      'deleted': 'INTEGER NOT NULL DEFAULT 0',
+      'user_id': 'TEXT',
+      'updated_at': "TEXT NOT NULL DEFAULT ''",
+    };
+    for (final column in types.keys) {
+      if (!SyncMigrations.addedColumns[name]!.contains(column)) continue;
+      if (has.contains(column)) continue;
+      db.executeScript('ALTER TABLE $name ADD COLUMN $column ${types[column]}');
+    }
+    final keySql = _keySql(SyncTable.read(db, name), name);
+    db.executeScript(
+      'INSERT OR IGNORE INTO outbox (tbl, pk, stamp, deleted) '
+      "SELECT '$name', $keySql, 0, 0 FROM $name ORDER BY rowid",
+    );
+  }
+
   /// Raise this number when the trigger text changes.
   static const _triggerVersion = 1;
 
