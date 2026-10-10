@@ -3,6 +3,7 @@
 // Tests/GroveTests/ThemeSpecTests.swift and the personality test of
 // ThemeMotionTests.swift.
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:grove/ui/theme/grove_theme.dart';
 import 'package:grove/ui/theme/panel.dart';
@@ -94,6 +95,63 @@ void main() {
           light(id).body(13, weight: FontWeight.w600).fontWeight,
           FontWeight.w600,
         );
+      }
+    });
+
+    test('no font has a gap between letters', () {
+      for (final id in ThemeId.values) {
+        final t = light(id);
+        for (final style in [t.heading(20), t.body(13), t.number(12)]) {
+          expect(style.letterSpacing, 0, reason: '${id.name} $style');
+        }
+      }
+    });
+
+    // Material gives its own text style to the text below it: a gap of
+    // 0.25 between letters, and 0.5 in a text field. The Mac app has no
+    // gap, and text with such a gap sits on parts of a pixel.
+    testWidgets('Material widgets add no gap between letters', (tester) async {
+      for (final id in ThemeId.values) {
+        final t = light(id);
+        await tester.pumpWidget(
+          MaterialApp(
+            key: ValueKey(id),
+            theme: t.toMaterial(),
+            home: Material(
+              child: Column(
+                children: [
+                  Text('body', style: t.body(13)),
+                  Text('heading', style: t.heading(20)),
+                  Text('number', style: t.number(12)),
+                  const Text('no style'),
+                  TextField(
+                    controller: TextEditingController(text: 'field'),
+                    style: t.body(13),
+                  ),
+                  TextField(controller: TextEditingController(text: 'plain')),
+                ],
+              ),
+            ),
+          ),
+        );
+        for (final text in ['body', 'heading', 'number', 'no style']) {
+          final box = tester.renderObject<RenderParagraph>(
+            find.descendant(
+              of: find.text(text),
+              matching: find.byType(RichText),
+            ),
+          );
+          expect(box.text.style!.letterSpacing, 0, reason: '${id.name} $text');
+        }
+        for (final field in tester.widgetList<EditableText>(
+          find.byType(EditableText),
+        )) {
+          expect(
+            field.style.letterSpacing,
+            0,
+            reason: '${id.name} field "${field.controller.text}"',
+          );
+        }
       }
     });
 
