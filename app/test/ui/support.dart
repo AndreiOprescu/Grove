@@ -8,7 +8,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:grove/ui/app.dart';
 import 'package:grove/ui/shell/root_view.dart';
 import 'package:grove/ui/shell/shell_model.dart';
-import 'package:grove/ui/theme/theme_spec.dart';
 
 /// The smallest window of the Mac app.
 const desktopSize = Size(1100, 620);
@@ -35,7 +34,7 @@ LocalShellModel still({
 /// when motion is off.
 Future<void> pumpApp(
   WidgetTester tester,
-  LocalShellModel model, {
+  ShellModel model, {
   required Size size,
   ScreenBuilder? screenBuilder,
   PaneBuilder? paneBuilder,
@@ -43,7 +42,8 @@ Future<void> pumpApp(
   tester.view.physicalSize = size;
   tester.view.devicePixelRatio = 1;
   addTearDown(tester.view.reset);
-  addTearDown(model.dispose);
+  // A store is closed by the test that made it.
+  if (model is LocalShellModel) addTearDown(model.dispose);
   // A new key each time: the app starts fresh, with no cross-fade from the
   // theme of the app pumped before.
   await tester.pumpWidget(
