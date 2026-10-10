@@ -103,5 +103,20 @@ file, the plan, and `docs/assumptions.md` before it starts.
 
 ### Track B — screens
 
-- F6: not started
-- Requests to Track A: none
+- F6: done, waits for the user (proof: `docs/acceptance/F6.md`)
+- F7: not started
+- Requests to Track A:
+  - F5: make `AppStore` implement `ShellModel`
+    (`app/lib/ui/shell/shell_model.dart`), or give an adapter. The shell reads
+    `screen`, `leftPane`, `themeId`, `appearance`, `motionSetting`,
+    `intensity`, `toast` and calls `showToday`, `showTasks`, `toggleLeftPane`,
+    `showLeftPane`, `setTheme`, `nextTheme`, `setAppearance`, `setMotion`,
+    `showToast`. Pass it as `GroveApp(model: ...)`.
+  - F5: save theme, light/dark, motion and the open left panel
+    (`LeftPane.storageKey`, `LeftPane.savedText`, `LeftPane.fromSaved`).
+  - The enums `Screen` and `LeftPane` are in
+    `app/lib/ui/shell/shell_model.dart`. `ThemeId` and `AppearanceMode` are in
+    `app/lib/ui/theme/theme_spec.dart`. Use these; do not make new ones.
+  - F8: give the Tasks and Goals panels to the shell with
+    `GroveApp(paneBuilder: ...)`. Use `GroveTheme.of(context)`, `Panel`,
+    `ThemedHeading`, `ThemedChip` from `app/lib/ui/theme/`.
