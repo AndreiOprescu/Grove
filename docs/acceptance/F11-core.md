@@ -2,7 +2,7 @@
 
 Plan: `docs/cross-platform-plan.md` (milestone F11). Track A, branch `feat/xp-engine` (`docs/tracks.md`).
 Check: `./scripts/flutter_test.sh` (2026-10-10: 1219 tests passed after the merge of `origin/feat/xp-screens`, analyze clean, format clean). 102 of them are the new tests in `app/test/sync/`.
-CI run: see the end of this file.
+CI run 38060395876 (commit 4f07cfa): green on Android, Windows, macOS, iOS.
 
 Scope (`docs/tracks.md`): "outbox, push/pull, last-write-wins, soft deletes, tested against a fake remote in pure Dart."
 Acceptance of F11 in the plan: "Two-device offline-edit test syncs to same data."
@@ -49,5 +49,3 @@ Not in this step: Supabase schema, Row Level Security, magic-link login, image u
 - Decisions: `docs/assumptions.md`, section "Cross-platform Track A", the lines that start with "F11-core".
 - Q-3 (DEFAULT, built as A): the same daily note on two devices → one note with both texts.
 - Q-4 (ASK, waits for the owner): first login on a device that has data when the account has data too.
-
-## CI
