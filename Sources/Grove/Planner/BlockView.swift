@@ -145,6 +145,7 @@ struct BlockView: View {
                     Text(PlannerMath.duration(length)).font(theme.number(10, weight: .bold)).foregroundStyle(tint)
                         .lineLimit(1).fixedSize()
                 }
+                subtaskBadge
             }
             .foregroundStyle(theme.ink)
         } else {
@@ -158,22 +159,62 @@ struct BlockView: View {
                     // Last resort. A goal block keeps its length, the number the user plans it by.
                     timeRow(block.isGoalBlock ? PlannerMath.duration(length) : "\(PlannerMath.clock(start))–\(PlannerMath.clock(end))")
                 }
-                let lines = PlannerLayoutRules.blockTextLines(height: size.height, hasSummary: !block.summary.isEmpty)
+                let lines = PlannerLayoutRules.blockRows(height: size.height, hasSummary: !block.summary.isEmpty,
+                                                         subtaskCount: block.subtasks.count)
                 HStack(alignment: .top, spacing: 5) {
                     checkbox
                     VStack(alignment: .leading, spacing: 1) {
-                        Text(block.title).font(theme.body(12, weight: .semibold))
-                            .lineLimit(lines.title)
-                            .strikethrough(block.isDone)
+                        HStack(alignment: .firstTextBaseline, spacing: 4) {
+                            Text(block.title).font(theme.body(12, weight: .semibold))
+                                .lineLimit(lines.title)
+                                .strikethrough(block.isDone)
+                            if lines.badge { subtaskBadge }
+                        }
                         if lines.summary > 0 {
                             Text(block.summary).font(theme.body(11))
                                 .foregroundStyle(theme.ink.opacity(0.7))
                                 .lineLimit(lines.summary)
                         }
+                        ForEach(block.subtasks.prefix(lines.subtasks)) { sub in
+                            subtaskRow(sub)
+                        }
+                        if lines.moreRow {
+                            Text(SubtaskRules.moreLabel(hidden: lines.hidden(of: block.subtasks.count),
+                                                        shown: lines.subtasks, done: subtasksDone,
+                                                        total: block.subtasks.count))
+                                .font(theme.body(10, weight: .semibold))
+                                .foregroundStyle(theme.muted)
+                                .lineLimit(1)
+                        }
                     }
                 }
             }
             .foregroundStyle(theme.ink)
+        }
+    }
+
+    private var subtasksDone: Int { block.subtasks.filter(\.isDone).count }
+
+    /// One subtask line: a small mark and the title. Display only; the task panel changes subtasks.
+    private func subtaskRow(_ sub: BlockSubtask) -> some View {
+        HStack(spacing: 4) {
+            CheckBox(isOn: sub.isDone, size: 9)
+            Text(sub.title).font(theme.body(11)).lineLimit(1)
+                .strikethrough(sub.isDone)
+                .foregroundStyle(sub.isDone ? theme.muted : theme.ink.opacity(0.85))
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel((sub.isDone ? "Done: " : "Subtask: ") + sub.title)
+    }
+
+    /// "1/4" in the title row when the block has subtasks but no line to show them.
+    @ViewBuilder private var subtaskBadge: some View {
+        if !block.subtasks.isEmpty {
+            Text(SubtaskRules.badge(done: subtasksDone, total: block.subtasks.count))
+                .font(theme.number(10, weight: .bold))
+                .foregroundStyle(theme.muted)
+                .lineLimit(1).fixedSize()
+                .accessibilityLabel("\(subtasksDone) of \(block.subtasks.count) subtasks done")
         }
     }
 
