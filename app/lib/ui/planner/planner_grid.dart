@@ -140,6 +140,12 @@ class PlannerGridState extends State<PlannerGrid> {
     60,
     (_gridWidth - PlannerGeometry.gutterWidth) / max(_days.length, 1),
   );
+
+  /// The left edge and the width of a day column, on whole points.
+  double _dayLeft(int index) =>
+      PlannerGeometry.gutterWidth + PlannerGeometry.dayOffset(_dayWidth, index);
+  double _dayWidthAt(int index) => PlannerGeometry.dayWidthAt(_dayWidth, index);
+
   bool get _isDragging => _live != null || _create != null;
   double get _scrollY => _scroll.hasClients ? _scroll.offset : 0;
 
@@ -305,7 +311,9 @@ class PlannerGridState extends State<PlannerGrid> {
     }
   }
 
-  double get _nowTarget => max(0, _geo.y(max(0, _store.plannerNow - 60)));
+  /// On a whole point, so the blocks and their text are drawn sharp.
+  double get _nowTarget =>
+      max(0, _geo.y(max(0, _store.plannerNow - 60))).roundToDouble();
 
   /// Puts "now" one hour below the top of the grid.
   void scrollToNow({required bool animated}) {
@@ -1052,7 +1060,6 @@ class PlannerGridState extends State<PlannerGrid> {
 
   List<Widget> _layerWidgets(GroveTheme theme, PlannerGeometry geo) {
     const gutter = PlannerGeometry.gutterWidth;
-    final dayWidth = _dayWidth;
     final today = _store.plannerToday;
     final now = _store.plannerNow;
     final todayIndex = _days.indexOf(today);
@@ -1096,17 +1103,17 @@ class PlannerGridState extends State<PlannerGrid> {
         ),
       for (final (index, day) in _days.indexed)
         Positioned(
-          left: gutter + index * dayWidth,
+          left: _dayLeft(index),
           top: 0,
-          width: dayWidth,
+          width: _dayWidthAt(index),
           height: geo.totalHeight,
           child: _dayColumn(theme, geo, index, day, isToday: day == today),
         ),
       if (todayIndex >= 0)
         Positioned(
-          left: gutter + todayIndex * dayWidth,
+          left: _dayLeft(todayIndex),
           top: 0,
-          width: dayWidth,
+          width: _dayWidthAt(todayIndex),
           height: geo.y(now),
           child: IgnorePointer(
             child: ColoredBox(color: theme.bg.withValues(alpha: 0.35)),
@@ -1117,9 +1124,9 @@ class PlannerGridState extends State<PlannerGrid> {
       if (todayIndex >= 0)
         Positioned(
           key: const ValueKey('now-line'),
-          left: gutter + todayIndex * dayWidth - 4,
+          left: _dayLeft(todayIndex) - 4,
           top: geo.y(now) - 4.5,
-          width: dayWidth + 4,
+          width: _dayWidthAt(todayIndex) + 4,
           height: 9,
           child: IgnorePointer(
             child: ExcludeSemantics(child: _NowLine(pulses: _motionOn)),
@@ -1239,8 +1246,10 @@ class PlannerGridState extends State<PlannerGrid> {
     final dayIndex = _days.indexOf(shown.day);
     if (dayIndex < 0) return null;
     final layer = shown.day == block.day ? _layers[block.id] : null;
-    final indent = layer == null ? 0.0 : indents[block.id] ?? 0.0;
-    final width = max(20.0, _dayWidth - 9 - indent);
+    final indent = layer == null
+        ? 0.0
+        : (indents[block.id] ?? 0.0).roundToDouble();
+    final width = max(20.0, _dayWidthAt(dayIndex) - 9 - indent);
     final height = max(
       PlannerGeometry.minBlockHeight,
       geo.y(shown.end - shown.start) - 1,
@@ -1252,7 +1261,7 @@ class PlannerGridState extends State<PlannerGrid> {
           ? Duration.zero
           : const Duration(milliseconds: 220),
       curve: Curves.easeOutCubic,
-      left: PlannerGeometry.gutterWidth + dayIndex * _dayWidth + 2 + indent,
+      left: _dayLeft(dayIndex) + 2 + indent,
       top: geo.y(shown.start),
       width: width,
       height: height,
@@ -1294,9 +1303,9 @@ class PlannerGridState extends State<PlannerGrid> {
     final e = max(c.anchor, c.current);
     return Positioned(
       key: const ValueKey('create-rect'),
-      left: PlannerGeometry.gutterWidth + c.dayIndex * _dayWidth + 2,
+      left: _dayLeft(c.dayIndex) + 2,
       top: geo.y(s),
-      width: _dayWidth - 6,
+      width: _dayWidthAt(c.dayIndex) - 6,
       height: max(4, geo.y(max(e - s, PlannerMath.minLength))),
       child: IgnorePointer(
         child: DecoratedBox(
@@ -1337,11 +1346,11 @@ class PlannerGridState extends State<PlannerGrid> {
     if (d == null) return null;
     final index = _days.indexOf(d.day);
     if (index < 0) return null;
-    final width = _dayWidth - 6;
+    final width = _dayWidthAt(index) - 6;
     final matches = _store.matchingTasks(d.text, on: d.day);
     return Positioned(
       key: ValueKey('draft-${d.serial}'),
-      left: PlannerGeometry.gutterWidth + index * _dayWidth + 2,
+      left: _dayLeft(index) + 2,
       top: geo.y(d.start),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1470,7 +1479,7 @@ class PlannerGridState extends State<PlannerGrid> {
     if (index < 0) return null;
     return Positioned(
       key: const ValueKey('live-label'),
-      left: PlannerGeometry.gutterWidth + index * _dayWidth + 8,
+      left: _dayLeft(index) + 8,
       top: geo.y(shown.start) - 26 + (shown.start < 40 ? 40 : 0),
       child: IgnorePointer(
         child: DecoratedBox(

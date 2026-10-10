@@ -15,6 +15,7 @@ import '../theme/grove_theme.dart';
 import '../theme/named_colors.dart';
 import '../theme/panel.dart';
 import '../theme/symbols.dart';
+import 'day_columns.dart';
 import 'planner_clock.dart';
 import 'planner_dialogs.dart';
 import 'planner_geometry.dart';
@@ -429,51 +430,57 @@ class _PlannerViewState extends State<PlannerView> {
       decoration: BoxDecoration(
         border: Border(bottom: BorderSide(color: theme.line)),
       ),
-      child: Row(
-        children: [
-          const SizedBox(width: PlannerGeometry.gutterWidth),
-          for (final day in days)
-            Expanded(
-              child: Semantics(
-                container: true,
-                excludeSemantics: true,
-                button: true,
-                label: NotesRules.longDay(day),
-                onTap: () => _store.selectedDay = day,
-                child: GestureDetector(
-                  key: ValueKey('day-header-${day.string}'),
-                  behavior: HitTestBehavior.opaque,
+      child: LayoutBuilder(
+        builder: (context, box) => Row(
+          children: [
+            const SizedBox(width: PlannerGeometry.gutterWidth),
+            ...dayColumns(box.maxWidth - PlannerGeometry.gutterWidth, [
+              for (final day in days)
+                Semantics(
+                  container: true,
+                  excludeSemantics: true,
+                  button: true,
+                  label: NotesRules.longDay(day),
                   onTap: () => _store.selectedDay = day,
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 6),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          NotesRules.weekdayName(day).substring(0, 3),
-                          maxLines: 1,
-                          style: theme
-                              .body(11)
-                              .copyWith(
-                                color: day == today ? theme.accent : theme.ink,
-                              ),
-                        ),
-                        Text(
-                          '${day.day}',
-                          maxLines: 1,
-                          style: theme
-                              .body(15, weight: FontWeight.w700)
-                              .copyWith(
-                                color: day == today ? theme.accent : theme.ink,
-                              ),
-                        ),
-                      ],
+                  child: GestureDetector(
+                    key: ValueKey('day-header-${day.string}'),
+                    behavior: HitTestBehavior.opaque,
+                    onTap: () => _store.selectedDay = day,
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 6),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            NotesRules.weekdayName(day).substring(0, 3),
+                            maxLines: 1,
+                            style: theme
+                                .body(11)
+                                .copyWith(
+                                  color: day == today
+                                      ? theme.accent
+                                      : theme.ink,
+                                ),
+                          ),
+                          Text(
+                            '${day.day}',
+                            maxLines: 1,
+                            style: theme
+                                .body(15, weight: FontWeight.w700)
+                                .copyWith(
+                                  color: day == today
+                                      ? theme.accent
+                                      : theme.ink,
+                                ),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                 ),
-              ),
-            ),
-        ],
+            ]),
+          ],
+        ),
       ),
     );
   }

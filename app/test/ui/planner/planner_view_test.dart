@@ -28,6 +28,29 @@ void main() {
       expect(tester.takeException(), isNull);
     });
 
+    testWidgets('the day columns of the header, the strip and the grid start '
+        'on the same whole points', (tester) async {
+      final store = plannerStore();
+      await pumpPlanner(tester, store);
+
+      for (var i = 0; i < 7; i++) {
+        final day = wednesday.adding(days: i - 2);
+        final column = tester.getRect(columnFinder(day));
+        final header = tester.getRect(
+          find.byKey(ValueKey('day-header-${day.string}')),
+        );
+        final cell = tester.getRect(
+          find.byKey(ValueKey('sticky-cell-${day.string}')),
+        );
+        expect(column.left, column.left.roundToDouble(), reason: day.string);
+        expect(header.left, column.left, reason: day.string);
+        expect(cell.left, column.left, reason: day.string);
+        expect(header.width, column.width, reason: day.string);
+        expect(cell.width, column.width, reason: day.string);
+      }
+      expect(tester.takeException(), isNull);
+    });
+
     testWidgets('a phone shows one day column', (tester) async {
       final store = plannerStore();
       await pumpPlanner(tester, store, size: phoneSize);

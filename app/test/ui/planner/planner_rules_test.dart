@@ -26,6 +26,22 @@ void main() {
       expect(PlannerGeometry.clampHour(500), 160);
       expect(PlannerGeometry.clampHour(80), 80);
     });
+
+    test('day columns start on whole points and fill the grid', () {
+      // 7 days in 1016 points: one day is 145.14 points wide.
+      const dayWidth = 1016 / 7;
+      var sum = 0.0;
+      for (var i = 0; i < 7; i++) {
+        final left = PlannerGeometry.dayOffset(dayWidth, i);
+        final width = PlannerGeometry.dayWidthAt(dayWidth, i);
+        expect(left, left.roundToDouble());
+        expect(left, sum);
+        expect(width, anyOf(145, 146));
+        sum += width;
+      }
+      expect(PlannerGeometry.dayOffset(dayWidth, 0), 0);
+      expect(sum, 1016);
+    });
   });
 
   group('StickyRules', () {

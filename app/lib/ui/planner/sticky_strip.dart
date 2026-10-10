@@ -11,6 +11,7 @@ import 'package:grove/core/planner/planner_math.dart';
 import 'package:grove/state/state.dart' hide MotionRules;
 
 import '../theme/grove_theme.dart';
+import 'day_columns.dart';
 import 'payload_drag.dart';
 import 'planner_geometry.dart';
 import 'sticky_rules.dart';
@@ -99,19 +100,17 @@ class _StickyStripState extends State<StickyStrip> {
         final cells = IntrinsicHeight(
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
+            children: dayColumns(box.maxWidth - gutter, [
               for (final (index, day) in widget.days.indexed)
-                Expanded(
-                  child: _cell(
-                    theme,
-                    index,
-                    day,
-                    notes[day] ?? const [],
-                    expanded: expanded,
-                    cellWidth: cellWidth,
-                  ),
+                _cell(
+                  theme,
+                  index,
+                  day,
+                  notes[day] ?? const [],
+                  expanded: expanded,
+                  cellWidth: cellWidth,
                 ),
-            ],
+            ]),
           ),
         );
         return DecoratedBox(

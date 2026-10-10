@@ -13,6 +13,16 @@ class PlannerGeometry {
   /// The column with the hour labels.
   static const gutterWidth = 52.0;
 
+  /// How far day column [index] starts after the gutter, on a whole point.
+  /// Text that starts on a part of a point is drawn soft, and each system
+  /// draws it its own way.
+  static double dayOffset(double dayWidth, int index) =>
+      (index * dayWidth).roundToDouble();
+
+  /// The width of day column [index]: from its whole point to the next one.
+  static double dayWidthAt(double dayWidth, int index) =>
+      dayOffset(dayWidth, index + 1) - dayOffset(dayWidth, index);
+
   /// A block is never drawn shorter than this.
   static const minBlockHeight = 22.0;
 
