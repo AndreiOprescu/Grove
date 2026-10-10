@@ -63,3 +63,39 @@ You close the window of Grove on the Mac or on Windows. What happens?
 A) Grove quits, as now — simple. The tray icon goes away. Reminders that are already set still show.   ← my pick: it is what the Flutter app does today, and a quit is never a surprise.
 B) Grove stays open in the tray, as the Mac app does — the tray icon stays and "Open Grove" brings the window back. Only "Quit Grove" quits.
 If no answer: A. Closing the window quits Grove.
+
+## Q-9 · OPEN · DEFAULT · blocks F11 (login) · 2026-10-11
+Grove sends you one login email. How do you finish the login?
+A) You type the code of the email in Grove — works the same on the 4 systems with no extra setup. You put the code (`{{ .Token }}`) in the email text in Supabase one time.   ← my pick: it needs no native link code and no new address to protect.
+B) You tap the link of the email and Grove opens — Grove needs its own link name on each system (native files for Android, iOS, macOS, Windows) and a redirect address in Supabase.
+If no answer: A stays. It is built and tested. The link of the email does not open Grove.
+
+## Q-10 · OPEN · DEFAULT · blocks F11 (login) · 2026-10-11
+You sign out on a device. What happens to the Grove data on that device?
+A) It stays on the device — nothing is deleted. A person who uses the device after you sees your data.   ← my pick: Grove never deletes your data without your word.
+B) Grove deletes the data of the device at sign-out — the device is clean. Changes that were not synced yet are lost.
+If no answer: A stays. It is built and tested.
+
+## Q-11 · OPEN · ASK · blocks nothing now · 2026-10-11
+Do you want a button in Grove that deletes your account and all its data on the server?
+A) No, not now — you delete the rows and the user by hand in the Supabase dashboard (the SQL is in `docs/acceptance/F11-login.md`).   ← my pick: it is your own project, and a delete that cannot be undone needs your hand.
+B) Yes — Grove gets a "Delete account" button. It needs a small server function with admin rights in Supabase. That is a new part with its own security rules.
+If no answer: A. Nothing is built for this.
+
+## Q-12 · OPEN · DEFAULT · blocks F11 (login) · 2026-10-11
+Where does a device keep your login, and for how long?
+A) In the settings file of the app, until you sign out — no new package. A person or a program that can read your user files on the device can copy the login.   ← my pick: it is what the Supabase package does by itself, and the plan's package list has no safe-store package.
+B) In the key store of the system (Keychain, Windows Credential Manager, Android Keystore) — needs the package `flutter_secure_storage`, which is not on the plan's list.
+If no answer: A stays. It is built. How long a login lives is a setting of your Supabase project (as new: it has no end).
+
+## Q-13 · OPEN · DEFAULT · blocks F11 (image upload) · 2026-10-11
+You delete a picture from a note. What happens to its file on the server?
+A) The file stays in the file store — an undo, or a device that was offline, can bring the picture back with its file. The store grows a little (free plan: 1 GB).   ← my pick: Grove never deletes your data on the server without your word.
+B) Grove deletes the file — less space is used. A picture that comes back from another device has no file any more.
+If no answer: A stays. It is built: no rule in the SQL allows a delete.
+
+## Q-14 · OPEN · ASK · blocks nothing now · 2026-10-11
+Who can make an account in your Supabase project? The address and the public key of the project are inside the built app, as in every Supabase app.
+A) Only you — after your first login you turn off "Allow new users to sign up" in Supabase. Nobody else can sign in.   ← my pick: Grove is for one user, and the free plan is yours.
+B) Each person who has the app — a person sees only their own rows, but uses the space and the emails of your project.
+If no answer: sign-up stays open, as Supabase makes a new project. The step for A is in `docs/acceptance/F11-login.md`. The code is the same for both.

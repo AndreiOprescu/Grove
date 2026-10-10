@@ -76,17 +76,24 @@ file, the plan, and `docs/assumptions.md` before it starts.
   `docs/acceptance/F10-services.md`)
 - Migration 7 (`block_subtasks`, Swift PR #3 and PR #4): done, waits for the
   user (proof: `docs/acceptance/migration-7.md`)
-- F8: built, waits for the user (proof: `docs/acceptance/F8.md`). CI: all
-  tests and builds are green on the 4 systems. The android job is red in
-  the device test of the planner (Track B's test, see the requests below)
-- Sync for Track B (nothing to do now):
-  - The engine is `SyncEngine(repos: ..., remote: ...)` in
-    `package:grove/sync/sync.dart`. `await engine.sync()` pushes and pulls.
-  - The store does not call it yet. No screen needs a change. The login
-    screen and the wiring come with the login step of F11 (needs the owner's
-    Supabase keys and the answer to Q-4 in `docs/questions.md`).
-  - A pull writes the database with SQL. When the store is wired, it will
-    call `notifyListeners()` after a pull, so the screens build again.
+- F8: built, waits for the user (proof: `docs/acceptance/F8.md`). CI is
+  green on the 4 jobs, with the device test in each, after Track B's fix
+  `020bf05`: run 38089300547, commit `1cc29a8`
+- F11-login (the login step of F11, with no keys): built, waits for the
+  owner's Supabase keys and for Track B to place the card (proof:
+  `docs/acceptance/F11-login.md`, questions Q-9 to Q-14). The SQL is in
+  `supabase/migrations/`. It ran on a plain Postgres on CI, never on a real
+  Supabase project
+- Sync for Track B:
+  - The store calls the engine now (`app/lib/state/store_sync.dart`). It
+    syncs after the login, 3 seconds after a change, each 5 minutes, when
+    the app comes to the front and on `store.syncNow()`.
+  - After a pull the store calls `notifyListeners()`, so the screens build
+    again. Rows can change or go away at any time: do not keep a row object
+    in a widget, read it from the store in `build`.
+  - A build with no `app/config/supabase.json` has no sync:
+    `store.syncAvailable` is false and nothing else changes.
+  - What to do is under "Requests to Track B, with F11-login" below.
 - Either track may add new files under `app/lib/core/` (pure Dart, ports of
   Swift `GroveCore`). Track A added `app/lib/core/services/`.
 - Answers to Track B's requests:
@@ -232,6 +239,53 @@ file, the plan, and `docs/assumptions.md` before it starts.
     the planner are yours; I did not change them. Please find out if a
     finger can resize a block on Android, or if only the test is wrong.
     Until then the android job of CI is red for the two tracks.
+- Requests to Track B, with F11-login:
+  - The login has no place in the app yet. Please put the sync card in your
+    settings place (a window, a sheet or a menu, your choice):
+
+    ```dart
+    import 'package:grove/ui/auth/sync_card.dart';
+
+    SyncCard(store: store)
+    ```
+
+    It has no frame and no padding of its own, and it is as wide as you
+    make it (the pictures in `app/test/ui/auth/goldens/` are 340 wide). It
+    shows the email step, the code step, "Signed in as …" with the time of
+    the last sync, "Sync now", "Sign out", the errors, and the question of
+    the first login. In a build with no keys it shows one line: "This copy
+    of Grove has no sync."
+  - Please wrap the screens in the gate, below the `MaterialApp` (it needs
+    a `Navigator`; `RootView` or the body in `store_app.dart` is a good
+    place):
+
+    ```dart
+    import 'package:grove/ui/auth/first_sync_dialog.dart';
+
+    FirstSyncGate(store: store, child: ...)
+    ```
+
+    It opens the Q-4 window one time when `store.firstSyncQuestion` turns
+    true. "Not now" closes it, and the card keeps the question. Without the
+    gate the question shows only in the card.
+  - If you want a small sync mark in the top bar: `store.syncStatus`
+    (`SyncStatus.off`, `signedOut`, `checking`, `question`, `syncing`,
+    `error`, `upToDate`), `store.syncError`, `store.lastSyncAt` and
+    `store.syncWaiting` are there. `SyncWords.status(store, now: ...)` gives
+    the line of the card.
+  - Shared and platform files I changed, in small edits (take them with
+    `git merge origin/feat/xp-engine`): `app/pubspec.yaml` and the lock
+    file (`supabase_flutter`, on the plan's list), the plugin files that
+    Flutter makes for macOS and Windows, `app/lib/main.dart` (2 lines: the
+    backend is made and given to `AppStore.open(sync: ...)`),
+    `scripts/flutter_build.sh` (the flag for the key file), `.gitignore`
+    (`app/config/supabase.json`), the two macOS entitlement files and the
+    Android manifest (network), and the new workflow
+    `.github/workflows/supabase.yml` (SQL check, it runs only when
+    `supabase/` changes).
+  - `GroveField` has two new optional parameters (`keyboard`,
+    `plainTyping`). `textOffPixels(tester, within: finder)` can look at any
+    widget now. Nothing of yours has to change.
 
 ### Track B — screens
 
