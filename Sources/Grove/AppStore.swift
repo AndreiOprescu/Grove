@@ -9,11 +9,15 @@ struct Mutation {
     var events: [(before: EventItem?, after: EventItem?)] = []
     var notes: [(before: Note?, after: Note?)] = []
     var goals: [(before: GoalItem?, after: GoalItem?)] = []
+    /// Subtasks of goal blocks. They live in their own table, keyed by the block's event id.
+    var blockSubtasks: [(before: BlockSubtaskItem?, after: BlockSubtaskItem?)] = []
     /// Days taken out of (`add`) or put back into a repeating event. Undo does the opposite, in reverse order.
     var exdates: [(eventId: String, day: DayKey, add: Bool)] = []
     /// Tag names of a task before and after. Tags live in their own table, so they are tracked here.
     var tags: [(taskId: String, before: [String], after: [String])] = []
-    var isEmpty: Bool { tasks.isEmpty && events.isEmpty && notes.isEmpty && goals.isEmpty && tags.isEmpty && exdates.isEmpty }
+    var isEmpty: Bool {
+        tasks.isEmpty && events.isEmpty && notes.isEmpty && goals.isEmpty && blockSubtasks.isEmpty && tags.isEmpty && exdates.isEmpty
+    }
     /// Typing makes many small changes. Changes with the same key, close in time, become one undo step.
     var mergeKey: String?
     var at = Date()
@@ -22,6 +26,7 @@ struct Mutation {
     func merged(with next: Mutation) -> Mutation? {
         guard let key = mergeKey, key == next.mergeKey, next.at.timeIntervalSince(at) < 60,
               events.isEmpty, next.events.isEmpty, goals.isEmpty, next.goals.isEmpty, tags.isEmpty, next.tags.isEmpty,
+              blockSubtasks.isEmpty, next.blockSubtasks.isEmpty,
               exdates.isEmpty, next.exdates.isEmpty else { return nil }
         var m = self
         if tasks.count == 1, next.tasks.count == 1, notes.isEmpty, next.notes.isEmpty,
@@ -43,6 +48,7 @@ struct Mutation {
         events += other.events
         notes += other.notes
         goals += other.goals
+        blockSubtasks += other.blockSubtasks
         tags += other.tags
         exdates += other.exdates
     }
@@ -78,6 +84,8 @@ final class AppStore {
     var recurringPrompt: RecurringPrompt?
     /// The event the editor popover shows, or nil.
     var editingEvent: EditingEvent?
+    /// The goal block whose subtask popover is open, or nil.
+    var editingBlockSubtasks: String?
     /// Which screen fills the window. The Day Spread (layout B) is the home screen.
     /// The Today screen always shows today, so coming to it picks today.
     var screen: Screen = .today {
@@ -155,6 +163,7 @@ final class AppStore {
         noteFilter = .all
         noteQuery = ""
         editingEvent = nil
+        editingBlockSubtasks = nil
         recurringPrompt = nil
         overloadWarning = nil
         lingering.removeAll()
@@ -172,8 +181,9 @@ final class AppStore {
 
     /// Applies a change, saves it, and records it for undo.
     @discardableResult
-    func commit(_ m: Mutation) -> Bool {
-        guard !m.isEmpty else { return false }
+    func commit(_ change: Mutation) -> Bool {
+        guard !change.isEmpty else { return false }
+        let m = withSubtasksOfDeletedBlocks(change)
         let days = plannedDays(in: m)
         let before = Dictionary(uniqueKeysWithValues: days.map { ($0, plannedMinutes(on: $0)) })
         guard apply(m, forward: true) else { return false }
@@ -186,6 +196,18 @@ final class AppStore {
         redoStack.removeAll()
         if undoStack.count > 200 { undoStack.removeFirst() }
         return true
+    }
+
+    /// A deleted block takes its subtasks with it (the database cascades). Record them too, so undo brings them back.
+    private func withSubtasksOfDeletedBlocks(_ m: Mutation) -> Mutation {
+        let deleted = m.events.compactMap { $0.after == nil ? $0.before?.id : nil }
+        guard !deleted.isEmpty, let subs = try? repos.blockSubtasks.forEvents(deleted), !subs.isEmpty else { return m }
+        let listed = Set(m.blockSubtasks.compactMap { ($0.before ?? $0.after)?.id })
+        var out = m
+        for id in deleted {
+            for sub in subs[id] ?? [] where !listed.contains(sub.id) { out.blockSubtasks.append((sub, nil)) }
+        }
+        return out
     }
 
     // MARK: Busy-day limit
@@ -243,12 +265,16 @@ final class AppStore {
                 for e in m.events { if let x = forward ? e.after : e.before { try repos.events.save(x) } }
                 for n in m.notes { if let x = forward ? n.after : n.before { try repos.notes.save(x) } }
                 for g in m.goals { if let x = forward ? g.after : g.before { try repos.goals.upsert(x) } }
+                for b in m.blockSubtasks { if let x = forward ? b.after : b.before { try repos.blockSubtasks.save(x) } }
                 for x in forward ? m.exdates : m.exdates.reversed() {
                     if x.add == forward { try repos.events.addExdate(x.eventId, x.day) } else { try repos.events.removeExdate(x.eventId, x.day) }
                 }
                 let gone = Set(m.tasks.filter { target($0) == nil }.compactMap { source($0)?.id })
                 for c in m.tags where !gone.contains(c.taskId) {
                     try repos.tags.setTags(taskId: c.taskId, names: forward ? c.after : c.before)
+                }
+                for b in m.blockSubtasks where (forward ? b.after : b.before) == nil {
+                    if let id = (forward ? b.before : b.after)?.id { try repos.blockSubtasks.delete(id) }
                 }
                 for e in m.events where (forward ? e.after : e.before) == nil {
                     if let id = (forward ? e.before : e.after)?.id { try repos.events.delete(id) }
@@ -346,6 +372,8 @@ final class AppStore {
         var tasks: [String: TaskItem] = [:]
         var subs: [String: [BlockSubtask]] = [:]
         var out: [PlannerBlock] = []
+        // Subtasks of blocks without a task: goal blocks, and old goal blocks whose goal was deleted.
+        let blockSubs = (try? repos.blockSubtasks.forEvents(events.filter { $0.taskId == nil && !$0.allDay }.map(\.id))) ?? [:]
         for e in events where !e.allDay {
             var task: TaskItem?
             if let tid = e.taskId {
@@ -365,7 +393,8 @@ final class AppStore {
                 isDone: e.goalId != nil ? e.doneAt != nil : (task?.isDone ?? false),
                 color: task.flatMap { $0.color.isEmpty ? nil : $0.color } ?? e.color,
                 isRecurring: e.seriesId != nil, priority: task?.priority ?? 0, goalId: e.goalId,
-                subtasks: task == nil ? [] : subs[task!.id] ?? []))
+                subtasks: task.map { subs[$0.id] ?? [] }
+                    ?? (blockSubs[e.id] ?? []).map { BlockSubtask(id: $0.id, title: $0.title, isDone: $0.isDone) }))
         }
         return out
     }

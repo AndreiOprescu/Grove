@@ -135,6 +135,17 @@ enum Migrations {
         ALTER TABLE goals ADD COLUMN kind TEXT NOT NULL DEFAULT 'hours';
         ALTER TABLE goals ADD COLUMN target_count INTEGER NOT NULL DEFAULT 3;
         """,
+
+        // 7 — subtasks of one goal block. They hang off the event, not the goal, so each block has its own list.
+        // A new table only: no old row changes.
+        """
+        CREATE TABLE block_subtasks (
+          id TEXT PRIMARY KEY, event_id TEXT NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+          title TEXT NOT NULL, done_at TEXT, sort REAL NOT NULL DEFAULT 0,
+          created_at TEXT NOT NULL, updated_at TEXT NOT NULL
+        );
+        CREATE INDEX block_subtasks_event ON block_subtasks(event_id);
+        """,
     ]
 
     static func run(on db: Database) throws {

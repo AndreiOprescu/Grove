@@ -195,7 +195,8 @@ struct BlockView: View {
 
     private var subtasksDone: Int { block.subtasks.filter(\.isDone).count }
 
-    /// One subtask line: a small mark and the title. Display only; the task panel changes subtasks.
+    /// One subtask line: a small mark and the title. Display only. The task panel changes a task's subtasks;
+    /// the "Subtasks…" popover changes a goal block's own subtasks.
     private func subtaskRow(_ sub: BlockSubtask) -> some View {
         HStack(spacing: 4) {
             CheckBox(isOn: sub.isDone, size: 9)

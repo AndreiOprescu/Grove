@@ -399,6 +399,14 @@ small "1/4" (done/total) sits in the title row. Lines the subtasks do not need g
 the title and description. Subtask rows do not make the block "tight": a block on top
 may cover them, but never the title and description rows.
 
+A goal block can have its own subtasks too (table `block_subtasks`, keyed by the block's
+event id). They belong to that one block, not to the goal: another block of the same goal
+starts with none. The block shows them the same way as a task block. Right-click a goal
+block → "Subtasks…" opens a popover to add, tick, rename and delete them; each change is
+one undo step. Duplicate does not copy them, Split keeps them on the first half, deleting
+the block deletes them (undo brings them back), and deleting the goal keeps them on the
+plain block that is left.
+
 All-day events show in a strip above the grid.
 
 #### 5.1.3 Overlap layout (pure function in `PlannerMath`)

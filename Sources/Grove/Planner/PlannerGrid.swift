@@ -270,6 +270,7 @@ struct PlannerGrid: View {
                 onCancelRename: { if renamingId == block.id { renamingId = nil; focused = true } },
                 onDrag: { mode, value, ended in blockDrag(block, mode, value, ended) })
             .eventEditor(anchor: block.id, edge: .trailing)
+            .blockSubtaskEditor(anchor: block.id)
             .offset(x: geo.gutterWidth + CGFloat(dayIndex) * dayWidth + 2 + indent, y: top)
             // Later start = on top. Stays between 1 and 9, under the drag (10), the now line and the draft.
             .zIndex(isLive ? 10 : 9 - 8 / Double((layer?.order ?? 0) + 1))
@@ -429,6 +430,9 @@ struct PlannerGrid: View {
         Button("Split in Two") { store.split(blockId: block.id) }
         if block.isGoalBlock {
             Button(block.isDone ? "Mark Not Done" : "Mark Done") { store.toggleGoalBlockDone(eventId: block.id) }
+        }
+        if !block.isTaskBlock, block.isGoalBlock || !block.subtasks.isEmpty {
+            Button(block.subtasks.isEmpty ? "Add Subtasks…" : "Subtasks…") { store.openBlockSubtasks(block.id) }
         }
         if let t = block.taskId {
             Button(block.isDone ? "Mark Not Done" : "Mark Done") { store.toggleDone(taskId: t) }

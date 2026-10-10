@@ -9,7 +9,7 @@ public enum DataExport {
 
     /// The tables in the file. The import fills them in this order, so a table comes after the tables it points to.
     /// The search index is not in the file. The import builds it again.
-    public static let tables = ["lists", "notes", "goals", "tasks", "events", "event_exdates", "links",
+    public static let tables = ["lists", "notes", "goals", "tasks", "events", "block_subtasks", "event_exdates", "links",
                                 "tags", "task_tags", "note_tags", "settings", "attachments"]
 
     public enum Failure: Error, Equatable, LocalizedError {
