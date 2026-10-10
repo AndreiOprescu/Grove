@@ -39,20 +39,27 @@ case "$target" in
     tools="$sdk/cmdline-tools/latest/bin"
     image='system-images;android-34;default;x86_64'
     avd=grove_test
+    # avdmanager and the emulator must look in the same folder for the
+    # device. On a CI machine they do not, unless this is set.
+    export ANDROID_AVD_HOME="${ANDROID_AVD_HOME:-$HOME/.android/avd}"
+    mkdir -p "$ANDROID_AVD_HOME"
     # "yes" answers the licence questions. It stops with an error when the
     # other side closes, and that is normal.
     (yes || true) | "$tools/sdkmanager" --install "$image" emulator platform-tools > /dev/null
     echo no | "$tools/avdmanager" create avd --force -n "$avd" -k "$image" --device pixel_6
+    log="$(mktemp)"
     "$sdk/emulator/emulator" -avd "$avd" -no-window -no-audio -no-boot-anim \
-      -no-snapshot -gpu swiftshader_indirect > /dev/null 2>&1 &
+      -no-snapshot -gpu swiftshader_indirect > "$log" 2>&1 &
+    emulator_pid=$!
     adb="$sdk/platform-tools/adb"
-    "$adb" wait-for-device
-    # Wait for the system to start. Stop after 10 minutes.
+    # Wait for the system to start. Stop after 10 minutes, or at once when
+    # the emulator is no longer there. Then show what the emulator said.
     tries=0
     until [ "$("$adb" shell getprop sys.boot_completed 2> /dev/null | tr -d '\r')" = "1" ]; do
       tries=$((tries + 1))
-      if [ "$tries" -gt 300 ]; then
-        echo "the Android emulator did not start" >&2
+      if [ "$tries" -gt 300 ] || ! kill -0 "$emulator_pid" 2> /dev/null; then
+        echo "the Android emulator did not start. Its last lines:" >&2
+        tail -n 100 "$log" >&2
         "$adb" emu kill || true
         exit 1
       fi

@@ -75,4 +75,5 @@ jobs:
       # The Day Planner on the real app: Mac, Windows, an iPhone simulator
       # and an Android emulator.
       - name: Integration test
+        timeout-minutes: 45
         run: ./scripts/flutter_integration.sh ${{ matrix.target }}

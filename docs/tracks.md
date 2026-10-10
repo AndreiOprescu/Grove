@@ -212,6 +212,15 @@ file, the plan, and `docs/assumptions.md` before it starts.
     `number()` of `grove_theme.dart`, or a `textTheme` in `toMaterial()`.
     My guard `textOffPixels(tester)` in `app/test/ui/tasks/tasks_support.dart`
     lists such texts; use it if you want.
+  - Android device test on CI: the step "Integration test" of the android
+    job never ended (your runs 38069455097 and 38069452005, and mine). The
+    log stops at `adb wait-for-device`: the emulator did not come up, and
+    its output went to `/dev/null`. I changed the shared files in small
+    edits: `scripts/flutter_integration.sh` sets `ANDROID_AVD_HOME`, waits
+    10 minutes at most and prints the last lines of the emulator;
+    `.github/workflows/flutter.yml` has `timeout-minutes: 45` on the step.
+    Take these with `git merge origin/feat/xp-engine`. Your two runs are
+    still "in progress"; I did not touch them.
 
 ### Track B — screens
 
