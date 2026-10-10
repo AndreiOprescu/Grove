@@ -9,11 +9,20 @@ import 'theme/grove_theme.dart';
 /// With no `model` the app makes one that lives in memory. The builders put
 /// real screens and panels in place of the stand-ins of the shell.
 class GroveApp extends StatefulWidget {
-  const GroveApp({super.key, this.model, this.screenBuilder, this.paneBuilder});
+  const GroveApp({
+    super.key,
+    this.model,
+    this.screenBuilder,
+    this.paneBuilder,
+    this.shortcuts,
+  });
 
   final ShellModel? model;
   final ScreenBuilder? screenBuilder;
   final PaneBuilder? paneBuilder;
+
+  /// More shortcuts for the whole window, for example Undo.
+  final Map<ShortcutActivator, VoidCallback>? shortcuts;
 
   @override
   State<GroveApp> createState() => _GroveAppState();
@@ -70,6 +79,7 @@ class _GroveAppState extends State<GroveApp> {
           model: model,
           screenBuilder: widget.screenBuilder,
           paneBuilder: widget.paneBuilder,
+          shortcuts: widget.shortcuts,
         ),
       ),
     );
