@@ -3,6 +3,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
 import 'package:grove/core/model/day_key.dart';
@@ -304,7 +305,10 @@ class _GroveFieldState extends State<GroveField> {
   @override
   Widget build(BuildContext context) {
     final theme = GroveTheme.of(context);
-    final style = widget.style ?? theme.body(13).copyWith(color: theme.ink);
+    final base = widget.style ?? theme.body(13).copyWith(color: theme.ink);
+    // A Material text field adds its own gap between letters (0.5) when the
+    // style has none. The text of the app has no such gap.
+    final style = base.copyWith(letterSpacing: base.letterSpacing ?? 0);
     final length = widget.maxLength;
     final field = Focus(
       canRequestFocus: false,
@@ -567,14 +571,15 @@ class Segments<T> extends StatelessWidget {
               ),
               child: Padding(
                 padding: const EdgeInsets.symmetric(vertical: 4),
-                child: Text(
-                  name(v),
-                  maxLines: 1,
-                  textAlign: TextAlign.center,
-                  overflow: TextOverflow.ellipsis,
-                  style: theme
-                      .body(11, weight: FontWeight.w600)
-                      .copyWith(color: chosen ? theme.ink : theme.muted),
+                child: WholeCenter(
+                  child: Text(
+                    name(v),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme
+                        .body(11, weight: FontWeight.w600)
+                        .copyWith(color: chosen ? theme.ink : theme.muted),
+                  ),
                 ),
               ),
             ),
@@ -582,11 +587,9 @@ class Segments<T> extends StatelessWidget {
         ),
       );
       final text = tip?.call(v);
-      return Expanded(
-        child: text == null
-            ? inside
-            : Tooltip(message: text, excludeFromSemantics: true, child: inside),
-      );
+      return text == null
+          ? inside
+          : Tooltip(message: text, excludeFromSemantics: true, child: inside);
     }
 
     return Semantics(
@@ -600,9 +603,83 @@ class Segments<T> extends StatelessWidget {
         ),
         child: Padding(
           padding: const EdgeInsets.all(2),
-          child: Row(spacing: 2, children: [for (final v in values) button(v)]),
+          child: LayoutBuilder(
+            builder: (context, box) {
+              final widths = wholeShares(
+                box.maxWidth - _gap * (values.length - 1),
+                values.length,
+              );
+              return Row(
+                spacing: _gap,
+                children: [
+                  for (final (i, v) in values.indexed)
+                    SizedBox(width: widths[i], child: button(v)),
+                ],
+              );
+            },
+          ),
         ),
       ),
+    );
+  }
+
+  static const _gap = 2.0;
+}
+
+/// `width` cut into `count` parts that are whole numbers. The first parts
+/// get the points that are left over. A part of a point stays free at the
+/// end.
+///
+/// Text that starts on a part of a pixel has thin seams between its
+/// letters, and each system draws them in its own way. So the buttons of
+/// [Segments] start on whole points.
+List<double> wholeShares(double width, int count) {
+  if (count <= 0) return const [];
+  final total = width.isFinite && width > 0 ? width.floor() : 0;
+  final share = total ~/ count;
+  final extra = total - share * count;
+  return [for (var i = 0; i < count; i++) (share + (i < extra ? 1 : 0)) + 0.0];
+}
+
+/// Puts its child in the middle of the width it gets, on a whole point.
+/// `Center` and `TextAlign.center` put it on half a point when the free
+/// space is an odd number.
+class WholeCenter extends SingleChildRenderObjectWidget {
+  const WholeCenter({super.key, super.child});
+
+  @override
+  RenderObject createRenderObject(BuildContext context) => _RenderWholeCenter();
+}
+
+class _RenderWholeCenter extends RenderShiftedBox {
+  _RenderWholeCenter() : super(null);
+
+  @override
+  Size computeDryLayout(BoxConstraints constraints) {
+    final inner = child?.getDryLayout(constraints.loosen()) ?? Size.zero;
+    return _sizeFor(constraints, inner);
+  }
+
+  Size _sizeFor(BoxConstraints constraints, Size inner) =>
+      constraints.constrain(
+        Size(
+          constraints.hasBoundedWidth ? constraints.maxWidth : inner.width,
+          inner.height,
+        ),
+      );
+
+  @override
+  void performLayout() {
+    final child = this.child;
+    if (child == null) {
+      size = _sizeFor(constraints, Size.zero);
+      return;
+    }
+    child.layout(constraints.loosen(), parentUsesSize: true);
+    size = _sizeFor(constraints, child.size);
+    (child.parentData! as BoxParentData).offset = Offset(
+      ((size.width - child.size.width) / 2).floorToDouble(),
+      ((size.height - child.size.height) / 2).floorToDouble(),
     );
   }
 }

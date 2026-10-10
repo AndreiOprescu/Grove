@@ -45,37 +45,42 @@ class GoalRow extends StatelessWidget {
           ),
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 360),
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.all(20),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                spacing: 12,
-                children: [
-                  ThemedHeading('Delete “${goal.title}”?', 18),
-                  Text(
-                    'Its blocks stay in the planner as plain blocks and no '
-                    'longer count. You can undo this.',
-                    style: theme.body(13).copyWith(color: theme.muted),
-                  ),
-                  Wrap(
-                    alignment: WrapAlignment.end,
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: [
-                      DialogButton(
-                        label: 'Cancel',
-                        onTap: () => Navigator.of(context).pop(false),
-                      ),
-                      DialogButton(
-                        key: const ValueKey('goal-delete-confirm'),
-                        label: 'Delete Goal',
-                        primary: true,
-                        onTap: () => Navigator.of(context).pop(true),
-                      ),
-                    ],
-                  ),
-                ],
+            // The text style of the app, not the Material one of a dialog
+            // (that one adds a gap between letters).
+            child: DefaultTextStyle(
+              style: theme.body(13).copyWith(color: theme.ink),
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(20),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  spacing: 12,
+                  children: [
+                    ThemedHeading('Delete “${goal.title}”?', 18),
+                    Text(
+                      'Its blocks stay in the planner as plain blocks and no '
+                      'longer count. You can undo this.',
+                      style: theme.body(13).copyWith(color: theme.muted),
+                    ),
+                    Wrap(
+                      alignment: WrapAlignment.end,
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        DialogButton(
+                          label: 'Cancel',
+                          onTap: () => Navigator.of(context).pop(false),
+                        ),
+                        DialogButton(
+                          key: const ValueKey('goal-delete-confirm'),
+                          label: 'Delete Goal',
+                          primary: true,
+                          onTap: () => Navigator.of(context).pop(true),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
               ),
             ),
           ),

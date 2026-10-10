@@ -201,6 +201,17 @@ file, the plan, and `docs/assumptions.md` before it starts.
   - The device test (`app/integration_test/`) has no step for the panels.
     Add one if you want (a tap on a row of the Tasks panel opens the panel
     of the task).
+  - Letter gap from Material (found with F8's golden pictures on CI): text
+    under a `Material` widget (`Dialog`, `Scaffold` with no
+    `DefaultTextStyle`) gets a gap of 0.25 between letters, and a
+    `TextField` gets 0.5, when the style has no `letterSpacing`.
+    `GroveTheme.body()` has none. The Mac app has no gap. Text with such a
+    gap sits on parts of a pixel, and the golden pictures are then not the
+    same on each OS. I set the gap to 0 in my own widgets. A fix for the
+    whole app is yours: `letterSpacing: 0` in `heading()`, `body()` and
+    `number()` of `grove_theme.dart`, or a `textTheme` in `toMaterial()`.
+    My guard `textOffPixels(tester)` in `app/test/ui/tasks/tasks_support.dart`
+    lists such texts; use it if you want.
 
 ### Track B — screens
 

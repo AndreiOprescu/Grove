@@ -443,6 +443,11 @@ Format: date · decision · why · how to undo
 - 2026-10-10 · F8: the "Delete Goal…" question is a `Dialog` with Track B's `DialogButton` · same look as the planner's dialogs
 - 2026-10-10 · F8: the workload bar is not built again · Track B built it with the planner in F7 (`app/lib/ui/planner/workload.dart`); on the Mac it is a part of the planner too
 - 2026-10-10 · F8: the event editor window (`store.editEvent(e)` / `editingEvent`) is Track B's, with F9 · on the Mac it is `Calendar/EventEditor.swift`; the Calendar is F9. The store calls are ready
+- 2026-10-10 · F8: a text field of the panels (`GroveField`) sets the gap between letters to 0 when its style has none · a Material `TextField` adds 0.5 by itself; the Mac app has no gap, and text with such a gap sits on parts of a pixel
+- 2026-10-10 · F8: the "Delete Goal…" dialog gives its text the style of the app (`DefaultTextStyle`, `theme.body(13)`) · a Material `Dialog` gives a style with a gap of 0.25 between letters; Track B's planner dialogs do the same
+- 2026-10-10 · F8: the buttons of `Segments` have whole-number widths (`wholeShares`) and their names start on a whole point (`WholeCenter`) · the middle of a name can be half a point off; text on a part of a pixel has seams between letters that macOS, Linux and Windows draw each in its own way, and 9 golden pictures failed on CI for that
+- 2026-10-10 · F8: each golden test of the panels calls `textOffPixels(tester)` first (`app/test/ui/tasks/tasks_support.dart`) · it fails on the Mac when a text of the panels is not on whole pixels, so the cause shows before the CI. It does not check icons, texts of one letter and `ThemedHeading` (the letter gap of the theme is Track B's)
+- 2026-10-10 · F8: `pumpPane` (test helper) gives the panel the text style of the shell (`theme.body(13)`, ink colour) · alone in a `Scaffold` the panel got the Material style, which the real app never gives it
 
 ## Cross-platform Track B (screens) — see docs/tracks.md
 

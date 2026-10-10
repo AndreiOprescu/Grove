@@ -156,6 +156,7 @@ void main() {
         await pumpPlanner(tester, store, size: wideSize);
         await tester.tap(find.byKey(const ValueKey('done-toggle')));
         await tester.pumpAndSettle();
+        expect(textOffPixels(tester), isEmpty);
         await expectLater(
           find.byType(StoreApp),
           matchesGoldenFile('goldens/tasks_desktop_${theme.name}_light.png'),
@@ -170,6 +171,7 @@ void main() {
         ..leftPane = LeftPane.tasks
         ..selectedTaskId = 'party';
       await pumpPlanner(tester, store, size: wideSize);
+      expect(textOffPixels(tester), isEmpty);
       await expectLater(
         find.byType(StoreApp),
         matchesGoldenFile('goldens/tasks_desktop_grove_dark.png'),
@@ -184,6 +186,7 @@ void main() {
         ..selectedTaskId = 'passport';
       await pumpPlanner(tester, store);
       expect(tester.takeException(), isNull);
+      expect(textOffPixels(tester), isEmpty);
       await expectLater(
         find.byType(StoreApp),
         matchesGoldenFile('goldens/tasks_desktop_small_grove_light.png'),
@@ -195,6 +198,7 @@ void main() {
     await withRealShadows(() async {
       final store = _scene()..leftPane = LeftPane.tasks;
       await pumpPlanner(tester, store, size: phoneSize);
+      expect(textOffPixels(tester), isEmpty);
       await expectLater(
         find.byType(StoreApp),
         matchesGoldenFile('goldens/tasks_phone_grove_light.png'),
@@ -211,6 +215,7 @@ void main() {
           ..leftPane = LeftPane.tasks
           ..selectedTaskId = 'party';
         await pumpPlanner(tester, store, size: phoneSize);
+        expect(textOffPixels(tester), isEmpty);
         await expectLater(
           find.byType(StoreApp),
           matchesGoldenFile(
@@ -236,6 +241,7 @@ void main() {
         );
         await tester.tap(find.byKey(const ValueKey('subtasks-party')));
         await tester.pumpAndSettle();
+        expect(textOffPixels(tester), isEmpty);
         await expectLater(
           find.byType(Scaffold),
           matchesGoldenFile('goldens/today_list_${theme.name}_light.png'),
@@ -260,6 +266,7 @@ void main() {
       );
       await tester.tap(find.byKey(const ValueKey('sub-toggle-party-1')));
       await tester.pumpAndSettle();
+      expect(textOffPixels(tester), isEmpty);
       await expectLater(
         find.byType(Scaffold),
         matchesGoldenFile('goldens/task_panel_subtask_grove_light.png'),

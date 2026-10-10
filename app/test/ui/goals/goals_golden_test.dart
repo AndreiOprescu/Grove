@@ -7,6 +7,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:grove/ui/store_app.dart';
 
 import '../planner/planner_support.dart';
+import '../tasks/tasks_support.dart' show textOffPixels;
 
 /// Three goals with blocks in the week: one of hours with done and planned
 /// time, one of sessions over its target, one with nothing planned.
@@ -77,6 +78,7 @@ void main() {
         final store = _scene(theme: theme);
         await pumpPlanner(tester, store);
         await _openEditor(tester, 'read');
+        expect(textOffPixels(tester), isEmpty);
         await expectLater(
           find.byType(StoreApp),
           matchesGoldenFile('goldens/goals_desktop_${theme.name}_light.png'),
@@ -90,6 +92,7 @@ void main() {
       final store = _scene(dark: true);
       await pumpPlanner(tester, store);
       await _openEditor(tester, 'gym');
+      expect(textOffPixels(tester), isEmpty);
       await expectLater(
         find.byType(StoreApp),
         matchesGoldenFile('goldens/goals_desktop_grove_dark.png'),
@@ -101,6 +104,7 @@ void main() {
     await withRealShadows(() async {
       final store = _scene();
       await pumpPlanner(tester, store, size: phoneSize);
+      expect(textOffPixels(tester), isEmpty);
       await expectLater(
         find.byType(StoreApp),
         matchesGoldenFile('goldens/goals_phone_grove_light.png'),
@@ -112,6 +116,7 @@ void main() {
     await withRealShadows(() async {
       final store = plannerStore()..leftPane = LeftPane.goals;
       await pumpPlanner(tester, store);
+      expect(textOffPixels(tester), isEmpty);
       await expectLater(
         find.byType(StoreApp),
         matchesGoldenFile('goldens/goals_desktop_empty_grove_light.png'),
