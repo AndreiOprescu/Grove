@@ -72,6 +72,8 @@ file, the plan, and `docs/assumptions.md` before it starts.
 
 - F5: done, waits for the user (proof: `docs/acceptance/F5.md`)
 - F11-core: done, waits for the user (proof: `docs/acceptance/F11-core.md`)
+- F10-services: done, waits for the user (proof:
+  `docs/acceptance/F10-services.md`)
 - Sync for Track B (nothing to do now):
   - The engine is `SyncEngine(repos: ..., remote: ...)` in
     `package:grove/sync/sync.dart`. `await engine.sync()` pushes and pulls.
@@ -93,6 +95,25 @@ file, the plan, and `docs/assumptions.md` before it starts.
     in `Prefs` (`FilePrefs(path)` for the real app, `MemoryPrefs()` for tests).
   - Make it with `AppStore(repos: Repos(Database.open(path)), prefs: ...)`.
 - Requests to Track B:
+  - Start the services where you open the real store (you planned this for the
+    start of F7). In `app/lib/main.dart`, after
+    `WidgetsFlutterBinding.ensureInitialized()`:
+
+    ```dart
+    import 'package:grove/services/services.dart';
+
+    final prefs = FilePrefs('$dir${Platform.pathSeparator}prefs.json');
+    final notifier = AppServices.notifier(prefs);
+    final store = AppStore.open(dataDir: dir, notifier: notifier, prefs: prefs);
+    AppServices.forThisDevice(store).start();
+    ```
+
+    That gives reminders on the 4 systems, the tray icon on the Mac and on
+    Windows, and the daily backup. `AppStore.open` makes `Backups/` and
+    `prefs.json` in `dir`. `app/tool/services_check.dart` is a working example.
+  - The permission question: call `store.askForNotifications()` from your
+    welcome card and from the Settings screen, as the Mac app does. Nothing
+    asks today. `store.notifyStatus` has the three states.
   - The state layer cannot import `app/lib/ui/`. So keep one set of enums, the
     one in `app/lib/state/`: `Screen` (`screen.dart`), `LeftPane`
     (`rules/left_pane.dart`), `ThemeId` and `AppearanceMode` (`theme_id.dart`).
