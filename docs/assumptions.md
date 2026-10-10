@@ -409,6 +409,7 @@ Format: date · decision · why · how to undo
 - 2026-10-10 · F10-services: `app/tool/services_check.dart` is a small app to see a real notification and the tray on a device. It uses a folder in the system's temporary folder · the real app has no store yet, and a person must see a notification with their eyes
 - 2026-10-10 · F10-services: platform runner files were changed (`app/android`, `app/ios`, `app/macos`, `app/windows`) and `timezone` was added to `app/pubspec.yaml`. See Q-5 · shared files; the changes are small and only for the services
 - 2026-10-10 · F10-services: tests first: the tests of `SystemNotifier`, the backup, the tray and `AppServices` were written before their code. Two checks were wrong and were corrected (my own order of calls in one, the lifecycle steps of Flutter in one) · the honest order of work
+- 2026-10-10 · F10-services: the CI job on Linux installs `libgtk-3-dev`, `libx11-dev` and `libxi-dev` before the tests (`.github/workflows/flutter.yml`, a shared file) · `flutter test` builds the tray's native library for the machine it runs on; the first CI run (38064435235) failed on Linux without them. Free packages on the CI machine only; nothing goes into the app
 
 ## Cross-platform Track B (screens) — see docs/tracks.md
 

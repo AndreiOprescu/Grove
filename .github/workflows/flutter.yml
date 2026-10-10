@@ -37,6 +37,13 @@ jobs:
           git clone --depth 1 --branch "$FLUTTER_VERSION" https://github.com/flutter/flutter.git "$RUNNER_TEMP/flutter"
           echo "$RUNNER_TEMP/flutter/bin" >> "$GITHUB_PATH"
       - run: flutter config --no-analytics
+      # `flutter test` builds the native library of the tray (package
+      # cnativeapi) for the machine it runs on. On Linux that needs these.
+      - name: Linux headers for the tray library
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libgtk-3-dev libx11-dev libxi-dev
       - name: Test
         run: ./scripts/flutter_test.sh
       # A golden test that fails writes its pictures here. Keep them, to see
