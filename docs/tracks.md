@@ -132,8 +132,9 @@ file, the plan, and `docs/assumptions.md` before it starts.
 
 ### Track B — screens
 
-- F6: done, waits for the user (proof: `docs/acceptance/F6.md`)
-- F7: not started
+- F6: done and merged (proof: `docs/acceptance/F6.md`)
+- F7: done, waits for the user (proof: `docs/acceptance/F7.md`)
+- F9: not started
 - Answers to Track A's requests (all done on 2026-10-10):
   - One set of enums. My four are deleted. `shell_model.dart` and
     `theme_spec.dart` `export` the state ones. `AppearanceMode.brightness` is
@@ -149,11 +150,30 @@ file, the plan, and `docs/assumptions.md` before it starts.
     those lists.
   - The Swift view tests: the theme ones are ported (`ThemeSpecTests`, the 5
     `ThemeMotionTests` singles, the `AmbientMath` one; see
-    `docs/acceptance/F6.md`). The others come with their screens: F7 (Today),
-    F9 (Planner, Spread), F10-screens (editor, task rows).
-- Not done yet: `app/lib/main.dart` still starts the shell on
-  `LocalShellModel`. The real store needs a folder for the database
-  (`path_provider`). Track B does this at the start of F7.
+    `docs/acceptance/F6.md`). The planner ones are ported with F7
+    (`PlannerKindTests`, `PlannerRulesTests`, `PlannerLayoutRules`,
+    `InlineTitleRulesTests`, the Workload tests; see `docs/acceptance/F7.md`).
+    The others come with their screens: F9 (Spread), F10-screens (editor,
+    task rows, check box).
+  - The services start in `app/lib/main.dart` with your 4 lines (F7). The
+    store opens in `getApplicationSupportDirectory()` (`path_provider`).
+  - `store.askForNotifications()`: not called yet. It comes with the welcome
+    card and the Settings screen (F10-screens).
+- For Track A to know (F7):
+  - `StoreApp(store: store)` in `app/lib/ui/store_app.dart` is the app on a
+    real store. It puts the screens in with `screenBuilder`. When your panels
+    are ready (F8), tell me the widget and I add it to `paneBuilder` there, or
+    add it yourself in a small edit.
+  - Drags: wrap a row that can be dragged in `PayloadDrag(payload: ..., label:
+    ..., child: ...)` from `app/lib/ui/planner/payload_drag.dart`. The payload
+    is the text of `DragPayload`. The planner grid and the strip of tasks with
+    no time take `DragTarget<String>` drops of that text. Use the same in the
+    Tasks panel, so a task can be dragged onto the planner.
+  - `CheckBox` (`app/lib/ui/theme/check_box.dart`) and the colours of tasks
+    and priorities (`TaskPalette`, `PriorityColors`, `theme.color(name)` in
+    `app/lib/ui/theme/named_colors.dart`) are there for your task rows.
+  - The device test: `./scripts/flutter_integration.sh <target>`. The CI runs
+    it in each job after the build. It adds some minutes to each job.
 - Fonts (owner's answer to Q-1 and Q-2): 7 font families are in `app/fonts/`
   and in `app/pubspec.yaml`. Use `GroveTheme.of(context).heading()`, `.body()`
   and `.number()`; do not name a font family in a screen.
@@ -161,3 +181,21 @@ file, the plan, and `docs/assumptions.md` before it starts.
   - F8: give the Tasks and Goals panels to the shell with
     `GroveApp(paneBuilder: ...)`. Use `GroveTheme.of(context)`, `Panel`,
     `ThemedHeading`, `ThemedChip` from `app/lib/ui/theme/`.
+  - Subtasks in blocks (Swift PR #3): put the subtasks in `PlannerBlock`
+    (a `subtasks` list from `blocks()`), and port `SubtaskRules.moreLabel` and
+    `SubtaskRules.badge` to `app/lib/state/rules/`. Today the grid calls
+    `store.subtasks(taskId)` for each task block, and the labels are in
+    `app/lib/ui/planner/planner_geometry.dart`. I change over when yours are
+    there.
+  - Subtasks on goal blocks (Swift PR #4): when that PR is merged, port its
+    table (`block_subtasks`) and its store calls. The grid cannot show them
+    before that.
+  - The clock: `nowMinute()`, `showToday()`, `showDay()` and the
+    `DayKey.today()` calls in `app/lib/state/` do not use `clockOverride`.
+    Please make them use it. Then a screen test can fix the day for the whole
+    store. Today the planner has its own small helper
+    (`app/lib/ui/planner/planner_clock.dart`); I delete it after.
+  - The event editor: `store.editEvent(e)` sets `editingEvent`, and no screen
+    shows it. Who builds the editor window? If it is yours (it sits with
+    tasks and goals), put it in `app/lib/ui/tasks/` or a new folder and tell
+    me the widget. If you want me to build it, say so here.

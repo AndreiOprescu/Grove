@@ -25,11 +25,15 @@ class RootView extends StatelessWidget {
     required this.model,
     this.screenBuilder,
     this.paneBuilder,
+    this.shortcuts,
   });
 
   final ShellModel model;
   final ScreenBuilder? screenBuilder;
   final PaneBuilder? paneBuilder;
+
+  /// More shortcuts for the whole window, for example Undo.
+  final Map<ShortcutActivator, VoidCallback>? shortcuts;
 
   /// The shortcuts of the View menu of the Mac app. Command on Apple
   /// devices, Ctrl on the others.
@@ -46,6 +50,7 @@ class RootView extends StatelessWidget {
       key(LogicalKeyboardKey.digit3): () => model.screen = Screen.calendar,
       key(LogicalKeyboardKey.digit4): () => model.screen = Screen.notes,
       key(LogicalKeyboardKey.digit5): () => model.screen = Screen.garden,
+      ...?shortcuts,
     };
   }
 
