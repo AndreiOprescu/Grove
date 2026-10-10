@@ -1,75 +1,26 @@
 // What the app shell needs to know and do: the screen, the open left panel,
 // the theme, light or dark, motion, and the short message.
 //
-// Ports `Screen` (Sources/Grove/AppStore+Notes.swift), `LeftPane`
-// (Layouts/LeftDock.swift) and the shell parts of AppStore+Navigation.swift
-// and AppStore+Appearance.swift.
+// The enums `Screen`, `LeftPane`, `ThemeId` and `AppearanceMode` are the ones
+// of the state layer (app/lib/state/), so the engine and the screens share
+// one set. This file passes them on.
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 
+import '../../state/rules/left_pane.dart';
+import '../../state/screen.dart';
 import '../theme/theme_spec.dart';
 
-/// The screens of the window, in the order of the switch.
-enum Screen {
-  today('Today'),
-  planner('Planner'),
-  calendar('Calendar'),
-  notes('Notes'),
-  garden('Garden');
-
-  const Screen(this.title);
-
-  final String title;
-}
-
-/// The panels that can open on the left of the Today and Planner screens.
-/// One at a time. The choice is saved as text under [storageKey]; empty
-/// text means closed.
-enum LeftPane {
-  notes('Notes'),
-  tasks('Tasks'),
-  goals('Goals');
-
-  const LeftPane(this.title);
-
-  final String title;
-
-  static const storageKey = 'shell.leftPane';
-
-  /// How wide the panel is beside a screen.
-  static const plannerWidth = 320.0;
-
-  /// The tooltip of the button: it names the action the next click does.
-  String tooltip({required bool isOpen}) =>
-      '${isOpen ? 'Hide' : 'Show'} ${title.toLowerCase()}';
-
-  /// The panel after a click on `tapped`: the same one closes, any other
-  /// one replaces the open one.
-  static LeftPane? toggled({
-    required LeftPane? current,
-    required LeftPane tapped,
-  }) => current == tapped ? null : tapped;
-
-  /// The panel named by saved text. Empty or unknown text is closed.
-  static LeftPane? fromSaved(String? text) {
-    for (final pane in values) {
-      if (pane.name == text) return pane;
-    }
-    return null;
-  }
-
-  static String savedText(LeftPane? pane) => pane?.name ?? '';
-
-  /// Only these two screens have a left side. The Calendar, the Notes and
-  /// the Garden fill the window.
-  static bool isAvailable(Screen screen) =>
-      screen == Screen.today || screen == Screen.planner;
-}
+export '../../state/rules/left_pane.dart' show LeftPane;
+export '../../state/screen.dart' show Screen;
+export '../theme/theme_spec.dart'
+    show AppearanceBrightness, AppearanceMode, ThemeId;
 
 /// What the shell reads and does. The shell listens to it and builds again
-/// when it changes. [LocalShellModel] keeps it in memory; the app store
-/// (milestone F5) takes its place when the screens get real data.
+/// when it changes. `StoreShellModel` (store_shell_model.dart) passes it to
+/// the app store. [LocalShellModel] keeps it in memory, for tests and for a
+/// shell with no store.
 abstract class ShellModel implements Listenable {
   Screen get screen;
   set screen(Screen value);
@@ -83,7 +34,7 @@ abstract class ShellModel implements Listenable {
   /// The Motion setting.
   bool get motionSetting;
 
-  /// The Accent intensity setting, 0 to 1.
+  /// The Accent intensity setting, 0 to 1.5. 1 is the theme as designed.
   double get intensity;
 
   /// The short message at the bottom of the window. null is none.

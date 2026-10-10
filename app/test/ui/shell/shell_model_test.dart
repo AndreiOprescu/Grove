@@ -5,7 +5,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:grove/ui/shell/shell_layout.dart';
 import 'package:grove/ui/shell/shell_model.dart';
-import 'package:grove/ui/theme/theme_spec.dart';
 
 void main() {
   group('the screens', () {

@@ -2,27 +2,10 @@
 import 'dart:math' as math;
 import 'dart:ui' show Brightness;
 
-/// The four themes, in the order of the plan (PLAN §6).
-enum ThemeId {
-  grove,
-  minimal,
-  futuristic,
-  vintage;
+import '../../state/theme_id.dart';
 
-  /// The theme of a new install. Swift: `ThemeID.default`.
-  static const ThemeId initial = ThemeId.grove;
-
-  /// The theme after this one. The last wraps around to the first.
-  ThemeId get next => values[(index + 1) % values.length];
-
-  /// The theme named by saved text. Unknown or missing text is [initial].
-  static ThemeId fromSaved(String? text) {
-    for (final id in values) {
-      if (id.name == text) return id;
-    }
-    return initial;
-  }
-}
+// One set of enums for the engine and the screens (docs/tracks.md).
+export '../../state/theme_id.dart' show AppearanceMode, ThemeId;
 
 /// One colour in its light and its dark form, each with an opacity.
 /// Colours are 0xRRGGBB.
@@ -56,32 +39,15 @@ class Tone {
   int get hashCode => Object.hash(light, dark, lightAlpha, darkAlpha);
 }
 
-/// Light or dark, chosen apart from the theme. System follows the device.
-/// Saved as `appearance.mode` (the text is [name]).
-enum AppearanceMode {
-  system('System'),
-  light('Light'),
-  dark('Dark');
-
-  const AppearanceMode(this.label);
-
-  /// The word in menus and settings. Swift: `name`.
-  final String label;
-
+/// What light or dark means for the widgets. The enum is in the state
+/// layer, which has no Flutter types.
+extension AppearanceBrightness on AppearanceMode {
   /// The look the app is forced into. null follows the device.
   Brightness? get brightness => switch (this) {
-    system => null,
-    light => Brightness.light,
-    dark => Brightness.dark,
+    AppearanceMode.system => null,
+    AppearanceMode.light => Brightness.light,
+    AppearanceMode.dark => Brightness.dark,
   };
-
-  /// The mode named by saved text. Unknown or missing text is [system].
-  static AppearanceMode fromSaved(String? text) {
-    for (final mode in values) {
-      if (mode.name == text) return mode;
-    }
-    return system;
-  }
 }
 
 /// The numbers of one theme (PLAN §6.1). Plain data, so the tests can check

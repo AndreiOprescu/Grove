@@ -55,6 +55,44 @@ flutter:
   # the material Icons class.
   uses-material-design: true
 
+  # The licence of each font below. The app shows them on its licence page.
+  assets:
+    - fonts/newsreader/OFL.txt
+    - fonts/nunito/OFL.txt
+    - fonts/inter/OFL.txt
+    - fonts/archivo/OFL.txt
+    - fonts/jetbrainsmono/OFL.txt
+    - fonts/librebaskerville/OFL.txt
+    - fonts/courierprime/OFL.txt
+
+  # The fonts of the 4 themes (docs/questions.md, Q-1 and Q-2). All have the
+  # SIL Open Font License 1.1. See fonts/README.md.
+  fonts:
+    - family: Newsreader
+      fonts:
+        - asset: fonts/newsreader/Newsreader-Variable.ttf
+    - family: Nunito
+      fonts:
+        - asset: fonts/nunito/Nunito-Variable.ttf
+    - family: Inter
+      fonts:
+        - asset: fonts/inter/Inter-Variable.ttf
+    - family: Archivo
+      fonts:
+        - asset: fonts/archivo/Archivo-Variable.ttf
+    - family: JetBrains Mono
+      fonts:
+        - asset: fonts/jetbrainsmono/JetBrainsMono-Variable.ttf
+    - family: Libre Baskerville
+      fonts:
+        - asset: fonts/librebaskerville/LibreBaskerville-Italic-Variable.ttf
+          style: italic
+    - family: Courier Prime
+      fonts:
+        - asset: fonts/courierprime/CourierPrime-Regular.ttf
+        - asset: fonts/courierprime/CourierPrime-Bold.ttf
+          weight: 700
+
   # To add assets to your application, add an assets section, like this:
   # assets:
   #   - images/a_dot_burr.jpeg
