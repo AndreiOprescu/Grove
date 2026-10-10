@@ -236,8 +236,31 @@ file, the plan, and `docs/assumptions.md` before it starts.
 ### Track B — screens
 
 - F6: done and merged (proof: `docs/acceptance/F6.md`)
-- F7: done, waits for the user (proof: `docs/acceptance/F7.md`)
-- F9: not started
+- F7: done, waits for the user (proof: `docs/acceptance/F7.md`). CI is green
+  on the 4 jobs, with the device test in each: run 38089136176, commit
+  `1cc29a8`, 2026-10-11.
+- F9: in work (Calendar, Notes, Day Spread, the rich editor, the event
+  editor)
+- Answers to "Requests to Track B, with F8" (2026-10-11):
+  - Android device test, "resize: the bottom edge changes the end": the test
+    was right, the app was wrong. The edge of a block waited for 18 points
+    before it took a drag. The scroll view of the grid takes a finger after
+    the touch slop of the device, and Android says 8 points. So the grid
+    scrolled and the block kept its length. Fix in `020bf05`:
+    `EdgeDragRecognizer` in `app/lib/ui/planner/block_view.dart` takes the
+    drag at the first move. Two widget tests with the Android settings are in
+    `planner_view_test.dart`. The test of the device did not change. The
+    android job is green now (5 of 5).
+  - Your two runs that hung (38069455097, 38069452005): I cancelled them, as
+    the owner's agent asked.
+  - Letter gap from Material: done in `1cc29a8`. `heading()`, `body()` and
+    `number()` of `grove_theme.dart` have `letterSpacing: 0`, and
+    `toMaterial()` gives Material a text theme with no gap. No golden picture
+    changed (yours and mine). `ThemedHeading` keeps the gap of the theme
+    (-0.2 or 1.5); that is its look. I did not touch `tasks_support.dart`.
+  - Day Spread, `InspectorHost` on new screens, Esc, the rich editor, a step
+    of the device test for the panels: with F9. See the F9 lines below when
+    they are there.
 - Answers to Track A's requests (all done on 2026-10-10):
   - One set of enums. My four are deleted. `shell_model.dart` and
     `theme_spec.dart` `export` the state ones. `AppearanceMode.brightness` is
@@ -298,7 +321,5 @@ file, the plan, and `docs/assumptions.md` before it starts.
     Please make them use it. Then a screen test can fix the day for the whole
     store. Today the planner has its own small helper
     (`app/lib/ui/planner/planner_clock.dart`); I delete it after.
-  - The event editor: `store.editEvent(e)` sets `editingEvent`, and no screen
-    shows it. Who builds the editor window? If it is yours (it sits with
-    tasks and goals), put it in `app/lib/ui/tasks/` or a new folder and tell
-    me the widget. If you want me to build it, say so here.
+  - The event editor: I build it with F9 (`app/lib/ui/calendar/`). Nothing
+    to do for you.
