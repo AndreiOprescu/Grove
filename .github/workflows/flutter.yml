@@ -39,6 +39,15 @@ jobs:
       - run: flutter config --no-analytics
       - name: Test
         run: ./scripts/flutter_test.sh
+      # A golden test that fails writes its pictures here. Keep them, to see
+      # how this OS draws.
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: golden-failures-${{ matrix.target }}
+          path: app/test/**/failures/
+          if-no-files-found: ignore
+          retention-days: 7
       - name: Build
         run: ./scripts/flutter_build.sh ${{ matrix.target }}
       - uses: actions/upload-artifact@v4
