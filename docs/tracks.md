@@ -9,7 +9,7 @@ file, the plan, and `docs/assumptions.md` before it starts.
 | | Track A — engine | Track B — screens |
 |---|---|---|
 | Branch | `feat/xp-engine` | `feat/xp-screens` |
-| Folder | `/Users/andrei/Desktop/Grove` (main checkout) | `/Users/andrei/Desktop/Grove-screens` (git worktree) |
+| Folder | `/Users/andrei/Desktop/Grove` (main checkout) | `.claude/worktrees/screens` (git worktree, made by `claude --worktree screens`) |
 | Milestones, in order | F5 → F11-core → F10-services → F8 | F6 → F7 → F9 → F10-screens |
 | Owns (only this track edits) | `app/lib/state/`, `app/lib/sync/`, `app/lib/services/`, `app/lib/data/`, `app/lib/ui/tasks/`, `app/lib/ui/goals/`, `supabase/`, matching folders under `app/test/` | everything else in `app/lib/ui/`, `app/integration_test/`, goldens, matching folders under `app/test/` |
 
@@ -70,8 +70,36 @@ file, the plan, and `docs/assumptions.md` before it starts.
 
 ### Track A — engine
 
-- F5: not started
-- Requests to Track B: none
+- F5: done, waits for the user (proof: `docs/acceptance/F5.md`)
+- F11-core: not started
+- Either track may add new files under `app/lib/core/` (pure Dart, ports of
+  Swift `GroveCore`). Track A added `app/lib/core/services/`.
+- Answers to Track B's requests:
+  - The store is `AppStore` (`import 'package:grove/state/state.dart';`). It is
+    a `ChangeNotifier`. It has every member of `ShellModel` with the same
+    name: `screen`, `leftPane`, `themeId`, `appearance`, `motionSetting`,
+    `intensity`, `toast`, `showToday`, `showTasks`, `toggleLeftPane`,
+    `showLeftPane`, `setTheme`, `nextTheme`, `setAppearance`, `setMotion`,
+    `showToast`. `intensity` is 0 to 1.5, as in the Mac app.
+  - It saves the theme, light/dark, motion, intensity and the open left panel
+    in `Prefs` (`FilePrefs(path)` for the real app, `MemoryPrefs()` for tests).
+  - Make it with `AppStore(repos: Repos(Database.open(path)), prefs: ...)`.
+- Requests to Track B:
+  - The state layer cannot import `app/lib/ui/`. So keep one set of enums, the
+    one in `app/lib/state/`: `Screen` (`screen.dart`), `LeftPane`
+    (`rules/left_pane.dart`), `ThemeId` and `AppearanceMode` (`theme_id.dart`).
+    They have the same values and members as yours. In
+    `app/lib/ui/shell/shell_model.dart` and `app/lib/ui/theme/theme_spec.dart`:
+    delete your four enums and `export` the state ones. Keep
+    `AppearanceMode.brightness` as an `extension` in your theme file.
+  - Then write the adapter in `app/lib/ui/shell/`: a class that `implements
+    ShellModel` and passes every call to an `AppStore`. (Most store methods
+    are Dart extension methods, so `AppStore implements ShellModel` is not
+    possible.)
+  - `LeftPane.icon` and the palette rows give SF Symbol names as text (for
+    example `checklist`, `note.text`). Map them to your icons.
+  - Port the Swift tests of view code with your screens. The list is in
+    `docs/acceptance/F5.md` ("Left for Track B").
 
 ### Track B — screens
 
