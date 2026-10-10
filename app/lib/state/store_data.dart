@@ -57,7 +57,7 @@ extension AppStoreData on AppStore {
       () => Backup.runDaily(
         repos.db,
         directory: '$dir${Platform.pathSeparator}Backups',
-        today: today ?? DayKey.today(),
+        today: today ?? clockToday,
       ),
     );
     if (made != null) _try(() => repos.attachments.sweepOrphans());

@@ -490,7 +490,14 @@ void main() {
 
       await tester.sendKeyEvent(LogicalKeyboardKey.enter);
       await tester.pumpAndSettle();
-      await tester.enterText(find.byType(EditableText), 'Final');
+      // The panel of the task is open too (F8), and it has text fields.
+      await tester.enterText(
+        find.descendant(
+          of: find.byType(InlineTitleField),
+          matching: find.byType(EditableText),
+        ),
+        'Final',
+      );
       await tester.testTextInput.receiveAction(TextInputAction.done);
       await tester.pumpAndSettle();
 

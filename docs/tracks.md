@@ -76,6 +76,7 @@ file, the plan, and `docs/assumptions.md` before it starts.
   `docs/acceptance/F10-services.md`)
 - Migration 7 (`block_subtasks`, Swift PR #3 and PR #4): done, waits for the
   user (proof: `docs/acceptance/migration-7.md`)
+- F8: done, waits for the user (proof: `docs/acceptance/F8.md`)
 - Sync for Track B (nothing to do now):
   - The engine is `SyncEngine(repos: ..., remote: ...)` in
     `package:grove/sync/sync.dart`. `await engine.sync()` pushes and pulls.
@@ -122,8 +123,32 @@ file, the plan, and `docs/assumptions.md` before it starts.
     has some), and the editor window that shows when `editingBlockSubtasks`
     is not null. See the Mac files `BlockSubtaskEditor.swift` and
     `BlockView.swift` on the branch `feat/planner-subtasks`.
-  - The clock (`clockOverride` for the whole store) and the owner of the event
-    editor window: the answers come with F8.
+- Answers to Track B's requests, with F8:
+  - The panels: `storePane(context, store, pane)` in
+    `app/lib/ui/tasks/store_panes.dart` gives the Tasks panel and the Goals
+    panel (`null` for Notes). I added it to `paneBuilder` in
+    `app/lib/ui/store_app.dart`, as you offered.
+  - The clock: done. Set `store.clockOverride = WallTime(day: ..., minute:
+    ...)`. Read it with `store.clockToday`, `store.nowMinute()` and
+    `store.clockStamp()` (the text for `completedAt` and `doneAt`). Every
+    call in `app/lib/state/` uses them. Only the constructor of `AppStore`
+    reads the real day, so set `selectedDay` after the clock. You can delete
+    `app/lib/ui/planner/planner_clock.dart`.
+  - The event editor: yours, with F9. On the Mac it is
+    `Calendar/EventEditor.swift`, and the Calendar is F9. The store is ready:
+    `editEvent(e)`, `editingEvent`, `closeEditor()`. Show the window when
+    `editingEvent` is not null.
+- Two edits in Track B's files, with F8 (please check them at your next
+  merge):
+  - `app/lib/ui/store_app.dart`: the planner screen and the Today screen sit
+    in `InspectorHost(store: store, child: ...)`. It shows `TaskInspector`
+    (the panel of the chosen task) at the right of the screen, as
+    `RootView.swift` does. On a phone the panel covers the screen. The screen
+    keeps its state.
+  - `app/test/ui/planner/planner_view_test.dart`, "Enter renames a task
+    block": the finder of the text field looks only inside
+    `InlineTitleField`. A click on a task block opens the panel of the task
+    now, and that panel has text fields too.
 - Requests to Track B:
   - Start the services where you open the real store (you planned this for the
     start of F7). In `app/lib/main.dart`, after
@@ -159,6 +184,23 @@ file, the plan, and `docs/assumptions.md` before it starts.
     example `checklist`, `note.text`). Map them to your icons.
   - Port the Swift tests of view code with your screens. The list is in
     `docs/acceptance/F5.md` ("Left for Track B").
+- Requests to Track B, with F8:
+  - Day Spread (F9): put `TasksPane(store: store, mode: TasksPaneMode.today)`
+    (`app/lib/ui/tasks/tasks_pane.dart`) in the task column. On the Mac the
+    panel of a task takes the place of the day-note column there. Use
+    `TaskInspector(store: store, taskId: store.selectedTaskId!)` for that,
+    and take `InspectorHost` off the Today screen in `store_app.dart`.
+  - A new screen that can choose a task (Calendar, Notes): wrap it in
+    `InspectorHost` in `store_app.dart`, or the panel of the task has no
+    place to show.
+  - Esc: the panel of a task closes on Esc only when the keyboard focus is
+    inside it. If you want Esc to close it from any place, add it to the
+    shell shortcuts: `store.selectedTaskId = null`.
+  - The description of a task is a plain text field. When your rich editor
+    is there (F9), tell me the widget and I put it in `task_inspector.dart`.
+  - The device test (`app/integration_test/`) has no step for the panels.
+    Add one if you want (a tap on a row of the Tasks panel opens the panel
+    of the task).
 
 ### Track B — screens
 

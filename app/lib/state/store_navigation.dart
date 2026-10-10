@@ -6,7 +6,7 @@ extension AppStoreNavigation on AppStore {
   /// to today. Every other screen goes to the Today screen. The timeline
   /// scrolls to the current time.
   void showToday() {
-    _selectedDay = DayKey.today();
+    _selectedDay = clockToday;
     if (_screen != Screen.planner && _screen != Screen.calendar) {
       _screen = Screen.today;
     }
@@ -45,7 +45,7 @@ extension AppStoreNavigation on AppStore {
   /// only ever shows today. Any other day opens the Planner on its week.
   void showDay(DayKey day) {
     _selectedDay = day;
-    screen = day == DayKey.today() ? Screen.today : Screen.planner;
+    screen = day == clockToday ? Screen.today : Screen.planner;
   }
 
   /// The height of one hour on the planner grid. Saved in `planner.hourHeight`.

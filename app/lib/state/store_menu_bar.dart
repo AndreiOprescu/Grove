@@ -4,12 +4,12 @@ part of 'app_store.dart';
 extension AppStoreMenuBar on AppStore {
   /// The "Now" and "Next" lines for today.
   NowNext menuBarLines({required int minute}) => NowNextRules.make(
-    blocks: blocks(DayRange.single(DayKey.today())),
+    blocks: blocks(DayRange.single(clockToday)),
     minute: minute,
   );
 
   /// The quick-add box in the menu bar. A task with no day in its text goes to
   /// today.
   TaskItem? menuBarAdd(String text) =>
-      quickAdd(text, placement: TaskPlacement.day(DayKey.today()));
+      quickAdd(text, placement: TaskPlacement.day(clockToday));
 }

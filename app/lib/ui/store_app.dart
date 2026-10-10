@@ -10,6 +10,7 @@ import 'app.dart';
 import 'planner/planner_kind.dart';
 import 'planner/planner_view.dart';
 import 'shell/store_shell_model.dart';
+import 'tasks/store_panes.dart';
 
 class StoreApp extends StatefulWidget {
   const StoreApp({super.key, required this.store});
@@ -52,15 +53,22 @@ class _StoreAppState extends State<StoreApp> {
   Widget? _screen(BuildContext context, Screen screen) {
     final store = widget.store;
     return switch (screen) {
-      Screen.planner => PlannerView(store: store, kind: PlannerKind.week),
+      // The panel of the chosen task is at the side of each screen (F8).
+      Screen.planner => InspectorHost(
+        store: store,
+        child: PlannerView(store: store, kind: PlannerKind.week),
+      ),
       // The timeline of today. The other parts of the Day Spread come with
       // milestone F9.
-      Screen.today => Padding(
-        padding: const EdgeInsets.fromLTRB(16, 6, 16, 16),
-        child: Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 720),
-            child: PlannerView(store: store, kind: PlannerKind.today),
+      Screen.today => InspectorHost(
+        store: store,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 6, 16, 16),
+          child: Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 720),
+              child: PlannerView(store: store, kind: PlannerKind.today),
+            ),
           ),
         ),
       ),
@@ -69,6 +77,10 @@ class _StoreAppState extends State<StoreApp> {
   }
 
   @override
-  Widget build(BuildContext context) =>
-      GroveApp(model: _model, screenBuilder: _screen, shortcuts: _shortcuts);
+  Widget build(BuildContext context) => GroveApp(
+    model: _model,
+    screenBuilder: _screen,
+    paneBuilder: (context, pane) => storePane(context, widget.store, pane),
+    shortcuts: _shortcuts,
+  );
 }

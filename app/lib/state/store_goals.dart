@@ -193,7 +193,7 @@ extension AppStoreGoals on AppStore {
     final old = _try(() => repos.events.get(eventId));
     if (old == null || old.goalId == null) return;
     final changed = old.copyWith(
-      doneAt: old.doneAt == null ? Stamp.now() : null,
+      doneAt: old.doneAt == null ? clockStamp() : null,
     );
     final m = Mutation(
       changed.doneAt == null ? 'Reopen Goal Block' : 'Complete Goal Block',

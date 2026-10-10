@@ -190,6 +190,9 @@ class AppStore extends ChangeNotifier {
 
   bool _disposed = false;
 
+  /// True after [dispose]. A late write must not use the store then.
+  bool get isDisposed => _disposed;
+
   void _changed() {
     if (!_disposed) notifyListeners();
   }
@@ -344,7 +347,7 @@ class AppStore extends ChangeNotifier {
   set screen(Screen v) {
     final old = _screen;
     _screen = v;
-    if (v == Screen.today && old != Screen.today) _selectedDay = DayKey.today();
+    if (v == Screen.today && old != Screen.today) _selectedDay = clockToday;
     _changed();
   }
 
@@ -407,6 +410,9 @@ class AppStore extends ChangeNotifier {
 
   /// A fixed "now" for tests. Null means the real clock.
   WallTime? clockOverride;
+
+  /// The day now, from [clockOverride] or the real clock.
+  DayKey get clockToday => clockOverride?.day ?? DayKey.today();
 
   /// The waiting reminder refresh. Tests wait on it.
   Future<void>? reminderTask;
@@ -701,9 +707,27 @@ class AppStore extends ChangeNotifier {
     _toastTimer = Timer(const Duration(milliseconds: 2200), () => toast = null);
   }
 
-  /// The minute of the day now, from the real clock.
+  /// The minute of the day now, from [clockOverride] or the real clock.
   int nowMinute() {
+    final fixed = clockOverride;
+    if (fixed != null) return fixed.minute;
     final now = DateTime.now();
     return now.hour * 60 + now.minute;
+  }
+
+  /// The time stamp of now, from [clockOverride] or the real clock.
+  String clockStamp() {
+    final fixed = clockOverride;
+    if (fixed == null) return Stamp.now();
+    final at = fixed.day.date;
+    return Stamp.fromDate(
+      DateTime(
+        at.year,
+        at.month,
+        at.day,
+        fixed.minute ~/ 60,
+        fixed.minute % 60,
+      ),
+    );
   }
 }

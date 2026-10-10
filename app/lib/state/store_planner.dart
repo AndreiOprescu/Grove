@@ -327,9 +327,7 @@ extension AppStorePlanner on AppStore {
       for (final b in blocks(DayRange.single(day)))
         if (b.taskId != taskId) b.span,
     ];
-    final from = day == DayKey.today()
-        ? max(workStart, nowMinute())
-        : workStart;
+    final from = day == clockToday ? max(workStart, nowMinute()) : workStart;
     final slot = PlannerMath.firstFreeSlot(
       length: len,
       busy: busy,
@@ -354,7 +352,7 @@ extension AppStorePlanner on AppStore {
   }) {
     final busy = [for (final b in blocks(DayRange.single(day))) b.span];
     final from = PlannerMath.snap(
-      day == DayKey.today() ? max(workStart, nowMinute()) : workStart,
+      day == clockToday ? max(workStart, nowMinute()) : workStart,
       step: step,
     );
     final out = <PlanStep>[];
@@ -614,7 +612,7 @@ extension AppStorePlanner on AppStore {
   }) => PlannerMath.firstFreeSlot(
     length: length,
     busy: [for (final b in blocks(DayRange.single(day))) b.span],
-    from: day == DayKey.today() ? max(nowMinute(), 0) : workStart,
+    from: day == clockToday ? max(nowMinute(), 0) : workStart,
     until: 1440,
     step: step,
   );

@@ -100,7 +100,7 @@ extension AppStorePalette on AppStore {
   /// The rows for the text in the box: a day, then the commands that match,
   /// then items found by search.
   List<PaletteItem> paletteItems(String raw, {DayKey? today}) {
-    final now = today ?? DayKey.today();
+    final now = today ?? clockToday;
     final query = PaletteRules.parse(raw);
     final rows = <PaletteItem>[];
     final day = query.commandsOnly
@@ -229,13 +229,13 @@ extension AppStorePalette on AppStore {
       case PaletteCommandId.newNote:
         newNote();
       case PaletteCommandId.todayNote:
-        openDailyNote(DayKey.today());
+        openDailyNote(clockToday);
       case PaletteCommandId.goToday:
-        showDay(DayKey.today());
+        showDay(clockToday);
       case PaletteCommandId.goToDate:
         break;
       case PaletteCommandId.planMyDay:
-        showDay(DayKey.today());
+        showDay(clockToday);
         planMyDayRequest += 1;
       case PaletteCommandId.showPlanner:
         screen = Screen.planner;
