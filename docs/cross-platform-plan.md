@@ -63,6 +63,8 @@ Each milestone is one commit series on `feat/cross-platform-flutter`, ends green
 | F11 | Login + sync | Supabase project schema + Row Level Security, magic-link login, outbox push/pull, last-write-wins, image upload | Two-device offline-edit test syncs to same data. |
 | F12 | Parity + release builds | Feature checklist vs PLAN.md, perf check (startup, RAM, 60 fps scroll), signed builds per OS, docs + ADR | Every PLAN.md feature has proof. You decide when to retire the Swift app. |
 
+F5–F12 now run as two parallel tracks. See `docs/tracks.md`.
+
 F1–F5 have no UI risk and are fast. F7 is the hardest and most important. F11 needs your Supabase keys before it starts.
 
 ## Verification

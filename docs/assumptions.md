@@ -347,3 +347,11 @@ Format: date · decision · why · how to undo
 - 2026-10-10 · Cross-platform port F4: `ReferenceIndexer` is ported now, not with the editor · the repo tests for links and rename need it
 - 2026-10-10 · Cross-platform port F4: the "JSON from the Mac app" test uses `app/test/fixtures/mac_export_v6.json`, a real export made by the Swift `DataExport.export` (a one-off Swift test, then deleted). It holds every table, a blob, a series with an exdate, a goal block and a subtask · proof that real Mac files import and come back with the same rows and columns
 - 2026-10-10 · Cross-platform port F4: when PR #4 (goal-instance subtasks, Swift migration 7 `block_subtasks`) merges, the Flutter port must add the same migration 7 and the table to `DataExport.tables`/`SyncMigrations` · the schema numbers of both apps must stay the same
+
+## Cross-platform Track A (engine) — see docs/tracks.md
+
+- 2026-10-10 · Cross-platform port: F5–F12 split into two parallel tracks, A (engine, `feat/xp-engine`) and B (screens, `feat/xp-screens`). Split, folder ownership and merge rules are in `docs/tracks.md`. CI also runs on `feat/xp-*` pushes · the user asked for a second agent to work at the same time
+
+## Cross-platform Track B (screens) — see docs/tracks.md
+
+- Track B adds its lines below this one.

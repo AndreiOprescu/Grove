@@ -2,7 +2,7 @@ name: flutter
 
 on:
   push:
-    branches: [feat/cross-platform-flutter]
+    branches: [feat/cross-platform-flutter, 'feat/xp-*']
     paths: ['app/**', 'scripts/flutter_*.sh', '.github/workflows/flutter.yml']
   pull_request:
     paths: ['app/**', 'scripts/flutter_*.sh', '.github/workflows/flutter.yml']
