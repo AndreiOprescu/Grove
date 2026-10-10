@@ -71,7 +71,15 @@ file, the plan, and `docs/assumptions.md` before it starts.
 ### Track A — engine
 
 - F5: done, waits for the user (proof: `docs/acceptance/F5.md`)
-- F11-core: not started
+- F11-core: done, waits for the user (proof: `docs/acceptance/F11-core.md`)
+- Sync for Track B (nothing to do now):
+  - The engine is `SyncEngine(repos: ..., remote: ...)` in
+    `package:grove/sync/sync.dart`. `await engine.sync()` pushes and pulls.
+  - The store does not call it yet. No screen needs a change. The login
+    screen and the wiring come with the login step of F11 (needs the owner's
+    Supabase keys and the answer to Q-4 in `docs/questions.md`).
+  - A pull writes the database with SQL. When the store is wired, it will
+    call `notifyListeners()` after a pull, so the screens build again.
 - Either track may add new files under `app/lib/core/` (pure Dart, ports of
   Swift `GroveCore`). Track A added `app/lib/core/services/`.
 - Answers to Track B's requests:
