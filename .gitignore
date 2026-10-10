@@ -4,3 +4,5 @@ dist/
 *.sqlite
 *.sqlite-*
 .DS_Store
+# The keys of the Supabase project. Never commit them.
+app/config/supabase.json

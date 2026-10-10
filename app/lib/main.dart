@@ -16,7 +16,14 @@ Future<void> main() async {
   final dir = (await getApplicationSupportDirectory()).path;
   final prefs = FilePrefs('$dir${Platform.pathSeparator}prefs.json');
   final notifier = AppServices.notifier(prefs);
-  final store = AppStore.open(dataDir: dir, notifier: notifier, prefs: prefs);
+  // Null when the build has no keys for a Supabase project: no sync then.
+  final sync = await SupabaseBackend.start(SyncConfig.fromEnvironment);
+  final store = AppStore.open(
+    dataDir: dir,
+    notifier: notifier,
+    prefs: prefs,
+    sync: sync,
+  );
   AppServices.forThisDevice(store).start();
   runApp(StoreApp(store: store));
 }

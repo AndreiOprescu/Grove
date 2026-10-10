@@ -57,12 +57,29 @@ abstract final class Backup {
     return created;
   }
 
+  /// The name of the copy made before the data of an account replaces the
+  /// data of this device: `before-sync-YYYYMMDD-HHMMSS.sqlite`. Each copy
+  /// has its own name, so a new one never takes the place of an old one.
+  /// Grove never deletes these files.
+  static String beforeSyncName(DateTime now) {
+    String two(int n) => n.toString().padLeft(2, '0');
+    return 'before-sync-${now.year}${two(now.month)}${two(now.day)}'
+        '-${two(now.hour)}${two(now.minute)}${two(now.second)}.sqlite';
+  }
+
   /// A copy of the data before an import replaces it. One file,
   /// `before-import.sqlite`; a new copy replaces the old one. It is not in
   /// [list] and the daily clean-up leaves it alone.
-  static String safetyCopy(Database db, {required String directory}) {
+  ///
+  /// The first login can replace the data too. It gives the copy a [name]
+  /// of its own (see [beforeSyncName]).
+  static String safetyCopy(
+    Database db, {
+    required String directory,
+    String name = 'before-import.sqlite',
+  }) {
     Directory(directory).createSync(recursive: true);
-    final target = _join(directory, 'before-import.sqlite');
+    final target = _join(directory, name);
     final file = File(target);
     if (file.existsSync()) file.deleteSync();
     _vacuumInto(db, target);

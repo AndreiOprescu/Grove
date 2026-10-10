@@ -161,11 +161,13 @@ Future<void> endToast(WidgetTester tester) async {
 ///
 /// Not checked: an icon, a text of one letter (no seam), and a
 /// `ThemedHeading` (the letter gap of the theme, -0.2 or 1.5, is its look).
-List<String> textOffPixels(WidgetTester tester) {
+List<String> textOffPixels(WidgetTester tester, {Finder? within}) {
   final out = <String>[];
-  final panels = find.byWidgetPredicate(
-    (w) => w is TasksPane || w is TaskInspector || w is GoalsPane,
-  );
+  final panels =
+      within ??
+      find.byWidgetPredicate(
+        (w) => w is TasksPane || w is TaskInspector || w is GoalsPane,
+      );
   bool whole(double v) => (v - v.roundToDouble()).abs() < 0.01;
 
   void check(String kind, InlineSpan span, double left, List<TextBox> boxes) {

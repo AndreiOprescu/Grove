@@ -24,6 +24,7 @@ import '../core/recurrence/recurrence_engine.dart';
 import '../core/services/focus_rules.dart';
 import '../core/services/reminder_planner.dart';
 import '../data/data.dart';
+import '../sync/sync.dart';
 import 'editor_services.dart';
 import 'mutation.dart';
 import 'notifier.dart';
@@ -69,6 +70,7 @@ part 'store_palette.dart';
 part 'store_planner.dart';
 part 'store_reminders.dart';
 part 'store_roll_over.dart';
+part 'store_sync.dart';
 part 'store_tasks.dart';
 part 'store_welcome.dart';
 
@@ -113,6 +115,7 @@ class AppStore extends ChangeNotifier {
     Notifier? notifier,
     Prefs? prefs,
     this.dataDir,
+    this.syncBackend,
     this._errorMessage,
   }) : notifier = notifier ?? NullNotifier(),
        prefs = prefs ?? MemoryPrefs() {
@@ -129,6 +132,7 @@ class AppStore extends ChangeNotifier {
         openFromNotification(day: day, ref: ref);
     this.notifier.onFocusDone = focusDoneFromNotification;
     _welcomeVisible = FirstRun.welcomeVisible(repos);
+    _startSync();
   }
 
   /// Opens the database in [dataDir] and does the launch steps: the daily
@@ -138,6 +142,7 @@ class AppStore extends ChangeNotifier {
     required String dataDir,
     Notifier? notifier,
     Prefs? prefs,
+    SyncBackend? sync,
   }) {
     final sep = Platform.pathSeparator;
     try {
@@ -161,6 +166,7 @@ class AppStore extends ChangeNotifier {
         notifier: notifier,
         prefs: prefs ?? FilePrefs('$dataDir${sep}prefs.json'),
         dataDir: dataDir,
+        syncBackend: sync,
       );
     } on Exception {
       return AppStore(
@@ -181,6 +187,16 @@ class AppStore extends ChangeNotifier {
 
   /// The folder with `grove.sqlite` and `Backups`. Null for a store in memory.
   final String? dataDir;
+
+  /// The login and the remote of the sync. Null: Grove runs with no sync
+  /// (no keys in the build, or a database that did not open). See
+  /// `store_sync.dart`.
+  final SyncBackend? syncBackend;
+  final _sync = _SyncState();
+
+  /// How long a change waits before it is sent. A burst of changes is one
+  /// sync.
+  Duration syncDelay = const Duration(seconds: 3);
 
   /// How many days ahead Grove sets reminders.
   static const reminderDays = 14;
@@ -206,6 +222,7 @@ class AppStore extends ChangeNotifier {
     }
     _reminderSleep?.cancel();
     _freshSleep?.cancel();
+    _stopSync();
     super.dispose();
   }
 
@@ -224,6 +241,7 @@ class AppStore extends ChangeNotifier {
   void _bump() {
     _revision += 1;
     _changed();
+    _syncSoon();
   }
 
   /// Tasks just checked off that stay in the open list for a moment, so the

@@ -218,6 +218,8 @@ class GroveField extends StatefulWidget {
     this.keepFocus = false,
     this.newlines = false,
     this.autofocus = false,
+    this.keyboard,
+    this.plainTyping = false,
     this.onChanged,
     this.onSubmitted,
     this.onEscape,
@@ -249,6 +251,14 @@ class GroveField extends StatefulWidget {
   /// Return makes a new line. Without it, Return ends the text.
   final bool newlines;
   final bool autofocus;
+
+  /// The keyboard of a phone for this text (email, digits). The text
+  /// keyboard when null.
+  final TextInputType? keyboard;
+
+  /// True for an address or a code: the phone does not correct the text and
+  /// gives no word hints.
+  final bool plainTyping;
   final ValueChanged<String>? onChanged;
   final ValueChanged<String>? onSubmitted;
   final VoidCallback? onEscape;
@@ -324,9 +334,11 @@ class _GroveFieldState extends State<GroveField> {
           maxLines: widget.maxLines,
           style: style,
           cursorColor: theme.accent,
-          keyboardType: widget.newlines
-              ? TextInputType.multiline
-              : TextInputType.text,
+          keyboardType:
+              widget.keyboard ??
+              (widget.newlines ? TextInputType.multiline : TextInputType.text),
+          autocorrect: !widget.plainTyping,
+          enableSuggestions: !widget.plainTyping,
           textInputAction: widget.newlines
               ? TextInputAction.newline
               : TextInputAction.done,

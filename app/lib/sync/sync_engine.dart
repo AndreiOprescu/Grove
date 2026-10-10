@@ -104,6 +104,80 @@ class SyncEngine {
   Future<SyncReport> sync() =>
       _running ??= _run().whenComplete(() => _running = null);
 
+  // ---- The account ---------------------------------------------------------
+
+  /// The id of the account this database syncs with, or null when it never
+  /// synced.
+  String? get account => outbox.account;
+
+  /// True when the account has a row on the remote, also a deleted one.
+  Future<bool> remoteHasData() async =>
+      (await remote.pull(after: 0, limit: 1)).isNotEmpty;
+
+  /// True when this device has a list, a note, a goal, a task or an event.
+  bool get hasLocalData {
+    for (final table in const ['lists', 'notes', 'goals', 'tasks', 'events']) {
+      final one = db.queryOne(
+        'SELECT 1 FROM $table LIMIT 1',
+        const [],
+        (r) => r.asInt(0),
+      );
+      if (one != null) return true;
+    }
+    return false;
+  }
+
+  /// "Add the data of this device to the account": ties this database to
+  /// [account] and puts every row in the outbox. The next [sync] sends the
+  /// rows and brings the rows of the account in. Nothing is deleted.
+  void addDeviceTo(String account) {
+    db.transaction(() {
+      SyncSchema.queueAll(db);
+      outbox.cursor = 0;
+      outbox.account = account;
+    });
+  }
+
+  /// "Use the data of the account": the data of this device is replaced by
+  /// the data of [account]. All rows of the account come in first. When the
+  /// remote fails, this device keeps its data and nothing is tied.
+  Future<SyncReport> replaceWithAccount(String account) async {
+    final running = _running;
+    if (running != null) {
+      try {
+        await running;
+      } on Exception {
+        // The sync that ran has its own caller for the error.
+      }
+    }
+    return _running ??= _replace(account).whenComplete(() => _running = null);
+  }
+
+  Future<SyncReport> _replace(String account) async {
+    final changes = await _fetch(from: 0);
+    final pull = _Pull(this, changes);
+    db.transaction(() {
+      db.execute('PRAGMA defer_foreign_keys = ON');
+      for (final name in SyncMigrations.syncedTables.reversed) {
+        db.execute('DELETE FROM $name');
+      }
+      // The deletes above are not changes for the account.
+      db.execute('DELETE FROM outbox');
+      outbox.cursor = 0;
+      outbox.account = account;
+      if (changes.isNotEmpty) {
+        pull.run();
+      } else {
+        repos.rebuildSearch();
+      }
+    });
+    return SyncReport(
+      pushed: 0,
+      pulled: changes.length,
+      skipped: List.unmodifiable(pull.skipped),
+    );
+  }
+
   Future<SyncReport> _run() async {
     final pushed = await _push();
     final changes = await _fetch();
@@ -289,9 +363,9 @@ class SyncEngine {
 
   /// Gets every change after the cursor. The device uses them only when all
   /// pages came in, so it never has half of what another device sent.
-  Future<List<RowChange>> _fetch() async {
+  Future<List<RowChange>> _fetch({int? from}) async {
     final all = <RowChange>[];
-    var after = outbox.cursor;
+    var after = from ?? outbox.cursor;
     while (true) {
       final page = await remote.pull(after: after, limit: pageSize);
       all.addAll(page);

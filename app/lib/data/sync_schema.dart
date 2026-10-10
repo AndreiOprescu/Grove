@@ -199,6 +199,22 @@ abstract final class SyncSchema {
     );
   }
 
+  /// Puts every row of every synced table in the outbox, so the next sync
+  /// sends it. A row that waits there already keeps its line. The new lines
+  /// have stamp 0: the remote takes such a row only when it has no row with
+  /// that key.
+  static void queueAll(Database db) {
+    db.transaction(() {
+      for (final name in SyncMigrations.syncedTables) {
+        final keySql = _keySql(SyncTable.read(db, name), name);
+        db.executeScript(
+          'INSERT OR IGNORE INTO outbox (tbl, pk, stamp, deleted) '
+          "SELECT '$name', $keySql, 0, 0 FROM $name ORDER BY rowid",
+        );
+      }
+    });
+  }
+
   /// Raise this number when the trigger text changes.
   static const _triggerVersion = 1;
 
