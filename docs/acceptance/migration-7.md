@@ -3,7 +3,7 @@
 Plan: `docs/cross-platform-plan.md` (the port follows the Mac app). Track A, branch `feat/xp-engine` (`docs/tracks.md`).
 Source: Swift PR #3 (subtasks of a task show in its blocks, on `main`) and Swift PR #4 (a goal block has its own subtasks, shared migration 7). PR #4 is on the branch `feat/planner-subtasks`, not on `main` (see "For the owner").
 Check: `./scripts/flutter_test.sh` (2026-10-10: 1369 tests passed, analyze clean, format clean). 78 of them are new.
-CI: see the line at the end.
+CI run 38076612662 (commit 759266c): green on Android, Windows, macOS, iOS.
 
 ## What was built
 
