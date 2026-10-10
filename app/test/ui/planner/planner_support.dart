@@ -119,3 +119,16 @@ Future<void> endToast(WidgetTester tester) async {
 
 PlannerGridState gridState(WidgetTester tester) =>
     tester.state<PlannerGridState>(find.byType(PlannerGrid));
+
+/// How far the grid of the planner is scrolled, in points.
+double gridScroll(WidgetTester tester) => tester
+    .state<ScrollableState>(
+      find
+          .descendant(
+            of: find.byType(PlannerGrid),
+            matching: find.byType(Scrollable),
+          )
+          .first,
+    )
+    .position
+    .pixels;

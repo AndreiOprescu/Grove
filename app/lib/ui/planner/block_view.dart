@@ -546,8 +546,25 @@ class _BodyGesturesState extends State<_BodyGestures> {
   );
 }
 
+/// The drag of an edge. It takes the drag at the first move up or down.
+///
+/// The scroll view of the grid wants the same drag. A plain recognizer
+/// waits for 18 points. The scroll view waits for the touch slop of the
+/// device, and an Android phone says 8 points. So on Android the scroll
+/// view was first, the grid scrolled, and the edge did not move.
+class EdgeDragRecognizer extends VerticalDragGestureRecognizer {
+  EdgeDragRecognizer({super.debugOwner});
+
+  @override
+  bool hasSufficientGlobalDistanceToAccept(
+    PointerDeviceKind pointerDeviceKind,
+    double? deviceTouchSlop,
+  ) => globalDistanceMoved != 0;
+}
+
 /// A place to drag an edge of a block up or down. It works with a mouse
-/// and with a finger: it sits inside the scroll view, so it wins the drag.
+/// and with a finger, with no hold: it takes the drag before the scroll
+/// view of the grid can.
 class EdgeHandle extends StatelessWidget {
   const EdgeHandle({
     super.key,
@@ -568,9 +585,9 @@ class EdgeHandle extends StatelessWidget {
     child: RawGestureDetector(
       behavior: HitTestBehavior.opaque,
       gestures: {
-        VerticalDragGestureRecognizer:
-            GestureRecognizerFactoryWithHandlers<VerticalDragGestureRecognizer>(
-              VerticalDragGestureRecognizer.new,
+        EdgeDragRecognizer:
+            GestureRecognizerFactoryWithHandlers<EdgeDragRecognizer>(
+              EdgeDragRecognizer.new,
               (drag) {
                 drag.dragStartBehavior = DragStartBehavior.down;
                 drag.onStart = (d) => onStart(d.globalPosition);

@@ -1,3 +1,5 @@
+import 'dart:ui' as ui;
+
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -359,6 +361,52 @@ void main() {
       expect(block.startMinute, 11 * 60);
       expect(block.endMinute, 13 * 60);
     });
+
+    // An Android phone tells Flutter its own touch slop: 8 points, not the
+    // 18 of Flutter. The scroll view of the grid uses it, so it took the
+    // drag before the edge of the block did.
+    for (final edge in ['resizeBottom', 'resizeTop']) {
+      testWidgets('a finger drags the $edge edge on a device with a small '
+          'touch slop (Android)', (tester) async {
+        final store = plannerStore();
+        store.createFromDraft(
+          title: 'Lunch',
+          day: wednesday,
+          start: 11 * 60,
+          end: 12 * 60,
+          asEvent: true,
+        );
+        final id = blockNamed(store, 'Lunch').id;
+        tester.view.gestureSettings = const ui.GestureSettings(
+          physicalTouchSlop: 8,
+          physicalDoubleTapSlop: 100,
+        );
+        addTearDown(tester.view.resetGestureSettings);
+        await pumpPlanner(tester, store);
+        final scrollBefore = gridScroll(tester);
+
+        // Down for the bottom edge, up for the top edge: the block gets
+        // 30 minutes longer. The finger moves in small steps, as a real
+        // one does.
+        final down = edge == 'resizeBottom';
+        final handle = tester.getCenter(find.byKey(ValueKey('$edge-$id')));
+        final gesture = await tester.startGesture(handle);
+        await tester.pump();
+        for (var i = 1; i <= 16; i++) {
+          await gesture.moveTo(handle + Offset(0, (down ? 2.0 : -2.0) * i));
+          await tester.pump(const Duration(milliseconds: 16));
+        }
+        await gesture.up();
+        await tester.pumpAndSettle();
+
+        final block = store.blocks(DayRange.single(wednesday)).single;
+        expect(block.startMinute, down ? 11 * 60 : 10 * 60 + 30);
+        expect(block.endMinute, down ? 12 * 60 + 30 : 12 * 60);
+        expect(store.undoName, 'Resize Block');
+        // The grid did not scroll under the finger.
+        expect(gridScroll(tester), scrollBefore);
+      });
+    }
   });
 
   group('overlap', () {
