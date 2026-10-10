@@ -360,6 +360,57 @@ public final class GoalRepo {
     }
 }
 
+// MARK: - Subtasks of a goal block
+
+/// The subtasks of one block. Keyed by the event id, so each block of a goal has its own list.
+public final class BlockSubtaskRepo {
+    let db: Database
+    public init(db: Database) { self.db = db }
+
+    private static let cols = ["id", "event_id", "title", "done_at", "sort", "created_at", "updated_at"]
+    private static let select = "SELECT \(cols.joined(separator: ",")) FROM block_subtasks"
+    private static let order = " ORDER BY sort, created_at, rowid"
+    private static let upsertQuery = upsertSQL("block_subtasks", cols)
+
+    private static func map(_ r: Row) -> BlockSubtaskItem {
+        var s = BlockSubtaskItem(id: r.text(0), eventId: r.text(1), title: r.text(2), sort: r.double(4))
+        s.doneAt = r.optText(3)
+        s.createdAt = r.text(5)
+        s.updatedAt = r.text(6)
+        return s
+    }
+
+    /// Insert or update. Refreshes `updatedAt`. Throws when the block does not exist.
+    public func save(_ sub: BlockSubtaskItem) throws {
+        var s = sub
+        s.updatedAt = Stamp.now()
+        try db.execute(Self.upsertQuery, [
+            .text(s.id), .text(s.eventId), .text(s.title), SQLValue(s.doneAt), .real(s.sort), .text(s.createdAt), .text(s.updatedAt),
+        ])
+    }
+
+    public func get(_ id: String) throws -> BlockSubtaskItem? {
+        try db.queryOne(Self.select + " WHERE id = ?", [.text(id)], map: Self.map)
+    }
+
+    /// The subtasks of one block, in order.
+    public func forEvent(_ eventId: String) throws -> [BlockSubtaskItem] {
+        try db.query(Self.select + " WHERE event_id = ?" + Self.order, [.text(eventId)], map: Self.map)
+    }
+
+    /// The subtasks of many blocks at once, by event id. A block with none has no entry.
+    public func forEvents(_ eventIds: [String]) throws -> [String: [BlockSubtaskItem]] {
+        guard !eventIds.isEmpty else { return [:] }
+        let marks = Array(repeating: "?", count: eventIds.count).joined(separator: ",")
+        let rows = try db.query(Self.select + " WHERE event_id IN (\(marks))" + Self.order, eventIds.map { .text($0) }, map: Self.map)
+        return Dictionary(grouping: rows, by: \.eventId)
+    }
+
+    public func delete(_ id: String) throws {
+        try db.execute("DELETE FROM block_subtasks WHERE id = ?", [.text(id)])
+    }
+}
+
 // MARK: - Notes
 
 public final class NoteRepo {
@@ -592,6 +643,7 @@ public final class Repos {
     public let events: EventRepo
     public let notes: NoteRepo
     public let goals: GoalRepo
+    public let blockSubtasks: BlockSubtaskRepo
     public let lists: ListRepo
     public let tags: TagRepo
     public let links: LinkRepo
@@ -607,6 +659,7 @@ public final class Repos {
         self.events = EventRepo(db: db, search: s)
         self.notes = NoteRepo(db: db, search: s)
         self.goals = GoalRepo(db: db)
+        self.blockSubtasks = BlockSubtaskRepo(db: db)
         self.lists = ListRepo(db: db)
         self.tags = TagRepo(db: db)
         self.links = LinkRepo(db: db)

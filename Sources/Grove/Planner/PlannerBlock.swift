@@ -19,7 +19,8 @@ struct PlannerBlock: Identifiable, Equatable {
     var priority: Int = 0
     /// The goal this block belongs to, or nil. A goal block has no task; `isDone` comes from the event's `doneAt`.
     var goalId: String?
-    /// The subtasks of the block's task, in panel order, without cancelled ones. Empty for other blocks.
+    /// The subtasks of the block's task, in panel order, without cancelled ones.
+    /// For a goal block: that one block's own subtasks (other blocks of the goal do not share them). Empty for events.
     var subtasks: [BlockSubtask] = []
 
     var span: Span { Span(id: id, start: startMinute, end: endMinute) }
@@ -28,7 +29,7 @@ struct PlannerBlock: Identifiable, Equatable {
     var isGoalBlock: Bool { goalId != nil }
 }
 
-/// One subtask line inside a task block.
+/// One subtask line inside a task block or a goal block.
 struct BlockSubtask: Identifiable, Equatable {
     var id: String
     var title: String
