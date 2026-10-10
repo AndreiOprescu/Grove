@@ -15,12 +15,33 @@ import 'package:grove/ui/theme/theme_spec.dart';
 
 import '../support.dart';
 
-Future<Uint8List> _png(Color color, {Color? dot}) async {
+/// A 20 x 20 picture in one colour. `dot` paints 2 pixels at the top left.
+/// `bar` paints the columns from `barFrom` (`barWidth` wide) in a colour.
+Future<Uint8List> _png(
+  Color color, {
+  Color? dot,
+  Color? bar,
+  double barFrom = 0,
+  double barWidth = 1,
+  Color? rightOfBar,
+}) async {
   final recorder = ui.PictureRecorder();
   final canvas = Canvas(recorder);
   canvas.drawRect(const Rect.fromLTWH(0, 0, 20, 20), Paint()..color = color);
   if (dot != null) {
     canvas.drawRect(const Rect.fromLTWH(0, 0, 2, 1), Paint()..color = dot);
+  }
+  if (rightOfBar != null) {
+    canvas.drawRect(
+      Rect.fromLTWH(barFrom, 0, 20 - barFrom, 20),
+      Paint()..color = rightOfBar,
+    );
+  }
+  if (bar != null) {
+    canvas.drawRect(
+      Rect.fromLTWH(barFrom, 0, barWidth, 20),
+      Paint()..color = bar,
+    );
   }
   final image = await recorder.endRecording().toImage(20, 20);
   final data = await image.toByteData(format: ui.ImageByteFormat.png);
@@ -96,9 +117,56 @@ void main() {
       });
     });
 
-    test('allows half a percent of the pixels, 12 of 255 per channel', () {
-      expect(TolerantGoldenComparator.pixelBudget, 0.005);
+    testWidgets('a softer or harder edge is not a difference', (tester) async {
+      await tester.runAsync(() async {
+        const black = Color(0xFF000000);
+        const white = Color(0xFFFFFFFF);
+        // black | one soft column | white. Each OS gives the soft column
+        // another grey.
+        final a = await _png(
+          black,
+          rightOfBar: white,
+          bar: const Color(0xFFB4B4B4),
+          barFrom: 10,
+        );
+        final b = await _png(
+          black,
+          rightOfBar: white,
+          bar: const Color(0xFF5A5A5A),
+          barFrom: 10,
+        );
+        expect(await TolerantGoldenComparator.differentShare(a, b), 0);
+        expect(await TolerantGoldenComparator.differentShare(b, a), 0);
+      });
+    });
+
+    testWidgets('a thin line that is missing is a difference', (tester) async {
+      await tester.runAsync(() async {
+        final a = await _png(grey, bar: const Color(0xFF000000), barFrom: 10);
+        final b = await _png(grey);
+        // the 20 pixels of the line
+        expect(await TolerantGoldenComparator.differentShare(a, b), 0.05);
+        expect(await TolerantGoldenComparator.differentShare(b, a), 0.05);
+      });
+    });
+
+    testWidgets('a shape that moved by 3 pixels is a difference', (
+      tester,
+    ) async {
+      await tester.runAsync(() async {
+        const black = Color(0xFF000000);
+        final a = await _png(grey, bar: black, barFrom: 5, barWidth: 6);
+        final b = await _png(grey, bar: black, barFrom: 8, barWidth: 6);
+        final share = await TolerantGoldenComparator.differentShare(a, b);
+        expect(share, greaterThan(TolerantGoldenComparator.pixelBudget));
+      });
+    });
+
+    test('allows 0.2 % of the pixels, 12 of 255 per channel, 1 pixel of '
+        'edge', () {
+      expect(TolerantGoldenComparator.pixelBudget, 0.002);
       expect(TolerantGoldenComparator.channelTolerance, 12);
+      expect(TolerantGoldenComparator.edgeRadius, 1);
     });
   });
 }

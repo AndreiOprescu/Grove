@@ -92,16 +92,25 @@ Future<void> withRealShadows(Future<void> Function() body) async {
 
 /// Compares a screenshot with its golden file, with a small allowance.
 ///
-/// The same widgets drawn on macOS, Windows and Linux differ by a hair at
-/// the edges of round shapes, blurs and icon glyphs. A pixel counts as
-/// different only when a channel is off by more than [channelTolerance]
-/// (of 255). The test fails when more than [pixelBudget] of the pixels are
-/// different, or when the size is not the same.
+/// The same widgets drawn on macOS, Windows and Linux differ by a hair:
+/// each system makes the edges of icon and text shapes a little softer or
+/// harder. Nothing moves. Measured on CI (F6): up to 0.86 % of the pixels
+/// of a phone picture, all on such edges.
+///
+/// So a pixel counts as different only when both are true:
+/// - a channel is off by more than [channelTolerance] (of 255), and
+/// - it is not a soft edge: its colour is not between the colours around
+///   the same place (up to [edgeRadius] pixels away) in the other picture.
+///   The check runs both ways, so a thin shape that is missing still counts.
+///
+/// The test fails when more than [pixelBudget] of the pixels are different,
+/// or when the size is not the same.
 class TolerantGoldenComparator extends LocalFileComparator {
   TolerantGoldenComparator(super.testFile);
 
   static const channelTolerance = 12;
-  static const pixelBudget = 0.005;
+  static const edgeRadius = 1;
+  static const pixelBudget = 0.002;
 
   /// Makes this the comparator of the test file that calls it.
   static void install() {
@@ -132,8 +141,8 @@ class TolerantGoldenComparator extends LocalFileComparator {
       // Printed so a CI log shows how close each OS is.
       debugPrint(
         'golden $golden: ${(share * 100).toStringAsFixed(3)}% of the pixels '
-        'differ by more than $channelTolerance/255 (allowed: '
-        '${pixelBudget * 100}%)',
+        'differ by more than $channelTolerance/255 away from a soft edge '
+        '(allowed: ${pixelBudget * 100}%)',
       );
       result.dispose();
       return true;
@@ -141,13 +150,15 @@ class TolerantGoldenComparator extends LocalFileComparator {
     final error = await generateFailureOutput(result, golden, basedir);
     result.dispose();
     throw FlutterError(
-      '$error\nShare of pixels off by more than $channelTolerance/255: '
-      '${share == null ? 'sizes differ' : (share * 100).toStringAsFixed(3)}%',
+      '$error\nShare of pixels off by more than $channelTolerance/255 away '
+      'from a soft edge: '
+      '${share == null ? 'sizes differ' : (share * 100).toStringAsFixed(3)}% '
+      '(allowed: ${pixelBudget * 100}%)',
     );
   }
 
-  /// The share of pixels that differ by more than the tolerance, or null
-  /// when the two pictures do not have the same size.
+  /// The share of pixels that are different (see the class comment), or
+  /// null when the two pictures do not have the same size.
   static Future<double?> differentShare(Uint8List a, Uint8List b) async {
     final imageA = await _decode(a);
     final imageB = await _decode(b);
@@ -155,22 +166,70 @@ class TolerantGoldenComparator extends LocalFileComparator {
       if (imageA.width != imageB.width || imageA.height != imageB.height) {
         return null;
       }
+      final width = imageA.width;
+      final height = imageA.height;
       final bytesA = (await imageA.toByteData())!.buffer.asUint8List();
       final bytesB = (await imageB.toByteData())!.buffer.asUint8List();
       var different = 0;
-      for (var i = 0; i < bytesA.length; i += 4) {
-        for (var c = 0; c < 4; c++) {
-          if ((bytesA[i + c] - bytesB[i + c]).abs() > channelTolerance) {
-            different++;
-            break;
+      for (var y = 0; y < height; y++) {
+        for (var x = 0; x < width; x++) {
+          final i = (y * width + x) * 4;
+          if (_near(bytesA, bytesB, i)) continue;
+          if (_between(bytesA, i, bytesB, x, y, width, height) &&
+              _between(bytesB, i, bytesA, x, y, width, height)) {
+            continue;
           }
+          different++;
         }
       }
-      return different / (bytesA.length / 4);
+      return different / (width * height);
     } finally {
       imageA.dispose();
       imageB.dispose();
     }
+  }
+
+  /// True when the pixel at byte `i` is the same in both, within the
+  /// tolerance.
+  static bool _near(Uint8List a, Uint8List b, int i) {
+    for (var c = 0; c < 4; c++) {
+      if ((a[i + c] - b[i + c]).abs() > channelTolerance) return false;
+    }
+    return true;
+  }
+
+  /// True when the pixel at byte `i` of `from` (place x, y) has a colour
+  /// between the darkest and the lightest pixel around the same place in
+  /// `around`, within the tolerance. That is what a soft edge looks like.
+  static bool _between(
+    Uint8List from,
+    int i,
+    Uint8List around,
+    int x,
+    int y,
+    int width,
+    int height,
+  ) {
+    for (var c = 0; c < 4; c++) {
+      var low = 255;
+      var high = 0;
+      for (var dy = -edgeRadius; dy <= edgeRadius; dy++) {
+        final ny = y + dy;
+        if (ny < 0 || ny >= height) continue;
+        for (var dx = -edgeRadius; dx <= edgeRadius; dx++) {
+          final nx = x + dx;
+          if (nx < 0 || nx >= width) continue;
+          final value = around[(ny * width + nx) * 4 + c];
+          if (value < low) low = value;
+          if (value > high) high = value;
+        }
+      }
+      final value = from[i + c];
+      if (value < low - channelTolerance || value > high + channelTolerance) {
+        return false;
+      }
+    }
+    return true;
   }
 
   static Future<ui.Image> _decode(Uint8List bytes) async {
