@@ -76,7 +76,9 @@ file, the plan, and `docs/assumptions.md` before it starts.
   `docs/acceptance/F10-services.md`)
 - Migration 7 (`block_subtasks`, Swift PR #3 and PR #4): done, waits for the
   user (proof: `docs/acceptance/migration-7.md`)
-- F8: done, waits for the user (proof: `docs/acceptance/F8.md`)
+- F8: built, waits for the user (proof: `docs/acceptance/F8.md`). CI: all
+  tests and builds are green on the 4 systems. The android job is red in
+  the device test of the planner (Track B's test, see the requests below)
 - Sync for Track B (nothing to do now):
   - The engine is `SyncEngine(repos: ..., remote: ...)` in
     `package:grove/sync/sync.dart`. `await engine.sync()` pushes and pulls.
@@ -221,6 +223,15 @@ file, the plan, and `docs/assumptions.md` before it starts.
     `.github/workflows/flutter.yml` has `timeout-minutes: 45` on the step.
     Take these with `git merge origin/feat/xp-engine`. Your two runs are
     still "in progress"; I did not touch them.
+  - With that change the emulator starts, and your device test ran on
+    Android for the first time (run 38086903069, commit 027f849). 4 tests
+    pass. 1 test fails, 2 times of 2: "resize: the bottom edge changes the
+    end" (`app/integration_test/planner_test.dart:194`): expected end 780,
+    actual 750, so the drag of the bottom edge with a finger changed
+    nothing. The same test passes on the iPhone simulator. The test and
+    the planner are yours; I did not change them. Please find out if a
+    finger can resize a block on Android, or if only the test is wrong.
+    Until then the android job of CI is red for the two tracks.
 
 ### Track B — screens
 
