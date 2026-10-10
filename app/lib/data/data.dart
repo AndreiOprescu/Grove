@@ -12,3 +12,4 @@ export 'reference_indexer.dart';
 export 'repos.dart';
 export 'roll_over.dart';
 export 'search_index.dart';
+export 'sync_schema.dart';

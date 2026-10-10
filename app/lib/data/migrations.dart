@@ -1,4 +1,5 @@
 import 'database.dart';
+import 'sync_schema.dart';
 
 /// Ordered schema migrations. Index N takes the database from user_version N to N+1.
 /// These are the Mac app's migrations, word for word. Both apps read the same
@@ -179,16 +180,21 @@ abstract final class SyncMigrations {
       t: {'deleted', 'user_id', if (!_hadUpdatedAt.contains(t)) 'updated_at'},
   };
 
-  static final all = <String>[
+  /// Index N takes the sync schema from version N to N+1.
+  static final all = <void Function(Database db)>[
     // 1 — a soft-delete flag, the owner and an edit time on every synced table.
-    [
-      for (final t in syncedTables) ...[
-        'ALTER TABLE $t ADD COLUMN deleted INTEGER NOT NULL DEFAULT 0;',
-        'ALTER TABLE $t ADD COLUMN user_id TEXT;',
-        if (!_hadUpdatedAt.contains(t))
-          "ALTER TABLE $t ADD COLUMN updated_at TEXT NOT NULL DEFAULT '';",
-      ],
-    ].join('\n'),
+    (db) => db.executeScript(
+      [
+        for (final t in syncedTables) ...[
+          'ALTER TABLE $t ADD COLUMN deleted INTEGER NOT NULL DEFAULT 0;',
+          'ALTER TABLE $t ADD COLUMN user_id TEXT;',
+          if (!_hadUpdatedAt.contains(t))
+            "ALTER TABLE $t ADD COLUMN updated_at TEXT NOT NULL DEFAULT '';",
+        ],
+      ].join('\n'),
+    ),
+    // 2 — the outbox: the local changes that the remote does not have yet.
+    SyncSchema.createOutbox,
   ];
 
   static const _key = 'schema';
@@ -210,7 +216,7 @@ abstract final class SyncMigrations {
     final current = version(db);
     for (var index = current; index < all.length; index++) {
       db.transaction(() {
-        db.executeScript(all[index]);
+        all[index](db);
         db.execute(
           'INSERT INTO sync_meta (key, value) VALUES (?, ?) '
           'ON CONFLICT(key) DO UPDATE SET value = excluded.value',
@@ -218,5 +224,6 @@ abstract final class SyncMigrations {
         );
       });
     }
+    SyncSchema.ensureTriggers(db);
   }
 }

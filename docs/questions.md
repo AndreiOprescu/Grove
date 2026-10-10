@@ -26,3 +26,15 @@ A) Yes, this list — the Flutter app uses these fonts on all 4 systems, the Mac
 B) No, change a font — you name the theme and the font you want.
 If no answer: no font files go in. System fonts stay.
 Answer (owner, 2026-10-10): A. All 7 fonts are approved.
+
+## Q-3 · OPEN · DEFAULT · blocks F11-core (sync engine) · 2026-10-10
+You write the daily note of the same day on two devices while both are offline. Only one daily note can be there for a day. What happens at the next sync?
+A) Keep one note and put both texts in it, one below the other — no text is lost; you can get a text two times if both devices started from different words.   ← my pick: a lost note is worse than a long note.
+B) Keep one note, the text of the other note is lost — the note stays short; you lose what you wrote on one device.
+If no answer: A stays. It is built and tested (`app/lib/sync/sync_engine.dart`, `joinBodies`). The same rule is used for weekly notes.
+
+## Q-4 · OPEN · ASK · blocks F11 (login step, not F11-core) · 2026-10-10
+You log in on a device that already has data, and your account has data too. Each new device makes 3 sample lists and 3 sample tasks at first start. What happens at the first sync?
+A) Grove asks you one time: "Use the data of the account" (the data of this device is replaced) or "Add the data of this device to the account".   ← my pick: nothing is lost and nothing is doubled without your word.
+B) Grove always adds the data of the device to the account — no question; each new device adds its sample lists and sample tasks again, and you delete them by hand.
+If no answer: the login step waits. The sync engine works for both.
