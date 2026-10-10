@@ -47,6 +47,23 @@ extension AppStoreData on AppStore {
     ];
   }
 
+  /// Makes the copy of today when there is none yet, then drops the images
+  /// that no text uses. The launch does the same (`AppStore.open`). The app
+  /// calls this when it runs into a new day. Returns the path of a new copy.
+  String? runDailyBackup({DayKey? today}) {
+    final dir = dataDir;
+    if (dir == null) return null;
+    final made = _try(
+      () => Backup.runDaily(
+        repos.db,
+        directory: '$dir${Platform.pathSeparator}Backups',
+        today: today ?? DayKey.today(),
+      ),
+    );
+    if (made != null) _try(() => repos.attachments.sweepOrphans());
+    return made;
+  }
+
   // Note templates
 
   String _templateKey(NoteKind kind) =>
