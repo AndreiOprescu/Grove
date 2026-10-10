@@ -9,7 +9,7 @@ file, the plan, and `docs/assumptions.md` before it starts.
 | | Track A — engine | Track B — screens |
 |---|---|---|
 | Branch | `feat/xp-engine` | `feat/xp-screens` |
-| Folder | `/Users/andrei/Desktop/Grove` (main checkout) | `/Users/andrei/Desktop/Grove-screens` (git worktree) |
+| Folder | `/Users/andrei/Desktop/Grove` (main checkout) | `.claude/worktrees/screens` (git worktree, made by `claude --worktree screens`) |
 | Milestones, in order | F5 → F11-core → F10-services → F8 | F6 → F7 → F9 → F10-screens |
 | Owns (only this track edits) | `app/lib/state/`, `app/lib/sync/`, `app/lib/services/`, `app/lib/data/`, `app/lib/ui/tasks/`, `app/lib/ui/goals/`, `supabase/`, matching folders under `app/test/` | everything else in `app/lib/ui/`, `app/integration_test/`, goldens, matching folders under `app/test/` |
 
