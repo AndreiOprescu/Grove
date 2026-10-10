@@ -37,14 +37,15 @@ void main() {
         'search',
         'attachments',
         'goals',
+        'block_subtasks',
       ]) {
         expect(tables, contains(t), reason: 'missing table $t');
       }
     });
 
-    test('the shared migrations match the Mac app, six of them', () {
+    test('the shared migrations match the Mac app, seven of them', () {
       // The export file carries this number. The Mac app refuses a higher one.
-      expect(Migrations.all.length, 6);
+      expect(Migrations.all.length, 7);
     });
 
     test('migrations are idempotent', () {

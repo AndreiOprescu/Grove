@@ -159,37 +159,49 @@ void main() {
       },
     );
 
-    test('the file has the same rows and columns as a Mac export', () {
-      final mac = decode(
-        File('test/fixtures/mac_export_v6.json').readAsStringSync(),
-      );
-      final r = makeRepos();
-      DataExport.importData(jsonEncode(mac), r);
-      final ours = decode(DataExport.export(r.db));
-      expect(ours['schema'], mac['schema']);
-      final a = mac['tables'] as Map<String, dynamic>;
-      final b = ours['tables'] as Map<String, dynamic>;
-      expect(b.keys.toSet(), a.keys.toSet());
-      for (final name in a.keys) {
-        final macRows = a[name] as List;
-        final ourRows = b[name] as List;
-        expect(ourRows.length, macRows.length, reason: name);
-        for (var i = 0; i < macRows.length; i++) {
-          final want = macRows[i] as Map;
-          final got = ourRows[i] as Map;
-          expect(got.keys.toSet(), want.keys.toSet(), reason: name);
-          for (final key in want.keys) {
-            // Swift writes 0 for a real 0.0. Compare numbers by value.
-            final w = want[key], g = got[key];
-            if (w is num && g is num) {
-              expect(g.toDouble(), w.toDouble(), reason: '$name.$key');
-            } else {
-              expect(g, w, reason: '$name.$key');
+    // Version 7 is the Mac app of today. Version 6 is a Mac app from before
+    // the subtasks of goal blocks: its file has no `block_subtasks` table.
+    for (final version in [7, 6]) {
+      test('the file has the same rows and columns as a Mac export '
+          '(schema $version)', () {
+        final mac = decode(
+          File('test/fixtures/mac_export_v$version.json').readAsStringSync(),
+        );
+        expect(mac['schema'], version);
+        final r = makeRepos();
+        DataExport.importData(jsonEncode(mac), r);
+        final ours = decode(DataExport.export(r.db));
+        expect(ours['schema'], 7);
+        final a = mac['tables'] as Map<String, dynamic>;
+        final b = ours['tables'] as Map<String, dynamic>;
+        if (version == 6) {
+          expect(a.keys, isNot(contains('block_subtasks')));
+          expect(b.remove('block_subtasks'), isEmpty);
+        } else {
+          expect(a['block_subtasks'] as List, hasLength(2));
+        }
+        expect(b.keys.toSet(), a.keys.toSet());
+        for (final name in a.keys) {
+          final macRows = a[name] as List;
+          final ourRows = b[name] as List;
+          expect(ourRows.length, macRows.length, reason: name);
+          for (var i = 0; i < macRows.length; i++) {
+            final want = macRows[i] as Map;
+            final got = ourRows[i] as Map;
+            expect(got.keys.toSet(), want.keys.toSet(), reason: name);
+            for (final key in want.keys) {
+              // Swift writes 0 for a real 0.0. Compare numbers by value.
+              final w = want[key], g = got[key];
+              if (w is num && g is num) {
+                expect(g.toDouble(), w.toDouble(), reason: '$name.$key');
+              } else {
+                expect(g, w, reason: '$name.$key');
+              }
             }
           }
         }
-      }
-    });
+      });
+    }
 
     test('the keys are sorted and slashes are not escaped', () {
       final r = makeRepos();
