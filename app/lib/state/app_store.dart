@@ -748,6 +748,15 @@ class AppStore extends ChangeNotifier {
     return now.hour * 60 + now.minute;
   }
 
+  /// The moment now, from [clockOverride] or the real clock. A fixed clock
+  /// has whole minutes.
+  DateTime clockNow() {
+    final fixed = clockOverride;
+    if (fixed == null) return DateTime.now();
+    final at = fixed.day.date;
+    return DateTime(at.year, at.month, at.day, 0, fixed.minute);
+  }
+
   /// The time stamp of now, from [clockOverride] or the real clock.
   String clockStamp() {
     final fixed = clockOverride;
