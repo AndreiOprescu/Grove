@@ -26,6 +26,22 @@ const Map<String, IconData> _icons = {
   // moods of a day
   'cloud.rain': Icons.cloudy_snowing,
   'cloud.sun': Icons.wb_cloudy_outlined,
+  // calendar
+  'leaf.fill': Icons.eco,
+  'face.smiling': Icons.sentiment_satisfied_alt_outlined,
+  // notes
+  'magnifyingglass': Icons.search,
+  'xmark.circle.fill': Icons.cancel,
+  'pin': Icons.push_pin_outlined,
+  'pin.fill': Icons.push_pin,
+  'ellipsis.circle': Icons.more_horiz,
+  'arrow.up.left.and.arrow.down.right': Icons.open_in_full,
+  'checkmark.circle': Icons.check_circle_outline,
+  'clock': Icons.schedule,
+  'arrow.up.right': Icons.north_east,
+  'flame': Icons.local_fire_department_outlined,
+  'text.append': Icons.playlist_add,
+  'chevron.left': Icons.chevron_left,
 };
 
 /// True when `name` has its own icon.

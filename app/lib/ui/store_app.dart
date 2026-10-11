@@ -7,9 +7,13 @@ import 'package:flutter/services.dart';
 import 'package:grove/state/state.dart' hide MotionRules;
 
 import 'app.dart';
+import 'calendar/event_editor.dart';
+import 'notes/notes_pane.dart';
+import 'notes/notes_view.dart';
 import 'planner/planner_kind.dart';
 import 'planner/planner_view.dart';
 import 'shell/store_shell_model.dart';
+import 'spread/day_spread_view.dart';
 import 'tasks/store_panes.dart';
 
 class StoreApp extends StatefulWidget {
@@ -34,7 +38,8 @@ class _StoreAppState extends State<StoreApp> {
   }
 
   /// Undo and Redo, as in the Edit menu of the Mac app. Command on Apple
-  /// devices, Ctrl on the others. A text field keeps its own undo.
+  /// devices, Ctrl on the others. A text field keeps its own undo. And
+  /// Escape.
   Map<ShortcutActivator, VoidCallback> get _shortcuts {
     final store = widget.store;
     final apple =
@@ -47,10 +52,22 @@ class _StoreAppState extends State<StoreApp> {
       if (!apple)
         const SingleActivator(LogicalKeyboardKey.keyY, control: true):
             store.redo,
+      // Escape closes the panel of the chosen task from any place. A field
+      // or a screen that uses Escape itself takes the key first.
+      const SingleActivator(LogicalKeyboardKey.escape): () {
+        if (store.selectedTaskId != null) store.selectedTaskId = null;
+      },
     };
   }
 
   Widget? _screen(BuildContext context, Screen screen) {
+    final store = widget.store;
+    final view = _view(screen);
+    // The card of an event opens over each screen.
+    return view == null ? null : EventEditorHost(store: store, child: view);
+  }
+
+  Widget? _view(Screen screen) {
     final store = widget.store;
     return switch (screen) {
       // The panel of the chosen task is at the side of each screen (F8).
@@ -58,29 +75,31 @@ class _StoreAppState extends State<StoreApp> {
         store: store,
         child: PlannerView(store: store, kind: PlannerKind.week),
       ),
-      // The timeline of today. The other parts of the Day Spread come with
-      // milestone F9.
-      Screen.today => InspectorHost(
+      // The Day Spread has its own place for the panel of the chosen task.
+      Screen.today => DaySpreadView(store: store),
+      Screen.calendar => InspectorHost(
         store: store,
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(16, 6, 16, 16),
-          child: Center(
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 720),
-              child: PlannerView(store: store, kind: PlannerKind.today),
-            ),
-          ),
-        ),
+        child: PlannerView(store: store, kind: PlannerKind.month),
+      ),
+      Screen.notes => InspectorHost(
+        store: store,
+        child: NotesView(store: store),
       ),
       _ => null,
     };
   }
 
+  /// The notes in the left panel are a part of the screens (Track B). The
+  /// other panels come from `storePane`.
+  Widget? _pane(BuildContext context, LeftPane pane) => pane == LeftPane.notes
+      ? NotesPane(store: widget.store)
+      : storePane(context, widget.store, pane);
+
   @override
   Widget build(BuildContext context) => GroveApp(
     model: _model,
     screenBuilder: _screen,
-    paneBuilder: (context, pane) => storePane(context, widget.store, pane),
+    paneBuilder: _pane,
     shortcuts: _shortcuts,
   );
 }
