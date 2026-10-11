@@ -1,6 +1,7 @@
 // The Day Planner on a real device (milestone F7): create, drag, resize,
 // overlap and undo. Then the screens of milestone F9: the Day Spread, the
-// card of an event and a note. It runs on the Mac, on Windows, on an iOS
+// card of an event and a note. Then the Garden and the Settings window of
+// milestone F10. It runs on the Mac, on Windows, on an iOS
 // simulator and on an Android emulator:
 //   ./scripts/flutter_integration.sh macos|windows|ios|android
 //
@@ -18,7 +19,10 @@ import 'package:grove/data/data.dart';
 import 'package:grove/state/state.dart';
 import 'package:grove/ui/calendar/event_editor.dart';
 import 'package:grove/ui/calendar/month_view.dart';
+import 'package:grove/ui/garden/garden_view.dart';
 import 'package:grove/ui/notes/note_editor_pane.dart';
+import 'package:grove/ui/settings/settings_view.dart';
+import 'package:grove/ui/shell/appearance_button.dart';
 import 'package:grove/ui/shell/shell_layout.dart';
 import 'package:grove/ui/spread/day_spread_view.dart';
 import 'package:grove/ui/store_app.dart';
@@ -35,6 +39,21 @@ bool get _finger =>
 bool get _apple =>
     defaultTargetPlatform == TargetPlatform.macOS ||
     defaultTargetPlatform == TargetPlatform.iOS;
+
+/// Taps `finder` when a tap can reach it. On Android the keyboard of the
+/// system comes up a moment after the typing and makes the screen shorter.
+/// A button that was in view can be out of view again then, so this brings
+/// it into view until it stays there.
+Future<void> _tapInView(WidgetTester tester, Finder finder) async {
+  for (var tries = 0; tries < 20; tries++) {
+    await tester.ensureVisible(finder);
+    await tester.pumpAndSettle();
+    if (finder.hitTestable().evaluate().isNotEmpty) break;
+    await tester.pump(const Duration(milliseconds: 100));
+  }
+  await tester.tap(finder);
+  await tester.pumpAndSettle();
+}
 
 /// A store on an empty database in memory. Motion is off, so the screen
 /// comes to rest.
@@ -323,10 +342,7 @@ void main() {
     expect(find.byType(EventEditor), findsOneWidget);
     await tester.enterText(_field('event-title'), 'Dentist');
     await tester.pumpAndSettle();
-    await tester.ensureVisible(_key('event-save'));
-    await tester.pumpAndSettle();
-    await tester.tap(_key('event-save'));
-    await tester.pumpAndSettle();
+    await _tapInView(tester, _key('event-save'));
     expect(find.byType(EventEditor), findsNothing);
     final saved = store.eventItems(DayRange(day, day)).single;
     expect(saved.title, 'Dentist');
@@ -352,5 +368,30 @@ void main() {
     await tester.pump(NoteEditorPane.saveDelay);
     await tester.pumpAndSettle();
     expect(store.note(note.id)!.body, 'Hello from the device');
+  });
+
+  testWidgets('garden and settings: the plant shows, a theme card works', (
+    tester,
+  ) async {
+    final store = _store()..screen = Screen.garden;
+    await _open(tester, store);
+    expect(find.byType(GardenView), findsOneWidget);
+    expect(_key('garden-hero'), findsOneWidget);
+
+    // The Appearance menu works with a finger and with the mouse.
+    await tester.tap(find.byType(AppearanceButton));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Settings…'));
+    await tester.pumpAndSettle();
+    expect(find.byType(SettingsView), findsOneWidget);
+
+    await tester.tap(_key('settings-theme-minimal'));
+    await tester.pumpAndSettle();
+    expect(store.themeId, ThemeId.minimal);
+
+    await tester.tap(_key('settings-close'));
+    await tester.pumpAndSettle();
+    expect(find.byType(SettingsView), findsNothing);
+    expect(tester.takeException(), isNull);
   });
 }

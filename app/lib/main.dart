@@ -6,6 +6,7 @@ import 'package:grove/state/state.dart' hide MotionRules;
 import 'package:path_provider/path_provider.dart';
 
 import 'ui/store_app.dart';
+import 'ui/system/system_tools.dart';
 import 'ui/theme/fonts.dart';
 
 Future<void> main() async {
@@ -25,5 +26,13 @@ Future<void> main() async {
     sync: sync,
   );
   AppServices.forThisDevice(store).start();
-  runApp(StoreApp(store: store));
+  runApp(
+    StoreApp(
+      store: store,
+      // The real windows of the system. A test starts `StoreApp` with none.
+      files: SystemFiles(),
+      pickImages: pickImageFiles,
+      openLink: openInBrowser,
+    ),
+  );
 }

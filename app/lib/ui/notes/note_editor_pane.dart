@@ -55,9 +55,16 @@ class _NoteEditorPaneState extends State<NoteEditorPane> {
   final _titleFocus = FocusNode(debugLabel: 'note title');
   String _text = '';
 
+  /// The last title of the store that the title field got.
+  String _titleSeen = '';
+
   /// True from the first key typed in the text until the text loses the
   /// keyboard.
   bool _typing = false;
+
+  /// True from a key typed in the text until that text is saved. Only then
+  /// has the pane a text of its own to write.
+  bool _unsaved = false;
   Timer? _save;
   late final AppLifecycleListener _life;
 
@@ -68,7 +75,8 @@ class _NoteEditorPaneState extends State<NoteEditorPane> {
   void initState() {
     super.initState();
     final n = _store.note(_id);
-    _title.text = n?.title ?? '';
+    _titleSeen = n?.title ?? '';
+    _title.text = _titleSeen;
     _text = n?.body ?? '';
     _titleFocus.addListener(_titleFocusChanged);
     _life = AppLifecycleListener(
@@ -87,7 +95,7 @@ class _NoteEditorPaneState extends State<NoteEditorPane> {
     // The store must not change in the middle of a frame.
     final store = _store;
     final id = _id;
-    final text = _text;
+    final text = _unsaved ? _text : null;
     final title = _title.text;
     final typing = _typing;
     writeLater(
@@ -103,30 +111,39 @@ class _NoteEditorPaneState extends State<NoteEditorPane> {
 
   // Loading and saving
 
-  /// Shows what the store has, when the user is not in the middle of a
-  /// change. Undo, a sync and a ticked task come this way.
+  /// Shows what the store has. Undo, a sync and a ticked task come this
+  /// way. Only what the user typed and the pane did not save yet stays: the
+  /// caret in a field is not a change. Without this, the pane would later
+  /// write its old text over the new one.
   void _follow() {
-    if (_typing || _titleFocus.hasFocus) return;
     final n = _store.note(_id);
     if (n == null) return;
-    if (n.body != _text) _text = n.body;
-    if (n.title != _title.text) _title.text = n.title;
+    if (!_unsaved && n.body != _text) _text = n.body;
+    final renaming =
+        _titleFocus.hasFocus &&
+        _title.text != _titleSeen &&
+        _title.text != n.title;
+    if (!renaming) {
+      if (n.title != _title.text) _title.text = n.title;
+      _titleSeen = n.title;
+    }
   }
 
   /// Writes any unsaved title and text of note `id` now. Then the tasks
-  /// follow the boxes. `creating` lets open boxes make tasks. It is for the
+  /// follow the boxes. `text` is null when the user typed nothing since the
+  /// last save. `creating` lets open boxes make tasks. It is for the
   /// time the user is done with the text, never for text they only looked
   /// at. It adds hidden marks to the saved text.
   static void _write(
     AppStore store,
     String id, {
-    required String text,
+    required String? text,
     required String title,
     required bool creating,
   }) {
     final n = store.note(id);
     if (n == null) return;
-    if (text != n.body) store.setNoteBody(id, text);
+    if (text != null && text != n.body) store.setNoteBody(id, text);
     final name = title.trim();
     if (n.kind == NoteKind.note && name.isNotEmpty && name != n.title) {
       store.renameNote(id, to: name);
@@ -137,18 +154,22 @@ class _NoteEditorPaneState extends State<NoteEditorPane> {
   void _flush({required bool creating}) {
     _save?.cancel();
     _save = null;
-    _write(_store, _id, text: _text, title: _title.text, creating: creating);
+    final text = _unsaved ? _text : null;
+    _unsaved = false;
+    _write(_store, _id, text: text, title: _title.text, creating: creating);
   }
 
   void _textChanged(String text) {
     setState(() {
       _text = text;
       _typing = true;
+      _unsaved = true;
     });
     _save?.cancel();
     _save = Timer(NoteEditorPane.saveDelay, () {
       _save = null;
       if (!mounted) return;
+      _unsaved = false;
       _store.setNoteBody(_id, _text);
       // A ticked box finishes its task now. New tasks wait until the user
       // stops typing.

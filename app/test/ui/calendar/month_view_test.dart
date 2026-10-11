@@ -6,6 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:grove/ui/calendar/month_view.dart';
 import 'package:grove/ui/planner/payload_drag.dart';
 import 'package:grove/ui/planner/planner_view.dart';
+import 'package:grove/ui/theme/grove_theme.dart';
 
 import '../planner/planner_support.dart';
 import '../tasks/tasks_support.dart' show addTask, dragOnto, pumpPane;
@@ -307,6 +308,43 @@ void main() {
     }
   });
 
+  testWidgets('a narrow day keeps its leaf and its dots inside', (
+    tester,
+  ) async {
+    final store = calendarStore();
+    addTask(store, 'One');
+    addTask(store, 'Two');
+    addTask(store, 'Three');
+    store.setNoteBody(store.dailyNote(wednesday).id, 'some words');
+    Future<void> check(Size size) async {
+      await pumpPlanner(tester, store, size: size);
+      expect(tester.takeException(), isNull, reason: '$size');
+      final cell = tester.getRect(dayFinder(wednesday));
+      for (final part in ['leaf', 'dots']) {
+        final found = find.byKey(ValueKey('month-$part-${wednesday.string}'));
+        if (found.evaluate().isEmpty) continue;
+        final box = tester.getRect(found);
+        expect(box.left, greaterThanOrEqualTo(cell.left), reason: '$size');
+        expect(box.right, lessThanOrEqualTo(cell.right), reason: '$size');
+      }
+    }
+
+    // a phone: the cell is 52 points wide
+    await check(phoneSize);
+    expect(find.byKey(ValueKey('month-leaf-${wednesday.string}')), findsOne);
+    // the narrowest window with the left panel and the panel of a task
+    store.selectedTaskId = 'one';
+    await check(const Size(700, 620));
+    // a wide window has room for all of it
+    store.selectedTaskId = null;
+    await check(desktopSize);
+    expect(find.byKey(ValueKey('month-leaf-${wednesday.string}')), findsOne);
+    expect(
+      tester.getSize(find.byKey(ValueKey('month-dots-${wednesday.string}'))),
+      const Size(16, 4),
+    );
+  });
+
   testWidgets('today has its number on the accent colour', (tester) async {
     final store = calendarStore();
     await pumpPlanner(tester, store);
@@ -315,6 +353,26 @@ void main() {
     );
     expect(number(wednesday).style!.fontWeight, FontWeight.w700);
     expect(number(d('2026-10-08')).style!.fontWeight, FontWeight.w600);
+    // the round mark under the number
+    final theme = GroveTheme.of(tester.element(find.byType(MonthView)));
+    BoxDecoration mark(DayKey day) =>
+        tester
+                .widget<DecoratedBox>(
+                  find
+                      .ancestor(
+                        of: find.descendant(
+                          of: dayFinder(day),
+                          matching: find.text('${day.day}'),
+                        ),
+                        matching: find.byType(DecoratedBox),
+                      )
+                      .first,
+                )
+                .decoration
+            as BoxDecoration;
+    expect(mark(wednesday).color, theme.accent);
+    expect(mark(wednesday).shape, BoxShape.circle);
+    expect(mark(d('2026-10-08')).color, isNull);
     // a touch works like a mouse
     await tester.tapAt(
       tester.getCenter(dayFinder(d('2026-10-08'))),

@@ -16,6 +16,7 @@ import '../tasks/task_inspector.dart';
 import '../tasks/task_widgets.dart';
 import '../tasks/tasks_pane.dart';
 import '../theme/grove_theme.dart';
+import '../theme/growing_plant.dart';
 import '../theme/panel.dart';
 import '../theme/symbols.dart';
 import 'spread_rules.dart';
@@ -218,8 +219,8 @@ class _DaySpreadViewState extends State<DaySpreadView> {
   }
 }
 
-/// The big date, the greeting and the growth of the day. The growing plant
-/// comes with milestone F10.
+/// The big date, the greeting, the growth of the day and the plant. This
+/// screen is always today.
 class SpreadHeader extends StatelessWidget {
   const SpreadHeader({super.key, required this.store, this.compact = false});
 
@@ -232,25 +233,38 @@ class SpreadHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = GroveTheme.of(context);
     final day = store.clockToday;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      spacing: 2,
+    final progress = store.plantProgress(day);
+    return Row(
+      spacing: 16,
       children: [
-        ThemedHeading(
-          NotesRules.longDay(day),
-          compact ? 22 : 28,
-          key: const ValueKey('spread-date'),
-        ),
-        Text(
-          SpreadRules.subtitle(
-            isToday: true,
-            greeting: Greeting.text(hour: store.nowMinute() ~/ 60),
-            progress: store.plantProgress(day),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            spacing: 2,
+            children: [
+              ThemedHeading(
+                NotesRules.longDay(day),
+                compact ? 22 : 28,
+                key: const ValueKey('spread-date'),
+              ),
+              Text(
+                SpreadRules.subtitle(
+                  isToday: true,
+                  greeting: Greeting.text(hour: store.nowMinute() ~/ 60),
+                  progress: progress,
+                ),
+                key: const ValueKey('spread-subtitle'),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: theme.body(12).copyWith(color: theme.muted),
+              ),
+            ],
           ),
-          key: const ValueKey('spread-subtitle'),
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: theme.body(12).copyWith(color: theme.muted),
+        ),
+        GrowingPlant(
+          progress: progress,
+          motion: store.motionSetting,
+          height: 44,
         ),
       ],
     );

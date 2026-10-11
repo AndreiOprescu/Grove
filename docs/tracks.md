@@ -300,7 +300,63 @@ file, the plan, and `docs/assumptions.md` before it starts.
   links (Q-16). CI is green on the 4 jobs, with the device test (8 tests) in
   each: run 38132697606, commit `c62116b`, 2026-10-11. One golden picture
   (the futuristic Day Spread) is skipped on Linux and Windows; Q-17 asks the
-  owner.
+  owner. The owner merged PR #10 at `a6a52c0`. After that, three agents
+  checked F9 (a verifier and two reviewers). Their findings are fixed in
+  `1bfbce9`, `c0c0871` and `2634cfb` on `feat/xp-screens`; these commits are
+  in no merged PR yet. The runs are in `docs/acceptance/F9.md`, "CI".
+- F10-screens: built, waits for the user (proof:
+  `docs/acceptance/F10-screens.md`): the Garden, the growing plant (the big
+  one, and the small one in the header of the Day Spread) and the Settings
+  window with 6 tabs. "Export" and "Import" are built and hidden (Q-18).
+  "Show data folder" and "Open System Settings" are not there (Q-16). The CI
+  runs are in the proof file, "CI".
+- Answers to "Requests to Track B, with F11-login", the F10 part
+  (2026-10-11):
+  - The sync card: Settings, tab "Sync" (`SyncSettings` in
+    `app/lib/ui/settings/settings_tabs.dart`). Settings opens from the last
+    line of the Appearance menu and with Cmd or Ctrl and comma.
+  - The gate: `FirstSyncGate(store: store, child: ...)` is around `RootView`
+    in `store_app.dart`, under the navigator (`GroveApp.homeBuilder`, a new
+    optional parameter in the shared file `app/lib/ui/app.dart`). The
+    question opens with and without the Settings window.
+  - The sync mark: `SyncMark` in `app/lib/ui/settings/sync_mark.dart`, in
+    front of the Appearance button. It shows nothing for `SyncStatus.off`. A
+    tap opens Settings on the Sync tab. Its tooltip is
+    `SyncWords.status(store, now: ...)`; for an error it says "The last sync
+    did not work. Open Settings to see why."
+  - `store.askForNotifications()`: the Notifications tab calls it the first
+    time the switch goes on, and from the button "Allow notifications". The
+    tab calls `store.refreshNotifyStatus()` when it opens.
+  - The tests of these parts use your `World`, `stillDevice` and
+    `signInWithCard` (`app/test/ui/settings/settings_sync_test.dart`). No
+    test calls a real project. I did not touch `app/lib/ui/auth/`.
+- Requests to Track A, with F10-screens:
+  - A store call that saves a view setting and tells the screens. The
+    Planner tab of Settings writes `planner.defaultLength`,
+    `planner.hourHeight`, `planner.workStart`, `planner.workEnd`,
+    `planner.dailyLimitMin`, `calendar.moodTint` and
+    `calendar.weekStartsSunday` with `store.prefs.set(...)`, and then calls
+    `store.setIntensity(store.intensity)` only to make the store tell the
+    screens (`saveSetting` in `settings_tabs.dart`). One call, for example
+    `store.setSetting(key, value)`, would be cleaner. I change over when it
+    is there.
+  - Import with sync signed in. `DataSettings` calls
+    `store.saveSafetyCopy()` and then `store.importData(text)`. What must
+    happen to the account then is yours and the owner's to decide (a note is
+    in Q-18). The two buttons are hidden in the real app until Q-18 has an
+    answer, so nothing can go wrong today.
+  - `SettingsRules.notifyStatusText(denied)` says "System Settings" on each
+    system. On Windows and Android the place has another name. Your string;
+    change it if you want.
+- For Track A to know (F10-screens):
+  - The small plant is `GrowingPlant(progress: store.plantProgress, motion:
+    store.motionSetting)` in `app/lib/ui/theme/growing_plant.dart`, if you
+    want it in a panel.
+  - `SettingsRow`, `SettingsSection`, `GroveSwitch` and `SettingsSlider` are
+    in `app/lib/ui/settings/settings_parts.dart`.
+  - `RootView` and `GroveApp` have two new optional parameters:
+    `onSettings` and `topActions` (a small thing in front of the Appearance
+    button).
 - Answers to "Requests to Track B, with F8", the F9 part (2026-10-11):
   - Day Spread: the Today screen is `DaySpreadView(store: store)` in
     `app/lib/ui/spread/day_spread_view.dart`. Its first column is your
