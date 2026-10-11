@@ -6,10 +6,46 @@ import 'package:grove/state/state.dart' hide MotionRules;
 
 import '../theme/grove_theme.dart';
 import '../theme/panel.dart';
+import 'sliver_column.dart';
 import 'task_row.dart';
+
+/// The rows of one list, each with 6 points over it. A sliver: only the
+/// rows in or near the view are built, so a list of 1 000 tasks costs as
+/// little as a list of 20.
+class TaskRows extends StatelessWidget {
+  const TaskRows({super.key, required this.tasks, required this.rowBuilder});
+
+  final List<TaskItem> tasks;
+  final Widget Function(TaskItem task) rowBuilder;
+
+  static String _key(TaskItem task) => 'row-${task.id}';
+
+  @override
+  Widget build(BuildContext context) {
+    final places = {for (final (i, task) in tasks.indexed) _key(task): i};
+    return SliverList.builder(
+      itemCount: tasks.length,
+      // A row that moves in the list keeps its state: the text in its
+      // fields, and the keyboard.
+      findChildIndexCallback: (key) =>
+          key is ValueKey<String> ? places[key.value] : null,
+      itemBuilder: (context, index) {
+        final task = tasks[index];
+        return Padding(
+          key: ValueKey(_key(task)),
+          padding: const EdgeInsets.only(top: 6),
+          child: rowBuilder(task),
+        );
+      },
+    );
+  }
+}
 
 /// A titled group of task rows. Drop a task on the header, the empty area
 /// or the end of the list to put it last.
+///
+/// A sliver, for a `CustomScrollView`: the rows are built only when they
+/// are in or near the view ([TaskRows]).
 class TaskSection extends StatefulWidget {
   const TaskSection({
     super.key,
@@ -80,56 +116,60 @@ class _TaskSectionState extends State<TaskSection> {
   Widget build(BuildContext context) {
     final theme = GroveTheme.of(context);
     final tasks = widget.tasks;
-    return Column(
+    return SliverColumn(
       key: ValueKey('section-${widget.title}'),
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      mainAxisSize: MainAxisSize.min,
-      spacing: 6,
-      children: [
-        _zone(
-          ConstrainedBox(
-            constraints: const BoxConstraints(minHeight: 18),
-            child: Row(
-              spacing: 6,
-              children: [
-                Flexible(
-                  child: ThemedHeading(
-                    widget.title,
-                    12,
-                    weight: FontWeight.w700,
-                    color: widget.tint,
+      slivers: [
+        SliverToBoxAdapter(
+          child: _zone(
+            ConstrainedBox(
+              constraints: const BoxConstraints(minHeight: 18),
+              child: Row(
+                spacing: 6,
+                children: [
+                  Flexible(
+                    child: ThemedHeading(
+                      widget.title,
+                      12,
+                      weight: FontWeight.w700,
+                      color: widget.tint,
+                    ),
                   ),
-                ),
-                if (tasks.isNotEmpty)
-                  Text(
-                    '${tasks.length}',
-                    style: theme
-                        .body(10, weight: FontWeight.w600)
-                        .copyWith(color: theme.muted),
-                  ),
-              ],
+                  if (tasks.isNotEmpty)
+                    Text(
+                      '${tasks.length}',
+                      style: theme
+                          .body(10, weight: FontWeight.w600)
+                          .copyWith(color: theme.muted),
+                    ),
+                ],
+              ),
             ),
           ),
         ),
         if (tasks.isEmpty)
-          _zone(
-            DashedBorder(
-              color: _targeted ? theme.accent : theme.line,
-              radius: 10,
-              dash: 4,
-              gap: 3,
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(minHeight: 34),
-                child: Center(
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 8,
-                      vertical: 6,
-                    ),
-                    child: Text(
-                      widget.emptyText,
-                      textAlign: TextAlign.center,
-                      style: theme.body(11).copyWith(color: theme.muted),
+          SliverPadding(
+            padding: const EdgeInsets.only(top: 6),
+            sliver: SliverToBoxAdapter(
+              child: _zone(
+                DashedBorder(
+                  color: _targeted ? theme.accent : theme.line,
+                  radius: 10,
+                  dash: 4,
+                  gap: 3,
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(minHeight: 34),
+                    child: Center(
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 6,
+                        ),
+                        child: Text(
+                          widget.emptyText,
+                          textAlign: TextAlign.center,
+                          style: theme.body(11).copyWith(color: theme.muted),
+                        ),
+                      ),
                     ),
                   ),
                 ),
@@ -137,9 +177,9 @@ class _TaskSectionState extends State<TaskSection> {
             ),
           )
         else ...[
-          for (final task in tasks)
-            TaskRow(
-              key: ValueKey('row-${task.id}'),
+          TaskRows(
+            tasks: tasks,
+            rowBuilder: (task) => TaskRow(
               store: widget.store,
               task: task,
               contextDay: widget.contextDay ?? task.planDate,
@@ -151,24 +191,30 @@ class _TaskSectionState extends State<TaskSection> {
                   ? null
                   : (id) => _drop(id, before: task.id),
             ),
+          ),
           // The end of the list: a thin strip that takes drops.
-          _zone(
-            SizedBox(
-              height: 10,
-              child: Align(
-                alignment: Alignment.topCenter,
-                child: _targeted
-                    ? SizedBox(
-                        height: 3,
-                        child: DecoratedBox(
-                          decoration: ShapeDecoration(
-                            color: theme.accent,
-                            shape: const StadiumBorder(),
-                          ),
-                          child: const SizedBox.expand(),
-                        ),
-                      )
-                    : null,
+          SliverPadding(
+            padding: const EdgeInsets.only(top: 6),
+            sliver: SliverToBoxAdapter(
+              child: _zone(
+                SizedBox(
+                  height: 10,
+                  child: Align(
+                    alignment: Alignment.topCenter,
+                    child: _targeted
+                        ? SizedBox(
+                            height: 3,
+                            child: DecoratedBox(
+                              decoration: ShapeDecoration(
+                                color: theme.accent,
+                                shape: const StadiumBorder(),
+                              ),
+                              child: const SizedBox.expand(),
+                            ),
+                          )
+                        : null,
+                  ),
+                ),
               ),
             ),
           ),
