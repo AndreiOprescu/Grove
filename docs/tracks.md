@@ -294,8 +294,69 @@ file, the plan, and `docs/assumptions.md` before it starts.
 - F7: done, waits for the user (proof: `docs/acceptance/F7.md`). CI is green
   on the 4 jobs, with the device test in each: run 38089136176, commit
   `1cc29a8`, 2026-10-11.
-- F9: in work (Calendar, Notes, Day Spread, the rich editor, the event
-  editor)
+- F9: built, waits for the user (proof: `docs/acceptance/F9.md`): the month
+  Calendar, the card of an event, the Notes screen, the rich editor and the
+  Day Spread. Two parts wait for an answer: "Add an image" (Q-15) and web
+  links (Q-16). CI: see the proof file.
+- Answers to "Requests to Track B, with F8", the F9 part (2026-10-11):
+  - Day Spread: the Today screen is `DaySpreadView(store: store)` in
+    `app/lib/ui/spread/day_spread_view.dart`. Its first column is your
+    `TasksPane(store: store, mode: TasksPaneMode.today)`. The panel of a
+    chosen task takes the place of the note column
+    (`TaskInspector(store: store, taskId: ...)`). `InspectorHost` is off the
+    Today screen on a wide window. A phone shows one day column, and there
+    the Today screen keeps `InspectorHost`.
+  - When a left panel is open on the Today screen, the Day Spread hides its
+    own task list, so there is one list of tasks at a time.
+  - `InspectorHost` is around the Calendar and the Notes screen in
+    `store_app.dart`.
+  - Esc: it is a shell shortcut in `store_app.dart` now
+    (`store.selectedTaskId = null`). A field or the planner that uses Esc
+    itself is first.
+  - The rich editor is `RichTextField` in
+    `app/lib/ui/editor/rich_text_field.dart`. For the description of a task:
+
+    ```dart
+    late final _services = store.editorServices(
+      excluding: ItemRef(ItemType.task, taskId),
+    );
+
+    RichTextField(
+      text: task.notes,
+      onChanged: (text) => ...,   // each change the user makes
+      services: _services,        // the `[[` list, the links, the images
+      placeholder: 'Notes',
+      minHeight: 80,
+      onFocusChange: (has) => ..., // save when it loses the keyboard
+      label: 'Notes',
+    )
+    ```
+
+    Make the services one time (not in `build`). The text is the Markdown of
+    the Mac app. `note_editor_pane.dart` shows how to save after a short
+    wait. I did not touch `task_inspector.dart`.
+  - The device test has a step for the panels now: "today: the Day Spread
+    opens, a tap on a task opens its panel". On a wide window it taps a row
+    of your `TasksPane` in the Day Spread. On a phone it opens the Tasks
+    panel at the left and taps a row there.
+  - `app/lib/ui/planner/planner_clock.dart` is deleted. The planner and the
+    month read `store.clockToday` and `store.nowMinute()`.
+- Answers to "Requests to Track B, with F11-login" (2026-10-11):
+  - The sync card and the gate: not in F9. They come with the Settings
+    screen (F10-screens). I put `SyncCard(store: store)` there and
+    `FirstSyncGate` around the screens in `store_app.dart` in the same step.
+    The gate alone would never open, because the question starts in the
+    card.
+  - The small sync mark in the top bar: with F10-screens too.
+  - Your shared files came with `git merge origin/feat/xp-engine` (up to
+    `6f0a9cf`). Nothing of mine had to change.
+- For Track A to know (F9):
+  - One click on an event of the planner opens the card of the event,
+    because `store.selectBlock` calls `editEvent`. The card is at the top
+    right and does not take the keys from the planner. No change is asked.
+  - A note in the left panel: `NotesPane(store: store)` in
+    `app/lib/ui/notes/notes_pane.dart`. `store_app.dart` gives it for
+    `LeftPane.notes`; your `storePane` gives the two others.
 - Answers to "Requests to Track B, with F8" (2026-10-11):
   - Android device test, "resize: the bottom edge changes the end": the test
     was right, the app was wrong. The edge of a block waited for 18 points
@@ -314,8 +375,8 @@ file, the plan, and `docs/assumptions.md` before it starts.
     changed (yours and mine). `ThemedHeading` keeps the gap of the theme
     (-0.2 or 1.5); that is its look. I did not touch `tasks_support.dart`.
   - Day Spread, `InspectorHost` on new screens, Esc, the rich editor, a step
-    of the device test for the panels: with F9. See the F9 lines below when
-    they are there.
+    of the device test for the panels: done with F9. See the F9 answers
+    above.
 - Answers to Track A's requests (all done on 2026-10-10):
   - One set of enums. My four are deleted. `shell_model.dart` and
     `theme_spec.dart` `export` the state ones. `AppearanceMode.brightness` is
@@ -371,10 +432,20 @@ file, the plan, and `docs/assumptions.md` before it starts.
   - Subtasks on goal blocks (Swift PR #4): when that PR is merged, port its
     table (`block_subtasks`) and its store calls. The grid cannot show them
     before that.
-  - The clock: `nowMinute()`, `showToday()`, `showDay()` and the
-    `DayKey.today()` calls in `app/lib/state/` do not use `clockOverride`.
-    Please make them use it. Then a screen test can fix the day for the whole
-    store. Today the planner has its own small helper
-    (`app/lib/ui/planner/planner_clock.dart`); I delete it after.
-  - The event editor: I build it with F9 (`app/lib/ui/calendar/`). Nothing
-    to do for you.
+  - The clock: done by you with F8. Thank you. The helper
+    `planner_clock.dart` is deleted (F9).
+  - The event editor: built with F9 (`app/lib/ui/calendar/event_editor.dart`).
+    Nothing to do for you.
+  - New with F9, the clock of a note: `NoteRepo.save` (`app/lib/data/repos.dart`)
+    and `Note(...)` stamp a note with `Stamp.now()`, the real clock, not
+    with `store.clockStamp()`. So `newNote`, `dailyNote` and `setNoteBody`
+    in a test give a note with the real day, and the Notes list shows that
+    day. My golden test saves its notes by hand with
+    `repos.notes.save(note, touch: false)`. If you want one clock here too:
+    let the store give the stamp to the note before the save. Not urgent.
+  - New with F9, the description of a task: when you put `RichTextField` in
+    `task_inspector.dart`, the pictures of your panel change. Look at them
+    after `--update-goldens`.
+  - New with F9, images: `EditorServices.storeImage` is used by the editor,
+    but no screen can pick a file yet (Q-15). Nothing to do before the
+    answer.

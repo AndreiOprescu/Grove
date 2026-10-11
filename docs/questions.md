@@ -99,3 +99,15 @@ Who can make an account in your Supabase project? The address and the public key
 A) Only you — after your first login you turn off "Allow new users to sign up" in Supabase. Nobody else can sign in.   ← my pick: Grove is for one user, and the free plan is yours.
 B) Each person who has the app — a person sees only their own rows, but uses the space and the emails of your project.
 If no answer: sign-up stays open, as Supabase makes a new project. The step for A is in `docs/acceptance/F11-login.md`. The code is the same for both.
+
+## Q-15 · OPEN · ASK · blocks F9 (add an image to a note) · 2026-10-11
+May Grove use the package `file_selector` (from the Flutter team) to pick an image file? It is not on the plan's list.
+A) Yes — "Add an image" works in notes and in the notes of an event, on the 4 systems. One new package.   ← my pick: the plan wants images in the editor, and Flutter has no file window of its own.
+B) No — a note shows the images it has, but you cannot add one in the Flutter app.
+If no answer: B stays. The button "Add an image" is hidden. The editor is ready for it: it takes the picker as one parameter.
+
+## Q-16 · OPEN · ASK · blocks F9 (web links in a note) · 2026-10-11
+May Grove use the package `url_launcher` (from the Flutter team) to open a web link in the browser? It is not on the plan's list.
+A) Yes — a click on a web link in a note opens the browser. One new package.   ← my pick: a link that does nothing looks broken.
+B) No — a web link has the look of a link, and a click does nothing.
+If no answer: B stays. Links to tasks, notes and events (`[[`) work now; they need no package.
