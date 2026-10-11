@@ -40,8 +40,8 @@ New package: `supabase_flutter` 2.18.2 (on the plan's list). No other package wa
 
 ## CI
 
-- Flutter, 4 jobs: CI_FLUTTER
-- SQL on Postgres: CI_SQL
+- Flutter, 4 jobs: runs 38091561817 (pull_request) and 38091559060 (push) on commit 20e1121. In both runs android, windows, macos and ios ended with success, and no step failed. The only skipped steps are the ones for another target and the upload of the pictures of a golden failure (it runs only after a failure).
+- SQL on Postgres: workflow `supabase-sql`, runs 38091561825 (pull_request) and 38091559070 (push) on commit 20e1121, both success. PostgreSQL 16.15 of the runner, 80 checks "ok", "All SQL checks passed."
 
 ## Not done, or not verified
 

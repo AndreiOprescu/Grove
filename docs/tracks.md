@@ -83,7 +83,8 @@ file, the plan, and `docs/assumptions.md` before it starts.
   owner's Supabase keys and for Track B to place the card (proof:
   `docs/acceptance/F11-login.md`, questions Q-9 to Q-14). The SQL is in
   `supabase/migrations/`. It ran on a plain Postgres on CI, never on a real
-  Supabase project
+  Supabase project. CI is green on commit `20e1121`: the 4 jobs of run
+  38091561817, and the SQL check in run 38091561825
 - Sync for Track B:
   - The store calls the engine now (`app/lib/state/store_sync.dart`). It
     syncs after the login, 3 seconds after a change, each 5 minutes, when
