@@ -1,4 +1,5 @@
 // The card of an event (milestone F9): make, change and delete an event.
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart' hide Row;
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -115,6 +116,12 @@ void main() {
     await tester.pumpAndSettle();
     final card = tester.getRect(find.byType(EventEditor));
     expect(card.right, desktopSize.width - 12);
+    final area = tester.getRect(
+      find
+          .ancestor(of: find.byType(EventEditor), matching: find.byType(Stack))
+          .first,
+    );
+    expect(card.top, area.top + 12);
     expect(key('event-editor-scrim'), findsNothing);
     await tester.tapAt(const Offset(300, 500));
     await tester.pumpAndSettle();
@@ -146,6 +153,12 @@ void main() {
     store.newEvent(on: wednesday);
     await tester.pumpAndSettle();
     expect(key('event-editor-scrim'), findsOneWidget);
+    // the card is in the middle of the dark layer
+    final card = tester.getRect(find.byType(EventEditor));
+    final layer = tester.getRect(key('event-editor-scrim'));
+    expect(card.center.dx, moreOrLessEquals(layer.center.dx, epsilon: 1));
+    expect(card.center.dy, moreOrLessEquals(layer.center.dy, epsilon: 1));
+    expect(layer.width, phoneSize.width);
     await tester.enterText(fieldOf('event-title'), 'Four');
     await tester.tapAt(
       tester.getRect(key('event-editor-scrim')).topLeft + const Offset(5, 5),
@@ -333,6 +346,99 @@ void main() {
     expect(key('event-ends'), findsNothing);
   });
 
+  testWidgets('each short repeat choice gives its rule', (tester) async {
+    final store = calendarStore();
+    final e = makeEvent(store, 'Gym');
+    await pumpPlanner(tester, store);
+    Future<RecurrenceRule> pick(String line) async {
+      store.editEvent(store.event(e.id)!);
+      await tester.pumpAndSettle();
+      await pickInMenu(tester, 'event-repeat', line);
+      await tapKey(tester, 'event-save');
+      expect(find.byType(EventEditor), findsNothing);
+      return store.event(e.id)!.recurrence!;
+    }
+
+    final weekdays = await pick('Every weekday');
+    expect(weekdays.freq, Freq.weekly);
+    expect(weekdays.interval, 1);
+    expect(weekdays.weekdays, [1, 2, 3, 4, 5]);
+
+    final twoWeeks = await pick('Every 2 weeks');
+    expect(twoWeeks.freq, Freq.weekly);
+    expect(twoWeeks.interval, 2);
+
+    final month = await pick('Every month');
+    expect(month.freq, Freq.monthly);
+    expect(month.interval, 1);
+
+    final year = await pick('Every year');
+    expect(year.freq, Freq.yearly);
+    expect(year.interval, 1);
+
+    // the card of the saved event shows the choice again
+    store.editEvent(store.event(e.id)!);
+    await tester.pumpAndSettle();
+    expect(
+      find.descendant(
+        of: key('event-repeat'),
+        matching: find.text('Every year'),
+      ),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('a click on the day opens the calendar, and the day is kept', (
+    tester,
+  ) async {
+    final store = calendarStore();
+    final e = makeEvent(store, 'Stand-up');
+    await pumpPlanner(tester, store);
+    store.editEvent(e);
+    await tester.pumpAndSettle();
+
+    await tapKey(tester, 'event-starts-day');
+    expect(find.byType(DatePickerDialog), findsOneWidget);
+    await tester.tap(
+      find.descendant(
+        of: find.byType(DatePickerDialog),
+        matching: find.text('21'),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('OK'));
+    await tester.pumpAndSettle();
+    expect(find.byType(DatePickerDialog), findsNothing);
+
+    await tapKey(tester, 'event-save');
+    final saved = store.event(e.id)!;
+    expect(saved.start.day, d('2026-10-21'));
+    expect(saved.start.minute, 9 * 60);
+    // the end goes with the start: the event keeps its hour
+    expect(saved.end.day, d('2026-10-21'));
+    expect(saved.end.minute, 10 * 60);
+  });
+
+  testWidgets('on a Mac, Cmd+Return saves', (tester) async {
+    debugDefaultTargetPlatformOverride = TargetPlatform.macOS;
+    try {
+      final store = calendarStore();
+      final e = makeEvent(store, 'Stand-up');
+      await pumpPlanner(tester, store);
+      store.editEvent(e);
+      await tester.pumpAndSettle();
+      await tester.enterText(fieldOf('event-title'), 'Daily sync');
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.metaLeft);
+      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.metaLeft);
+      await tester.pumpAndSettle();
+      expect(find.byType(EventEditor), findsNothing);
+      expect(store.event(e.id)!.title, 'Daily sync');
+    } finally {
+      debugDefaultTargetPlatformOverride = null;
+    }
+  });
+
   testWidgets('Delete takes the event away', (tester) async {
     final store = calendarStore();
     final e = makeEvent(store, 'Stand-up');
@@ -370,6 +476,38 @@ void main() {
           x.title,
     ];
     expect(titles, ['Swim', 'Gym']);
+  });
+
+  testWidgets('"All events" changes every day of a series', (tester) async {
+    final store = calendarStore();
+    final e = makeEvent(store, 'Gym');
+    store.saveEvent(
+      e.copyWith(recurrence: RecurrenceRule(freq: Freq.daily)),
+      from: e,
+    );
+    final second = eventsOf(store)
+        .firstWhere((x) => x.start.day == d('2026-10-08'));
+    await pumpPlanner(tester, store);
+    store.editEvent(second);
+    await tester.pumpAndSettle();
+    await tester.enterText(fieldOf('event-title'), 'Swim');
+    await tapKey(tester, 'event-save');
+    expect(store.recurringPrompt, isNotNull);
+    await tester.tap(find.text('All events'));
+    await tester.pumpAndSettle();
+    expect(store.recurringPrompt, isNull);
+    final titles = {
+      for (final x in eventsOf(store))
+        if (x.start.day == wednesday ||
+            x.start.day == d('2026-10-08') ||
+            x.start.day == d('2026-10-09'))
+          x.start.day.string: x.title,
+    };
+    expect(titles, {
+      '2026-10-07': 'Swim',
+      '2026-10-08': 'Swim',
+      '2026-10-09': 'Swim',
+    });
   });
 
   testWidgets('the meeting note is made from a saved event only', (

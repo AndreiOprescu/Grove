@@ -9,6 +9,7 @@ import 'package:grove/ui/notes/notes_pane.dart';
 import 'package:grove/ui/notes/notes_view.dart';
 
 import '../planner/planner_support.dart';
+import '../tasks/tasks_support.dart' show addTask;
 
 AppStore notesStore() => plannerStore()..screen = Screen.notes;
 
@@ -189,6 +190,100 @@ void main() {
     expect(store.selectedDay, wednesday);
   });
 
+  testWidgets('the mood: each of the three, and a second click clears it', (
+    tester,
+  ) async {
+    final store = notesStore();
+    await pumpPlanner(tester, store);
+    await tapKey(tester, 'notes-today');
+    final id = store.existingDailyNote(wednesday)!.id;
+    for (final m in Mood.values) {
+      await tapKey(tester, 'mood-${m.name}');
+      expect(store.note(id)!.mood, m.value, reason: m.name);
+    }
+    // the last one was the sun; a click on it again takes the mood away
+    await tapKey(tester, 'mood-sun');
+    expect(store.note(id)!.mood, isNull);
+    await tapKey(tester, 'mood-rain');
+    expect(store.note(id)!.mood, Mood.rain.value);
+    await tapKey(tester, 'mood-cloud');
+    expect(store.note(id)!.mood, Mood.cloud.value);
+  });
+
+  testWidgets('a finished task shows under "Done today" with its time', (
+    tester,
+  ) async {
+    final store = notesStore();
+    final task = addTask(store, 'Water the plants');
+    addTask(store, 'Write the report');
+    await pumpPlanner(tester, store);
+    await tapKey(tester, 'notes-today');
+    expect(find.text('Done today'), findsOneWidget);
+    expect(find.text('Nothing finished yet.'), findsOneWidget);
+    expect(key('done-${task.id}'), findsNothing);
+
+    store.toggleDone(taskId: task.id);
+    await tester.pumpAndSettle();
+    expect(find.text('Nothing finished yet.'), findsNothing);
+    expect(
+      find.descendant(
+        of: key('done-${task.id}'),
+        matching: find.text('Water the plants'),
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(
+        of: key('done-${task.id}'),
+        matching: find.text(DayRules.finishedClock(store.task(task.id)!)),
+      ),
+      findsOneWidget,
+    );
+    // the open task is not in the list
+    expect(key('done-write-the-report'), findsNothing);
+    // the list is not written in the note
+    expect(
+      store.existingDailyNote(wednesday)!.body,
+      isNot(contains('Water the plants')),
+    );
+  });
+
+  testWidgets('the card of the week counts what is done and what is open', (
+    tester,
+  ) async {
+    final store = notesStore();
+    final done = addTask(store, 'Water the plants');
+    final open = addTask(store, 'Write the report', day: d('2026-10-08'));
+    store.toggleDone(taskId: done.id);
+    await pumpPlanner(tester, store);
+    await tapKey(tester, 'notes-week');
+    final panel = find.byType(WeekReviewPanel);
+    Finder inPanel(Finder f) => find.descendant(of: panel, matching: f);
+    final review = store.weekReview(wednesday.weekStart());
+    expect(titles(review.done), ['Water the plants']);
+    expect(titles(review.open), ['Write the report']);
+    // the two numbers, each over its word
+    expect(inPanel(find.text('done')), findsOneWidget);
+    expect(inPanel(find.text('still open')), findsOneWidget);
+    expect(inPanel(find.text('1')), findsNWidgets(2));
+    expect(inPanel(find.text('Finished')), findsOneWidget);
+    expect(inPanel(find.text('Left open')), findsOneWidget);
+    expect(
+      find.descendant(
+        of: key('week-task-${done.id}'),
+        matching: find.text('Water the plants'),
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(
+        of: key('week-task-${open.id}'),
+        matching: find.text('Write the report'),
+      ),
+      findsOneWidget,
+    );
+  });
+
   testWidgets('"This week" opens the note of the week; the summary goes in', (
     tester,
   ) async {
@@ -263,6 +358,65 @@ void main() {
     await tapKey(tester, 'note-row-${b.id}');
     expect(store.note(a.id)!.body, 'Quick thought');
     expect(shown(tester, 'note-text'), '');
+  });
+
+  testWidgets('text that was not saved yet is saved when the app goes to the '
+      'back', (tester) async {
+    final store = notesStore();
+    final note = store.newNote(title: 'Draft');
+    await pumpPlanner(tester, store);
+    await tester.enterText(fieldOf('note-text'), 'Half a thought');
+    await tester.pump();
+    expect(store.note(note.id)!.body, '');
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+    await tester.pump();
+    expect(store.note(note.id)!.body, 'Half a thought');
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+    await tester.pumpAndSettle();
+    // the note is still open with the same text
+    expect(shown(tester, 'note-text'), 'Half a thought');
+  });
+
+  testWidgets('text that was not saved yet is saved when the text loses the '
+      'keyboard', (tester) async {
+    final store = notesStore();
+    final note = store.newNote(title: 'Draft');
+    await pumpPlanner(tester, store);
+    await tester.tap(fieldOf('note-text'));
+    await tester.pump();
+    await tester.enterText(fieldOf('note-text'), 'Half a thought');
+    await tester.pump();
+    expect(store.note(note.id)!.body, '');
+    await leaveField(tester);
+    expect(store.note(note.id)!.body, 'Half a thought');
+  });
+
+  testWidgets('a plain note says when it was edited; the rows keep the order '
+      'of the store', (tester) async {
+    final store = notesStore();
+    final a = store.newNote(title: 'Alpha');
+    final b = store.newNote(title: 'Beta');
+    final c = store.newNote(title: 'Gamma');
+    store.togglePin(b.id);
+    store.openNote(a.id);
+    await pumpPlanner(tester, store);
+    // under the title: "Edited", the day and the time; no kind in front
+    final line = tester.widget<Text>(find.textContaining('Edited')).data!;
+    expect(line, startsWith('Edited '));
+    expect(line, matches(RegExp(r', \d\d:\d\d$')));
+    expect(find.textContaining('Daily note'), findsNothing);
+    expect(find.textContaining('Weekly note'), findsNothing);
+
+    // the store gives the pinned notes first, then the newest; the rows
+    // follow that list from top to bottom
+    final order = [for (final n in store.notes()) n.id];
+    expect(order.first, b.id);
+    expect(order.toSet(), {a.id, b.id, c.id});
+    final tops = [
+      for (final id in order) tester.getTopLeft(key('note-row-$id')).dy,
+    ];
+    expect(tops[0], lessThan(tops[1]));
+    expect(tops[1], lessThan(tops[2]));
   });
 
   testWidgets('a change from outside shows in the open note', (tester) async {

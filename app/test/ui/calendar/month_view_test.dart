@@ -6,6 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:grove/ui/calendar/month_view.dart';
 import 'package:grove/ui/planner/payload_drag.dart';
 import 'package:grove/ui/planner/planner_view.dart';
+import 'package:grove/ui/theme/grove_theme.dart';
 
 import '../planner/planner_support.dart';
 import '../tasks/tasks_support.dart' show addTask, dragOnto, pumpPane;
@@ -315,6 +316,26 @@ void main() {
     );
     expect(number(wednesday).style!.fontWeight, FontWeight.w700);
     expect(number(d('2026-10-08')).style!.fontWeight, FontWeight.w600);
+    // the round mark under the number
+    final theme = GroveTheme.of(tester.element(find.byType(MonthView)));
+    BoxDecoration mark(DayKey day) =>
+        tester
+                .widget<DecoratedBox>(
+                  find
+                      .ancestor(
+                        of: find.descendant(
+                          of: dayFinder(day),
+                          matching: find.text('${day.day}'),
+                        ),
+                        matching: find.byType(DecoratedBox),
+                      )
+                      .first,
+                )
+                .decoration
+            as BoxDecoration;
+    expect(mark(wednesday).color, theme.accent);
+    expect(mark(wednesday).shape, BoxShape.circle);
+    expect(mark(d('2026-10-08')).color, isNull);
     // a touch works like a mouse
     await tester.tapAt(
       tester.getCenter(dayFinder(d('2026-10-08'))),

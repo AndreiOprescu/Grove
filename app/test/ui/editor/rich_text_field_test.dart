@@ -277,6 +277,62 @@ void main() {
       expect(drawn.length, text.length);
     });
 
+    testWidgets('bold, italic, code, a quote and a tag each have their look', (
+      tester,
+    ) async {
+      final rig = await makeRig(
+        tester,
+        'plain **bold** *slant* `code` #tag\n> said',
+      );
+      final theme = GroveTheme.of(tester.element(find.byType(EditableText)));
+      final plain = pieceWith(tester, rig, 'plain ').style!;
+      expect(plain.fontWeight, isNot(FontWeight.w700));
+      expect(plain.fontStyle, isNot(FontStyle.italic));
+      expect(plain.color, theme.ink);
+
+      expect(pieceWith(tester, rig, 'bold').style!.fontWeight, FontWeight.w700);
+      expect(
+        pieceWith(tester, rig, 'slant').style!.fontStyle,
+        FontStyle.italic,
+      );
+
+      final code = pieceWith(tester, rig, 'code').style!;
+      expect(code.backgroundColor, theme.surface2);
+      expect(code.fontFamily, theme.number(12).fontFamily);
+      // the line of the code is as high as the line of the text
+      expect(
+        code.fontSize! * code.height!,
+        closeTo(plain.fontSize! * plain.height!, 1e-9),
+      );
+
+      expect(pieceWith(tester, rig, '#tag').style!.color, theme.accent2);
+
+      // a quote: pale words after a mark in the accent colour
+      expect(pieceWith(tester, rig, 'said').style!.color, theme.muted);
+      final mark = pieces(tester, rig).firstWhere((p) => p.text!.contains('>'));
+      expect(mark.style!.color, theme.accent);
+      // the marks stay in the text, but pale
+      final star = pieces(tester, rig).firstWhere((p) => p.text == '**').style!;
+      expect(star.color, theme.muted.withValues(alpha: 0.55));
+    });
+
+    testWidgets('a web link and an @date are underlined in the accent colour', (
+      tester,
+    ) async {
+      final rig = await makeRig(tester, 'see https://grove.example/a on @fri');
+      final theme = GroveTheme.of(tester.element(find.byType(EditableText)));
+      final link = pieceWith(tester, rig, 'https://grove.example/a').style!;
+      expect(link.color, theme.accent);
+      expect(link.decoration, TextDecoration.underline);
+      expect(link.decorationStyle, isNot(TextDecorationStyle.dotted));
+      final date = pieceWith(tester, rig, '@fri').style!;
+      expect(date.color, theme.accent);
+      expect(date.decoration, TextDecoration.underline);
+      expect(date.decorationStyle, TextDecorationStyle.dotted);
+      // the words around them are plain
+      expect(pieceWith(tester, rig, 'see ').style!.decoration, isNull);
+    });
+
     testWidgets('a bullet is drawn as a dot', (tester) async {
       final rig = await makeRig(tester, '- one');
       expect(pieces(tester, rig).first.text, startsWith('•'));
