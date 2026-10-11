@@ -1,5 +1,6 @@
 // The small windows of the planner: "Busy day", the question about a
-// repeating event, and the "Plan my day" list.
+// repeating event, and the "Plan my day" list. `PlannerSheet` is their
+// frame. The subtask window of a goal block uses it too.
 import 'package:flutter/material.dart';
 import 'package:grove/core/planner/planner_math.dart';
 import 'package:grove/state/state.dart' hide MotionRules;
@@ -58,11 +59,19 @@ class DialogButton extends StatelessWidget {
 }
 
 /// The frame of a planner window.
-class _Sheet extends StatelessWidget {
-  const _Sheet({required this.children, this.width = 420});
+class PlannerSheet extends StatelessWidget {
+  const PlannerSheet({
+    super.key,
+    required this.children,
+    this.width = 420,
+    this.spacing = 12,
+  });
 
   final List<Widget> children;
   final double width;
+
+  /// The room between two children, in points.
+  final double spacing;
 
   @override
   Widget build(BuildContext context) {
@@ -83,7 +92,7 @@ class _Sheet extends StatelessWidget {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.stretch,
-              spacing: 12,
+              spacing: spacing,
               children: children,
             ),
           ),
@@ -106,7 +115,7 @@ Future<void> showBusyDay(BuildContext context, String message) =>
       context: context,
       builder: (context) {
         final theme = GroveTheme.of(context);
-        return _Sheet(
+        return PlannerSheet(
           width: 340,
           children: [
             const ThemedHeading('Busy day', 18),
@@ -131,7 +140,7 @@ Future<RecurringScope?> showRecurringQuestion(
   context: context,
   builder: (context) {
     final theme = GroveTheme.of(context);
-    return _Sheet(
+    return PlannerSheet(
       width: 360,
       children: [
         ThemedHeading('$verb a repeating event', 18),
@@ -165,7 +174,7 @@ Future<bool> showPlanSheet(BuildContext context, List<PlanStep> plan) async {
     context: context,
     builder: (context) {
       final theme = GroveTheme.of(context);
-      return _Sheet(
+      return PlannerSheet(
         children: [
           const ThemedHeading('Plan my day', 22),
           Text(

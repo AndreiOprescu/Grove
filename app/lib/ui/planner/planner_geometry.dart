@@ -95,19 +95,6 @@ class BlockRows {
       'moreRow: $moreRow, badge: $badge)';
 }
 
-/// One subtask as a block shows it.
-class BlockSubtask {
-  const BlockSubtask({
-    required this.id,
-    required this.title,
-    required this.isDone,
-  });
-
-  final String id;
-  final String title;
-  final bool isDone;
-}
-
 /// The texts for subtasks that have no row. Swift: `SubtaskRules.moreLabel`
 /// and `SubtaskRules.badge`.
 abstract final class SubtaskLabels {

@@ -146,6 +146,12 @@ Before the buttons show, one more thing needs a decision (the owner's, with Trac
 Answer (owner, 2026-10-11): A. The package `file_selector` is allowed. "Export JSON…" and "Import JSON…" show in Settings.
 Answer to the follow-up (owner, 2026-10-11): Import is blocked while you are signed in to sync. Grove says so in plain words (sign out first). Import works only when signed out.
 
+## Q-35 · OPEN · ASK · blocks the pencil on a block and the menu line "Open / create linked note" · 2026-10-11
+What is the "linked note" of a block in the planner? The plan wants a pencil on a block that has one (§5.1.2) and a menu line "Open / create linked note" (§5.1.4). The Mac app has neither.
+A) The meeting note of the block — the menu line opens or makes the same note as "Create meeting note" in the card of an event, and the pencil shows when that note is there.   ← my pick: the store call is there already (`createMeetingNote`), so a block has one kind of note.
+B) Leave both out, as in the Mac app — nothing to build; the plan keeps two lines that no app does.
+If no answer: nothing changes. The menu has no such line. A block can draw the pencil (`block_view.dart`), but the store gives the flag to no block.
+For A, not tried yet: `createMeetingNote` with a task block and with a goal block. They are events in the store, so it should work; the title of the note would be the title of the block.
 ## Q-30 · ANSWERED B · ASK · blocks the change of the app id to `local.grove.app` (your answer to Q-26) · 2026-10-11
 With the id `local.grove.app` the Flutter app cannot reach the database of the Mac app, but on your Mac the two apps then share the settings file of macOS and the reminders. May the id change?
 A) Yes, after you copy one file — you run `cp ~/Library/Preferences/local.grove.app.plist ~/Desktop/` first. Then the id changes on the 4 systems. The Flutter app starts with an empty store; your Mac data stays in `~/Library/Application Support/Grove/`. Reminders of both apps show under one name while you use both.   ← my pick: the code shows two reasons why the database is safe, and the copy protects the one small file that is not sure.

@@ -1,6 +1,7 @@
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:grove/ui/planner/focus_card.dart';
 import 'package:grove/ui/planner/planner_grid.dart';
 import 'package:grove/ui/store_app.dart';
 
@@ -18,9 +19,9 @@ const hour = 64.0;
 
 /// A store for the planner. Motion is off, so the screen comes to rest.
 /// "Now" is Wednesday at 10:00.
-AppStore plannerStore({int now = 10 * 60}) {
+AppStore plannerStore({int now = 10 * 60, bool motion = false}) {
   final store = makeStore(
-    prefs: MemoryPrefs()..set('appearance.motion', false),
+    prefs: MemoryPrefs()..set('appearance.motion', motion),
     clock: WallTime(day: wednesday, minute: now),
   );
   store
@@ -48,6 +49,28 @@ Future<void> pumpPlanner(
 PlannerBlock blockNamed(AppStore store, String title) => store
     .blocks(DayRange(wednesday.adding(days: -7), wednesday.adding(days: 7)))
     .firstWhere((b) => b.title == title);
+
+/// A goal "Read" with one more block, on Wednesday when no day is given.
+/// Gives the id of the block.
+String goalBlock(
+  AppStore store, {
+  DayKey? day,
+  int start = 11 * 60,
+  int length = 90,
+}) {
+  final on = DayRange.single(day ?? wednesday);
+  final goal =
+      store.goals().where((g) => g.title == 'Read').firstOrNull ??
+      store.addGoal(title: 'Read', target: 300)!;
+  final before = {for (final b in store.blocks(on)) b.id};
+  store.scheduleGoal(
+    goalId: goal.id,
+    day: on.first,
+    start: start,
+    length: length,
+  );
+  return store.blocks(on).firstWhere((b) => !before.contains(b.id)).id;
+}
 
 Finder blockFinder(String id) => find.byKey(ValueKey('block-$id'));
 
@@ -106,6 +129,16 @@ Future<void> mouseTap(WidgetTester tester, Offset at) async {
   await tester.pump();
 }
 
+/// One click with the right button: the menu of a block.
+Future<void> rightClick(WidgetTester tester, Offset at) async {
+  await tester.tapAt(
+    at,
+    kind: PointerDeviceKind.mouse,
+    buttons: kSecondaryMouseButton,
+  );
+  await tester.pumpAndSettle();
+}
+
 /// Lets the double-tap window of the grid end.
 Future<void> endTapWindow(WidgetTester tester) async {
   await tester.pump(const Duration(milliseconds: 400));
@@ -132,3 +165,60 @@ double gridScroll(WidgetTester tester) => tester
     )
     .position
     .pixels;
+
+// Focus mode
+
+/// The store starts a session only for a block that ends after the real
+/// "now". The day of these tests is far away, so that is always true.
+final focusDay = d('2099-03-04');
+
+/// A store for the tests of focus mode. Motion is off. "Now" is 10:00 on
+/// `focusDay`.
+AppStore focusStore({bool motion = false}) {
+  final store = makeStore(
+    prefs: MemoryPrefs()..set('appearance.motion', motion),
+    clock: WallTime(day: focusDay, minute: 10 * 60),
+  );
+  store
+    ..selectedDay = focusDay
+    ..screen = Screen.planner;
+  return store;
+}
+
+/// A block from 10:00 to 11:00 on `focusDay`. Gives its id.
+String hourBlock(AppStore store, String title, {bool asEvent = false}) {
+  store.createFromDraft(
+    title: title,
+    day: focusDay,
+    start: 10 * 60,
+    end: 11 * 60,
+    asEvent: asEvent,
+  );
+  return store
+      .blocks(DayRange.single(focusDay))
+      .firstWhere((b) => b.title == title)
+      .id;
+}
+
+/// Sets the clock of the card: it shows this time on `focusDay` when the card
+/// reads it first. From there it runs with the time of the test.
+void setFocusClock(
+  WidgetTester tester,
+  int hour,
+  int minute, [
+  int second = 0,
+]) {
+  final at = DateTime(
+    focusDay.year,
+    focusDay.month,
+    focusDay.day,
+    hour,
+    minute,
+  ).add(Duration(seconds: second));
+  DateTime? begun;
+  FocusCard.clock = () {
+    final now = tester.binding.clock.now();
+    return at.add(now.difference(begun ??= now));
+  };
+  addTearDown(() => FocusCard.clock = DateTime.now);
+}
