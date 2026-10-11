@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:grove/ui/editor/editor_tools.dart';
 import 'package:grove/ui/editor/rich_text_field.dart';
 import 'package:grove/ui/tasks/task_inspector.dart';
 import 'package:grove/ui/tasks/task_widgets.dart';
@@ -198,8 +199,28 @@ void main() {
         find.text('The longer description. Type [[ to mention a task.'),
         findsOneWidget,
       );
-      // No button for an image before question Q-15 has its answer.
+      // The panel alone has no window to pick a picture: no button.
       expect(find.bySemanticsLabel('Add an image'), findsNothing);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('in the app, which gives the window to pick a picture, the '
+        'description has "Add an image"', (tester) async {
+      final store = paneStore();
+      addTask(store, 'Write report', id: 'report');
+      store.selectedTaskId = 'report';
+      await pumpPane(
+        tester,
+        EditorTools(pickImages: () async => const [], child: host(store)),
+        size: inspectorSize,
+      );
+      expect(
+        find.descendant(
+          of: byKey('inspector-notes'),
+          matching: find.bySemanticsLabel('Add an image'),
+        ),
+        findsOneWidget,
+      );
       expect(tester.takeException(), isNull);
     });
 

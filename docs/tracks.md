@@ -89,6 +89,25 @@ file, the plan, and `docs/assumptions.md` before it starts.
   `supabase/migrations/`. It ran on a plain Postgres on CI, never on a real
   Supabase project. CI is green on commit `20e1121`: the 4 jobs of run
   38091561817, and the SQL check in run 38091561825
+- Import and sync, and the long task list (2026-10-11): built, waits for
+  the user.
+  - The store refuses an import while a person is signed in to sync (the
+    owner's answer under Q-18), commit `53238d9`. Signed out it works as
+    before. What the first sync does after an import is tested and written
+    down in Q-22. One path can replace the data of the account with no
+    question (sign out, import, sign in again with the same account). I
+    changed no sync rule; Q-22 asks the owner.
+  - The Tasks panel builds only the rows in or near the view, commit
+    `6676190`. Before: `SingleChildScrollView` and a `Column` with each row.
+    Now: `CustomScrollView` with slivers (`TaskRows` in
+    `app/lib/ui/tasks/task_section.dart`). No golden picture changed: on
+    the Mac no pixel differs from the pictures of before. With 1 000 tasks
+    18 rows are built (12 in view), not 1 000. A scroll frame of the panel
+    in a widget test on this Mac took 13.2 ms before and 0.6 ms now (1 000
+    tasks; 20 tasks: 0.6 ms both). That is a test run, not a real window.
+  - For Track B: `TaskSection` and the "Done" list are slivers now. They
+    stand in a `CustomScrollView`, not in a `Column`. `TasksPane` is a box
+    as before, so nothing of yours has to change.
 - Sync for Track B:
   - The store calls the engine now (`app/lib/state/store_sync.dart`). It
     syncs after the login, 3 seconds after a change, each 5 minutes, when
@@ -300,20 +319,26 @@ file, the plan, and `docs/assumptions.md` before it starts.
   `1cc29a8`, 2026-10-11.
 - F9: built, waits for the user (proof: `docs/acceptance/F9.md`): the month
   Calendar, the card of an event, the Notes screen, the rich editor and the
-  Day Spread. Two parts wait for an answer: "Add an image" (Q-15) and web
-  links (Q-16). CI is green on the 4 jobs, with the device test (8 tests) in
+  Day Spread. "Add an image" (Q-15) and web links (Q-16) are built since
+  the owner's answers of 2026-10-11; see F10-screens. CI is green on the 4 jobs, with the device test (8 tests) in
   each: run 38132697606, commit `c62116b`, 2026-10-11. One golden picture
-  (the futuristic Day Spread) is skipped on Linux and Windows; Q-17 asks the
-  owner. The owner merged PR #10 at `a6a52c0`. After that, three agents
+  (the futuristic Day Spread) is skipped on Linux and Windows; the owner
+  answered Q-17 with B, so it stays so. The owner merged PR #10 at `a6a52c0`. After that, three agents
   checked F9 (a verifier and two reviewers). Their findings are fixed in
   `1bfbce9`, `c0c0871` and `2634cfb` on `feat/xp-screens`; these commits are
   in no merged PR yet. The runs are in `docs/acceptance/F9.md`, "CI".
 - F10-screens: built, waits for the user (proof:
   `docs/acceptance/F10-screens.md`): the Garden, the growing plant (the big
   one, and the small one in the header of the Day Spread) and the Settings
-  window with 6 tabs. "Export" and "Import" are built and hidden (Q-18).
-  "Show data folder" and "Open System Settings" are not there (Q-16). The CI
-  runs are in the proof file, "CI".
+  window with 6 tabs. With the owner's answers of 2026-10-11 (Q-15, Q-16,
+  Q-18): "Add an image" in a note and in the notes of an event, a click on a
+  web link opens the browser (`http` and `https` only), "Export JSON…" on
+  macOS and Windows, "Import JSON…" on the 4 systems. Import is blocked
+  while the user is signed in to sync. Two new packages: `file_selector` and
+  `url_launcher`. Two new cards: Q-27 (Export on a phone) and Q-28 (large
+  pictures are stored as PNG). "Show data folder" and "Open System Settings"
+  are not there: they open no `http` address. No real file window and no
+  real browser was tried yet. The CI runs are in the proof file, "CI".
 - The planner gaps (F12 check): built, waits for the user (proof:
   `docs/acceptance/F12-planner-gaps.md`, branch `feat/xp-planner-gaps`,
   draft PR #15; PR #11 is merged, so it waits for no other PR): subtasks on
@@ -351,15 +376,42 @@ file, the plan, and `docs/assumptions.md` before it starts.
     screens (`saveSetting` in `settings_tabs.dart`). One call, for example
     `store.setSetting(key, value)`, would be cleaner. I change over when it
     is there.
-  - Import with sync signed in. `DataSettings` calls
-    `store.saveSafetyCopy()` and then `store.importData(text)`. What must
-    happen to the account then is yours and the owner's to decide (a note is
-    in Q-18). The two buttons are hidden in the real app until Q-18 has an
-    answer, so nothing can go wrong today.
+  - Import with sync signed in (new text, 2026-10-11). The owner's rule:
+    Import is blocked while the user is signed in to sync; it works only
+    when signed out. Today the block is in the screen only: `DataSettings`
+    reads `store.isSignedIn` before the file window, after the pick and
+    after the question, and then calls `store.saveSafetyCopy()` and
+    `store.importData(text)`. Please make the store refuse too:
+    `importData` gives an error, and changes nothing, while
+    `store.isSignedIn` is true. I show your error text when it is there. A
+    second thing for you to check: after an import while signed out, what
+    does the next login do with the imported rows (the question of the
+    first sync)? I did not test that; it is your gate.
+    **Done by Track A, 2026-10-11, commit `53238d9`:** the store refuses
+    too. `store.importData(text)` throws `ImportRefused` while a person is
+    signed in (`store.isSignedIn`), before it reads the file, and no row
+    changes. `'$error'` is a line for the screen: "You are signed in to
+    sync. Sign out first (Settings, Sync), then import." Your `catch` in
+    `settings_tabs.dart` shows it already. `store.importBlocked` gives the
+    same line, or null when an import can run, if you want one place for
+    the words. Signed out, the import is as before. Tests:
+    `app/test/state/import_sync_test.dart` (14). What the first sync after
+    an import does is under Q-22; one path there needs the owner. I did not
+    touch your files.
   - `SettingsRules.notifyStatusText(denied)` says "System Settings" on each
     system. On Windows and Android the place has another name. Your string;
     change it if you want.
 - For Track A to know (F10-screens):
+  - Shared files I changed on 2026-10-11 for `file_selector` and
+    `url_launcher`: `app/pubspec.yaml`, `app/pubspec.lock`,
+    `app/lib/main.dart` (one line: `StoreApp` gets `SystemFiles()`,
+    `pickImageFiles` and `openInBrowser`), the two macOS entitlement files
+    (one new key for files the user picks), `AndroidManifest.xml` (two
+    `<queries>` entries) and the generated plugin lists of macOS and
+    Windows. A merge with your branch can clash in `pubspec.lock`; run
+    `flutter pub get` after it.
+  - A `RichTextField` in a panel of yours gets "Add an image" and the link
+    click by itself when it is under `StoreApp` (it reads `EditorTools`).
   - The small plant is `GrowingPlant(progress: store.plantProgress, motion:
     store.motionSetting)` in `app/lib/ui/theme/growing_plant.dart`, if you
     want it in a panel.
@@ -529,12 +581,18 @@ file, the plan, and `docs/assumptions.md` before it starts.
     pictures with the panel again and looked at each one. Tests: group "the
     text of the task" in `app/test/ui/tasks/task_inspector_test.dart`. Your
     file `rich_text_field.dart` is not changed.
-  - New with F9, images: `EditorServices.storeImage` is used by the editor,
-    but no screen can pick a file yet (Q-15). Nothing to do before the
-    answer.
-    **Track A, 2026-10-11:** nothing done, it waits for Q-15. The
-    description of a task has no "Add an image" button (`pickImages` is not
-    given).
+  - New with F9, images: `EditorServices.storeImage` is used by the editor.
+    Since 2026-10-11 the app has a picker (Q-15 is answered). A stored
+    picture is a PNG or a JPEG of at most 1600 pixels on the long side. A
+    large photo is written again as a PNG, and that can be 2 to 4 MB
+    (Q-28). If the sync has a size limit for an image, tell me.
+    **Track A, 2026-10-11:** nothing to do. Q-15 is answered A, and your
+    `EditorTools` in `store_app.dart` gives the picker to each editor under
+    it. So the description of a task shows "Add an image" in the real app
+    too, as in the Mac app. The owner's answer names notes and the notes of
+    an event only; I say so in the hand-over. Test: "in the app, which gives
+    the window to pick a picture, the description has "Add an image"" in
+    `app/test/ui/tasks/task_inspector_test.dart` (commit `61ef8b4`).
   - New with F9, a test of yours failed once on the CI: "a change goes to the
     account some moments later" (`app/test/state/sync_store_test.dart`, line
     341: expected 0, got 1). Run 38132694388, job `build (macos-latest, ios)`,
@@ -593,8 +651,8 @@ file, the plan, and `docs/assumptions.md` before it starts.
       Windows. So I did not move them.
     - Not looked at: the pictures of Goals (0.103 % at most on Linux) and
       the dark and small pictures.
-    For Q-17: answer A (gaps between letters) gives room for the 216 pixels
-    of the headings. I do not know if it covers the 204 of the button.
+    Q-17 is answered B: the compare and the limit stay. Nothing more to do
+    here.
 - Requests, with the planner gaps (2026-10-11, from the helper of the
   planner; it worked only in `app/lib/ui/planner/`):
   - To the shell (`app/lib/ui/shell/root_view.dart`): host the focus card
