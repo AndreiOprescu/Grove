@@ -36,17 +36,35 @@ class World {
   final auths = <MemoryAuth>[];
   final remotes = <String, CountingRemote>{};
 
+  /// The timers of the devices. They run when [pass] says that time passed.
+  final timers = ManualTimers();
+  final _stores = <AppStore>[];
+
   CountingRemote of(String email) =>
       remotes.putIfAbsent(MemoryAuth.userIdOf(email), CountingRemote.new);
 
+  /// Lets [time] pass on each device, and waits for the syncs this starts.
+  /// No real time passes, so a slow machine gives the same result.
+  Future<void> pass(Duration time) async {
+    timers.pass(time);
+    // One turn of the event loop: a wait that ended starts its sync.
+    await Future<void>.delayed(Duration.zero);
+    for (final store in _stores) {
+      if (!store.isDisposed) await idle(store);
+    }
+  }
+
   /// A device with Grove on it. [signedIn]: the device has a session from
-  /// the last time the app ran.
+  /// the last time the app ran. [realTime]: the waits of the store use real
+  /// timers, with a short wait before a sync. For a widget test, where
+  /// `tester.pump` moves the clock.
   ({AppStore store, MemoryAuth auth}) device({
     String? signedIn,
     String? dataDir,
     Repos? repos,
     Prefs? prefs,
     bool seed = false,
+    bool realTime = false,
   }) {
     final auth = MemoryAuth(
       account: signedIn == null
@@ -64,7 +82,13 @@ class World {
         auth: auth,
         remote: (_) => PersonRemote(this, auth),
       ),
-    )..syncDelay = const Duration(milliseconds: 20);
+    );
+    if (realTime) {
+      store.syncDelay = const Duration(milliseconds: 20);
+    } else {
+      store.newTimer = timers.start;
+      _stores.add(store);
+    }
     addTearDown(() {
       if (!store.isDisposed) store.dispose();
       auth.dispose();

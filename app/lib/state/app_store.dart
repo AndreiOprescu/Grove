@@ -84,10 +84,13 @@ T? _try<T>(T? Function() body) {
   }
 }
 
+/// Starts a timer that calls [callback] one time, after [length].
+typedef TimerMaker = Timer Function(Duration length, void Function() callback);
+
 /// A wait that can be cut short.
 class _Sleep {
-  _Sleep(Duration length) {
-    _timer = Timer(length, _finish);
+  _Sleep(Duration length, TimerMaker make) {
+    _timer = make(length, _finish);
   }
 
   late final Timer _timer;
@@ -197,6 +200,11 @@ class AppStore extends ChangeNotifier {
   /// How long a change waits before it is sent. A burst of changes is one
   /// sync.
   Duration syncDelay = const Duration(seconds: 3);
+
+  /// Makes the timer of each wait of the store: the wait before a sync, and
+  /// the waits of the reminders. Tests set it, so a wait ends when the test
+  /// says that time passed, and not with the real clock.
+  TimerMaker newTimer = Timer.new;
 
   /// How many days ahead Grove sets reminders.
   static const reminderDays = 14;
@@ -602,7 +610,7 @@ class AppStore extends ChangeNotifier {
         }
         for (final n in m.notes) {
           final x = target(n);
-          if (x != null) repos.notes.save(x);
+          if (x != null) _saveNote(x);
         }
         for (final g in m.goals) {
           final x = target(g);
@@ -700,7 +708,7 @@ class AppStore extends ChangeNotifier {
       if (was == null || was.body != now.body) {
         final canonical = repos.refs.reindex(ref, now.body);
         if (canonical != now.body) {
-          repos.notes.save(now.copyWith(body: canonical));
+          _saveNote(now.copyWith(body: canonical));
         }
         repos.tags.setNoteTags(now.id, NoteParser.tags(now.body));
       }
