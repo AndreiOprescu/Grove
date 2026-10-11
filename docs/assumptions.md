@@ -365,7 +365,7 @@ Format: date · decision · why · how to undo
 - 2026-10-11 · Cross-platform port F12: "60 fps" is read as: 60 frames a second or more on average, and at most 1 frame in 100 where the work of the app (build + raster) is longer than 16.7 ms. All raw numbers are in the proof · PLAN.md gives the words "60 fps" and no way to count.
 - 2026-10-11 · Cross-platform port F12: memory has no pass line · PLAN.md has none; "~80–150 MB" in the table of `docs/cross-platform-plan.md` describes Flutter and is not a target. The numbers are reported as they are.
 - 2026-10-11 · Cross-platform port F12: no speed numbers from an Android emulator or an iPhone simulator · a simulator has no profile mode, the other helpers used the emulator at the same time, and emulator numbers are not device numbers.
-- 2026-10-11 · Cross-platform port F12: the app id is not changed to `local.grove.app` yet · the check before the change found two things that the two apps would share on a Mac (Q-30).
+- 2026-10-11 · Cross-platform port F12: the app id is not changed to `local.grove.app` yet · the check before the change found two things that the two apps would share on a Mac (Q-30; the owner answered B: the id changes on the day the Swift app is retired).
 
 ## Cross-platform Track A (engine) — see docs/tracks.md
 

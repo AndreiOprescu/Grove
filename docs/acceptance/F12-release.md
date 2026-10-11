@@ -150,7 +150,9 @@ What I can say about the slow results, and what I cannot:
 3. **With nothing to do, the app at the front uses 26 to 46 % of one core** (4 readings of `top` and `ps` on the release app). Most likely the moving background: `app/lib/ui/theme/ambient_background.dart:106-128` draws it 30 times a second, as `PLAN.md` §6.3 says, and stops when the window is not at the front or Motion is off. No pass line. I did not measure with Motion off.
 4. **The Mac app is `grove.app`, with a small g** (`PRODUCT_NAME = grove` in `app/macos/Runner/Configs/AppInfo.xcconfig`). The Swift app is `Grove.app`. Not changed: a name is the owner's call.
 
-## 3. The app id (`local.grove.app`) — not changed, question Q-30
+## 3. The app id (`local.grove.app`) — not changed; Q-30 answered: not now
+
+**Answer of the owner (2026-10-11, Q-30: B):** the id stays `local.grove.grove` while the owner uses the Swift Mac app. It changes to `local.grove.app` on the day the owner retires the Swift app. No code was changed.
 
 The owner answered Q-26: the Flutter app must have the id `local.grove.app`. Before the change I checked if the Flutter app could then touch a file of the Swift Mac app. Result: the database is safe; two other things are shared. So I did not change the id.
 
@@ -182,9 +184,24 @@ What that means:
 - An app installed with the old id keeps its own data folder (`~/Library/Containers/local.grove.grove/`, it exists on this Mac). The new id starts with an empty folder. Nothing moves the data from the Swift app or from the old id.
 - On Windows the id of the reminders is `local.grove.Grove` and must not change (`docs/assumptions.md`, F10-services). iOS and Android have no Swift app; only the Mac has the risk.
 
-## 4. Signing — question Q-31
+### On the day the Swift app is retired
 
-I made no key, no certificate and no account.
+The owner picks the day. These steps are a plan; none of them was run.
+
+1. The owner keeps a copy of the Swift data: the folder `~/Library/Application Support/Grove/` and the file `~/Library/Preferences/local.grove.app.plist`.
+2. The data that the Flutter app has under the old id must be safe before the change: it is in the account (sync is on and has run), or it was saved with Export in Settings.
+3. The Swift app no longer runs on the Mac (`~/Applications/Grove.app`). Then the two apps cannot share the settings file or the reminders.
+4. **Change the id to `local.grove.app`** in: `app/macos/Runner/Configs/AppInfo.xcconfig:11`, `app/ios/Runner.xcodeproj/project.pbxproj` (3 lines), `app/android/app/build.gradle.kts` (`namespace` and `applicationId`) with the folder of `MainActivity.kt`. The Windows id of the reminders (`local.grove.Grove`) stays. Then: `./scripts/flutter_test.sh`, the builds, and CI green on all 4 with the device tests.
+5. **The Flutter store then starts empty** (a new folder: `~/Library/Containers/local.grove.app/` on the Mac; on a phone the app with the new id is a new app beside the old one). Sync, or Import in Settings, brings the data back.
+6. The old folder `~/Library/Containers/local.grove.grove/` stays until the owner removes it.
+
+Not checked by me: Export and Import (they are on the branch `feat/xp-screens`, not on this one) and a real sync. The database of the Swift app is schema 6; nothing in this plan reads it into the Flutter app.
+
+## 4. Signing — Q-31 answered: none now
+
+**Answer of the owner (2026-10-11, Q-31: A):** no signing now. No key, certificate or account is made.
+
+I made no key, no certificate and no account. The table says what each system needs when the owner wants it later.
 
 | System | What the owner must get | Cost that I know for sure | With no signing |
 |---|---|---|---|
@@ -206,7 +223,7 @@ I made no key, no certificate and no account.
 
 ## Needs the owner
 
-1. Answer **Q-30** (app id) and **Q-31** (signing) in `docs/questions.md`.
+1. Q-30 and Q-31 are answered (2026-10-11): the id stays, no signing now. Open point for later: the steps "On the day the Swift app is retired" in part 3.
 2. To check the workflow: after this branch is on `main`, open Actions ▸ release ▸ "Run workflow" (or `gh workflow run release.yml`), then download the 4 files of the run.
 3. For a build with sync: the 4 steps in "A build with your keys, on your Mac".
 4. On a quiet Mac, with the window left alone and nothing over it: `./scripts/flutter_perf.sh macos`. About 4 minutes. Look at the line `tasks_panel_scroll`: `fps` must be 60 or more and `late_frames` at most 1 in 100 of `frames`. That settles the Tasks panel.

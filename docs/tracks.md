@@ -70,7 +70,7 @@ file, the plan, and `docs/assumptions.md` before it starts.
 
 ### F12 — release builds and speed check
 
-- F12 release builds (not signed) and speed check: done on macOS, waits for the user; start-up and the Planner pass, the Tasks panel scroll is not settled, the workflow `release` did not run yet (proof: `docs/acceptance/F12-release.md`; questions Q-30 app id, Q-31 signing). The feature checklist is `docs/acceptance/F12-parity.md`, on its own branch.
+- F12 release builds (not signed) and speed check: done on macOS, waits for the user; start-up and the Planner pass, the Tasks panel scroll is not settled, the workflow `release` did not run yet (proof: `docs/acceptance/F12-release.md`; Q-30 answered B: the app id stays `local.grove.grove` until the Swift app is retired; Q-31 answered A: no signing now). The feature checklist is `docs/acceptance/F12-parity.md`, on its own branch.
 
 ### Track A — engine
 
