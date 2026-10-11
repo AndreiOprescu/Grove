@@ -74,6 +74,7 @@ class ShellEntry extends ShellNode {
     this.alt = false,
     this.shift = false,
     this.repeats = false,
+    this.moreKeys = const [],
     this.checked,
   });
 
@@ -89,6 +90,11 @@ class ShellEntry extends ShellNode {
 
   /// A key that is held down runs the line again and again.
   final bool repeats;
+
+  /// Other keys that run the line, with Shift held or not: the + of a
+  /// keyboard is = with Shift, and the number pad has its own keys. The menu
+  /// shows [key] only.
+  final List<LogicalKeyboardKey> moreKeys;
 
   /// A line that is on or off. null: it is not that kind of line.
   final bool? checked;
@@ -106,6 +112,22 @@ class ShellEntry extends ShellNode {
       shift: shift,
       includeRepeats: repeats,
     );
+  }
+
+  /// True when `event` is the key of this line, or one of [moreKeys] with
+  /// the same Command (Ctrl) and Alt.
+  bool accepts(KeyEvent event, HardwareKeyboard keyboard, {bool? apple}) {
+    final activator = this.activator(apple: apple);
+    if (activator == null) return false;
+    if (activator.accepts(event, keyboard)) return true;
+    if (!moreKeys.contains(event.logicalKey)) return false;
+    if (event is! KeyDownEvent && !(repeats && event is KeyRepeatEvent)) {
+      return false;
+    }
+    final onApple = apple ?? KeyNames.apple;
+    return keyboard.isMetaPressed == onApple &&
+        keyboard.isControlPressed == !onApple &&
+        keyboard.isAltPressed == alt;
   }
 
   /// The key the Mac way, like `⌥⌘N`. null: the line has no key.
@@ -203,12 +225,21 @@ List<ShellMenu> shellMenus(ShellModel model, ShellCommands commands) => [
       commands.zoomIn,
       key: LogicalKeyboardKey.equal,
       repeats: true,
+      moreKeys: const [
+        LogicalKeyboardKey.equal,
+        LogicalKeyboardKey.add,
+        LogicalKeyboardKey.numpadAdd,
+      ],
     ),
     ShellEntry(
       'Zoom Out',
       commands.zoomOut,
       key: LogicalKeyboardKey.minus,
       repeats: true,
+      moreKeys: const [
+        LogicalKeyboardKey.minus,
+        LogicalKeyboardKey.numpadSubtract,
+      ],
     ),
     const ShellDivider(),
     ShellSub('Theme', [
@@ -285,8 +316,7 @@ class ShellKeys extends StatelessWidget {
     if (!isFree()) return KeyEventResult.ignored;
     final keyboard = HardwareKeyboard.instance;
     for (final entry in entries()) {
-      final activator = entry.activator();
-      if (activator == null || !activator.accepts(event, keyboard)) continue;
+      if (!entry.accepts(event, keyboard)) continue;
       // A grey line keeps its key: the key does nothing else.
       entry.run?.call();
       return KeyEventResult.handled;

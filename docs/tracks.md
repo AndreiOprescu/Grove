@@ -611,6 +611,12 @@ file, the plan, and `docs/assumptions.md` before it starts.
     and -) for the whole window: `store.zoomPlanner(1.2)` and
     `store.zoomPlanner(1 / 1.2)`. Today the keys work only while the planner
     grid has the keyboard. The Mac app has them in the View menu.
+    **Done, 2026-10-12**, on `feat/xp-shell-gaps` (PR #18). The two lines
+    were in the View menu of that branch before this request
+    (`app/lib/ui/shell/app_menus.dart`, keys `=` and `-`); the request was
+    written on a base without it. New now: the window also takes the keys
+    that the grid takes (`+`, the number pad, with Shift or not). Tests:
+    `app/test/ui/shell/app_menus_test.dart`.
   - To Track A: `store.startFocus` reads `DateTime.now()`
     (`app/lib/state/store_focus.dart`). With the clock of the store
     (`clockOverride`) a test could start a session on the test day. Today

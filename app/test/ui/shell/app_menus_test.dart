@@ -17,7 +17,8 @@ const command = LogicalKeyboardKey.metaLeft;
 const shift = LogicalKeyboardKey.shiftLeft;
 const alt = LogicalKeyboardKey.altLeft;
 
-/// `key` with the keys of `held` down.
+/// `key` with the keys of `held` down. The key "+" has no place of its own
+/// on a keyboard: it is the key of "=".
 Future<void> press(
   WidgetTester tester,
   List<LogicalKeyboardKey> held,
@@ -26,7 +27,12 @@ Future<void> press(
   for (final h in held) {
     await tester.sendKeyDownEvent(h);
   }
-  await tester.sendKeyEvent(key);
+  await tester.sendKeyEvent(
+    key,
+    physicalKey: key == LogicalKeyboardKey.add
+        ? PhysicalKeyboardKey.equal
+        : null,
+  );
   for (final h in held.reversed) {
     await tester.sendKeyUpEvent(h);
   }
@@ -239,6 +245,135 @@ void main() {
       expect(store.plannerHourHeight, closeTo(start * zoomStep, 0.001));
       await press(tester, [ctrl], LogicalKeyboardKey.minus);
       expect(store.plannerHourHeight, closeTo(start, 0.001));
+    });
+
+    testWidgets('the zoom keys work on a screen that has no time grid', (
+      tester,
+    ) async {
+      final store = plannerStore();
+      store.screen = Screen.notes;
+      await pumpApp(tester, store);
+      final start = store.plannerHourHeight;
+      await press(tester, [ctrl], LogicalKeyboardKey.equal);
+      expect(store.plannerHourHeight, closeTo(start * zoomStep, 0.001));
+      store.screen = Screen.garden;
+      await tester.pumpAndSettle();
+      await press(tester, [ctrl], LogicalKeyboardKey.minus);
+      expect(store.plannerHourHeight, closeTo(start, 0.001));
+      expect(tester.takeException(), isNull);
+    });
+
+    // The grid has the same keys for itself. It takes the key first, so the
+    // line of the menu does not run too.
+    testWidgets('with the keyboard in the grid one press is one step', (
+      tester,
+    ) async {
+      final store = plannerStore();
+      await pumpApp(tester, store);
+      await mouseTap(tester, pointAt(tester, wednesday, 14 * 60));
+      await endTapWindow(tester);
+      final start = store.plannerHourHeight;
+      for (final key in [
+        LogicalKeyboardKey.equal,
+        LogicalKeyboardKey.numpadAdd,
+      ]) {
+        await press(tester, [ctrl], key);
+        expect(
+          store.plannerHourHeight,
+          closeTo(start * zoomStep, 0.001),
+          reason: key.debugName,
+        );
+        await press(tester, [ctrl], LogicalKeyboardKey.minus);
+        expect(
+          store.plannerHourHeight,
+          closeTo(start, 0.001),
+          reason: key.debugName,
+        );
+      }
+    });
+
+    // The keys the grid takes: + is = with Shift on many keyboards, and the
+    // number pad has its own + and -.
+    testWidgets('the + and the - of the number pad, and the keys with '
+        'Shift, zoom from each screen', (tester) async {
+      final store = plannerStore();
+      store.screen = Screen.notes;
+      await pumpApp(tester, store);
+      final start = store.plannerHourHeight;
+      final zoomIn = [
+        ([ctrl], LogicalKeyboardKey.numpadAdd),
+        ([ctrl], LogicalKeyboardKey.add),
+        ([ctrl, shift], LogicalKeyboardKey.add),
+        ([ctrl, shift], LogicalKeyboardKey.equal),
+      ];
+      final zoomOut = [
+        ([ctrl], LogicalKeyboardKey.numpadSubtract),
+        ([ctrl, shift], LogicalKeyboardKey.minus),
+      ];
+      for (final (i, (held, key)) in zoomIn.indexed) {
+        final (outHeld, outKey) = zoomOut[i % zoomOut.length];
+        final what = '${held.length} held, ${key.debugName}';
+        await press(tester, held, key);
+        expect(
+          store.plannerHourHeight,
+          closeTo(start * zoomStep, 0.001),
+          reason: what,
+        );
+        await press(tester, outHeld, outKey);
+        expect(store.plannerHourHeight, closeTo(start, 0.001), reason: what);
+      }
+    });
+
+    testWidgets('a zoom key with no Ctrl, or with Alt, does nothing', (
+      tester,
+    ) async {
+      final store = plannerStore();
+      store.screen = Screen.notes;
+      await pumpApp(tester, store);
+      final start = store.plannerHourHeight;
+      await press(tester, [], LogicalKeyboardKey.numpadAdd);
+      await press(tester, [shift], LogicalKeyboardKey.equal);
+      await press(tester, [ctrl, alt], LogicalKeyboardKey.numpadAdd);
+      await press(tester, [ctrl, alt], LogicalKeyboardKey.numpadSubtract);
+      await press(tester, [command], LogicalKeyboardKey.numpadAdd);
+      expect(store.plannerHourHeight, start);
+    });
+
+    testWidgets('a zoom key that is held down zooms again and again', (
+      tester,
+    ) async {
+      final store = plannerStore();
+      store.screen = Screen.notes;
+      await pumpApp(tester, store);
+      final start = store.plannerHourHeight;
+      await tester.sendKeyDownEvent(ctrl);
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.numpadAdd);
+      await tester.sendKeyRepeatEvent(LogicalKeyboardKey.numpadAdd);
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.numpadAdd);
+      await tester.sendKeyUpEvent(ctrl);
+      await tester.pumpAndSettle();
+      expect(
+        store.plannerHourHeight,
+        closeTo(start * zoomStep * zoomStep, 0.001),
+      );
+    });
+
+    testWidgets('on a Mac the keys of the number pad zoom with Command', (
+      tester,
+    ) async {
+      await onMac(() async {
+        final store = plannerStore();
+        store.screen = Screen.notes;
+        await pumpApp(tester, store);
+        final start = store.plannerHourHeight;
+        await press(tester, [ctrl], LogicalKeyboardKey.numpadAdd);
+        expect(store.plannerHourHeight, start);
+        await press(tester, [command], LogicalKeyboardKey.numpadAdd);
+        expect(store.plannerHourHeight, closeTo(start * zoomStep, 0.001));
+        await press(tester, [command, shift], LogicalKeyboardKey.minus);
+        expect(store.plannerHourHeight, closeTo(start, 0.001));
+        await tester.pumpWidget(const SizedBox());
+      });
     });
 
     testWidgets(
