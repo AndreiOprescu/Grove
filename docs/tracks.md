@@ -346,6 +346,13 @@ file, the plan, and `docs/assumptions.md` before it starts.
   tests through the screen for the planner paths, pinch zoom, the grow-in
   after "Fit", and the pencil of a block with a note (Q-35). The requests
   are at the end of this file.
+- The planner notes (F12, after the gaps): built, waits for the user (proof:
+  `docs/acceptance/F12-planner-notes.md`, branch `feat/xp-planner-notes`):
+  the linked note of a block (Q-35, answer A: the menu line and the pencil),
+  the focus timer on the clock of the store, and a now line that asks for a
+  frame only when it changes. Two open cards, both with a default: Q-36 and
+  Q-37. The processor use of an idle planner is not measured; the request
+  is at the end of this file.
 - Answers to "Requests to Track B, with F11-login", the F10 part
   (2026-10-11):
   - The sync card: Settings, tab "Sync" (`SyncSettings` in
@@ -670,10 +677,21 @@ file, the plan, and `docs/assumptions.md` before it starts.
     (`clockOverride`) a test could start a session on the test day. Today
     the card has a test hook (`FocusCard.clock`) and the device test uses a
     day in 2099. Not urgent.
+    **Done (2026-10-12, branch `feat/xp-planner-notes`)** by the helper of
+    the planner, with leave to make small engine edits: `store.clockNow()`
+    in `app/lib/state/app_store.dart`, and `startFocus` uses it. The card
+    reads it too. The device test uses the test day now.
   - To Track A: `PlannerBlock.hasNote` is never set by `store.blocks()`. The
     block draws a small pencil when it is true (`block_view.dart`). Wait for
     the owner's answer to Q-35 (which note is the "linked note" of a block),
     then set the flag with one query for the days, not one per block.
+    **Done (2026-10-12, branch `feat/xp-planner-notes`)**, same helper. Q-35
+    is answered A. `withMeetingNote` in `app/lib/state/store_meeting.dart`
+    is the one query, and `blocks()` sets the flag
+    (`app/lib/state/store_planner.dart`). One more engine edit, in
+    `_updateReferences` (`app/lib/state/app_store.dart`): a task block or a
+    goal block that comes back with Undo gets its links from notes again.
+    Before, such a block lost the link to its note.
   - To Track A: your test "a change goes to the account some moments later"
     (`app/test/state/sync_store_test.dart`, line 341: expected 0, got 1)
     failed once more on the CI: run 38146327066, job
@@ -681,3 +699,34 @@ file, the plan, and `docs/assumptions.md` before it starts.
     try of the job and the 7 other jobs of that commit passed. I did not
     touch it. That commit did not have your fix yet (`5936405`, the sync
     tests wait for timers of the test); it came with the merge of PR #13.
+- Requests, with the planner notes (2026-10-12, from the helper of the
+  planner; it worked in `app/lib/ui/planner/` and made the small engine
+  edits named above):
+  - To the shell, after `feat/xp-planner-notes` and `feat/xp-shell-gaps` are
+    both merged: measure the idle processor use. Run
+    `./scripts/flutter_idle.sh` and write the numbers for Planner and Today,
+    with motion on and with motion off, in
+    `docs/acceptance/F12-planner-notes.md` ("Not verified") and in your own
+    proof file. The tool is only on your branch, so here it says "CPU not
+    measured". Before the fix you measured 42 % (Planner) and 43 % (Today)
+    at 120 frames a second, and 0 % with motion off.
+  - To the shell, in the same merge: the now line has its own timer of 20
+    steps a second (`_NowLineState` in
+    `app/lib/ui/planner/planner_grid.dart`). Your branch has `SlowClock`
+    (`app/lib/ui/theme/slow_clock.dart`) with one beat of 20 a second for
+    the background. Two timers that are not in step can ask for up to 40
+    frames a second. Put the now line on `SlowClock`, so the line and the
+    background share one beat. Keep the rest: a step changes only the
+    opacity of the line (`FadeTransition`), and the pulse stops with
+    `TickerMode`. The tests in
+    `app/test/ui/planner/planner_now_line_test.dart` hold the numbers.
+  - To the shell: my tests of the now line pump the planner alone. On this
+    branch the background of the shell and the plant in the header of Today
+    (`growing_plant.dart`) still have tickers, so the whole Today screen
+    still draws at each refresh until your fix is merged.
+  - To the shell: your branch made two planner pictures again for the new
+    top strip (`planner_focus_done_grove_light.png`,
+    `planner_subtasks_grove_light.png`). My new picture
+    (`planner_linked_note_grove_light.png`) shows the planner with no shell,
+    so the strip does not change it. After the merge of both branches, run
+    the golden tests once and look at these three.

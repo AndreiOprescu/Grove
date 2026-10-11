@@ -175,6 +175,13 @@ When you rename a block or move it to another day, should it keep its linked not
 A) Keep the rule of today — after a rename or a move to another day the block has no pencil, and the menu line makes a new note. The old note stays in Notes with its old title. Nothing to build.   ← my pick: it is the rule the card of an event has now, and each day of a repeating event needs the day in the title to have its own note.
 B) Find the note by its link only — a block keeps its pencil and its note after a rename or a move. This needs a new rule for a repeating event (all its days share one link), and the card of an event changes too.
 If no answer: A stays. A test holds the rule (`app/test/state/block_note_store_test.dart`, "a new name or a new day").
+
+## Q-37 · OPEN · DEFAULT · blocks nothing (the now line works today) · 2026-10-12
+Should the now line of the planner keep its slow pulse? The plan asks for it (§6.3: the line fades from 1 to 0.45 and back in 3.2 seconds). With "Motion on" the pulse is the only thing that makes an idle planner draw.
+A) Keep the pulse, at 20 steps a second — with "Motion on" an idle planner draws 20 small frames a second at most (before: one for each refresh of the screen, 60 or 120). With "Motion off" it draws none. The processor use is not measured yet.   ← my pick: it is what the plan says, and a step changes only the line, not the planner.
+B) No pulse — the line stands still, and an idle planner draws nothing, with motion on too. The plan loses the line of §6.3.
+If no answer: A stays. It is built. The measure of the processor use is a request in `docs/tracks.md` ("Requests, with the planner notes").
+
 ## Q-30 · ANSWERED B · ASK · blocks the change of the app id to `local.grove.app` (your answer to Q-26) · 2026-10-11
 With the id `local.grove.app` the Flutter app cannot reach the database of the Mac app, but on your Mac the two apps then share the settings file of macOS and the reminders. May the id change?
 A) Yes, after you copy one file — you run `cp ~/Library/Preferences/local.grove.app.plist ~/Desktop/` first. Then the id changes on the 4 systems. The Flutter app starts with an empty store; your Mac data stays in `~/Library/Application Support/Grove/`. Reminders of both apps show under one name while you use both.   ← my pick: the code shows two reasons why the database is safe, and the copy protects the one small file that is not sure.
