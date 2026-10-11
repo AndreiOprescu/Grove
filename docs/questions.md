@@ -117,3 +117,9 @@ The futuristic Day Spread picture is 0.203 % (Windows) and 0.210 % (Linux) off t
 A) Yes — the compare also takes a gap of 1 to 2 pixels between two letters or two lines as a soft edge. The limit stays 0.2 %. The picture runs on all 4 jobs again, and the pictures at 0.196 % and 0.197 % get room.   ← my pick: the cause is the box font of the tests, not the app.
 B) No — the compare stays. The picture gets less on it until it passes. A new heading can push a picture over again.
 If no answer: the compare and the limit stay. `spread_desktop_futuristic_light.png` is checked on the macOS and iOS jobs only; the test is skipped on Linux and Windows (`_parked` in `app/test/ui/goldens/f9_golden_test.dart`).
+
+## Q-26 · OPEN · DEFAULT · blocks F12 (release builds) · 2026-10-11
+Which id does the Flutter app have? `PLAN.md` §0 says `local.grove.app`. The Flutter app has `local.grove.grove`.
+A) Keep `local.grove.grove` — the Mac app and the Flutter app are two apps, each with its own data folder. Both can be on one Mac.   ← my pick: nothing of the Mac app is touched before you retire it.
+B) Use `local.grove.app` — one id, as the plan says. On a Mac the Flutter app then takes the place of the Swift app.
+If no answer: A stays. It is what is built.
