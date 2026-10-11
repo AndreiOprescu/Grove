@@ -13,7 +13,7 @@ import 'package:grove/ui/tasks/task_inspector.dart';
 import 'package:grove/ui/tasks/tasks_pane.dart';
 
 import '../planner/planner_support.dart';
-import '../tasks/tasks_support.dart' show addTask, rowFinder;
+import '../tasks/tasks_support.dart' show addTask, checkFinder, rowFinder;
 
 AppStore spreadStore({int now = 10 * 60}) =>
     plannerStore(now: now)..screen = Screen.today;
@@ -276,5 +276,41 @@ void main() {
     await tester.tap(key('mood-sun'));
     await tester.pumpAndSettle();
     expect(store.note(daily.id)!.mood, Mood.sun.value);
+  });
+
+  // Swift: CheckBoxClickTests. A click in the middle of the box checks the
+  // task off in each theme; the row does not take that click.
+  for (final theme in ThemeId.values) {
+    testWidgets('the check box takes its click, theme ${theme.name}', (
+      tester,
+    ) async {
+      final store = spreadStore()..setTheme(theme);
+      addTask(store, 'Water the plants', id: 'water');
+      await pumpPlanner(tester, store, size: wide);
+
+      await tester.tapAt(tester.getCenter(checkFinder('water')));
+      await tester.pumpAndSettle();
+      expect(store.task('water')!.isDone, isTrue);
+      expect(store.selectedTaskId, isNull);
+    });
+  }
+
+  testWidgets('a click on the title chooses the task and does not check it', (
+    tester,
+  ) async {
+    final store = spreadStore();
+    addTask(store, 'Water the plants', id: 'water');
+    await pumpPlanner(tester, store, size: wide);
+
+    // The strip of tasks with no time shows the title too.
+    await tester.tap(
+      find.descendant(
+        of: rowFinder('water'),
+        matching: find.text('Water the plants'),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(store.task('water')!.isDone, isFalse);
+    expect(store.selectedTaskId, 'water');
   });
 }

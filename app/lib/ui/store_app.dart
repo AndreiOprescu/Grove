@@ -1,26 +1,37 @@
 // The app on a real store: the shell, the screens that are built, and the
 // shortcuts that need the store. `main.dart` and the integration test both
-// start here.
+// start here. It places the Settings window, the sync mark and the question
+// of the first login too.
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:grove/state/state.dart' hide MotionRules;
 
 import 'app.dart';
+import 'auth/first_sync_dialog.dart';
 import 'calendar/event_editor.dart';
+import 'garden/garden_view.dart';
 import 'notes/notes_pane.dart';
 import 'notes/notes_view.dart';
 import 'planner/planner_kind.dart';
 import 'planner/planner_view.dart';
+import 'settings/settings_view.dart';
+import 'settings/sync_mark.dart';
 import 'shell/store_shell_model.dart';
 import 'spread/day_spread_view.dart';
 import 'tasks/store_panes.dart';
 
 class StoreApp extends StatefulWidget {
-  const StoreApp({super.key, required this.store});
+  const StoreApp({super.key, required this.store, this.files});
 
   /// The one who made the store closes it.
   final AppStore store;
+
+  /// The file windows for "Export" and "Import" in Settings. With null the
+  /// two buttons are hidden (Q-18 of `docs/questions.md`).
+  final SettingsFiles? files;
 
   @override
   State<StoreApp> createState() => _StoreAppState();
@@ -28,6 +39,25 @@ class StoreApp extends StatefulWidget {
 
 class _StoreAppState extends State<StoreApp> {
   late StoreShellModel _model = StoreShellModel(widget.store);
+
+  /// Settings is open. A second key press does not open a second window.
+  bool _settingsOpen = false;
+
+  void _openSettings(
+    BuildContext context, {
+    SettingsTab tab = SettingsTab.appearance,
+  }) {
+    if (_settingsOpen) return;
+    _settingsOpen = true;
+    unawaited(
+      showSettings(
+        context,
+        widget.store,
+        tab: tab,
+        files: widget.files,
+      ).whenComplete(() => _settingsOpen = false),
+    );
+  }
 
   @override
   void didUpdateWidget(StoreApp oldWidget) {
@@ -93,7 +123,7 @@ class _StoreAppState extends State<StoreApp> {
         store: store,
         child: NotesView(store: store),
       ),
-      _ => null,
+      Screen.garden => GardenView(store: store),
     };
   }
 
@@ -109,5 +139,15 @@ class _StoreAppState extends State<StoreApp> {
     screenBuilder: _screen,
     paneBuilder: _pane,
     shortcuts: _shortcuts,
+    onSettings: _openSettings,
+    // The mark shows nothing in a copy of Grove with no sync.
+    topActions: (context, layout) => SyncMark(
+      store: widget.store,
+      layout: layout,
+      onTap: () => _openSettings(context, tab: SettingsTab.sync),
+    ),
+    // The question of the first login opens over each screen.
+    homeBuilder: (context, home) =>
+        FirstSyncGate(store: widget.store, child: home),
   );
 }
