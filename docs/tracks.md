@@ -603,6 +603,10 @@ file, the plan, and `docs/assumptions.md` before it starts.
     then take it out of `PlannerView.build`. Today the card shows on
     Planner, Today and Calendar, and not on Notes and Garden. The Mac app
     hosts it in `RootView.swift`.
+    **Done, 2026-10-12**, on `feat/xp-shell-gaps` (PR #18): `RootView` has
+    `contentLayer`, `StoreApp` gives it the `FocusLayer`, and
+    `PlannerView.build` no longer has one. Tests:
+    `app/test/ui/shell/focus_host_test.dart`.
   - To the shell: the commands "Zoom In" and "Zoom Out" (Cmd or Ctrl with +
     and -) for the whole window: `store.zoomPlanner(1.2)` and
     `store.zoomPlanner(1 / 1.2)`. Today the keys work only while the planner

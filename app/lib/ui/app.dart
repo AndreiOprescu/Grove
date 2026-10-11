@@ -19,6 +19,7 @@ class GroveApp extends StatefulWidget {
     this.commands,
     this.onSettings,
     this.topActions,
+    this.contentLayer,
     this.homeBuilder,
   });
 
@@ -40,6 +41,9 @@ class GroveApp extends StatefulWidget {
 
   /// See `RootView.topActions`.
   final TopActionBuilder? topActions;
+
+  /// See `RootView.contentLayer`.
+  final ContentLayerBuilder? contentLayer;
 
   /// Puts a widget around the window, under the navigator. For a thing that
   /// opens a dialog by itself.
@@ -115,6 +119,7 @@ class _GroveAppState extends State<GroveApp> {
           : () => widget.commands?.call().palette?.call(),
       onSettings: widget.onSettings,
       topActions: widget.topActions,
+      contentLayer: widget.contentLayer,
     );
     return ListenableBuilder(
       listenable: model,

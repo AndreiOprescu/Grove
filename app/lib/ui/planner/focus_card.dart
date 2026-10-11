@@ -1,7 +1,7 @@
 // Port of Sources/Grove/Planner/FocusCard.swift: the small timer that
 // floats at the bottom right while a focus session runs (PLAN §5.1.7).
 // The Mac app hosts the card in its root view. Here `FocusLayer` hosts it
-// over the planner, see `PlannerView`.
+// over each screen, see `StoreApp` and `RootView.contentLayer`.
 import 'dart:async';
 
 import 'package:flutter/material.dart';

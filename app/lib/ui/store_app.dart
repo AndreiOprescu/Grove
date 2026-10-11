@@ -17,6 +17,7 @@ import 'editor/editor_tools.dart';
 import 'garden/garden_view.dart';
 import 'notes/notes_pane.dart';
 import 'notes/notes_view.dart';
+import 'planner/focus_card.dart';
 import 'planner/planner_kind.dart';
 import 'planner/planner_view.dart';
 import 'settings/settings_view.dart';
@@ -193,6 +194,10 @@ class _StoreAppState extends State<StoreApp> {
       layout: layout,
       onTap: () => _openSettings(context, tab: SettingsTab.sync),
     ),
+    // The timer of a focus session floats over each screen (PLAN §5.1.7;
+    // Swift: the overlay of `RootView`).
+    contentLayer: (context, content) =>
+        FocusLayer(store: widget.store, child: content),
     // The question of the first login and an error message open over each
     // screen. So does the command palette.
     homeBuilder: (context, home) => FirstSyncGate(

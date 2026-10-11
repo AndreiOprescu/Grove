@@ -28,6 +28,13 @@ typedef TopActionBuilder = Widget? Function(
   ShellLayout layout,
 );
 
+/// Puts a layer over the content of the window. `content` is all that is
+/// under the top strip: the left panel and the screen.
+typedef ContentLayerBuilder = Widget Function(
+  BuildContext context,
+  Widget content,
+);
+
 class RootView extends StatelessWidget {
   const RootView({
     super.key,
@@ -37,6 +44,7 @@ class RootView extends StatelessWidget {
     this.onSearch,
     this.onSettings,
     this.topActions,
+    this.contentLayer,
   });
 
   final ShellModel model;
@@ -54,6 +62,12 @@ class RootView extends StatelessWidget {
   /// mark. null shows nothing.
   final TopActionBuilder? topActions;
 
+  /// A thing of the window that floats over each screen, for example the
+  /// timer of a focus session (Swift: the overlay of `RootView`). It gets
+  /// the content under the top strip, and on a phone it ends over the bar
+  /// at the bottom. It stays when the screen changes. null adds nothing.
+  final ContentLayerBuilder? contentLayer;
+
   /// From the left edge of a desktop window to the left dock. On a Mac
   /// the three window buttons take the first 84 points (Swift: the same).
   static double get dockLeft =>
@@ -68,6 +82,9 @@ class RootView extends StatelessWidget {
 
   Widget _pane(BuildContext context, LeftPane pane) =>
       paneBuilder?.call(context, pane) ?? _PaneStandIn(pane);
+
+  Widget _content(BuildContext context, Widget content) =>
+      contentLayer?.call(context, content) ?? content;
 
   @override
   Widget build(BuildContext context) => ListenableBuilder(
@@ -165,20 +182,23 @@ class RootView extends StatelessWidget {
               ),
             ),
             Expanded(
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  if (pane != null)
-                    Padding(
-                      padding: const EdgeInsets.only(left: 16, bottom: 16),
-                      child: SizedBox(
-                        key: ValueKey('pane-${pane.name}'),
-                        width: LeftPane.plannerWidth,
-                        child: _pane(context, pane),
+              child: _content(
+                context,
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    if (pane != null)
+                      Padding(
+                        padding: const EdgeInsets.only(left: 16, bottom: 16),
+                        child: SizedBox(
+                          key: ValueKey('pane-${pane.name}'),
+                          width: LeftPane.plannerWidth,
+                          child: _pane(context, pane),
+                        ),
                       ),
-                    ),
-                  Expanded(child: _screen(context)),
-                ],
+                    Expanded(child: _screen(context)),
+                  ],
+                ),
               ),
             ),
           ],
@@ -208,15 +228,18 @@ class RootView extends StatelessWidget {
         child: SafeArea(
           top: false,
           bottom: false,
-          child: pane == null
-              ? _screen(context)
-              : Padding(
-                  padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
-                  child: SizedBox.expand(
-                    key: ValueKey('pane-${pane.name}'),
-                    child: _pane(context, pane),
+          child: _content(
+            context,
+            pane == null
+                ? _screen(context)
+                : Padding(
+                    padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+                    child: SizedBox.expand(
+                      key: ValueKey('pane-${pane.name}'),
+                      child: _pane(context, pane),
+                    ),
                   ),
-                ),
+          ),
         ),
       ),
       _PhoneBar(child: PhoneNavBar(model: model)),
