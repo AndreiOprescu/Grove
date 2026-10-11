@@ -111,6 +111,7 @@ May Grove use the package `url_launcher` (from the Flutter team) to open a web l
 A) Yes — a click on a web link in a note opens the browser. One new package.   ← my pick: a link that does nothing looks broken.
 B) No — a web link has the look of a link, and a click does nothing.
 If no answer: B stays. Links to tasks, notes and events (`[[`) work now; they need no package.
+2026-10-11, F10-screens: the same package would also give two buttons of the Settings window of the Mac app: "Show data folder" and "Open System Settings" (for the notifications). With no answer, Settings shows the path of the data folder as text with a button "Copy the path", and has no button for the settings of the system.
 
 ## Q-17 · OPEN · ASK · blocks F9 (one golden picture on Linux and Windows) · 2026-10-11
 The futuristic Day Spread picture is 0.203 % (Windows) and 0.210 % (Linux) off the macOS picture, and the limit is 0.2 %. Nothing moved. May the compare let a thin gap between two letters or two lines pass?
@@ -121,3 +122,10 @@ Checked again 2026-10-11, F10-screens, before any change (the two times before, 
 - I listed each text of this screen with its place, from left to right and from top to bottom. No layout slip is in the red pixels. Off whole pixels are only: the letters of the headings (the theme asks for 1.5 points between them), the two tilted sticky notes (in all 4 themes, and the other 3 pictures pass), and texts half a pixel up or down (in all 4 themes; none of them is red in the picture of the difference).
 - In the pictures of the CI the date (28 pt, bold) sits on whole pixels, y 40 to 68, and still rows 39 and 68 are half inked: the engine makes the bold of the test font by growing each box about half a pixel on each side. So a gap of 1.5 leaves half a pixel column between two letters, and the 2 points between the date and the line under it leave one half row. macOS gives that pixel 124 of 255 and Linux 112; the compare allows 12. The same text with no gap has no seam, and a 12 pt text that is not bold has clean edges on both systems.
 - No number for the gap puts these edges on whole pixels (by the same sum a gap of 2 would leave two half columns; I did not try it on the CI), so I see no layout fix. 779 of the 1937 red pixels are the date (532 seams, 247 the row under it); the rest are the same seams in the smaller headings and the rows over the titles of the blocks. The test stays parked. The compare and the limit did not change.
+
+## Q-18 · OPEN · ASK · blocks F10-screens (Export and Import in Settings) · 2026-10-11
+May Grove use the package `file_selector` (the same one as in Q-15) for the file windows of "Export JSON…" and "Import JSON…" in Settings? It is not on the plan's list.
+A) Yes — Export and Import work as in the Mac app, with a save window and an open window, on the 4 systems. One new package, the same as in Q-15.   ← my pick: the plan wants export and import, and Flutter has no file window of its own.
+B) No — no package. Export writes `grove-export-<day>.json` into the data folder, and Import reads a file with a fixed name from that folder. On a phone that folder is hard to reach.
+If no answer: the two buttons are hidden, and Settings says so. The code and its tests are ready (`SettingsFiles` in `app/lib/ui/settings/settings_view.dart`). The daily backups still run.
+Before the buttons show, one more thing needs a decision (the owner's, with Track A): what Import does when sync is signed in. Import replaces all data of the device; with sync on, that could replace the data of the account too.
