@@ -1,15 +1,17 @@
 # F12 · The gaps of the shell — proof
 
-Plan: `docs/cross-platform-plan.md` (milestone F12, parity with the Mac app). Branch `feat/xp-shell-gaps`, draft PR #18 into `feat/cross-platform-flutter`. Date: 2026-10-11.
+Plan: `docs/cross-platform-plan.md` (milestone F12, parity with the Mac app). Branch `feat/xp-shell-gaps`, draft PR #18 into `feat/cross-platform-flutter`. Dates: 2026-10-11 and 2026-10-12.
 
 The Swift app is the model: `Sources/Grove/GroveApp.swift`, `Sources/Grove/Layouts/RootView.swift`, `Sources/Grove/Shared/CommandPalette.swift`, `Sources/Grove/Settings/SettingsView.swift`, and `PLAN.md` §5.8.
 
-Check: `./scripts/flutter_test.sh` (2026-10-11, after the merge of `origin/feat/cross-platform-flutter` at `b7a20b9`: 2196 tests passed, analyze clean, format clean). 98 of them are new with this branch. The base has 2098.
+Check: `./scripts/flutter_test.sh` (2026-10-12, after the merge of `origin/feat/cross-platform-flutter` at `ec73831`: 2393 tests passed, analyze clean, format clean). 118 of them are new with this branch: 98 from 2026-10-11 and 20 from 2026-10-12 (1 for the scripts, 13 for the focus timer, 6 for the zoom keys). The base has 2275.
 CI: see "CI" below.
 
 No new package. No new entitlement. The app id did not change (`local.grove.grove`). No engine folder was edited.
 
-## The 7 parts
+## The parts
+
+Parts 1 to 7 are from 2026-10-11. Parts 8 to 10 and the change in part 5 are from 2026-10-12.
 
 | # | Part | Was the gap real? | Built? | Verified? |
 |---|---|---|---|---|
@@ -20,6 +22,9 @@ No new package. No new entitlement. The app id did not change (`local.grove.grov
 | 5 | The shown name "Grove" | Yes | Yes. The Windows "Product name" too, since 2026-10-12 (Q-40: B) | Tests, a clean Mac build, CI builds. Not on a real Windows machine. |
 | 6 | Idle CPU | Yes | In part: the background and the plants | Measured, numbers below. The planner and Today are still high. |
 | 7 | "Show data folder" | Yes | Yes, Mac and Windows | Mac: one device check. Windows: not verified. |
+| 8 | `Grove.app` in the release build and the speed check | Yes | Yes | A test, and both scripts run on this Mac. The speed numbers are not a clean measure. |
+| 9 | The focus timer on each screen | Yes | Yes | Tests. Not tried by hand. |
+| 10 | "Zoom In" and "Zoom Out" for the whole window | Mostly no: the two lines were there. The keys `+` and the number pad were missing | The missing keys | Tests. Not tried on a real keyboard. |
 
 ## 1 · Command palette
 
@@ -49,7 +54,7 @@ Built (`app/lib/ui/shell/app_menus.dart`, `app/lib/ui/app.dart`):
 
 Decisions (lines in `docs/assumptions.md`): Edit has only Undo and Redo; no Help menu; the keys do nothing while a window (Settings, the palette, an error) is open; Undo in a text field goes to the store, as in the Swift app.
 
-Tests: `app/test/ui/shell/app_menus_test.dart` (19 tests), 2 new tests in `app/test/ui/shell/root_view_test.dart`.
+Tests: `app/test/ui/shell/app_menus_test.dart` (19 tests then; 25 with part 10), 2 new tests in `app/test/ui/shell/root_view_test.dart`.
 
 Not verified: the Mac menu bar by eye (the tests read the list that Flutter gives to the system, not the bar on the screen). The keys on a real Windows keyboard.
 
@@ -87,9 +92,9 @@ Not changed, by rule: the bundle id, the Android `applicationId` and `namespace`
 
 **Changed on 2026-10-12, Q-40 answered B:** the Windows "Product name" is "Grove" (`app/windows/runner/Runner.rc`, the line `VALUE "ProductName"`). Only that text changed. The "Company name" (`local.grove`), the "Internal name" (`grove`), the file name `grove.exe`, `BINARY_NAME` and the app id are the old ones. The data folder is now `%APPDATA%\local.grove\Grove`. On a normal Windows disk that is the same folder as `%APPDATA%\local.grove\grove`, because big and small letters are equal there. On a disk set to tell them apart the app starts with a new empty folder; the old one stays where it is. The test 'Windows: the two names of the data folder, and the file name' in `app/test/app_name_test.dart` failed first (expected "Grove", got "grove"), then passed. The scripts and the workflows find the build as before: none of them reads the "Product name"; `scripts/flutter_release.sh` copies `build/windows/x64/runner/Release`, and `.github/workflows/flutter.yml` names `app/build/windows/x64/runner/Release/`. **Not verified: on a real Windows machine** (the "Details" tab of `grove.exe`, and that the app finds its old data folder).
 
-Tests: `app/test/app_name_test.dart` (9 tests: 6 for the name, 3 for the ids and the folder). Before the change 5 failed. A clean build with `./scripts/flutter_build.sh macos` gave `build/macos/Build/Products/Release/Grove.app` with `CFBundleName` Grove, `CFBundleExecutable` Grove, `CFBundleIdentifier` local.grove.grove.
+Tests: `app/test/app_name_test.dart` (9 tests then: 6 for the name, 3 for the ids and the folder; 10 with part 8). Before the change 5 failed. A clean build with `./scripts/flutter_build.sh macos` gave `build/macos/Build/Products/Release/Grove.app` with `CFBundleName` Grove, `CFBundleExecutable` Grove, `CFBundleIdentifier` local.grove.grove.
 
-The scripts: `scripts/flutter_build.sh`, `scripts/flutter_integration.sh`, `scripts/flutter_idle.sh` and `.github/workflows/flutter.yml` do not name the app file; they still work (CI below). `scripts/flutter_release.sh` on the branch `feat/xp-release` (PR #14) names `grove.app`: a request is in `docs/tracks.md`.
+The scripts: `scripts/flutter_build.sh`, `scripts/flutter_integration.sh`, `scripts/flutter_idle.sh` and `.github/workflows/flutter.yml` do not name the app file; they still work (CI below). `scripts/flutter_release.sh` on the branch `feat/xp-release` (PR #14) named `grove.app`: done in part 8.
 
 Know this: the Swift app is also `Grove.app` (id `local.grove.app`). The Flutter build has the same file name and another id. `./scripts/install.sh` was not run.
 
@@ -123,6 +128,53 @@ Tests: 4 new tests in the group "Data" of `app/test/ui/settings/settings_view_te
 
 Not verified: Explorer on Windows (I read the code of `url_launcher_windows`: it gives a `file:` address to `ShellExecuteW`). The button in the release build of the Mac app with the real data folder.
 
+## 8 · `Grove.app` in the release build and the speed check
+
+The gap: PR #14 was written when the Mac build was `grove.app`. `scripts/flutter_release.sh` (line 36) and `scripts/flutter_perf.sh` (3 lines) named `grove.app` and the program `Contents/MacOS/grove`. The disk of this Mac does not tell big and small letters apart, so the old name still worked here. A disk that does would not find the app.
+
+Built: both scripts name `Grove.app` and `Contents/MacOS/Grove`. `docs/acceptance/F12-release.md` names the same. Nothing to change in `.github/workflows/release.yml`, `app/tool/perf_start.dart`, `app/integration_test/perf_test.dart`, `scripts/flutter_build.sh`, `scripts/flutter_idle.sh` and `scripts/flutter_integration.sh`: they do not name the app file. The zip keeps its name `grove-macos.zip`.
+
+Test: 'macOS: the scripts name the same app and the same program' in `app/test/app_name_test.dart`. It failed first (9 passed, 1 failed), then all 10 passed.
+
+Proof on this Mac, 2026-10-12:
+
+- `./scripts/flutter_release.sh macos`: exit 0. It printed `✓ Built build/macos/Build/Products/Release/Grove.app (59.0MB)` and `Release files for macos, in app/build/dist: 24M build/dist/grove-macos.zip`. The zip holds `Grove.app/Contents/MacOS/Grove`.
+- `./scripts/flutter_perf.sh macos`: the three changed lines ran (the apps started from `start.app/Contents/MacOS/Grove` and `frames.app/Contents/MacOS/Grove`). **The numbers are not a clean measure**: the Mac was busy with other builds and tests. Start: 543 ms for the first start of the day, then 271 to 303 ms. Memory after the walk: `rss_mb` 172.1, `max_rss_mb` 230.1. Frames: `planner_week_scroll` 525 frames at 120.0 a second, `planner_block_drag` 418 frames at 119.5 a second, no late frame.
+
+Not verified: the other 3 frame scenarios. In the first run the app stopped before the step "walk" (exit 1). In the second run the frames part ended after 2 of 5 scenarios, with no "done" line. Both times `/Users/andrei/Applications/Grove Flutter.app` (the same app id, `local.grove.grove`) was started from outside in the same seconds. I think that start quit my test app; I did not prove it. A third run of the start part alone passed. The `release` workflow on GitHub was not started: it is for the owner.
+
+## 9 · The focus timer on each screen
+
+The gap: `FocusLayer` was in `PlannerView.build` only. A session that ran while the person was on Notes or on the Garden had no timer on the screen. The Mac app hosts the timer in the window (`RootView.swift`, the overlay at the bottom right).
+
+Built:
+
+- `app/lib/ui/shell/root_view.dart`: `RootView.contentLayer`. It wraps the part of the window under the top strip (the left panel and the screen). On a phone it wraps the part between the top strip and the bar at the bottom. It stays when the screen changes.
+- `app/lib/ui/app.dart` passes it on; `app/lib/ui/store_app.dart` gives `FocusLayer(store: …, child: content)`.
+- `app/lib/ui/planner/planner_view.dart`: the `FocusLayer` is out of `build`. This is the one edit in the planner folder (the layer removed, an import removed, a comment), plus one comment line in `focus_card.dart`. Without it the planner would have two timers.
+
+Tests: `app/test/ui/shell/focus_host_test.dart` (13 tests). With the old hosting 10 of them failed. They cover: the timer on Notes and on the Garden; one timer and one layer on each of the 5 screens; it counts on while the screen changes; "Mark done" and the cross on another screen; the place (230 wide, 16 from the bottom right corner of the window; on a phone 16 over the bar); the layer is made one time. One older test got one more second of clock: 'a session that ended on another screen asks at once' in `app/test/ui/planner/planner_focus_test.dart` (the timer is on Notes too now and reads the clock at its next beat). No picture changed.
+
+Know this:
+
+- On Today the timer is at the corner of the window. Before it was at the corner of the time column.
+- With the task inspector open, the timer covers the bottom right corner of the inspector. The Mac app does the same.
+- The command palette is drawn over the timer here. In the Mac app the timer is over the palette.
+
+Not verified: by hand in a running app.
+
+## 10 · "Zoom In" and "Zoom Out" for the whole window
+
+The request of the planner helper said the keys work only while the grid has the keyboard. On this branch that was not true any more: View ▸ "Zoom In" (`⌘=`) and "Zoom Out" (`⌘-`) were built in part 2, with `store.zoomPlanner(1.2)` and `store.zoomPlanner(1 / 1.2)`, as `GroveApp.swift`. Two new tests show it: 'the zoom keys work on a screen that has no time grid' and 'with the keyboard in the grid one press is one step'. Both passed before any change.
+
+The small gap that was real: the grid also takes `+`, the `+` and `-` of the number pad, and the keys with Shift held. The window took only `=` and `-` with no Shift.
+
+Built: `ShellEntry.moreKeys` and `ShellEntry.accepts` in `app/lib/ui/shell/app_menus.dart`. "Zoom In" takes `=`, `+` and the `+` of the number pad; "Zoom Out" takes `-` and the `-` of the number pad; with Shift or not, with Cmd on a Mac and Ctrl on the others, not with Alt. A held key zooms again and again. The menu shows `⌘=` and `⌘-` as before.
+
+Tests: 6 new tests in `app/test/ui/shell/app_menus_test.dart` (25 in the file). Before the change 3 of them failed.
+
+Not verified: a real number pad, and a keyboard where `+` is not on the key of `=`.
+
 ## CI
 
 Workflow `flutter`, 4 jobs. Each job runs `./scripts/flutter_test.sh`, `./scripts/flutter_build.sh <system>` and `./scripts/flutter_integration.sh <system>`.
@@ -143,5 +195,6 @@ The screen of the CI machines is 1024 × 768. So the CI proves the smallest size
 ## Questions and requests
 
 - **Q-40** (`docs/questions.md`): answered B on 2026-10-12. The Windows "Product name" is "Grove" now, see part 5.
-- `docs/tracks.md`: the now line of the planner (idle CPU); `Grove.app` in `scripts/flutter_release.sh`; the pictures of Track A that were made again.
-- `docs/assumptions.md`: 19 lines that start with "2026-10-11 · Cross-platform port F12 shell gaps".
+- No new question card. Q-41 to Q-44 are not used.
+- `docs/tracks.md`, still open: the now line of the planner (idle CPU); the pictures of Track A that were made again. Done on 2026-10-12: `Grove.app` in the release scripts (part 8), the host of the focus card (part 9), the zoom commands (part 10).
+- `docs/assumptions.md`: 19 lines that start with "2026-10-11 · Cross-platform port F12 shell gaps" and 5 lines that start with "2026-10-12 · Cross-platform port F12 shell gaps".
