@@ -145,3 +145,16 @@ If no answer: the two buttons are hidden, and Settings says so. The code and its
 Before the buttons show, one more thing needs a decision (the owner's, with Track A): what Import does when sync is signed in. Import replaces all data of the device; with sync on, that could replace the data of the account too.
 Answer (owner, 2026-10-11): A. The package `file_selector` is allowed. "Export JSON…" and "Import JSON…" show in Settings.
 Answer to the follow-up (owner, 2026-10-11): Import is blocked while you are signed in to sync. Grove says so in plain words (sign out first). Import works only when signed out.
+
+## Q-22 · OPEN · ASK · blocks nothing now (Import works, signed out) · 2026-10-11
+A device that synced with an account: sign out, import, sign in again with the same account. Today the rows of the file then take the place of the rows of the account, on each device, and Grove asks nothing. Must Grove ask first?
+A) Yes — after an import the next login asks the question of a first login again ("add the data of this device" or "use the data of the account"), and what the import took away on the device is not taken away on the account. One change in the sync rules on the device; nothing changes on the server.   ← my pick: the block of Q-18 is there so that an import cannot replace the account by accident, and these three steps go around it.
+B) No — it stays as it is. Who signs out, imports and signs in again gets the file on each device. The copy `before-import.sqlite` is on that one device; the account has no copy.
+If no answer: B stays, I change no sync rule. The tests in `app/test/state/import_sync_test.dart` say what Grove does today, so a change is seen.
+What I checked (Track A, 2026-10-11, with the fake account of the tests, no real project):
+- Signed in: the store refuses the import and no row changes (`ImportRefused`; the owner's answer under Q-18).
+- A device that never synced, and an account with no data: the rows of the file go to the account, no question. Nothing is lost.
+- A device that never synced, and an account with data: Grove asks. "Use the data of the account" drops the rows of the file (a copy is saved first) and sends nothing. "Add the data of this device" keeps each task, note and event of the account and adds the rows of the file.
+- One thing is lost in that last case: a setting that the device had before the import and the file has not (for example the own text for a new daily note) is taken away on the account too. The rule is older than the import: a row taken away before the first login is taken away on the account with "add the data of this device". An import takes many rows away at one time. A covers this too.
+- A device that synced before, same account again: no question, and the account gets the file (the question of this card). A row another device made after the sign-out stays.
+- Sign in with another account after the import: Grove asks, and nothing moves before the answer.

@@ -85,6 +85,25 @@ file, the plan, and `docs/assumptions.md` before it starts.
   `supabase/migrations/`. It ran on a plain Postgres on CI, never on a real
   Supabase project. CI is green on commit `20e1121`: the 4 jobs of run
   38091561817, and the SQL check in run 38091561825
+- Import and sync, and the long task list (2026-10-11): built, waits for
+  the user.
+  - The store refuses an import while a person is signed in to sync (the
+    owner's answer under Q-18), commit `53238d9`. Signed out it works as
+    before. What the first sync does after an import is tested and written
+    down in Q-22. One path can replace the data of the account with no
+    question (sign out, import, sign in again with the same account). I
+    changed no sync rule; Q-22 asks the owner.
+  - The Tasks panel builds only the rows in or near the view, commit
+    `6676190`. Before: `SingleChildScrollView` and a `Column` with each row.
+    Now: `CustomScrollView` with slivers (`TaskRows` in
+    `app/lib/ui/tasks/task_section.dart`). No golden picture changed: on
+    the Mac no pixel differs from the pictures of before. With 1 000 tasks
+    18 rows are built (12 in view), not 1 000. A scroll frame of the panel
+    in a widget test on this Mac took 13.2 ms before and 0.6 ms now (1 000
+    tasks; 20 tasks: 0.6 ms both). That is a test run, not a real window.
+  - For Track B: `TaskSection` and the "Done" list are slivers now. They
+    stand in a `CustomScrollView`, not in a `Column`. `TasksPane` is a box
+    as before, so nothing of yours has to change.
 - Sync for Track B:
   - The store calls the engine now (`app/lib/state/store_sync.dart`). It
     syncs after the login, 3 seconds after a change, each 5 minutes, when
@@ -345,6 +364,17 @@ file, the plan, and `docs/assumptions.md` before it starts.
     happen to the account then is yours and the owner's to decide (a note is
     in Q-18). The two buttons are hidden in the real app until Q-18 has an
     answer, so nothing can go wrong today.
+    **Done by Track A, 2026-10-11, commit `53238d9`:** the store refuses
+    too. `store.importData(text)` throws `ImportRefused` while a person is
+    signed in (`store.isSignedIn`), before it reads the file, and no row
+    changes. `'$error'` is a line for the screen: "You are signed in to
+    sync. Sign out first (Settings, Sync), then import." Your `catch` in
+    `settings_tabs.dart` shows it already. `store.importBlocked` gives the
+    same line, or null when an import can run, if you want one place for
+    the words. Signed out, the import is as before. Tests:
+    `app/test/state/import_sync_test.dart` (14). What the first sync after
+    an import does is under Q-22; one path there needs the owner. I did not
+    touch your files.
   - `SettingsRules.notifyStatusText(denied)` says "System Settings" on each
     system. On Windows and Android the place has another name. Your string;
     change it if you want.
@@ -521,9 +551,13 @@ file, the plan, and `docs/assumptions.md` before it starts.
   - New with F9, images: `EditorServices.storeImage` is used by the editor,
     but no screen can pick a file yet (Q-15). Nothing to do before the
     answer.
-    **Track A, 2026-10-11:** nothing done, it waits for Q-15. The
-    description of a task has no "Add an image" button (`pickImages` is not
-    given).
+    **Track A, 2026-10-11:** nothing to do. Q-15 is answered A, and your
+    `EditorTools` in `store_app.dart` gives the picker to each editor under
+    it. So the description of a task shows "Add an image" in the real app
+    too, as in the Mac app. The owner's answer names notes and the notes of
+    an event only; I say so in the hand-over. Test: "in the app, which gives
+    the window to pick a picture, the description has "Add an image"" in
+    `app/test/ui/tasks/task_inspector_test.dart` (commit `61ef8b4`).
   - New with F9, a test of yours failed once on the CI: "a change goes to the
     account some moments later" (`app/test/state/sync_store_test.dart`, line
     341: expected 0, got 1). Run 38132694388, job `build (macos-latest, ios)`,
@@ -582,5 +616,5 @@ file, the plan, and `docs/assumptions.md` before it starts.
       Windows. So I did not move them.
     - Not looked at: the pictures of Goals (0.103 % at most on Linux) and
       the dark and small pictures.
-    For Q-17: answer A (gaps between letters) gives room for the 216 pixels
-    of the headings. I do not know if it covers the 204 of the button.
+    Q-17 is answered B: the compare and the limit stay. Nothing more to do
+    here.
