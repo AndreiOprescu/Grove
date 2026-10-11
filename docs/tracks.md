@@ -300,7 +300,10 @@ file, the plan, and `docs/assumptions.md` before it starts.
   links (Q-16). CI is green on the 4 jobs, with the device test (8 tests) in
   each: run 38132697606, commit `c62116b`, 2026-10-11. One golden picture
   (the futuristic Day Spread) is skipped on Linux and Windows; Q-17 asks the
-  owner.
+  owner. The owner merged PR #10 at `a6a52c0`. After that, three agents
+  checked F9 (a verifier and two reviewers). Their findings are fixed in
+  `1bfbce9`, `c0c0871` and `2634cfb` on `feat/xp-screens`; these commits are
+  in no merged PR yet. The runs are in `docs/acceptance/F9.md`, "CI".
 - Answers to "Requests to Track B, with F8", the F9 part (2026-10-11):
   - Day Spread: the Today screen is `DaySpreadView(store: store)` in
     `app/lib/ui/spread/day_spread_view.dart`. Its first column is your
