@@ -27,11 +27,12 @@ B) No, change a font — you name the theme and the font you want.
 If no answer: no font files go in. System fonts stay.
 Answer (owner, 2026-10-10): A. All 7 fonts are approved.
 
-## Q-3 · OPEN · DEFAULT · blocks F11-core (sync engine) · 2026-10-10
+## Q-3 · ANSWERED A · DEFAULT · blocks F11-core (sync engine) · 2026-10-10
 You write the daily note of the same day on two devices while both are offline. Only one daily note can be there for a day. What happens at the next sync?
 A) Keep one note and put both texts in it, one below the other — no text is lost; you can get a text two times if both devices started from different words.   ← my pick: a lost note is worse than a long note.
 B) Keep one note, the text of the other note is lost — the note stays short; you lose what you wrote on one device.
 If no answer: A stays. It is built and tested (`app/lib/sync/sync_engine.dart`, `joinBodies`). The same rule is used for weekly notes.
+Answer (owner, 2026-10-11): A. The built default stays: one note with both texts.
 
 ## Q-4 · ANSWERED A · ASK · blocks F11 (login step, not F11-core) · 2026-10-10
 You log in on a device that already has data, and your account has data too. Each new device makes 3 sample lists and 3 sample tasks at first start. What happens at the first sync?
@@ -40,80 +41,92 @@ B) Grove always adds the data of the device to the account — no question; each
 If no answer: the login step waits. The sync engine works for both.
 Answer (owner, 2026-10-10): A. Grove asks one time at the first login.
 
-## Q-5 · OPEN · DEFAULT · blocks F10-services (reminders) · 2026-10-10
+## Q-5 · ANSWERED A · DEFAULT · blocks F10-services (reminders) · 2026-10-10
 The reminder code needs one type from the package `timezone`. That package is already installed, because `flutter_local_notifications` needs it. It is not on the plan's list of packages. Can `app/pubspec.yaml` name it?
 A) Yes, name it (`timezone: ^0.11.1`) — no new code comes into the app; only one line in `app/pubspec.yaml`.   ← my pick: it is the clean way to use a package that is already there.
 B) No — the line goes out and the import gets a "skip this warning" comment. The app works the same.
 If no answer: A stays. It is built.
+Answer (owner, 2026-10-11): A. The built default stays: `timezone` is named in `app/pubspec.yaml`.
 
-## Q-6 · OPEN · DEFAULT · blocks F10-services (reminders) · 2026-10-10
+## Q-6 · ANSWERED A · DEFAULT · blocks F10-services (reminders) · 2026-10-10
 On Android, how exact must a reminder be?
 A) Not exact — no extra permission. Android can show a reminder some minutes late when the phone sleeps.   ← my pick: no extra question for you on the phone, and no extra review by the Play Store.
 B) Exact — the reminder shows at the right minute. You must allow "Alarms & reminders" for Grove in the Android settings. The Play Store asks why an app needs this.
 If no answer: A stays. It is built.
+Answer (owner, 2026-10-11): A. The built default stays: reminders are not exact on Android.
 
-## Q-7 · OPEN · DEFAULT · blocks F10-services (tray) · 2026-10-10
+## Q-7 · ANSWERED A · DEFAULT · blocks F10-services (tray) · 2026-10-10
 The Mac app has a small pop-up window under its menu bar icon, with a box to add a task. What does the tray icon of the Flutter app open on the Mac and on Windows?
 A) A normal system menu: the "Now" line, the "Next" line, how much of today is done, "Open Grove", "New task", "Quit Grove". "New task" opens Grove with the cursor in the add box.   ← my pick: it needs no new package and it looks right on both systems.
 B) A small pop-up window with the add box, as in the Mac app — needs a window package that is not on the plan's list, or much native code for each system.
 If no answer: A stays. It is built.
+Answer (owner, 2026-10-11): A. The built default stays: a normal system menu.
 
-## Q-8 · OPEN · ASK · blocks nothing now · 2026-10-10
+## Q-8 · ANSWERED A · ASK · blocks nothing now · 2026-10-10
 You close the window of Grove on the Mac or on Windows. What happens?
 A) Grove quits, as now — simple. The tray icon goes away. Reminders that are already set still show.   ← my pick: it is what the Flutter app does today, and a quit is never a surprise.
 B) Grove stays open in the tray, as the Mac app does — the tray icon stays and "Open Grove" brings the window back. Only "Quit Grove" quits.
 If no answer: A. Closing the window quits Grove.
+Answer (owner, 2026-10-11): A. Closing the window quits Grove. No code change.
 
-## Q-9 · OPEN · DEFAULT · blocks F11 (login) · 2026-10-11
+## Q-9 · ANSWERED A · DEFAULT · blocks F11 (login) · 2026-10-11
 Grove sends you one login email. How do you finish the login?
 A) You type the code of the email in Grove — works the same on the 4 systems with no extra setup. You put the code (`{{ .Token }}`) in the email text in Supabase one time.   ← my pick: it needs no native link code and no new address to protect.
 B) You tap the link of the email and Grove opens — Grove needs its own link name on each system (native files for Android, iOS, macOS, Windows) and a redirect address in Supabase.
 If no answer: A stays. It is built and tested. The link of the email does not open Grove.
+Answer (owner, 2026-10-11): A. The built default stays: you type the code of the email in Grove.
 
-## Q-10 · OPEN · DEFAULT · blocks F11 (login) · 2026-10-11
+## Q-10 · ANSWERED A · DEFAULT · blocks F11 (login) · 2026-10-11
 You sign out on a device. What happens to the Grove data on that device?
 A) It stays on the device — nothing is deleted. A person who uses the device after you sees your data.   ← my pick: Grove never deletes your data without your word.
 B) Grove deletes the data of the device at sign-out — the device is clean. Changes that were not synced yet are lost.
 If no answer: A stays. It is built and tested.
+Answer (owner, 2026-10-11): A. The built default stays: the data stays on the device after a sign-out.
 
-## Q-11 · OPEN · ASK · blocks nothing now · 2026-10-11
+## Q-11 · ANSWERED A · ASK · blocks nothing now · 2026-10-11
 Do you want a button in Grove that deletes your account and all its data on the server?
 A) No, not now — you delete the rows and the user by hand in the Supabase dashboard (the SQL is in `docs/acceptance/F11-login.md`).   ← my pick: it is your own project, and a delete that cannot be undone needs your hand.
 B) Yes — Grove gets a "Delete account" button. It needs a small server function with admin rights in Supabase. That is a new part with its own security rules.
 If no answer: A. Nothing is built for this.
+Answer (owner, 2026-10-11): A. No "Delete account" button. No code change.
 
-## Q-12 · OPEN · DEFAULT · blocks F11 (login) · 2026-10-11
+## Q-12 · ANSWERED A · DEFAULT · blocks F11 (login) · 2026-10-11
 Where does a device keep your login, and for how long?
 A) In the settings file of the app, until you sign out — no new package. A person or a program that can read your user files on the device can copy the login.   ← my pick: it is what the Supabase package does by itself, and the plan's package list has no safe-store package.
 B) In the key store of the system (Keychain, Windows Credential Manager, Android Keystore) — needs the package `flutter_secure_storage`, which is not on the plan's list.
 If no answer: A stays. It is built. How long a login lives is a setting of your Supabase project (as new: it has no end).
+Answer (owner, 2026-10-11): A. The built default stays: the login is in the settings file of the app.
 
-## Q-13 · OPEN · DEFAULT · blocks F11 (image upload) · 2026-10-11
+## Q-13 · ANSWERED A · DEFAULT · blocks F11 (image upload) · 2026-10-11
 You delete a picture from a note. What happens to its file on the server?
 A) The file stays in the file store — an undo, or a device that was offline, can bring the picture back with its file. The store grows a little (free plan: 1 GB).   ← my pick: Grove never deletes your data on the server without your word.
 B) Grove deletes the file — less space is used. A picture that comes back from another device has no file any more.
 If no answer: A stays. It is built: no rule in the SQL allows a delete.
+Answer (owner, 2026-10-11): A. The built default stays: the file stays in the file store.
 
-## Q-14 · OPEN · ASK · blocks nothing now · 2026-10-11
+## Q-14 · ANSWERED A · ASK · blocks nothing now · 2026-10-11
 Who can make an account in your Supabase project? The address and the public key of the project are inside the built app, as in every Supabase app.
 A) Only you — after your first login you turn off "Allow new users to sign up" in Supabase. Nobody else can sign in.   ← my pick: Grove is for one user, and the free plan is yours.
 B) Each person who has the app — a person sees only their own rows, but uses the space and the emails of your project.
 If no answer: sign-up stays open, as Supabase makes a new project. The step for A is in `docs/acceptance/F11-login.md`. The code is the same for both.
+Answer (owner, 2026-10-11): A. Only the owner signs in. The owner turns off sign-ups in Supabase after the first login. No code change.
 
-## Q-15 · OPEN · ASK · blocks F9 (add an image to a note) · 2026-10-11
+## Q-15 · ANSWERED A · ASK · blocks F9 (add an image to a note) · 2026-10-11
 May Grove use the package `file_selector` (from the Flutter team) to pick an image file? It is not on the plan's list.
 A) Yes — "Add an image" works in notes and in the notes of an event, on the 4 systems. One new package.   ← my pick: the plan wants images in the editor, and Flutter has no file window of its own.
 B) No — a note shows the images it has, but you cannot add one in the Flutter app.
 If no answer: B stays. The button "Add an image" is hidden. The editor is ready for it: it takes the picker as one parameter.
+Answer (owner, 2026-10-11): A. The package `file_selector` is allowed. "Add an image" shows in notes and in the notes of an event.
 
-## Q-16 · OPEN · ASK · blocks F9 (web links in a note) · 2026-10-11
+## Q-16 · ANSWERED A · ASK · blocks F9 (web links in a note) · 2026-10-11
 May Grove use the package `url_launcher` (from the Flutter team) to open a web link in the browser? It is not on the plan's list.
 A) Yes — a click on a web link in a note opens the browser. One new package.   ← my pick: a link that does nothing looks broken.
 B) No — a web link has the look of a link, and a click does nothing.
 If no answer: B stays. Links to tasks, notes and events (`[[`) work now; they need no package.
 2026-10-11, F10-screens: the same package would also give two buttons of the Settings window of the Mac app: "Show data folder" and "Open System Settings" (for the notifications). With no answer, Settings shows the path of the data folder as text with a button "Copy the path", and has no button for the settings of the system.
+Answer (owner, 2026-10-11): A. The package `url_launcher` is allowed. A click on a web link in a note opens the browser. Only `http` and `https` links open; other schemes do nothing.
 
-## Q-17 · OPEN · ASK · blocks F9 (one golden picture on Linux and Windows) · 2026-10-11
+## Q-17 · ANSWERED B · ASK · blocks F9 (one golden picture on Linux and Windows) · 2026-10-11
 The futuristic Day Spread picture is 0.203 % (Windows) and 0.210 % (Linux) off the macOS picture, and the limit is 0.2 %. Nothing moved. May the compare let a thin gap between two letters or two lines pass?
 A) Yes — the compare also takes a gap of 1 to 2 pixels between two letters or two lines as a soft edge. The limit stays 0.2 %. The picture runs on all 4 jobs again, and the pictures at 0.196 % and 0.197 % get room.   ← my pick: the cause is the box font of the tests, not the app.
 B) No — the compare stays. The picture gets less on it until it passes. A new heading can push a picture over again.
@@ -122,10 +135,13 @@ Checked again 2026-10-11, F10-screens, before any change (the two times before, 
 - I listed each text of this screen with its place, from left to right and from top to bottom. No layout slip is in the red pixels. Off whole pixels are only: the letters of the headings (the theme asks for 1.5 points between them), the two tilted sticky notes (in all 4 themes, and the other 3 pictures pass), and texts half a pixel up or down (in all 4 themes; none of them is red in the picture of the difference).
 - In the pictures of the CI the date (28 pt, bold) sits on whole pixels, y 40 to 68, and still rows 39 and 68 are half inked: the engine makes the bold of the test font by growing each box about half a pixel on each side. So a gap of 1.5 leaves half a pixel column between two letters, and the 2 points between the date and the line under it leave one half row. macOS gives that pixel 124 of 255 and Linux 112; the compare allows 12. The same text with no gap has no seam, and a 12 pt text that is not bold has clean edges on both systems.
 - No number for the gap puts these edges on whole pixels (by the same sum a gap of 2 would leave two half columns; I did not try it on the CI), so I see no layout fix. 779 of the 1937 red pixels are the date (532 seams, 247 the row under it); the rest are the same seams in the smaller headings and the rows over the titles of the blocks. The test stays parked. The compare and the limit did not change.
+Answer (owner, 2026-10-11): B. The compare and the limit stay as they are. The picture stays skipped on Linux and Windows and is checked on macOS and iOS. Nothing changes.
 
-## Q-18 · OPEN · ASK · blocks F10-screens (Export and Import in Settings) · 2026-10-11
+## Q-18 · ANSWERED A · ASK · blocks F10-screens (Export and Import in Settings) · 2026-10-11
 May Grove use the package `file_selector` (the same one as in Q-15) for the file windows of "Export JSON…" and "Import JSON…" in Settings? It is not on the plan's list.
 A) Yes — Export and Import work as in the Mac app, with a save window and an open window, on the 4 systems. One new package, the same as in Q-15.   ← my pick: the plan wants export and import, and Flutter has no file window of its own.
 B) No — no package. Export writes `grove-export-<day>.json` into the data folder, and Import reads a file with a fixed name from that folder. On a phone that folder is hard to reach.
 If no answer: the two buttons are hidden, and Settings says so. The code and its tests are ready (`SettingsFiles` in `app/lib/ui/settings/settings_view.dart`). The daily backups still run.
 Before the buttons show, one more thing needs a decision (the owner's, with Track A): what Import does when sync is signed in. Import replaces all data of the device; with sync on, that could replace the data of the account too.
+Answer (owner, 2026-10-11): A. The package `file_selector` is allowed. "Export JSON…" and "Import JSON…" show in Settings.
+Answer to the follow-up (owner, 2026-10-11): Import is blocked while you are signed in to sync. Grove says so in plain words (sign out first). Import works only when signed out.
