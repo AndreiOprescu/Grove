@@ -7,6 +7,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:grove/core/parsing/palette_rules.dart' show PaletteCommandId;
 import 'package:grove/state/state.dart' hide MotionRules;
 
 import 'app.dart';
@@ -20,6 +21,9 @@ import 'planner/planner_kind.dart';
 import 'planner/planner_view.dart';
 import 'settings/settings_view.dart';
 import 'settings/sync_mark.dart';
+import 'shell/app_menus.dart';
+import 'shell/command_palette.dart';
+import 'shell/error_alert.dart';
 import 'shell/store_shell_model.dart';
 import 'spread/day_spread_view.dart';
 import 'tasks/store_panes.dart';
@@ -83,25 +87,45 @@ class _StoreAppState extends State<StoreApp> {
     }
   }
 
-  /// Undo and Redo, as in the Edit menu of the Mac app. Command on Apple
-  /// devices, Ctrl on the others. A text field keeps its own undo. And
-  /// Escape.
+  /// What the menus of the Mac app do with the store. The shell gives
+  /// each line its key (Command on Apple devices, Ctrl on the others). A
+  /// text field keeps its own undo.
+  ShellCommands _commands() {
+    final store = widget.store;
+    return ShellCommands(
+      newTask: () => store.run(PaletteCommandId.newTask),
+      newNote: store.newNote,
+      newEvent: store.newEventNow,
+      palette: store.togglePalette,
+      undo: store.undoName == null ? null : store.undo,
+      redo: store.redoName == null ? null : store.redo,
+      undoName: store.undoName,
+      redoName: store.redoName,
+      zoomIn: () => store.zoomPlanner(zoomStep),
+      zoomOut: () => store.zoomPlanner(1 / zoomStep),
+    );
+  }
+
+  /// The keys that are in no menu.
   Map<ShortcutActivator, VoidCallback> get _shortcuts {
     final store = widget.store;
     final apple =
         defaultTargetPlatform == TargetPlatform.macOS ||
         defaultTargetPlatform == TargetPlatform.iOS;
-    const z = LogicalKeyboardKey.keyZ;
     return {
-      SingleActivator(z, meta: apple, control: !apple): store.undo,
-      SingleActivator(z, meta: apple, control: !apple, shift: true): store.redo,
+      // Redo the Windows way.
       if (!apple)
         const SingleActivator(LogicalKeyboardKey.keyY, control: true):
             store.redo,
-      // Escape closes the panel of the chosen task from any place. A field
-      // or a screen that uses Escape itself takes the key first.
+      // Escape closes the command palette, and then the panel of the chosen
+      // task, from any place. A field or a screen that uses Escape itself
+      // takes the key first.
       const SingleActivator(LogicalKeyboardKey.escape): () {
-        if (store.selectedTaskId != null) store.selectedTaskId = null;
+        if (store.paletteOpen) {
+          store.paletteOpen = false;
+        } else if (store.selectedTaskId != null) {
+          store.selectedTaskId = null;
+        }
       },
     };
   }
@@ -161,6 +185,7 @@ class _StoreAppState extends State<StoreApp> {
     screenBuilder: _screen,
     paneBuilder: _pane,
     shortcuts: _shortcuts,
+    commands: _commands,
     onSettings: _openSettings,
     // The mark shows nothing in a copy of Grove with no sync.
     topActions: (context, layout) => SyncMark(
@@ -168,8 +193,14 @@ class _StoreAppState extends State<StoreApp> {
       layout: layout,
       onTap: () => _openSettings(context, tab: SettingsTab.sync),
     ),
-    // The question of the first login opens over each screen.
-    homeBuilder: (context, home) =>
-        FirstSyncGate(store: widget.store, child: home),
+    // The question of the first login and an error message open over each
+    // screen. So does the command palette.
+    homeBuilder: (context, home) => FirstSyncGate(
+      store: widget.store,
+      child: ErrorGate(
+        store: widget.store,
+        child: PaletteHost(store: widget.store, child: home),
+      ),
+    ),
   );
 }

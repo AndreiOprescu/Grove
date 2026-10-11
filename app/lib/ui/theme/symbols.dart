@@ -42,6 +42,8 @@ const Map<String, IconData> _icons = {
   'flame': Icons.local_fire_department_outlined,
   'text.append': Icons.playlist_add,
   'chevron.left': Icons.chevron_left,
+  // the top of the window
+  'gearshape': Icons.settings_outlined,
 };
 
 /// True when `name` has its own icon.

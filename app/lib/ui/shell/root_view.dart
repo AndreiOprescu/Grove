@@ -1,8 +1,9 @@
 // Port of Sources/Grove/Layouts/RootView.swift: the window. The screen
 // switch picks what fills it. A phone gets the same parts in another place.
+import 'dart:math' as math;
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 
 import '../theme/ambient_background.dart';
 import '../theme/grove_theme.dart';
@@ -12,6 +13,7 @@ import 'left_dock.dart';
 import 'screen_switch.dart';
 import 'shell_layout.dart';
 import 'shell_model.dart';
+import 'top_buttons.dart';
 
 /// Builds a screen. null leaves the stand-in of the shell in place.
 typedef ScreenBuilder = Widget? Function(BuildContext context, Screen screen);
@@ -31,7 +33,7 @@ class RootView extends StatelessWidget {
     required this.model,
     this.screenBuilder,
     this.paneBuilder,
-    this.shortcuts,
+    this.onSearch,
     this.onSettings,
     this.topActions,
   });
@@ -40,39 +42,21 @@ class RootView extends StatelessWidget {
   final ScreenBuilder? screenBuilder;
   final PaneBuilder? paneBuilder;
 
-  /// More shortcuts for the whole window, for example Undo.
-  final Map<ShortcutActivator, VoidCallback>? shortcuts;
+  /// Opens the command palette. With null there is no "Search" button.
+  final VoidCallback? onSearch;
 
   /// Opens the Settings window. With null there is no "Settings…" in the
-  /// menu and no shortcut.
+  /// menu and no gear.
   final void Function(BuildContext context)? onSettings;
 
   /// A small thing in front of the Appearance button, for example the sync
   /// mark. null shows nothing.
   final TopActionBuilder? topActions;
 
-  /// The shortcuts of the View menu of the Mac app. Command on Apple
-  /// devices, Ctrl on the others.
-  Map<ShortcutActivator, VoidCallback> _shortcuts(BuildContext context) {
-    final onSettings = this.onSettings;
-    final apple =
-        defaultTargetPlatform == TargetPlatform.macOS ||
-        defaultTargetPlatform == TargetPlatform.iOS;
-    SingleActivator key(LogicalKeyboardKey key) =>
-        SingleActivator(key, meta: apple, control: !apple);
-    return {
-      key(LogicalKeyboardKey.keyT): model.showToday,
-      key(LogicalKeyboardKey.digit1): () => model.screen = Screen.planner,
-      key(LogicalKeyboardKey.digit2): model.showTasks,
-      key(LogicalKeyboardKey.digit3): () => model.screen = Screen.calendar,
-      key(LogicalKeyboardKey.digit4): () => model.screen = Screen.notes,
-      key(LogicalKeyboardKey.digit5): () => model.screen = Screen.garden,
-      // Swift: the Settings scene, Command and comma.
-      if (onSettings != null)
-        key(LogicalKeyboardKey.comma): () => onSettings(context),
-      ...?shortcuts,
-    };
-  }
+  /// From the left edge of a desktop window to the left dock. On a Mac
+  /// the three window buttons take the first 84 points (Swift: the same).
+  static double get dockLeft =>
+      !kIsWeb && defaultTargetPlatform == TargetPlatform.macOS ? 84 : 16;
 
   Widget _screen(BuildContext context) => SizedBox.expand(
     key: ValueKey('content-${model.screen.name}'),
@@ -92,28 +76,26 @@ class RootView extends StatelessWidget {
       final width = MediaQuery.sizeOf(context).width;
       final layout = ShellRules.layoutFor(width);
       final pane = LeftPane.isAvailable(model.screen) ? model.leftPane : null;
-      return CallbackShortcuts(
-        bindings: _shortcuts(context),
-        child: Focus(
-          autofocus: true,
-          child: Scaffold(
-            backgroundColor: theme.bg,
-            body: DefaultTextStyle(
-              style: theme.body(13).copyWith(color: theme.ink),
-              child: Stack(
-                fit: StackFit.expand,
-                children: [
-                  ThemeBackdrop(
-                    motion: model.motionSetting,
-                    intensity: model.intensity,
-                  ),
-                  switch (layout) {
-                    ShellLayout.desktop => _desktop(context, width, pane),
-                    ShellLayout.phone => _phone(context, pane),
-                  },
-                  _ToastLayer(text: model.toast, layout: layout),
-                ],
-              ),
+      // The keys of the window are in `GroveApp`, over the navigator.
+      return Focus(
+        autofocus: true,
+        child: Scaffold(
+          backgroundColor: theme.bg,
+          body: DefaultTextStyle(
+            style: theme.body(13).copyWith(color: theme.ink),
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                ThemeBackdrop(
+                  motion: model.motionSetting,
+                  intensity: model.intensity,
+                ),
+                switch (layout) {
+                  ShellLayout.desktop => _desktop(context, width, pane),
+                  ShellLayout.phone => _phone(context, pane),
+                },
+                _ToastLayer(text: model.toast, layout: layout),
+              ],
             ),
           ),
         ),
@@ -121,18 +103,26 @@ class RootView extends StatelessWidget {
     },
   );
 
+  /// Swift: the search pill and the gear. The sync mark and the Appearance
+  /// button stand between them here.
   Widget _topRight(BuildContext context, ShellLayout layout) {
+    final onSearch = this.onSearch;
     final onSettings = this.onSettings;
     return Row(
       mainAxisSize: MainAxisSize.min,
       spacing: 6,
       children: [
+        if (onSearch != null) SearchButton(onTap: onSearch, layout: layout),
         ?topActions?.call(context, layout),
         AppearanceButton(
           model: model,
           layout: layout,
           onSettings: onSettings == null ? null : () => onSettings(context),
         ),
+        // A phone has no room for the gear. "Settings…" is the last line of
+        // the Appearance menu there.
+        if (onSettings != null && layout == ShellLayout.desktop)
+          SettingsButton(onTap: () => onSettings(context), layout: layout),
       ],
     );
   }
@@ -144,22 +134,22 @@ class RootView extends StatelessWidget {
           children: [
             SizedBox(
               height: ShellRules.desktopTopStrip,
-              child: Stack(
+              child: CustomMultiChildLayout(
+                delegate: _TopStrip(dockLeft: dockLeft),
                 children: [
-                  Positioned(left: 16, top: 5, child: LeftDock(model: model)),
-                  Align(
-                    alignment: Alignment.topCenter,
-                    child: Padding(
-                      padding: const EdgeInsets.only(top: 5),
-                      child: ScreenSwitch(
-                        model: model,
-                        showLabels: ShellRules.switchShowsLabels(width),
-                      ),
+                  LayoutId(
+                    id: _StripPart.dock,
+                    child: LeftDock(model: model),
+                  ),
+                  LayoutId(
+                    id: _StripPart.screens,
+                    child: ScreenSwitch(
+                      model: model,
+                      showLabels: ShellRules.switchShowsLabels(width),
                     ),
                   ),
-                  Positioned(
-                    right: 16,
-                    top: 5,
+                  LayoutId(
+                    id: _StripPart.buttons,
                     child: _topRight(context, ShellLayout.desktop),
                   ),
                 ],
@@ -223,6 +213,44 @@ class RootView extends StatelessWidget {
       _PhoneBar(child: PhoneNavBar(model: model)),
     ],
   );
+}
+
+enum _StripPart { dock, screens, buttons }
+
+/// Places the three parts of the strip at the top of a desktop window. The
+/// screen switch is in the middle of the window (Swift: the same). When
+/// the buttons at a side reach into the middle, the switch moves away from
+/// them: no part covers another.
+class _TopStrip extends MultiChildLayoutDelegate {
+  _TopStrip({required this.dockLeft});
+
+  final double dockLeft;
+
+  /// Swift: 5 points from the top, 16 from the right edge.
+  static const top = 5.0;
+  static const right = 16.0;
+
+  /// The least room between the switch and the buttons next to it.
+  static const gap = 8.0;
+
+  @override
+  void performLayout(Size size) {
+    final loose = BoxConstraints.loose(size);
+    final dock = layoutChild(_StripPart.dock, loose);
+    positionChild(_StripPart.dock, Offset(dockLeft, top));
+    final buttons = layoutChild(_StripPart.buttons, loose);
+    final buttonsLeft = size.width - right - buttons.width;
+    positionChild(_StripPart.buttons, Offset(buttonsLeft, top));
+    final screens = layoutChild(_StripPart.screens, loose);
+    // On a whole point, also in a window of an odd width.
+    var left = ((size.width - screens.width) / 2).floorToDouble();
+    left = math.min(left, buttonsLeft - gap - screens.width);
+    left = math.max(left, dockLeft + dock.width + gap);
+    positionChild(_StripPart.screens, Offset(left, top));
+  }
+
+  @override
+  bool shouldRelayout(_TopStrip old) => old.dockLeft != dockLeft;
 }
 
 /// The background of the bar at the bottom of a phone. It runs down to the
