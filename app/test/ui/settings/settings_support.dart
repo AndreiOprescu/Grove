@@ -37,6 +37,13 @@ class FakeFiles implements SettingsFiles {
   /// The error of the next save or open.
   Object? failure;
 
+  /// False: a system with no save window (a phone).
+  @override
+  bool canSave = true;
+
+  /// Runs while the window of "Import" is open.
+  Future<void> Function()? whileOpen;
+
   final saved = <({String name, String text})>[];
   int opened = 0;
 
@@ -55,6 +62,7 @@ class FakeFiles implements SettingsFiles {
   Future<({String name, String text})?> open() async {
     opened += 1;
     if (failure case final f?) throw f;
+    await whileOpen?.call();
     return picked;
   }
 }

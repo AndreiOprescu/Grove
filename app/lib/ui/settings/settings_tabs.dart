@@ -607,6 +607,13 @@ class DataSettings extends StatefulWidget {
   /// The file windows. "Export" and "Import" are hidden when null.
   final SettingsFiles? files;
 
+  /// What Grove says while Import is blocked (Q-18 of
+  /// `docs/questions.md`): Import replaces all data of this device, and
+  /// with sync on that would go to the account too.
+  static const importBlocked =
+      'Import is off while you are signed in to sync. Sign out first '
+      '(Settings, Sync), then import.';
+
   @override
   State<DataSettings> createState() => _DataSettingsState();
 }
@@ -642,12 +649,27 @@ class _DataSettingsState extends State<DataSettings> {
     }
   }
 
+  /// True when Import must not run now. It says why.
+  bool _blockedNow() {
+    if (!store.isSignedIn) return false;
+    _report(
+      'You are signed in to sync. Sign out first, then import. Nothing '
+      'was changed.',
+      failed: true,
+    );
+    return true;
+  }
+
   Future<void> _import(SettingsFiles files) async {
+    // The button is off while signed in. A login can also come while a
+    // window of this import is open, so each step looks again.
+    if (_blockedNow()) return;
     try {
       final file = await files.open();
-      if (file == null || !mounted) return;
+      if (file == null || !mounted || _blockedNow()) return;
       final summary = DataExport.summary(file.text);
       if (!await _confirmReplace(summary) || !mounted) return;
+      if (_blockedNow()) return;
       store
         ..saveSafetyCopy()
         ..importData(file.text);
@@ -734,6 +756,7 @@ class _DataSettingsState extends State<DataSettings> {
     final files = widget.files;
     final dir = store.dataDir;
     final message = _message;
+    final signedIn = store.isSignedIn;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -753,15 +776,21 @@ class _DataSettingsState extends State<DataSettings> {
                 runSpacing: 8,
                 children: [
                   if (files != null) ...[
-                    CardButton(
-                      key: const ValueKey('settings-export'),
-                      label: 'Export JSON…',
-                      onTap: () => unawaited(_export(files)),
-                    ),
-                    CardButton(
-                      key: const ValueKey('settings-import'),
+                    if (files.canSave)
+                      CardButton(
+                        key: const ValueKey('settings-export'),
+                        label: 'Export JSON…',
+                        onTap: () => unawaited(_export(files)),
+                      ),
+                    _OffWhen(
+                      key: const ValueKey('settings-import-off'),
+                      off: signedIn,
                       label: 'Import JSON…',
-                      onTap: () => unawaited(_import(files)),
+                      child: CardButton(
+                        key: const ValueKey('settings-import'),
+                        label: 'Import JSON…',
+                        onTap: () => unawaited(_import(files)),
+                      ),
                     ),
                   ],
                   if (dir != null)
@@ -776,9 +805,18 @@ class _DataSettingsState extends State<DataSettings> {
               files == null
                   ? 'Export and Import are not in this copy of Grove yet. '
                         'The daily backups are.'
-                  : 'Export saves everything in one file. Import replaces '
-                        'everything with the file you pick.',
+                  : files.canSave
+                  ? 'Export saves everything in one file. Import replaces '
+                        'everything with the file you pick.'
+                  : 'Import replaces everything with the file you pick. '
+                        'Export is not on this device yet.',
             ),
+            if (files != null && signedIn)
+              Text(
+                DataSettings.importBlocked,
+                key: const ValueKey('settings-import-blocked'),
+                style: theme.body(13).copyWith(color: theme.ink),
+              ),
             if (message != null)
               Semantics(
                 container: true,
@@ -830,4 +868,30 @@ class _DataSettingsState extends State<DataSettings> {
       ],
     );
   }
+}
+
+/// A button that is grey and takes no tap while `off`.
+class _OffWhen extends StatelessWidget {
+  const _OffWhen({
+    super.key,
+    required this.off,
+    required this.label,
+    required this.child,
+  });
+
+  final bool off;
+  final String label;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) => off
+      ? Semantics(
+          container: true,
+          button: true,
+          enabled: false,
+          label: label,
+          excludeSemantics: true,
+          child: IgnorePointer(child: Opacity(opacity: 0.45, child: child)),
+        )
+      : child;
 }

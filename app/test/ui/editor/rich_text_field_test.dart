@@ -7,6 +7,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:grove/core/model/link.dart';
 import 'package:grove/state/state.dart' hide MotionRules;
+import 'package:grove/ui/editor/editor_tools.dart';
 import 'package:grove/ui/editor/markdown_controller.dart';
 import 'package:grove/ui/editor/rich_text_field.dart';
 import 'package:grove/ui/theme/grove_theme.dart';
@@ -25,6 +26,9 @@ class Rig {
   String text = '';
   final told = <String>[];
   final opened = <String?>[];
+
+  /// The web addresses the editor sent to the browser.
+  final links = <Uri>[];
 }
 
 EditorServices oneTask(Rig rig) => EditorServices(
@@ -48,6 +52,10 @@ Future<Rig> makeRig(
   ThemeId themeId = ThemeId.grove,
   Size size = const Size(500, 400),
   Alignment alignment = Alignment.topLeft,
+  ImagePicker? pickImages,
+  LinkOpener? openLink,
+  // Wraps the editor, as the app does with `EditorTools`.
+  Widget Function(Widget child)? around,
 }) async {
   final controller = MarkdownController(text: text);
   final focus = FocusNode();
@@ -64,16 +72,20 @@ Future<Rig> makeRig(
           width: 400,
           // As high as its text, as in a page that scrolls.
           child: SingleChildScrollView(
-            child: RichTextField(
-              text: shown,
-              controller: controller,
-              focusNode: focus,
-              services: (services ?? oneTask)(rig),
-              placeholder: 'Write here',
-              onChanged: (value) => setState(() {
-                shown = value;
-                rig.text = value;
-              }),
+            child: (around ?? (child) => child)(
+              RichTextField(
+                text: shown,
+                controller: controller,
+                focusNode: focus,
+                services: (services ?? oneTask)(rig),
+                placeholder: 'Write here',
+                pickImages: pickImages,
+                openLink: openLink,
+                onChanged: (value) => setState(() {
+                  shown = value;
+                  rig.text = value;
+                }),
+              ),
             ),
           ),
         ),
@@ -573,6 +585,262 @@ void main() {
       for (final piece in rest) {
         expect(piece.style?.fontSize, lessThan(0.1), reason: piece.text);
       }
+    });
+  });
+
+  group('web links', () {
+    const text = 'see https://grove.example/a now';
+    final address = Uri.parse('https://grove.example/a');
+
+    /// The middle of the letters `from` to `to` of the text.
+    Offset place(WidgetTester tester, int from, int to) {
+      final editable = tester.renderObject<RenderBox>(
+        find.byType(EditableText),
+      );
+      final state = tester.state<EditableTextState>(find.byType(EditableText));
+      final boxes = state.renderEditable.getBoxesForSelection(
+        TextSelection(baseOffset: from, extentOffset: to),
+      );
+      return editable.localToGlobal(boxes.first.toRect().center);
+    }
+
+    /// One click, at `at` of the clock of the pointer.
+    Future<void> clickAt(
+      WidgetTester tester,
+      Offset where, {
+      Duration at = Duration.zero,
+    }) async {
+      final gesture = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      await gesture.down(where, timeStamp: at);
+      await gesture.up(timeStamp: at);
+      await gesture.removePointer();
+      await tester.pump();
+    }
+
+    LinkOpener browser(Rig Function() rig, {bool works = true}) => (url) async {
+      rig().links.add(url);
+      return works;
+    };
+
+    testWidgets('a click on a web link opens it in the browser', (
+      tester,
+    ) async {
+      late Rig rig;
+      rig = await makeRig(tester, text, openLink: browser(() => rig));
+      await clickAt(tester, place(tester, 4, 27));
+      expect(rig.links, [address]);
+      expect(rig.told, isEmpty);
+      // The text did not change.
+      expect(rig.text, text);
+    });
+
+    testWidgets('a tap of a finger opens it too', (tester) async {
+      late Rig rig;
+      rig = await makeRig(tester, text, openLink: browser(() => rig));
+      await tester.tapAt(place(tester, 4, 27));
+      await tester.pump();
+      expect(rig.links, [address]);
+    });
+
+    testWidgets('a click on plain words opens nothing', (tester) async {
+      late Rig rig;
+      rig = await makeRig(tester, text, openLink: browser(() => rig));
+      await clickAt(tester, place(tester, 0, 3));
+      await clickAt(tester, place(tester, 28, 31));
+      expect(rig.links, isEmpty);
+    });
+
+    testWidgets('with no browser a click on a web link does nothing', (
+      tester,
+    ) async {
+      final rig = await makeRig(tester, text);
+      await clickAt(tester, place(tester, 4, 27));
+      expect(rig.links, isEmpty);
+      expect(rig.told, isEmpty);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('the editor takes the browser of the app around it', (
+      tester,
+    ) async {
+      late Rig rig;
+      rig = await makeRig(
+        tester,
+        text,
+        around: (child) =>
+            EditorTools(openLink: browser(() => rig), child: child),
+      );
+      await clickAt(tester, place(tester, 4, 27));
+      expect(rig.links, [address]);
+    });
+
+    testWidgets('the second click of a double click does not open it again', (
+      tester,
+    ) async {
+      late Rig rig;
+      rig = await makeRig(tester, text, openLink: browser(() => rig));
+      final where = place(tester, 4, 27);
+      await clickAt(tester, where, at: const Duration(seconds: 5));
+      await clickAt(tester, where, at: const Duration(milliseconds: 5150));
+      expect(rig.links, [address]);
+      // A click some time later opens it again.
+      await clickAt(tester, where, at: const Duration(seconds: 7));
+      expect(rig.links, [address, address]);
+    });
+
+    testWidgets('a drag over a web link opens nothing', (tester) async {
+      late Rig rig;
+      rig = await makeRig(tester, text, openLink: browser(() => rig));
+      final gesture = await tester.startGesture(
+        place(tester, 4, 6),
+        kind: PointerDeviceKind.mouse,
+      );
+      await tester.pump();
+      await gesture.moveTo(place(tester, 20, 22));
+      await tester.pump();
+      await gesture.up();
+      await tester.pump();
+      expect(rig.links, isEmpty);
+    });
+
+    testWidgets('a browser that cannot open the link: Grove says so', (
+      tester,
+    ) async {
+      late Rig rig;
+      rig = await makeRig(
+        tester,
+        text,
+        openLink: browser(() => rig, works: false),
+      );
+      await clickAt(tester, place(tester, 4, 27));
+      await tester.pump();
+      expect(rig.links, [address]);
+      expect(rig.told, ['Grove could not open the link.']);
+    });
+
+    testWidgets('a browser that fails with an error: Grove says so', (
+      tester,
+    ) async {
+      final rig = await makeRig(
+        tester,
+        text,
+        openLink: (url) async => throw StateError('no browser'),
+      );
+      await clickAt(tester, place(tester, 4, 27));
+      await tester.pump();
+      expect(rig.told, ['Grove could not open the link.']);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('the dot at the end of a sentence is not a part of the link', (
+      tester,
+    ) async {
+      late Rig rig;
+      rig = await makeRig(
+        tester,
+        'see https://grove.example/a.',
+        openLink: browser(() => rig),
+      );
+      await clickAt(tester, place(tester, 4, 27));
+      expect(rig.links, [address]);
+    });
+  });
+
+  group('the picker of the app', () {
+    PickedImage picture(String name) => (
+      name: name,
+      image: (
+        mime: 'image/png',
+        data: Uint8List.fromList([1, 2, 3]),
+        width: 4,
+        height: 3,
+      ),
+    );
+
+    EditorServices keeps(Rig rig) =>
+        EditorServices(storeImage: (image) => id, notify: rig.told.add);
+
+    testWidgets('"Add an image" puts the picked pictures in the text', (
+      tester,
+    ) async {
+      var asked = 0;
+      final rig = await makeRig(
+        tester,
+        'see',
+        services: keeps,
+        pickImages: () async {
+          asked += 1;
+          return [picture('door')];
+        },
+      );
+      await caret(tester, rig, 3);
+      await tester.tap(find.bySemanticsLabel('Add an image'));
+      await tester.pump();
+      await tester.pump();
+      expect(asked, 1);
+      expect(rig.text, contains('![door](grove-image:$id)'));
+      expect(find.byKey(const ValueKey('image-$id')), findsOneWidget);
+    });
+
+    testWidgets('the editor takes the picker of the app around it', (
+      tester,
+    ) async {
+      final rig = await makeRig(
+        tester,
+        '',
+        services: keeps,
+        around: (child) => EditorTools(
+          pickImages: () async => [picture('gate')],
+          child: child,
+        ),
+      );
+      await tester.tap(find.bySemanticsLabel('Add an image'));
+      await tester.pump();
+      await tester.pump();
+      expect(rig.text, contains('![gate](grove-image:$id)'));
+    });
+
+    testWidgets('a closed file window changes nothing', (tester) async {
+      final rig = await makeRig(
+        tester,
+        'see',
+        services: keeps,
+        pickImages: () async => const [],
+      );
+      await tester.tap(find.bySemanticsLabel('Add an image'));
+      await tester.pump();
+      await tester.pump();
+      expect(rig.text, 'see');
+      expect(rig.told, isEmpty);
+    });
+
+    testWidgets('a file that is not a picture: Grove says so', (tester) async {
+      final rig = await makeRig(
+        tester,
+        'see',
+        services: keeps,
+        pickImages: () async => const [(name: 'notes', image: null)],
+      );
+      await tester.tap(find.bySemanticsLabel('Add an image'));
+      await tester.pump();
+      await tester.pump();
+      expect(rig.text, 'see');
+      expect(rig.told, ['notes is not an image Grove can read.']);
+    });
+
+    testWidgets('a file window that fails: Grove says so', (tester) async {
+      final rig = await makeRig(
+        tester,
+        'see',
+        services: keeps,
+        pickImages: () async => throw StateError('no window'),
+      );
+      await tester.tap(find.bySemanticsLabel('Add an image'));
+      await tester.pump();
+      await tester.pump();
+      expect(rig.text, 'see');
+      expect(rig.told, ['Grove could not open the file window.']);
+      expect(tester.takeException(), isNull);
     });
   });
 
