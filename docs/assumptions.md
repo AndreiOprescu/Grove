@@ -353,6 +353,20 @@ Format: date · decision · why · how to undo
 - 2026-10-10 · Cross-platform port F4: the "JSON from the Mac app" test uses `app/test/fixtures/mac_export_v6.json`, a real export made by the Swift `DataExport.export` (a one-off Swift test, then deleted). It holds every table, a blob, a series with an exdate, a goal block and a subtask · proof that real Mac files import and come back with the same rows and columns
 - 2026-10-10 · Cross-platform port F4: when PR #4 (goal-instance subtasks, Swift migration 7 `block_subtasks`) merges, the Flutter port must add the same migration 7 and the table to `DataExport.tables`/`SyncMigrations` · the schema numbers of both apps must stay the same
 
+## Cross-platform F12 — release builds and speed check
+
+- 2026-10-11 · Cross-platform port F12: `./scripts/flutter_release.sh <macos|windows|android|ios>` makes the release build with `scripts/flutter_build.sh` and puts the files to hand out in `app/build/dist/` (not in the repo); `flutter_build.sh` got the target `appbundle` · one command per system, and the build itself stays in one place.
+- 2026-10-11 · Cross-platform port F12: the Android release build keeps the signing that the Flutter template gives with no key: the debug key of the Android tools on the machine that builds (`signingConfigs.getByName("debug")` in `app/android/app/build.gradle.kts`). No key was made · a key is the owner's call (Q-31).
+- 2026-10-11 · Cross-platform port F12: the workflow `release` starts by hand only, has no secret, makes no GitHub Release and no tag, and keeps its files for 30 days · the plan allows no store and no cost; the builds of CI have no Supabase keys and no sync.
+- 2026-10-11 · Cross-platform port F12: the Mac app and the iPhone app are zipped with `ditto` before the upload · the upload of GitHub loses the links and the rights of the files inside an app.
+- 2026-10-11 · Cross-platform port F12: the speed check has no new package. The test `app/integration_test/perf_test.dart` is built as the app itself in profile mode and prints its numbers · `flutter test` has no profile mode, and `flutter drive` needs the package `flutter_driver`, which is not on the plan's list.
+- 2026-10-11 · Cross-platform port F12: the start-up tool `app/tool/perf_start.dart` has the same lines as `lib/main.dart`, with its own data folder in the temporary folder of the app and with `NullNotifier` · it must never touch the data of Grove, and made-up events must not put reminders in the notification centre.
+- 2026-10-11 · Cross-platform port F12: the store of the speed check has 1 000 tasks, 407 events, 270 notes, 4 goals and 69 planner blocks in this week, the same in each run (`app/tool/perf_data.dart`, fixed random seed) · PLAN.md §10 names 1 000 tasks; the rest is "real-looking".
+- 2026-10-11 · Cross-platform port F12: "60 fps" is read as: 60 frames a second or more on average, and at most 1 frame in 100 where the work of the app (build + raster) is longer than 16.7 ms. All raw numbers are in the proof · PLAN.md gives the words "60 fps" and no way to count.
+- 2026-10-11 · Cross-platform port F12: memory has no pass line · PLAN.md has none; "~80–150 MB" in the table of `docs/cross-platform-plan.md` describes Flutter and is not a target. The numbers are reported as they are.
+- 2026-10-11 · Cross-platform port F12: no speed numbers from an Android emulator or an iPhone simulator · a simulator has no profile mode, the other helpers used the emulator at the same time, and emulator numbers are not device numbers.
+- 2026-10-11 · Cross-platform port F12: the app id is not changed to `local.grove.app` yet · the check before the change found two things that the two apps would share on a Mac (Q-30).
+
 ## Cross-platform Track A (engine) — see docs/tracks.md
 
 - 2026-10-10 · Cross-platform port: F5–F12 split into two parallel tracks, A (engine, `feat/xp-engine`) and B (screens, `feat/xp-screens`). Split, folder ownership and merge rules are in `docs/tracks.md`. CI also runs on `feat/xp-*` pushes · the user asked for a second agent to work at the same time
