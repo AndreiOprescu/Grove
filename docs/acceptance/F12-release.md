@@ -210,6 +210,20 @@ I made no key, no certificate and no account. The table says what each system ne
 | Android | An upload key, made once with `keytool` and kept safe (if it is lost, updates stop). For the Play Store: a Google Play developer account | the key is free; the Play account is 25 USD, one time | The APK installs by hand. Updates from another machine need a removal first (data lost). No Play Store |
 | Windows | A code signing certificate from a certificate seller | paid, each year; I do not know a sure price | Runs. Windows warns about a downloaded copy |
 
+## 5. CI, workflow `flutter`
+
+Last code commit: `f62e64f`. The commits after it change files in `docs/` only.
+
+| Run | For | android | windows | macos | ios |
+|---|---|---|---|---|---|
+| 38144548470, first try | push of `f62e64f` | **red** | green | green | green |
+| 38144548470, second try (only the red job ran again) | the same commit | green | green | green | green |
+| 38144952257 | the pull request #14, the same code | green | green | green | not ended when this was written |
+
+Why Android was red in the first try: the device test `calendar: the card of a new event saves the event` (`app/integration_test/planner_test.dart:328`, a file of Track B that this branch does not change). The tap on Save did not reach the button, because the keyboard of Android came up and moved it. Track B fixed that test in commit `654e3df` on the branch `feat/xp-screens` ("the device test taps Save when the button is in view"). That fix is not on this branch yet. Nothing in this branch changes `app/lib/` or that test, and the same commit was green on Android in the second try and in the run of the pull request. So I ran the red job again once and changed nothing. Until `654e3df` is on `feat/cross-platform-flutter`, the Android job can be red again for the same reason.
+
+The speed check is not in this workflow.
+
 ## Not verified
 
 - The workflow `release` did not run on GitHub (see 1). Its upload step and the Windows copy step never ran.
