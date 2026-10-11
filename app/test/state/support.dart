@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:grove/data/data.dart';
 import 'package:grove/state/state.dart';
@@ -101,3 +103,62 @@ List<String> eventTitles(Iterable<EventItem> events) => [
 /// Waits for real time to pass (timers in the store use the real clock).
 Future<void> wait(int milliseconds) =>
     Future<void>.delayed(Duration(milliseconds: milliseconds));
+
+/// Timers that run only when a test says that time passed. Give [start] to
+/// `AppStore.newTimer`: then no wait of the store depends on the real clock,
+/// and a test cannot fail on a slow machine.
+class ManualTimers {
+  Duration _now = Duration.zero;
+  final _timers = <_ManualTimer>[];
+
+  /// How many timers wait for their time.
+  int get waiting => _timers.length;
+
+  /// A timer that calls [callback] one time, when [length] has passed.
+  Timer start(Duration length, void Function() callback) {
+    final timer = _ManualTimer(this, _now + length, callback);
+    _timers.add(timer);
+    return timer;
+  }
+
+  /// Lets [time] pass. Each timer whose time comes runs now, the earliest
+  /// first. What a timer starts with `await` or `then` runs after this call:
+  /// give the event loop one turn (`World.pass` does both).
+  void pass(Duration time) {
+    final end = _now + time;
+    while (true) {
+      _ManualTimer? next;
+      for (final t in _timers) {
+        if (t.due <= end && (next == null || t.due < next.due)) next = t;
+      }
+      if (next == null) break;
+      _now = next.due;
+      next._run();
+    }
+    _now = end;
+  }
+}
+
+class _ManualTimer implements Timer {
+  _ManualTimer(this._owner, this.due, this._callback);
+
+  final ManualTimers _owner;
+  final Duration due;
+  final void Function() _callback;
+  int _ticks = 0;
+
+  void _run() {
+    _owner._timers.remove(this);
+    _ticks = 1;
+    _callback();
+  }
+
+  @override
+  void cancel() => _owner._timers.remove(this);
+
+  @override
+  bool get isActive => _owner._timers.contains(this);
+
+  @override
+  int get tick => _ticks;
+}

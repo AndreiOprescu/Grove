@@ -1,0 +1,62 @@
+name: release
+
+# The release builds of Grove for the 4 systems, as files to download from
+# the run (Actions ▸ release ▸ the run ▸ Artifacts). Nothing is signed with
+# a key of the owner, nothing goes to a store, and no GitHub Release or tag
+# is made. See docs/acceptance/F12-release.md.
+#
+# It starts by hand only: Actions ▸ release ▸ Run workflow, or
+#   gh workflow run release.yml --ref <branch>
+# GitHub shows the button only when this file is on the default branch.
+#
+# The builds have no keys of a Supabase project, so they have no sync.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  FLUTTER_VERSION: 3.47.7
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: ubuntu-latest,  target: android }
+          - { os: windows-latest, target: windows }
+          - { os: macos-latest,   target: macos }
+          - { os: macos-latest,   target: ios }
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        if: matrix.target == 'android'
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Install Flutter
+        run: |
+          git clone --depth 1 --branch "$FLUTTER_VERSION" https://github.com/flutter/flutter.git "$RUNNER_TEMP/flutter"
+          echo "$RUNNER_TEMP/flutter/bin" >> "$GITHUB_PATH"
+      - run: flutter config --no-analytics
+      # The same headers as in flutter.yml, for the native library of the
+      # tray (package cnativeapi).
+      - name: Linux headers for the tray library
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libgtk-3-dev libx11-dev libxi-dev
+      - name: Release build
+        run: ./scripts/flutter_release.sh ${{ matrix.target }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: grove-${{ matrix.target }}-${{ github.run_number }}
+          path: app/build/dist/
+          if-no-files-found: error
+          retention-days: 30

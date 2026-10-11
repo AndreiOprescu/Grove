@@ -187,36 +187,56 @@ class _MonthViewState extends State<MonthView> {
           spacing: 4,
           children: [
             _dayNumber(theme, day),
-            const Spacer(),
-            if (info.hasNote)
-              Tooltip(
-                message: 'This day has a note',
-                child: Icon(
-                  symbolIcon('leaf.fill'),
-                  key: ValueKey('month-leaf-${day.string}'),
-                  size: 10,
-                  color: theme.accent,
-                ),
-              ),
-            if (dots > 0)
-              Tooltip(
-                message: tasks,
-                child: Row(
-                  key: ValueKey('month-dots-${day.string}'),
-                  mainAxisSize: MainAxisSize.min,
-                  spacing: 2,
-                  children: [
-                    for (var i = 0; i < dots; i++)
-                      DecoratedBox(
-                        decoration: BoxDecoration(
-                          color: theme.accent2,
-                          shape: BoxShape.circle,
+            // The leaf and the dots take the room that is left. A narrow
+            // day shows fewer dots, and no leaf when it has no room at all.
+            Expanded(
+              child: LayoutBuilder(
+                builder: (context, box) {
+                  final marks = CalendarMarks.fit(
+                    room: box.maxWidth,
+                    leaf: info.hasNote,
+                    dots: dots,
+                  );
+                  return Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    spacing: CalendarMarks.gap,
+                    children: [
+                      if (marks.leaf)
+                        Tooltip(
+                          message: 'This day has a note',
+                          child: Icon(
+                            symbolIcon('leaf.fill'),
+                            key: ValueKey('month-leaf-${day.string}'),
+                            size: CalendarMarks.leafSize,
+                            color: theme.accent,
+                          ),
                         ),
-                        child: const SizedBox(width: 4, height: 4),
-                      ),
-                  ],
-                ),
+                      if (marks.dots > 0)
+                        Tooltip(
+                          message: tasks,
+                          child: Row(
+                            key: ValueKey('month-dots-${day.string}'),
+                            mainAxisSize: MainAxisSize.min,
+                            spacing: CalendarMarks.dotGap,
+                            children: [
+                              for (var i = 0; i < marks.dots; i++)
+                                DecoratedBox(
+                                  decoration: BoxDecoration(
+                                    color: theme.accent2,
+                                    shape: BoxShape.circle,
+                                  ),
+                                  child: const SizedBox.square(
+                                    dimension: CalendarMarks.dotSize,
+                                  ),
+                                ),
+                            ],
+                          ),
+                        ),
+                    ],
+                  );
+                },
               ),
+            ),
           ],
         ),
         for (final e in pills.shown) _pill(theme, e, day),
@@ -369,5 +389,39 @@ class _MonthViewState extends State<MonthView> {
         ),
       ),
     );
+  }
+}
+
+/// How many marks fit beside the number of a day: the leaf of a note and
+/// the dots of the open tasks.
+abstract final class CalendarMarks {
+  static const leafSize = 10.0;
+  static const dotSize = 4.0;
+  static const dotGap = 2.0;
+
+  /// Between the leaf and the dots.
+  static const gap = 4.0;
+
+  /// The dots come first: a day with tasks shows one dot at least when one
+  /// fits. The leaf comes when there is room for it too.
+  static ({bool leaf, int dots}) fit({
+    required double room,
+    required bool leaf,
+    required int dots,
+  }) {
+    var left = room;
+    var shownDots = 0;
+    if (dots > 0 && left >= dotSize) {
+      shownDots = 1;
+      left -= dotSize;
+    }
+    final leafRoom = leafSize + (shownDots > 0 ? gap : 0);
+    final shownLeaf = leaf && left >= leafRoom;
+    if (shownLeaf) left -= leafRoom;
+    while (shownDots > 0 && shownDots < dots && left >= dotSize + dotGap) {
+      shownDots += 1;
+      left -= dotSize + dotGap;
+    }
+    return (leaf: shownLeaf, dots: shownDots);
   }
 }

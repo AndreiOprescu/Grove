@@ -43,7 +43,7 @@ extension AppStoreReminders on AppStore {
     if (notifier is NullNotifier || _disposed) return;
     final previous = reminderTask;
     _reminderSleep?.cancel();
-    final sleep = _reminderSleep = _Sleep(reminderDelay);
+    final sleep = _reminderSleep = _Sleep(reminderDelay, newTimer);
     reminderTask = () async {
       // Never two refreshes at the same time.
       await previous;
@@ -58,7 +58,7 @@ extension AppStoreReminders on AppStore {
   Future<void> keepRemindersFresh() async {
     while (!_disposed) {
       await refreshReminders();
-      final sleep = _freshSleep = _Sleep(const Duration(hours: 1));
+      final sleep = _freshSleep = _Sleep(const Duration(hours: 1), newTimer);
       await sleep.done;
     }
   }

@@ -1,6 +1,6 @@
 // The button at the top right: a menu with the four themes, light or dark,
 // and the motion switch. The same choices as the Appearance settings of the
-// Mac app (PLAN §5.8).
+// Mac app (PLAN §5.8). The last line opens the Settings window.
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -16,10 +16,14 @@ class AppearanceButton extends StatelessWidget {
     super.key,
     required this.model,
     this.layout = ShellLayout.desktop,
+    this.onSettings,
   });
 
   final ShellModel model;
   final ShellLayout layout;
+
+  /// Opens the Settings window. With null the menu has no "Settings…".
+  final VoidCallback? onSettings;
 
   static const tooltip = 'Theme and appearance';
 
@@ -78,6 +82,10 @@ class AppearanceButton extends StatelessWidget {
             checked: model.motionSetting,
             onTap: () => model.setMotion(!model.motionSetting),
           ),
+          if (onSettings != null) ...[
+            const PopupMenuDivider(),
+            item('Settings…', checked: false, onTap: onSettings!),
+          ],
         ],
       ),
     );

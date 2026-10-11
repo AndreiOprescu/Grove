@@ -8,6 +8,7 @@ import 'package:grove/core/model/task.dart';
 import 'package:grove/core/planner/planner_math.dart';
 import 'package:grove/state/state.dart' hide MotionRules;
 
+import '../editor/rich_text_field.dart';
 import '../theme/check_box.dart';
 import '../theme/grove_theme.dart';
 import '../theme/panel.dart';
@@ -34,13 +35,24 @@ class _TaskInspectorState extends State<TaskInspector> {
   // something.
   final _title = TextEditingController();
   final _summary = TextEditingController();
-  final _notes = TextEditingController();
   final _newSubtask = TextEditingController();
   final _newTag = TextEditingController();
   final _titleFocus = FocusNode();
   final _summaryFocus = FocusNode();
-  final _notesFocus = FocusNode();
   String? _loadedId;
+
+  /// The description, as the editor has it.
+  String _notes = '';
+
+  /// True from the first change of the description until the editor loses
+  /// the keyboard. In that time the store does not change the text under the
+  /// caret (it can add the id of a link to the saved text).
+  bool _typing = false;
+
+  /// What the editor of the description asks the store: the `[[` list and
+  /// the links. Made one time for each task, and not in `build`. The task
+  /// itself is not in its own list.
+  late EditorServices _services;
   Timer? _notesTimer;
   Timer? _summaryTimer;
 
@@ -56,7 +68,6 @@ class _TaskInspectorState extends State<TaskInspector> {
     _load(_id);
     _titleFocus.addListener(_titleFocusChanged);
     _summaryFocus.addListener(_summaryFocusChanged);
-    _notesFocus.addListener(_notesFocusChanged);
   }
 
   @override
@@ -73,11 +84,10 @@ class _TaskInspectorState extends State<TaskInspector> {
     _flushLater(_store, _id);
     _titleFocus.removeListener(_titleFocusChanged);
     _summaryFocus.removeListener(_summaryFocusChanged);
-    _notesFocus.removeListener(_notesFocusChanged);
-    for (final c in [_title, _summary, _notes, _newSubtask, _newTag]) {
+    for (final c in [_title, _summary, _newSubtask, _newTag]) {
       c.dispose();
     }
-    for (final f in [_titleFocus, _summaryFocus, _notesFocus]) {
+    for (final f in [_titleFocus, _summaryFocus]) {
       f.dispose();
     }
     super.dispose();
@@ -86,11 +96,13 @@ class _TaskInspectorState extends State<TaskInspector> {
   // MARK: Loading and saving
 
   void _load(String id) {
+    _services = _store.editorServices(excluding: ItemRef(ItemType.task, id));
+    _typing = false;
     final t = _store.task(id);
     if (t == null) return;
     _title.text = t.title;
     _summary.text = t.summary;
-    _notes.text = t.notes;
+    _notes = t.notes;
     _loadedId = id;
     _newSubtask.clear();
     _newTag.clear();
@@ -107,7 +119,7 @@ class _TaskInspectorState extends State<TaskInspector> {
     if (_loadedId != id) return null;
     final title = _title.text.trim();
     final summary = _summary.text;
-    final notes = _notes.text;
+    final notes = _notes;
     return () {
       final t = store.task(id);
       if (t == null) return;
@@ -140,11 +152,8 @@ class _TaskInspectorState extends State<TaskInspector> {
     final t = _store.task(_id);
     if (t == null || _loadedId != _id) return;
     if (!_titleFocus.hasFocus && t.title != _title.text) _title.text = t.title;
-    if (!_notesFocus.hasFocus &&
-        _notesTimer == null &&
-        t.notes != _notes.text) {
-      _notes.text = t.notes;
-    }
+    // The panel builds again after this, so the editor gets the new text.
+    if (!_typing && _notesTimer == null) _notes = t.notes;
     if (!_summaryFocus.hasFocus &&
         t.summary != SummaryText.clean(_summary.text)) {
       _summary.text = t.summary;
@@ -186,19 +195,25 @@ class _TaskInspectorState extends State<TaskInspector> {
 
   void _notesChanged(String text) {
     final id = _id;
+    _notes = text;
+    _typing = true;
     _notesTimer?.cancel();
     _notesTimer = Timer(const Duration(milliseconds: 500), () {
       _notesTimer = null;
-      if (_loadedId == id) _store.setNotes(id, _notes.text);
+      if (_loadedId == id) _store.setNotes(id, _notes);
     });
   }
 
-  void _notesFocusChanged() {
-    if (_notesFocus.hasFocus) return;
+  /// The description lost the keyboard: the text is saved, and the editor
+  /// shows the saved text. That text can have link ids added.
+  void _notesFocusChanged(bool focused) {
+    if (focused || !mounted) return;
     _flush();
-    // The saved text can have link ids added.
     final saved = _store.task(_id)?.notes;
-    if (saved != null && saved != _notes.text) _notes.text = saved;
+    setState(() {
+      _typing = false;
+      if (saved != null && _loadedId == _id) _notes = saved;
+    });
   }
 
   void _close() => _store.selectedTaskId = null;
@@ -695,17 +710,21 @@ class _TaskInspectorState extends State<TaskInspector> {
               ),
             ]),
             _section(theme, 'Description', [
-              GroveField(
+              KeyedSubtree(
                 key: const ValueKey('inspector-notes'),
-                controller: _notes,
-                focusNode: _notesFocus,
-                placeholder: 'The longer description.',
-                label: 'Description',
-                minLines: 4,
-                maxLines: 14,
-                newlines: true,
-                boxed: true,
-                onChanged: _notesChanged,
+                // A new editor for each task: the caret, the open `[[` list
+                // and the undo steps of one task do not go to the next one.
+                child: RichTextField(
+                  key: ValueKey(_id),
+                  text: _notes,
+                  services: _services,
+                  placeholder:
+                      'The longer description. Type [[ to mention a task.',
+                  minHeight: 90,
+                  label: 'Description',
+                  onChanged: _notesChanged,
+                  onFocusChange: _notesFocusChanged,
+                ),
               ),
             ]),
             _plan(theme, task),
