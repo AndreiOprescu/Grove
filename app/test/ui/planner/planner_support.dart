@@ -1,6 +1,7 @@
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:grove/ui/planner/focus_card.dart';
 import 'package:grove/ui/planner/planner_grid.dart';
 import 'package:grove/ui/store_app.dart';
 
@@ -164,3 +165,60 @@ double gridScroll(WidgetTester tester) => tester
     )
     .position
     .pixels;
+
+// Focus mode
+
+/// The store starts a session only for a block that ends after the real
+/// "now". The day of these tests is far away, so that is always true.
+final focusDay = d('2099-03-04');
+
+/// A store for the tests of focus mode. Motion is off. "Now" is 10:00 on
+/// `focusDay`.
+AppStore focusStore({bool motion = false}) {
+  final store = makeStore(
+    prefs: MemoryPrefs()..set('appearance.motion', motion),
+    clock: WallTime(day: focusDay, minute: 10 * 60),
+  );
+  store
+    ..selectedDay = focusDay
+    ..screen = Screen.planner;
+  return store;
+}
+
+/// A block from 10:00 to 11:00 on `focusDay`. Gives its id.
+String hourBlock(AppStore store, String title, {bool asEvent = false}) {
+  store.createFromDraft(
+    title: title,
+    day: focusDay,
+    start: 10 * 60,
+    end: 11 * 60,
+    asEvent: asEvent,
+  );
+  return store
+      .blocks(DayRange.single(focusDay))
+      .firstWhere((b) => b.title == title)
+      .id;
+}
+
+/// Sets the clock of the card: it shows this time on `focusDay` when the card
+/// reads it first. From there it runs with the time of the test.
+void setFocusClock(
+  WidgetTester tester,
+  int hour,
+  int minute, [
+  int second = 0,
+]) {
+  final at = DateTime(
+    focusDay.year,
+    focusDay.month,
+    focusDay.day,
+    hour,
+    minute,
+  ).add(Duration(seconds: second));
+  DateTime? begun;
+  FocusCard.clock = () {
+    final now = tester.binding.clock.now();
+    return at.add(now.difference(begun ??= now));
+  };
+  addTearDown(() => FocusCard.clock = DateTime.now);
+}

@@ -20,6 +20,7 @@ import '../theme/panel.dart';
 import '../theme/symbols.dart';
 import 'block_subtask_editor.dart';
 import 'day_columns.dart';
+import 'focus_card.dart';
 import 'planner_dialogs.dart';
 import 'planner_geometry.dart';
 import 'planner_grid.dart';
@@ -205,7 +206,11 @@ class _PlannerViewState extends State<PlannerView> {
   // Build
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) =>
+      // The timer of a focus session floats over the planner (PLAN §5.1.7).
+      FocusLayer(store: _store, child: _screen(context));
+
+  Widget _screen(BuildContext context) {
     final theme = GroveTheme.of(context);
     final days = _days(context);
     final phone =

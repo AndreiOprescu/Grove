@@ -3,11 +3,13 @@
 //
 // Make the pictures again after a wanted change of the look:
 //   cd app && flutter test --update-goldens test/ui/planner
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:grove/ui/planner/block_subtask_editor.dart';
+import 'package:grove/ui/planner/focus_card.dart';
 import 'package:grove/ui/store_app.dart';
 
-import '../tasks/tasks_support.dart' show textOffPixels;
+import '../tasks/tasks_support.dart' show pumpPane, textOffPixels;
 import 'planner_support.dart';
 
 void main() {
@@ -45,4 +47,80 @@ void main() {
       );
     });
   });
+
+  testWidgets('the focus timer asks "Mark done?" over the planner', (
+    tester,
+  ) async {
+    await withRealShadows(() async {
+      final store = focusStore();
+      final id = hourBlock(store, 'Write report');
+      setFocusClock(tester, 10, 59, 59);
+      await pumpPlanner(tester, store);
+      store.startFocus(store.event(id)!);
+      await tester.pumpAndSettle();
+      await tester.pump(const Duration(seconds: 1));
+      await tester.pumpAndSettle();
+      expect(find.text('Time is up. Mark done?'), findsOneWidget);
+
+      expect(textOffPixels(tester, within: find.byType(FocusCard)), isEmpty);
+      await expectLater(
+        find.byType(StoreApp),
+        matchesGoldenFile('goldens/planner_focus_done_grove_light.png'),
+      );
+    });
+  });
+
+  // The three faces of the card: the count down, the question for a task,
+  // and the end of a block with no task.
+  for (final (name, themeId, brightness) in [
+    ('grove_light', ThemeId.grove, Brightness.light),
+    ('futuristic_dark', ThemeId.futuristic, Brightness.dark),
+  ]) {
+    testWidgets('the focus card, $name', (tester) async {
+      await withRealShadows(() async {
+        final store = focusStore();
+        FocusSession session({String? taskId, bool finished = false}) =>
+            FocusSession(
+              blockId: 'b1',
+              taskId: taskId,
+              title: 'Write report',
+              day: focusDay,
+              start: DateTime(2099, 3, 4, 10),
+              end: DateTime(2099, 3, 4, 11),
+              finished: finished,
+            );
+        setFocusClock(tester, 10, 35);
+        await pumpPane(
+          tester,
+          Padding(
+            padding: const EdgeInsets.all(20),
+            child: Wrap(
+              spacing: 20,
+              children: [
+                FocusCard(
+                  store: store,
+                  session: session(taskId: 't1'),
+                ),
+                FocusCard(
+                  store: store,
+                  session: session(taskId: 't1', finished: true),
+                ),
+                FocusCard(store: store, session: session(finished: true)),
+              ],
+            ),
+          ),
+          size: const Size(790, 190),
+          themeId: themeId,
+          brightness: brightness,
+        );
+        expect(find.text('25:00'), findsOneWidget);
+
+        expect(textOffPixels(tester), isEmpty);
+        await expectLater(
+          find.byType(MaterialApp),
+          matchesGoldenFile('goldens/focus_card_$name.png'),
+        );
+      });
+    });
+  }
 }
