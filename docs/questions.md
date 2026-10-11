@@ -145,3 +145,9 @@ If no answer: the two buttons are hidden, and Settings says so. The code and its
 Before the buttons show, one more thing needs a decision (the owner's, with Track A): what Import does when sync is signed in. Import replaces all data of the device; with sync on, that could replace the data of the account too.
 Answer (owner, 2026-10-11): A. The package `file_selector` is allowed. "Export JSON…" and "Import JSON…" show in Settings.
 Answer to the follow-up (owner, 2026-10-11): Import is blocked while you are signed in to sync. Grove says so in plain words (sign out first). Import works only when signed out.
+
+## Q-40 · OPEN · DEFAULT · blocks nothing (one text in the details of `grove.exe`) · 2026-10-11
+On Windows, may the "Product name" of the program change from "grove" to "Grove"? The data folder gets its name from this text: `%APPDATA%\local.grove\grove`.
+A) Keep "grove" — the data folder stays the same for sure; the window, the taskbar and Task Manager already say "Grove", only the "Details" tab of the file says "grove".   ← my pick: the brief says not to change a name that makes the data folder.
+B) Change it to "Grove" — the "Details" tab says "Grove" too; on a normal Windows disk the folder is the same one (big and small letters are equal there), on a disk set to tell them apart the app would start with an empty folder.
+If no answer: A stays. The file name `grove.exe` stays too.
