@@ -1,5 +1,6 @@
 // Golden screenshots of the planner parts that came after F7: the subtasks
-// of a goal block with their window, and the focus timer.
+// of a goal block with their window, the pencil of a block with a linked
+// note, and the focus timer.
 //
 // Make the pictures again after a wanted change of the look:
 //   cd app && flutter test --update-goldens test/ui/planner
@@ -44,6 +45,47 @@ void main() {
       await expectLater(
         find.byType(StoreApp),
         matchesGoldenFile('goldens/planner_subtasks_grove_light.png'),
+      );
+    });
+  });
+
+  // The linked note of a block is its meeting note (card Q-35).
+  testWidgets('blocks with a linked note have the pencil', (tester) async {
+    await withRealShadows(() async {
+      final store = plannerStore(now: 10 * 60 + 20);
+      String add(String title, int start, int length, {bool asEvent = false}) {
+        store.createFromDraft(
+          title: title,
+          day: wednesday,
+          start: start,
+          end: start + length,
+          asEvent: asEvent,
+        );
+        return blockNamed(store, title).id;
+      }
+
+      final noted = [
+        add('Team sync', 9 * 60 + 30, 45, asEvent: true),
+        add('Write report', 10 * 60 + 30, 60),
+        goalBlock(store, start: 12 * 60, length: 90),
+        add('Call Sam', 15 * 60, 15),
+      ];
+      add('Lunch', 14 * 60, 45);
+      for (final id in noted) {
+        store.createMeetingNote(store.event(id)!);
+      }
+      store
+        ..selection = {}
+        ..selectedTaskId = null
+        ..screen = Screen.planner;
+      await pumpPlanner(tester, store);
+
+      for (final id in noted) {
+        expect(find.byKey(ValueKey('block-note-$id')), findsOneWidget);
+      }
+      await expectLater(
+        find.byType(StoreApp),
+        matchesGoldenFile('goldens/planner_linked_note_grove_light.png'),
       );
     });
   });

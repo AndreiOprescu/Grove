@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 import 'dart:math';
 
@@ -685,10 +686,16 @@ class AppStore extends ChangeNotifier {
     }
     for (final e in m.events) {
       final now = forward ? e.after : e.before;
-      // Task blocks hold no text.
-      if (now == null || now.kind != EventKind.event) continue;
+      if (now == null) continue;
       final was = forward ? e.before : e.after;
       final ref = ItemRef(ItemType.event, now.id);
+      if (now.kind != EventKind.event) {
+        // A task block or a goal block holds no text. But a note can link to
+        // it (its meeting note): a block that was brought back gets the link
+        // again.
+        if (was == null) repos.refs.rebuildIncoming(ref);
+        continue;
+      }
       if (was == null || was.notes != now.notes) {
         final canonical = repos.refs.reindex(ref, now.notes);
         if (canonical != now.notes) {

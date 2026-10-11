@@ -1043,6 +1043,12 @@ class PlannerGridState extends State<PlannerGrid> {
       const PopupMenuDivider(),
       _item('Duplicate', () => store.duplicate(blockIds: ids)),
       _item('Split in Two', () => store.split(blockId: block.id)),
+      // The linked note of a block is its meeting note (card Q-35). The line
+      // is for the block under the pointer, also when more are selected.
+      _item(block.hasNote ? 'Open Linked Note' : 'Create Linked Note', () {
+        final e = store.event(block.id);
+        if (e != null) store.createMeetingNote(e);
+      }),
       if (block.isGoalBlock)
         _item(
           block.isDone ? 'Mark Not Done' : 'Mark Done',
