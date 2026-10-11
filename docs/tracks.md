@@ -319,20 +319,26 @@ file, the plan, and `docs/assumptions.md` before it starts.
   `1cc29a8`, 2026-10-11.
 - F9: built, waits for the user (proof: `docs/acceptance/F9.md`): the month
   Calendar, the card of an event, the Notes screen, the rich editor and the
-  Day Spread. Two parts wait for an answer: "Add an image" (Q-15) and web
-  links (Q-16). CI is green on the 4 jobs, with the device test (8 tests) in
+  Day Spread. "Add an image" (Q-15) and web links (Q-16) are built since
+  the owner's answers of 2026-10-11; see F10-screens. CI is green on the 4 jobs, with the device test (8 tests) in
   each: run 38132697606, commit `c62116b`, 2026-10-11. One golden picture
-  (the futuristic Day Spread) is skipped on Linux and Windows; Q-17 asks the
-  owner. The owner merged PR #10 at `a6a52c0`. After that, three agents
+  (the futuristic Day Spread) is skipped on Linux and Windows; the owner
+  answered Q-17 with B, so it stays so. The owner merged PR #10 at `a6a52c0`. After that, three agents
   checked F9 (a verifier and two reviewers). Their findings are fixed in
   `1bfbce9`, `c0c0871` and `2634cfb` on `feat/xp-screens`; these commits are
   in no merged PR yet. The runs are in `docs/acceptance/F9.md`, "CI".
 - F10-screens: built, waits for the user (proof:
   `docs/acceptance/F10-screens.md`): the Garden, the growing plant (the big
   one, and the small one in the header of the Day Spread) and the Settings
-  window with 6 tabs. "Export" and "Import" are built and hidden (Q-18).
-  "Show data folder" and "Open System Settings" are not there (Q-16). The CI
-  runs are in the proof file, "CI".
+  window with 6 tabs. With the owner's answers of 2026-10-11 (Q-15, Q-16,
+  Q-18): "Add an image" in a note and in the notes of an event, a click on a
+  web link opens the browser (`http` and `https` only), "Export JSON…" on
+  macOS and Windows, "Import JSON…" on the 4 systems. Import is blocked
+  while the user is signed in to sync. Two new packages: `file_selector` and
+  `url_launcher`. Two new cards: Q-27 (Export on a phone) and Q-28 (large
+  pictures are stored as PNG). "Show data folder" and "Open System Settings"
+  are not there: they open no `http` address. No real file window and no
+  real browser was tried yet. The CI runs are in the proof file, "CI".
 - The planner gaps (F12 check): built, waits for the user (proof:
   `docs/acceptance/F12-planner-gaps.md`, branch `feat/xp-planner-gaps`,
   draft PR #15; PR #11 is merged, so it waits for no other PR): subtasks on
@@ -370,11 +376,17 @@ file, the plan, and `docs/assumptions.md` before it starts.
     screens (`saveSetting` in `settings_tabs.dart`). One call, for example
     `store.setSetting(key, value)`, would be cleaner. I change over when it
     is there.
-  - Import with sync signed in. `DataSettings` calls
-    `store.saveSafetyCopy()` and then `store.importData(text)`. What must
-    happen to the account then is yours and the owner's to decide (a note is
-    in Q-18). The two buttons are hidden in the real app until Q-18 has an
-    answer, so nothing can go wrong today.
+  - Import with sync signed in (new text, 2026-10-11). The owner's rule:
+    Import is blocked while the user is signed in to sync; it works only
+    when signed out. Today the block is in the screen only: `DataSettings`
+    reads `store.isSignedIn` before the file window, after the pick and
+    after the question, and then calls `store.saveSafetyCopy()` and
+    `store.importData(text)`. Please make the store refuse too:
+    `importData` gives an error, and changes nothing, while
+    `store.isSignedIn` is true. I show your error text when it is there. A
+    second thing for you to check: after an import while signed out, what
+    does the next login do with the imported rows (the question of the
+    first sync)? I did not test that; it is your gate.
     **Done by Track A, 2026-10-11, commit `53238d9`:** the store refuses
     too. `store.importData(text)` throws `ImportRefused` while a person is
     signed in (`store.isSignedIn`), before it reads the file, and no row
@@ -390,6 +402,16 @@ file, the plan, and `docs/assumptions.md` before it starts.
     system. On Windows and Android the place has another name. Your string;
     change it if you want.
 - For Track A to know (F10-screens):
+  - Shared files I changed on 2026-10-11 for `file_selector` and
+    `url_launcher`: `app/pubspec.yaml`, `app/pubspec.lock`,
+    `app/lib/main.dart` (one line: `StoreApp` gets `SystemFiles()`,
+    `pickImageFiles` and `openInBrowser`), the two macOS entitlement files
+    (one new key for files the user picks), `AndroidManifest.xml` (two
+    `<queries>` entries) and the generated plugin lists of macOS and
+    Windows. A merge with your branch can clash in `pubspec.lock`; run
+    `flutter pub get` after it.
+  - A `RichTextField` in a panel of yours gets "Add an image" and the link
+    click by itself when it is under `StoreApp` (it reads `EditorTools`).
   - The small plant is `GrowingPlant(progress: store.plantProgress, motion:
     store.motionSetting)` in `app/lib/ui/theme/growing_plant.dart`, if you
     want it in a panel.
@@ -559,9 +581,11 @@ file, the plan, and `docs/assumptions.md` before it starts.
     pictures with the panel again and looked at each one. Tests: group "the
     text of the task" in `app/test/ui/tasks/task_inspector_test.dart`. Your
     file `rich_text_field.dart` is not changed.
-  - New with F9, images: `EditorServices.storeImage` is used by the editor,
-    but no screen can pick a file yet (Q-15). Nothing to do before the
-    answer.
+  - New with F9, images: `EditorServices.storeImage` is used by the editor.
+    Since 2026-10-11 the app has a picker (Q-15 is answered). A stored
+    picture is a PNG or a JPEG of at most 1600 pixels on the long side. A
+    large photo is written again as a PNG, and that can be 2 to 4 MB
+    (Q-28). If the sync has a size limit for an image, tell me.
     **Track A, 2026-10-11:** nothing to do. Q-15 is answered A, and your
     `EditorTools` in `store_app.dart` gives the picker to each editor under
     it. So the description of a task shows "Add an image" in the real app

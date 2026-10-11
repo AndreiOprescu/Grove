@@ -145,6 +145,21 @@ If no answer: the two buttons are hidden, and Settings says so. The code and its
 Before the buttons show, one more thing needs a decision (the owner's, with Track A): what Import does when sync is signed in. Import replaces all data of the device; with sync on, that could replace the data of the account too.
 Answer (owner, 2026-10-11): A. The package `file_selector` is allowed. "Export JSON…" and "Import JSON…" show in Settings.
 Answer to the follow-up (owner, 2026-10-11): Import is blocked while you are signed in to sync. Grove says so in plain words (sign out first). Import works only when signed out.
+Built 2026-10-11: Export shows on macOS and Windows. `file_selector` has no save window on Android and iOS, so the card was wrong about "on the 4 systems" for Export: on a phone only Import shows. See Q-27.
+
+## Q-27 · ANSWERED B · ASK · blocks F10-screens (Export on a phone) · 2026-10-11
+`file_selector` has no save window on Android and iOS. How do you get your data out of Grove on a phone?
+A) With the share sheet of the phone, by the package `share_plus` (from the Flutter Community group) — "Export JSON…" gives the file to Files, Drive or mail. One new package.   ← my pick: it is the normal way a phone app gives a file out.
+B) No Export on a phone — you export on a computer. With sync the same data is on the computer.
+If no answer: B. On Android and iOS "Export JSON…" is hidden and Settings says "Export is not on this device yet." Import works there, and the daily backups run.
+Answer (owner, 2026-10-11): B. No Export on a phone. No new package. It is what is built.
+
+## Q-28 · ANSWERED A · DEFAULT · blocks nothing now · 2026-10-11
+A large picture that you add in the Flutter app is stored as a PNG file, because Flutter cannot write JPEG. A photo is then about 5 to 10 times larger than in the Mac app. May Grove use the package `image` (from the Dart community) to write JPEG?
+A) No, PNG stays — no new package. A large photo takes about 2 to 4 MB of the device and of the file store of the account (free plan: 1 GB).   ← my pick: it works now, and a note has few photos.
+B) Yes — a large photo with no see-through parts is stored as JPEG, about 0.3 MB, as in the Mac app. One new package.
+If no answer: A stays. It is built. A PNG or JPEG of at most 1600 pixels on its long side is kept as it is, so only large pictures and other kinds (GIF, WebP, BMP) grow.
+Answer (owner, 2026-10-11): A. PNG stays. No new package. It is what is built.
 
 ## Q-35 · OPEN · ASK · blocks the pencil on a block and the menu line "Open / create linked note" · 2026-10-11
 What is the "linked note" of a block in the planner? The plan wants a pencil on a block that has one (§5.1.2) and a menu line "Open / create linked note" (§5.1.4). The Mac app has neither.
