@@ -111,3 +111,9 @@ May Grove use the package `url_launcher` (from the Flutter team) to open a web l
 A) Yes — a click on a web link in a note opens the browser. One new package.   ← my pick: a link that does nothing looks broken.
 B) No — a web link has the look of a link, and a click does nothing.
 If no answer: B stays. Links to tasks, notes and events (`[[`) work now; they need no package.
+
+## Q-17 · OPEN · ASK · blocks F9 (one golden picture on Linux and Windows) · 2026-10-11
+The futuristic Day Spread picture is 0.203 % (Windows) and 0.210 % (Linux) off the macOS picture, and the limit is 0.2 %. Nothing moved. May the compare let a thin gap between two letters or two lines pass?
+A) Yes — the compare also takes a gap of 1 to 2 pixels between two letters or two lines as a soft edge. The limit stays 0.2 %. The picture runs on all 4 jobs again, and the pictures at 0.196 % and 0.197 % get room.   ← my pick: the cause is the box font of the tests, not the app.
+B) No — the compare stays. The picture gets less on it until it passes. A new heading can push a picture over again.
+If no answer: the compare and the limit stay. `spread_desktop_futuristic_light.png` is checked on the macOS and iOS jobs only; the test is skipped on Linux and Windows (`_parked` in `app/test/ui/goldens/f9_golden_test.dart`).
