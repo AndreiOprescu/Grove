@@ -6,7 +6,6 @@ import 'dart:math';
 
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
 import 'package:grove/core/model/day_key.dart';
 import 'package:grove/core/model/event.dart';
@@ -122,6 +121,9 @@ class PlannerGridState extends State<PlannerGrid> {
   DayKey? _targetedDay;
   Timer? _autoScroll;
   Timer? _clock;
+
+  /// The day and the minute of the now line on the screen.
+  (DayKey, int)? _drawnNow;
   Timer? _tapTimer;
   String? _tapId;
   bool _overStrip = false;
@@ -176,9 +178,13 @@ class PlannerGridState extends State<PlannerGrid> {
     super.initState();
     _scroll = ScrollController(initialScrollOffset: _nowTarget);
     _store.addListener(_storeChanged);
-    // The now line and the faded past follow the clock.
+    // The now line and the faded past follow the clock. The grid is drawn
+    // again only when the minute or the day is a new one, so a planner that
+    // nobody touches asks for one frame a minute.
     _clock = Timer.periodic(const Duration(seconds: 20), (_) {
-      if (mounted) setState(() {});
+      if (mounted && _drawnNow != (_store.clockToday, _store.nowMinute())) {
+        setState(() {});
+      }
     });
     _reload();
   }
@@ -1185,6 +1191,7 @@ class PlannerGridState extends State<PlannerGrid> {
     const gutter = PlannerGeometry.gutterWidth;
     final today = _store.clockToday;
     final now = _store.nowMinute();
+    _drawnNow = (today, now);
     final todayIndex = _days.indexOf(today);
     final indents = _indents(geo);
 
@@ -1234,6 +1241,7 @@ class PlannerGridState extends State<PlannerGrid> {
         ),
       if (todayIndex >= 0)
         Positioned(
+          key: const ValueKey('past-shade'),
           left: _dayLeft(todayIndex),
           top: 0,
           width: _dayWidthAt(todayIndex),
@@ -1763,8 +1771,28 @@ class _GridLinesPainter extends CustomPainter {
       old.hourHeight != hourHeight || old.color != color;
 }
 
+/// How strong the now line is drawn, 0 to 1.
+class _Strength extends Animation<double>
+    with
+        AnimationLocalListenersMixin,
+        AnimationLocalStatusListenersMixin,
+        AnimationEagerListenerMixin {
+  double _value = 1;
+
+  @override
+  double get value => _value;
+  set value(double next) {
+    if (next == _value) return;
+    _value = next;
+    notifyListeners();
+  }
+
+  @override
+  AnimationStatus get status => AnimationStatus.forward;
+}
+
 /// The line for "now": a dot and a 2-point line. It pulses slowly when
-/// motion is on and the app is in front.
+/// motion is on, the app is in front and the screen is not under another.
 class _NowLine extends StatefulWidget {
   const _NowLine({required this.pulses});
 
@@ -1774,15 +1802,33 @@ class _NowLine extends StatefulWidget {
   State<_NowLine> createState() => _NowLineState();
 }
 
-class _NowLineState extends State<_NowLine>
-    with SingleTickerProviderStateMixin, WidgetsBindingObserver {
-  late final Ticker _ticker = createTicker(_onTick);
-  final _opacity = ValueNotifier<double>(1);
+class _NowLineState extends State<_NowLine> with WidgetsBindingObserver {
+  /// How often the pulse is drawn, in steps a second. The opacity then
+  /// changes by at most 0.03 from one step to the next.
+  static const _stepsPerSecond = 20;
+
+  /// Steps the pulse. This is not a `Ticker`: a running ticker asks the
+  /// engine for a new frame at every refresh of the screen, 120 times a
+  /// second on a new Mac, also when the line looks the same. The timer asks
+  /// for a frame only when the line changes.
+  Timer? _pulse;
+
+  /// The steps since the pulse began. They are counted, not read from a
+  /// watch: a late timer makes the pulse a little slower and never makes it
+  /// jump.
+  int _steps = 0;
+
+  final _opacity = _Strength();
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
     _sync();
   }
 
@@ -1798,31 +1844,39 @@ class _NowLineState extends State<_NowLine>
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
-    _ticker.dispose();
+    _pulse?.cancel();
     _opacity.dispose();
     super.dispose();
   }
 
   void _sync() {
     final state = WidgetsBinding.instance.lifecycleState;
-    final runs = MotionRules.ambientRuns(
-      motionOn: widget.pulses,
-      windowIsKey: state == null || state == AppLifecycleState.resumed,
-    );
-    if (runs && !_ticker.isActive) {
-      unawaited(_ticker.start());
-    } else if (!runs && _ticker.isActive) {
-      _ticker.stop();
+    final runs =
+        // A screen under another one has its tickers off. The pulse stops
+        // there too.
+        TickerMode.valuesOf(context).enabled &&
+        MotionRules.ambientRuns(
+          motionOn: widget.pulses,
+          windowIsKey: state == null || state == AppLifecycleState.resumed,
+        );
+    if (runs && _pulse == null) {
+      _steps = 0;
+      _pulse = Timer.periodic(
+        const Duration(
+          microseconds: Duration.microsecondsPerSecond ~/ _stepsPerSecond,
+        ),
+        (_) => _onStep(),
+      );
+    } else if (!runs && _pulse != null) {
+      _pulse?.cancel();
+      _pulse = null;
       _opacity.value = 1;
     }
   }
 
-  void _onTick(Duration elapsed) {
-    final next = PulseMath.opacity(
-      elapsed.inMicroseconds / Duration.microsecondsPerSecond,
-    );
-    // 20 steps a second are enough for a slow pulse.
-    if ((next - _opacity.value).abs() >= 0.01) _opacity.value = next;
+  void _onStep() {
+    _steps++;
+    _opacity.value = PulseMath.opacity(_steps / _stepsPerSecond);
   }
 
   @override
@@ -1832,10 +1886,11 @@ class _NowLineState extends State<_NowLine>
       if (theme.glow)
         BoxShadow(color: theme.accent2.withValues(alpha: 0.8), blurRadius: 5),
     ];
-    return ValueListenableBuilder<double>(
-      valueListenable: _opacity,
-      builder: (context, opacity, child) =>
-          Opacity(opacity: opacity, child: child),
+    // No widget is built again for a step of the pulse. The grid is inside
+    // a `LayoutBuilder`, and a new build there lays out and paints the whole
+    // planner again. `FadeTransition` changes only the layer of the line.
+    return FadeTransition(
+      opacity: _opacity,
       child: Row(
         children: [
           DecoratedBox(
