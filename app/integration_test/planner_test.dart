@@ -44,6 +44,21 @@ bool get _apple =>
     defaultTargetPlatform == TargetPlatform.macOS ||
     defaultTargetPlatform == TargetPlatform.iOS;
 
+/// Taps `finder` when a tap can reach it. On Android the keyboard of the
+/// system comes up a moment after the typing and makes the screen shorter.
+/// A button that was in view can be out of view again then, so this brings
+/// it into view until it stays there.
+Future<void> _tapInView(WidgetTester tester, Finder finder) async {
+  for (var tries = 0; tries < 20; tries++) {
+    await tester.ensureVisible(finder);
+    await tester.pumpAndSettle();
+    if (finder.hitTestable().evaluate().isNotEmpty) break;
+    await tester.pump(const Duration(milliseconds: 100));
+  }
+  await tester.tap(finder);
+  await tester.pumpAndSettle();
+}
+
 /// A store on an empty database in memory. Motion is off, so the screen
 /// comes to rest.
 AppStore _store() {
@@ -647,10 +662,7 @@ void main() {
     expect(find.byType(EventEditor), findsOneWidget);
     await tester.enterText(_field('event-title'), 'Dentist');
     await tester.pumpAndSettle();
-    await tester.ensureVisible(_key('event-save'));
-    await tester.pumpAndSettle();
-    await tester.tap(_key('event-save'));
-    await tester.pumpAndSettle();
+    await _tapInView(tester, _key('event-save'));
     expect(find.byType(EventEditor), findsNothing);
     final saved = store.eventItems(DayRange(day, day)).single;
     expect(saved.title, 'Dentist');

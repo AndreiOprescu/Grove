@@ -25,9 +25,13 @@ enum SettingsTab {
 }
 
 /// The file windows of the system, for "Export" and "Import" of the Data
-/// tab. The app gives none until Q-18 of `docs/questions.md` has an answer;
-/// the two buttons are hidden then.
+/// tab. `main.dart` gives the real ones (`SystemFiles`, Q-18 of
+/// `docs/questions.md`); with none the two buttons are hidden.
 abstract class SettingsFiles {
+  /// False on a system with no save window (Android and iOS). "Export" is
+  /// hidden there.
+  bool get canSave => true;
+
   /// Asks where to save, and writes `text` there. Gives the name of the
   /// file, or null when the person closed the window.
   Future<String?> save({required String suggestedName, required String text});

@@ -14,10 +14,8 @@ import 'package:grove/core/parsing/markdown_spans.dart';
 import 'package:grove/state/state.dart' hide MotionRules;
 
 import '../theme/grove_theme.dart';
+import 'editor_tools.dart';
 import 'markdown_controller.dart';
-
-/// Lets the user pick pictures. The result goes into the text.
-typedef ImagePicker = Future<List<PickedImage>> Function();
 
 class RichTextField extends StatefulWidget {
   const RichTextField({
@@ -33,6 +31,7 @@ class RichTextField extends StatefulWidget {
     this.focusNode,
     this.autofocus = false,
     this.pickImages,
+    this.openLink,
     this.label,
   });
 
@@ -55,8 +54,14 @@ class RichTextField extends StatefulWidget {
   final FocusNode? focusNode;
   final bool autofocus;
 
-  /// The "Add an image" button shows only when this is set.
+  /// The "Add an image" button shows only when this is set, or when the
+  /// app around the field gives a picker (`EditorTools`).
   final ImagePicker? pickImages;
+
+  /// Opens a web link of the text in the browser. With null the editor
+  /// uses the one of the app around it (`EditorTools`); with none a click
+  /// on a web link does nothing.
+  final LinkOpener? openLink;
 
   /// What a screen reader says. The placeholder when null.
   final String? label;
@@ -84,6 +89,17 @@ class RichTextFieldState extends State<RichTextField> {
   /// on a check box leaves the caret where it was.
   Offset? _downAt;
   TextSelection? _selectionAtDown;
+
+  /// The link of the last click that went to the browser, and the time of
+  /// that click. The second click of a double click opens nothing.
+  String? _lastLink;
+  Duration? _lastLinkAt;
+
+  ImagePicker? get _pickImages =>
+      widget.pickImages ?? EditorTools.maybeOf(context)?.pickImages;
+
+  LinkOpener? get _openLink =>
+      widget.openLink ?? EditorTools.maybeOf(context)?.openLink;
 
   MarkdownController get controller =>
       widget.controller ?? (_own ??= MarkdownController(text: widget.text));
@@ -296,10 +312,37 @@ class RichTextFieldState extends State<RichTextField> {
           services.open(span.kind.id, span.kind.title ?? '');
         case SpanType.image:
           c.previewImage.value = span.kind.id;
+        case SpanType.link:
+          _linkClicked(span.kind.url ?? '', event.timeStamp);
         default:
           break;
       }
     });
+  }
+
+  /// A click or a tap on a web link opens the browser. The Mac app wants
+  /// Command with the click; a phone has no such key, so here a plain click
+  /// does it (Q-16 of `docs/questions.md`).
+  void _linkClicked(String text, Duration at) {
+    final open = _openLink;
+    // Only `http` and `https`. Any other link does nothing.
+    final url = webLink(text);
+    if (open == null || url == null) return;
+    final last = _lastLinkAt;
+    if (_lastLink == text &&
+        last != null &&
+        (at - last).abs() < kDoubleTapTimeout) {
+      return;
+    }
+    _lastLink = text;
+    _lastLinkAt = at;
+    final services = controller.services;
+    void failed() => services.notify('Grove could not open the link.');
+    unawaited(
+      Future.sync(() => open(url)).then((opened) {
+        if (!opened) failed();
+      }, onError: (Object _) => failed()),
+    );
   }
 
   /// Makes a mention where a task or a note is dropped.
@@ -317,11 +360,18 @@ class RichTextFieldState extends State<RichTextField> {
   }
 
   Future<void> _addImage() async {
-    final pick = widget.pickImages;
+    final pick = _pickImages;
     if (pick == null) return;
-    final items = await pick();
+    final c = controller;
+    final List<PickedImage> items;
+    try {
+      items = await pick();
+    } on Object {
+      c.services.notify('Grove could not open the file window.');
+      return;
+    }
     if (!mounted) return;
-    controller.importImages(items);
+    c.importImages(items);
   }
 
   // Build
@@ -345,7 +395,7 @@ class RichTextFieldState extends State<RichTextField> {
         children: [
           EditorToolbar(
             controller: c,
-            onImage: widget.pickImages == null ? null : _addImage,
+            onImage: _pickImages == null ? null : _addImage,
             before: _focus.requestFocus,
           ),
           if (ids.isNotEmpty)

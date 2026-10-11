@@ -510,6 +510,54 @@ void main() {
       );
     });
 
+    testWidgets('a file window: Export and Import show', (tester) async {
+      await openSettings(
+        tester,
+        _diskStore(),
+        tab: SettingsTab.data,
+        files: FakeFiles(),
+      );
+      expect(inSettings(find.text('Export JSON…')), findsOneWidget);
+      expect(inSettings(find.text('Import JSON…')), findsOneWidget);
+      expect(
+        inSettings(
+          find.text(
+            'Export saves everything in one file. Import replaces '
+            'everything with the file you pick.',
+          ),
+        ),
+        findsOneWidget,
+      );
+      // A copy of Grove with no sync has nothing that blocks Import.
+      expect(keyed('settings-import-blocked'), findsNothing);
+    });
+
+    testWidgets('a system with no save window: Import shows, Export does '
+        'not', (tester) async {
+      final files = FakeFiles()..canSave = false;
+      await openSettings(
+        tester,
+        _diskStore(),
+        tab: SettingsTab.data,
+        size: phoneSize,
+        files: files,
+      );
+      expect(keyed('settings-export'), findsNothing);
+      expect(keyed('settings-import'), findsOneWidget);
+      expect(
+        inSettings(
+          find.text(
+            'Import replaces everything with the file you pick. Export is '
+            'not on this device yet.',
+          ),
+        ),
+        findsOneWidget,
+      );
+      await tapIn(tester, keyed('settings-import'));
+      expect(files.opened, 1);
+      expect(tester.takeException(), isNull);
+    });
+
     testWidgets('the daily backups', (tester) async {
       final store = _diskStore();
       await openSettings(tester, store, tab: SettingsTab.data);
