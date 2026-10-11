@@ -1,5 +1,8 @@
 // The Day Planner on a real device (milestone F7): create, drag, resize,
-// overlap and undo. Then the screens of milestone F9: the Day Spread, the
+// overlap and undo. Then the paths that need a real pointer or a real key:
+// the menu of a block, a double tap, Shift and the command key at the end of
+// a drag, a drag of two blocks, a pinch, and the focus timer. Then the
+// screens of milestone F9: the Day Spread, the
 // card of an event and a note. Then the Garden and the Settings window of
 // milestone F10. It runs on the Mac, on Windows, on an iOS
 // simulator and on an Android emulator:
@@ -21,6 +24,7 @@ import 'package:grove/ui/calendar/event_editor.dart';
 import 'package:grove/ui/calendar/month_view.dart';
 import 'package:grove/ui/garden/garden_view.dart';
 import 'package:grove/ui/notes/note_editor_pane.dart';
+import 'package:grove/ui/planner/focus_card.dart';
 import 'package:grove/ui/settings/settings_view.dart';
 import 'package:grove/ui/shell/appearance_button.dart';
 import 'package:grove/ui/shell/shell_layout.dart';
@@ -136,6 +140,51 @@ Future<void> _drag(
   await tester.pumpAndSettle();
 }
 
+/// The pointer of this device: a finger on a phone, the mouse on a computer.
+PointerDeviceKind get _pointer =>
+    _finger ? PointerDeviceKind.touch : PointerDeviceKind.mouse;
+
+/// The command key of this device: Cmd on Apple devices, Ctrl on the others.
+LogicalKeyboardKey get _commandKey =>
+    _apple ? LogicalKeyboardKey.metaLeft : LogicalKeyboardKey.controlLeft;
+
+/// Opens the menu of the block at this point: a long press with a finger, a
+/// click with the right button of the mouse.
+Future<void> _menu(WidgetTester tester, Offset at) async {
+  if (_finger) {
+    await tester.longPressAt(at);
+  } else {
+    await tester.tapAt(
+      at,
+      kind: PointerDeviceKind.mouse,
+      buttons: kSecondaryMouseButton,
+    );
+  }
+  await tester.pumpAndSettle();
+}
+
+/// A mouse drag with `key` held when the button goes up.
+Future<void> _dragThenKey(
+  WidgetTester tester,
+  Offset from,
+  Offset offset,
+  LogicalKeyboardKey key,
+) async {
+  final gesture = await tester.startGesture(
+    from,
+    kind: PointerDeviceKind.mouse,
+  );
+  await tester.pump(const Duration(milliseconds: 16));
+  for (var i = 1; i <= 8; i++) {
+    await gesture.moveTo(from + offset * (i / 8));
+    await tester.pump(const Duration(milliseconds: 16));
+  }
+  await tester.sendKeyDownEvent(key);
+  await gesture.up();
+  await tester.sendKeyUpEvent(key);
+  await tester.pumpAndSettle();
+}
+
 /// The command key of this device with `key`: Cmd on Apple devices, Ctrl on
 /// the others.
 Future<void> _command(
@@ -143,9 +192,7 @@ Future<void> _command(
   LogicalKeyboardKey key, {
   bool shift = false,
 }) async {
-  final command = _apple
-      ? LogicalKeyboardKey.metaLeft
-      : LogicalKeyboardKey.controlLeft;
+  final command = _commandKey;
   await tester.sendKeyDownEvent(command);
   if (shift) await tester.sendKeyDownEvent(LogicalKeyboardKey.shiftLeft);
   await tester.sendKeyEvent(key);
@@ -292,6 +339,279 @@ void main() {
     // Let the short message at the bottom of the window go away.
     await tester.pump(const Duration(milliseconds: 2500));
     await tester.pumpAndSettle();
+  });
+
+  testWidgets('menu: a long press or a right click opens the menu of a block', (
+    tester,
+  ) async {
+    final store = _store();
+    _lunch(store);
+    await _open(tester, store);
+
+    await _menu(tester, _at(tester, store, wednesday, 12 * 60));
+    expect(find.text('Duration'), findsOneWidget);
+    expect(find.text('Delete Event'), findsOneWidget);
+    await tester.tap(find.text('Duplicate'));
+    await tester.pumpAndSettle();
+
+    final blocks = store.blocks(DayRange.single(wednesday));
+    expect(blocks.map((b) => b.title), ['Lunch', 'Lunch']);
+    expect(
+      {for (final b in blocks) (b.startMinute, b.endMinute)},
+      {(11 * 60 + 30, 12 * 60 + 30), (12 * 60 + 30, 13 * 60 + 30)},
+    );
+    expect(find.text('Duration'), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets(
+    'double tap: two taps on empty time start a block of 30 minutes',
+    (tester) async {
+      final store = _store();
+      await _open(tester, store);
+      final at = _at(tester, store, wednesday, 12 * 60);
+
+      await tester.tapAt(at, kind: _pointer);
+      await tester.tapAt(at, kind: _pointer);
+      await tester.pumpAndSettle();
+      final draft = find.byKey(const ValueKey('planner-draft'));
+      expect(draft, findsOneWidget);
+
+      await tester.enterText(
+        find.descendant(of: draft, matching: find.byType(EditableText)),
+        'Call the bank',
+      );
+      await tester.testTextInput.receiveAction(TextInputAction.done);
+      await tester.pumpAndSettle();
+
+      final block = _named(store, 'Call the bank');
+      expect(block.startMinute, 12 * 60);
+      expect(block.endMinute, 12 * 60 + 30);
+      expect(block.isTaskBlock, isTrue);
+    },
+  );
+
+  testWidgets(
+    'Shift at the end of a drag pushes the next block down',
+    (tester) async {
+      final store = _store();
+      _lunch(store);
+      store
+        ..createFromDraft(
+          title: 'Walk',
+          day: wednesday,
+          start: 13 * 60,
+          end: 14 * 60,
+          asEvent: true,
+        )
+        ..selection = {};
+      await _open(tester, store);
+
+      await _dragThenKey(
+        tester,
+        _at(tester, store, wednesday, 12 * 60),
+        Offset(0, store.plannerHourHeight),
+        LogicalKeyboardKey.shiftLeft,
+      );
+
+      final lunch = _named(store, 'Lunch');
+      final walk = _named(store, 'Walk');
+      expect(
+        (lunch.startMinute, lunch.endMinute),
+        (12 * 60 + 30, 13 * 60 + 30),
+      );
+      expect((walk.startMinute, walk.endMinute), (13 * 60 + 30, 14 * 60 + 30));
+      expect(find.text('Pushed 1 block'), findsOneWidget);
+
+      // One undo takes both blocks back.
+      await _command(tester, LogicalKeyboardKey.keyZ);
+      expect(_named(store, 'Lunch').startMinute, 11 * 60 + 30);
+      expect(_named(store, 'Walk').startMinute, 13 * 60);
+      await tester.pump(const Duration(milliseconds: 2500));
+      await tester.pumpAndSettle();
+    },
+    // A phone has no Shift key.
+    skip: _finger,
+  );
+
+  testWidgets(
+    'the command key at the end of a drag on empty time makes an event',
+    (tester) async {
+      final store = _store();
+      await _open(tester, store);
+
+      await _dragThenKey(
+        tester,
+        _at(tester, store, wednesday, 11 * 60 + 30),
+        Offset(0, store.plannerHourHeight),
+        _commandKey,
+      );
+      final draft = find.byKey(const ValueKey('planner-draft'));
+      expect(draft, findsOneWidget);
+      expect(find.text('New event'), findsOneWidget);
+
+      await tester.enterText(
+        find.descendant(of: draft, matching: find.byType(EditableText)),
+        'Dentist',
+      );
+      await tester.testTextInput.receiveAction(TextInputAction.done);
+      await tester.pumpAndSettle();
+
+      final block = _named(store, 'Dentist');
+      expect(block.isTaskBlock, isFalse);
+      expect(block.startMinute, 11 * 60 + 30);
+      expect(block.endMinute, 12 * 60 + 30);
+    },
+    skip: _finger,
+  );
+
+  testWidgets('two blocks: a command-click adds a block, a drag moves both', (
+    tester,
+  ) async {
+    final store = _store();
+    _lunch(store);
+    store
+      ..createFromDraft(
+        title: 'Walk',
+        day: wednesday,
+        start: 13 * 60,
+        end: 14 * 60,
+        asEvent: true,
+      )
+      ..selection = {};
+    final lunch = _named(store, 'Lunch').id;
+    final walk = _named(store, 'Walk').id;
+    await _open(tester, store);
+
+    await tester.sendKeyDownEvent(_commandKey);
+    await tester.tapAt(
+      _at(tester, store, wednesday, 12 * 60),
+      kind: PointerDeviceKind.mouse,
+    );
+    await tester.pump(const Duration(milliseconds: 400));
+    await tester.tapAt(
+      _at(tester, store, wednesday, 13 * 60 + 30),
+      kind: PointerDeviceKind.mouse,
+    );
+    await tester.sendKeyUpEvent(_commandKey);
+    await tester.pump(const Duration(milliseconds: 400));
+    await tester.pumpAndSettle();
+    expect(store.selection, {lunch, walk});
+    // A command-click opens no card.
+    expect(find.byType(EventEditor), findsNothing);
+
+    await _drag(
+      tester,
+      _at(tester, store, wednesday, 12 * 60),
+      Offset(0, store.plannerHourHeight / 2),
+    );
+    expect(_named(store, 'Lunch').startMinute, 12 * 60);
+    expect(_named(store, 'Walk').startMinute, 13 * 60 + 30);
+
+    await _command(tester, LogicalKeyboardKey.keyZ);
+    expect(_named(store, 'Lunch').startMinute, 11 * 60 + 30);
+    expect(_named(store, 'Walk').startMinute, 13 * 60);
+    await tester.pump(const Duration(milliseconds: 2500));
+    await tester.pumpAndSettle();
+  }, skip: _finger);
+
+  testWidgets(
+    'pinch: two fingers apart make the hours taller',
+    (tester) async {
+      final store = _store();
+      _lunch(store);
+      await _open(tester, store);
+      final before = store.plannerHourHeight;
+      final column = tester.getRect(_column(wednesday));
+      // One finger is on the block, the other on empty time under it.
+      final a = Offset(
+        column.left + column.width * 0.3,
+        _at(tester, store, wednesday, 12 * 60).dy,
+      );
+      final b = Offset(
+        column.left + column.width * 0.7,
+        _at(tester, store, wednesday, 13 * 60).dy,
+      );
+
+      final first = await tester.startGesture(a, pointer: 1);
+      final second = await tester.startGesture(b, pointer: 2);
+      await tester.pump(const Duration(milliseconds: 16));
+      for (var i = 1; i <= 8; i++) {
+        await first.moveTo(a - Offset(0, 5.0 * i));
+        await second.moveTo(b + Offset(0, 5.0 * i));
+        await tester.pump(const Duration(milliseconds: 16));
+      }
+      await first.up();
+      await second.up();
+      await tester.pumpAndSettle();
+
+      expect(store.plannerHourHeight, greaterThan(before * 1.3));
+      expect(
+        tester.getSize(_column(wednesday)).height,
+        closeTo(24 * store.plannerHourHeight, 0.5),
+      );
+      // The block did not move, and nothing new was made.
+      final lunch = _named(store, 'Lunch');
+      expect(lunch.startMinute, 11 * 60 + 30);
+      expect(lunch.endMinute, 12 * 60 + 30);
+      expect(store.blocks(DayRange.single(wednesday)), hasLength(1));
+      expect(find.byKey(const ValueKey('planner-draft')), findsNothing);
+      expect(find.text('Duration'), findsNothing);
+      expect(tester.takeException(), isNull);
+    },
+    // A computer pinches on its trackpad. The widget tests cover that.
+    skip: !_finger,
+  );
+
+  testWidgets('focus: "Start Focus" shows the timer; the cross stops it', (
+    tester,
+  ) async {
+    // The store starts a session only for a block that ends after the real
+    // "now". This day is far away, so that is always true.
+    final day = DayKey('2099-03-04');
+    final store = _store()
+      ..clockOverride = WallTime(day: day, minute: 10 * 60)
+      ..selectedDay = day;
+    store.createFromDraft(
+      title: 'Write report',
+      day: day,
+      start: 10 * 60,
+      end: 11 * 60,
+      asEvent: false,
+    );
+    // The card counts from 10:35 on that day, with the real seconds.
+    final begun = DateTime.now();
+    FocusCard.clock = () =>
+        DateTime(2099, 3, 4, 10, 35).add(DateTime.now().difference(begun));
+    addTearDown(() => FocusCard.clock = DateTime.now);
+    await _open(tester, store);
+
+    await _menu(tester, _at(tester, store, day, 10 * 60 + 30));
+    await tester.tap(find.text('Start Focus'));
+    await tester.pumpAndSettle();
+    expect(store.focus, isNotNull);
+    final card = find.byType(FocusCard);
+    expect(card, findsOneWidget);
+    expect(
+      find.descendant(of: card, matching: find.text('Write report')),
+      findsOneWidget,
+    );
+    // 25 minutes are left, less the seconds that the test took.
+    expect(
+      find.descendant(
+        of: card,
+        matching: find.textContaining(RegExp(r'^2[45]:[0-5]\d$')),
+      ),
+      findsOneWidget,
+    );
+
+    await tester.tap(
+      find.descendant(of: card, matching: find.byTooltip('Stop focus')),
+    );
+    await tester.pumpAndSettle();
+    expect(store.focus, isNull);
+    expect(card, findsNothing);
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets('today: the Day Spread opens, a tap on a task opens its panel', (
