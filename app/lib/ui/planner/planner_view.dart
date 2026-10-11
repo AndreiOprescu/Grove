@@ -18,7 +18,9 @@ import '../theme/grove_theme.dart';
 import '../theme/named_colors.dart';
 import '../theme/panel.dart';
 import '../theme/symbols.dart';
+import 'block_subtask_editor.dart';
 import 'day_columns.dart';
+import 'focus_card.dart';
 import 'planner_dialogs.dart';
 import 'planner_geometry.dart';
 import 'planner_grid.dart';
@@ -41,10 +43,12 @@ class PlannerView extends StatefulWidget {
 
 class _PlannerViewState extends State<PlannerView> {
   bool _dropToStrip = false;
+  final _grid = GlobalKey<PlannerGridState>();
   int _scrollRequest = 0;
   int _todaySeen = 0;
 
-  /// One window at a time: the plan, the warning or the question.
+  /// One window at a time: the plan, the warning, the question or the
+  /// subtasks of a goal block.
   bool _windowOpen = false;
 
   AppStore get _store => widget.store;
@@ -107,7 +111,18 @@ class _PlannerViewState extends State<PlannerView> {
     } else if (_store.planMyDayHandled != _store.planMyDayRequest) {
       _store.planMyDayHandled = _store.planMyDayRequest;
       unawaited(_showPlan());
+    } else if (_store.editingBlockSubtasks case final blockId?) {
+      unawaited(_editSubtasks(blockId));
     }
+  }
+
+  /// The subtasks of a goal block ("Subtasks…" in the menu of the block).
+  Future<void> _editSubtasks(String blockId) async {
+    _windowOpen = true;
+    await showBlockSubtaskEditor(context, _store, blockId);
+    _windowOpen = false;
+    if (_store.editingBlockSubtasks == blockId) _store.closeBlockSubtasks();
+    _openWindows();
   }
 
   Future<void> _askScope(RecurringPrompt prompt) async {
@@ -192,7 +207,11 @@ class _PlannerViewState extends State<PlannerView> {
   // Build
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) =>
+      // The timer of a focus session floats over the planner (PLAN §5.1.7).
+      FocusLayer(store: _store, child: _screen(context));
+
+  Widget _screen(BuildContext context) {
     final theme = GroveTheme.of(context);
     final days = _days(context);
     final phone =
@@ -251,9 +270,15 @@ class _PlannerViewState extends State<PlannerView> {
                     isDropTarget: _dropToStrip,
                     workStart: _workStart,
                     workEnd: _workEnd,
+                    // The block of "Fit" grows in.
+                    aroundFit: (fit) {
+                      final grid = _grid.currentState;
+                      grid == null ? fit() : grid.growNew(fit);
+                    },
                   ),
                   Expanded(
                     child: PlannerGrid(
+                      key: _grid,
                       store: _store,
                       days: days,
                       hourHeight: _store.plannerHourHeight,

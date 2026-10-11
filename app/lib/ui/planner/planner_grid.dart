@@ -10,7 +10,6 @@ import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
 import 'package:grove/core/model/day_key.dart';
 import 'package:grove/core/model/event.dart';
-import 'package:grove/core/model/task.dart';
 import 'package:grove/core/planner/planner_math.dart';
 // The store has its own `MotionRules`, for the garden.
 import 'package:grove/state/state.dart' hide MotionRules;
@@ -115,7 +114,6 @@ class PlannerGridState extends State<PlannerGrid> {
 
   List<PlannerBlock> _blocks = const [];
   Map<String, Layer> _layers = const {};
-  Map<String, List<BlockSubtask>> _subtasks = const {};
   LiveEdit? _live;
   CreateDrag? _create;
   Draft? _draft;
@@ -132,9 +130,30 @@ class PlannerGridState extends State<PlannerGrid> {
   int _draftSerial = 0;
   double _gridWidth = 800;
 
+  /// The blocks that grow in: the new blocks of "Fit" on a sticky note.
+  final _grow = <String>{};
+
+  /// The fingers on the grid, by pointer.
+  final _fingers = <int, Offset>{};
+
+  /// The height of one hour when the pinch began.
+  double? _pinchBase;
+
+  /// How far apart the two fingers were when the pinch began. A pinch on a
+  /// trackpad has no fingers on the grid, so it has no span.
+  double? _pinchSpan;
+
+  /// The height of one hour during a pinch. It is saved when the pinch ends.
+  double? _pinchHeight;
+
+  /// True from the second finger on the grid until all fingers are up. Two
+  /// fingers zoom: they do not move a block, make one or open a menu.
+  bool _twoFingers = false;
+
   AppStore get _store => widget.store;
   List<DayKey> get _days => widget.days;
-  PlannerGeometry get _geo => PlannerGeometry(hourHeight: widget.hourHeight);
+  double get _hourHeight => _pinchHeight ?? widget.hourHeight;
+  PlannerGeometry get _geo => PlannerGeometry(hourHeight: _hourHeight);
   double get _dayWidth => max(
     60,
     (_gridWidth - PlannerGeometry.gutterWidth) / max(_days.length, 1),
@@ -233,21 +252,10 @@ class PlannerGridState extends State<PlannerGrid> {
     _revision = _store.revision;
     if (_days.isEmpty) return;
     _blocks = _store.blocks(DayRange(_days.first, _days.last));
-    // Dart `PlannerBlock` has no subtasks yet (a request to Track A), so
-    // the grid reads them here.
-    final subtasks = <String, List<BlockSubtask>>{};
-    for (final b in _blocks) {
-      final taskId = b.taskId;
-      if (taskId == null || subtasks.containsKey(taskId)) continue;
-      subtasks[taskId] = [
-        for (final t in _store.subtasks(taskId))
-          if (t.status != TaskStatus.cancelled)
-            BlockSubtask(id: t.id, title: t.title, isDone: t.isDone),
-      ];
-    }
-    _subtasks = subtasks;
     _relayout();
     final ids = {for (final b in _blocks) b.id};
+    // A block that goes away and comes back with Undo does not grow again.
+    _grow.retainAll(ids);
     final selection = _store.selection;
     if (!ids.containsAll(selection)) {
       // The store tells its listeners, and this runs again. Wait for the
@@ -286,6 +294,19 @@ class PlannerGridState extends State<PlannerGrid> {
       }
     }
     _layers = result;
+  }
+
+  /// Runs `change`. The blocks that it makes grow in, when motion is on.
+  void growNew(VoidCallback change) {
+    final before = {for (final b in _blocks) b.id};
+    change();
+    // The store has told the grid by now, so the blocks are the new ones.
+    if (!mounted || !_motionOn) return;
+    final fresh = [
+      for (final b in _blocks)
+        if (!before.contains(b.id)) b.id,
+    ];
+    if (fresh.isNotEmpty) setState(() => _grow.addAll(fresh));
   }
 
   /// Where a block is drawn. A live drag changes it before a save.
@@ -360,6 +381,7 @@ class PlannerGridState extends State<PlannerGrid> {
   }
 
   void _blockTapped(PlannerBlock block) {
+    if (_twoFingers) return;
     final again = _secondTap('block-${block.id}');
     _selectBlock(block);
     // A plain event opens its editor. All other blocks get a title field.
@@ -388,7 +410,7 @@ class PlannerGridState extends State<PlannerGrid> {
   // A drag of a block
 
   void _blockDragStart(PlannerBlock block, DragMode mode, Offset global) {
-    if (_isDragging) return;
+    if (_isDragging || _twoFingers) return;
     final selection = _store.selection;
     final List<String> ids;
     if (mode == DragMode.move && selection.contains(block.id)) {
@@ -438,7 +460,7 @@ class PlannerGridState extends State<PlannerGrid> {
     final primary = live?.originals[live.primaryId];
     if (live == null || p == null || primary == null) return;
     const step = PlannerMath.step;
-    final raw = ((_pointerY - p.start.dy) / widget.hourHeight * 60).round();
+    final raw = ((_pointerY - p.start.dy) / _hourHeight * 60).round();
     final before = live.deltaMinutes;
     final beforeDays = live.deltaDays;
     switch (live.mode) {
@@ -533,7 +555,7 @@ class PlannerGridState extends State<PlannerGrid> {
   // A drag on empty time
 
   void _createStart(int index, Offset global) {
-    if (_isDragging) return;
+    if (_isDragging || _twoFingers) return;
     final at = _inViewport(global);
     final start = at + Offset(0, _scrollY);
     final anchor = PlannerMath.snap(
@@ -589,7 +611,7 @@ class PlannerGridState extends State<PlannerGrid> {
   }
 
   void _columnTapped(DayKey day, Offset global) {
-    if (_isDragging) return;
+    if (_isDragging || _twoFingers) return;
     final again = _secondTap('column');
     _closeDraft();
     _store.selection = {};
@@ -606,6 +628,85 @@ class PlannerGridState extends State<PlannerGrid> {
       }
     });
     if (!again) _focus.requestFocus();
+  }
+
+  // A pinch
+
+  /// Sets the height of one hour to `scale` times the height at the start
+  /// of the pinch, inside the limits of the zoom.
+  void _pinchTo(double scale) {
+    final base = _pinchBase ??= _hourHeight;
+    final next = min(
+      PlannerLimits.maxHourHeight,
+      max(PlannerLimits.minHourHeight, base * scale),
+    );
+    if (next == _pinchHeight) return;
+    setState(() {
+      _pinchHeight = next;
+      _relayout();
+    });
+  }
+
+  /// Saves the height of the pinch. One save for one pinch.
+  void _pinchEnd() {
+    final height = _pinchHeight;
+    setState(() {
+      _pinchBase = null;
+      _pinchSpan = null;
+      _pinchHeight = null;
+    });
+    if (height != null && height != widget.hourHeight) {
+      _store.zoomPlanner(height / widget.hourHeight);
+    }
+  }
+
+  double get _fingerSpan {
+    final at = _fingers.values.toList();
+    return (at[0] - at[1]).distance;
+  }
+
+  void _fingerDown(PointerDownEvent event) {
+    if (!touchKinds.contains(event.kind)) return;
+    _fingers[event.pointer] = event.position;
+    if (_fingers.length != 2 || _isDragging) return;
+    final span = _fingerSpan;
+    if (span < 1) return;
+    // The grid must not scroll under a pinch, so this builds again.
+    setState(() {
+      _twoFingers = true;
+      _pinchSpan = span;
+      _pinchBase = _hourHeight;
+    });
+  }
+
+  void _fingerMove(PointerMoveEvent event) {
+    if (!_fingers.containsKey(event.pointer)) return;
+    _fingers[event.pointer] = event.position;
+    final span = _pinchSpan;
+    if (span == null || _fingers.length != 2) return;
+    _pinchTo(_fingerSpan / span);
+  }
+
+  void _fingerUp(PointerEvent event) {
+    if (_fingers.remove(event.pointer) == null) return;
+    if (_pinchSpan != null) _pinchEnd();
+    if (_fingers.isEmpty && _twoFingers) {
+      // The tap or the long press of this finger ends after this call, and
+      // it must still see the two fingers.
+      scheduleMicrotask(() => _twoFingers = false);
+    }
+  }
+
+  /// Two fingers on a trackpad. With no change of the scale they only
+  /// slide, and the grid scrolls.
+  void _trackpadPinch(PointerPanZoomUpdateEvent event) {
+    if (_isDragging || _pinchSpan != null) return;
+    if (_pinchBase == null && event.scale == 1) return;
+    _pinchTo(event.scale);
+  }
+
+  void _trackpadEnd(PointerPanZoomEndEvent event) {
+    if (_pinchSpan == null && _pinchBase != null) _pinchEnd();
   }
 
   // The draft
@@ -947,6 +1048,14 @@ class PlannerGridState extends State<PlannerGrid> {
           block.isDone ? 'Mark Not Done' : 'Mark Done',
           () => store.toggleGoalBlockDone(eventId: block.id),
         ),
+      // A task block has the subtasks of its task: the task panel edits
+      // them. A plain block has the line only while it still has subtasks.
+      if (!block.isTaskBlock &&
+          (block.isGoalBlock || block.subtasks.isNotEmpty))
+        _item(
+          block.subtasks.isEmpty ? 'Add Subtasks…' : 'Subtasks…',
+          () => store.openBlockSubtasks(block.id),
+        ),
       if (taskId != null) ...[
         _item(
           block.isDone ? 'Mark Not Done' : 'Mark Done',
@@ -1020,17 +1129,26 @@ class PlannerGridState extends State<PlannerGrid> {
           return Stack(
             children: [
               Positioned.fill(
-                child: SingleChildScrollView(
-                  key: _viewportKey,
-                  controller: _scroll,
-                  // The grid must not scroll under a drag.
-                  physics: _isDragging
-                      ? const NeverScrollableScrollPhysics()
-                      : null,
-                  child: SizedBox(
-                    width: _gridWidth,
-                    height: geo.totalHeight,
-                    child: Stack(children: _layerWidgets(theme, geo)),
+                child: Listener(
+                  onPointerDown: _fingerDown,
+                  onPointerMove: _fingerMove,
+                  onPointerUp: _fingerUp,
+                  onPointerCancel: _fingerUp,
+                  onPointerPanZoomUpdate: _trackpadPinch,
+                  onPointerPanZoomEnd: _trackpadEnd,
+                  child: SingleChildScrollView(
+                    key: _viewportKey,
+                    controller: _scroll,
+                    // The grid must not scroll under a drag or under the two
+                    // fingers of a pinch.
+                    physics: _isDragging || _pinchSpan != null
+                        ? const NeverScrollableScrollPhysics()
+                        : null,
+                    child: SizedBox(
+                      width: _gridWidth,
+                      height: geo.totalHeight,
+                      child: Stack(children: _layerWidgets(theme, geo)),
+                    ),
                   ),
                 ),
               ),
@@ -1254,9 +1372,42 @@ class PlannerGridState extends State<PlannerGrid> {
       geo.y(shown.end - shown.start) - 1,
     );
     final isLive = _live?.ids.contains(block.id) ?? false;
+    final view = BlockView(
+      block: block,
+      start: shown.start,
+      end: shown.end,
+      size: Size(width, height),
+      subtasks: block.subtasks,
+      isOverlay: (layer?.depth ?? 0) > 0,
+      isSelected: _store.selection.contains(block.id),
+      isDragging: isLive,
+      isRenaming: _renamingId == block.id,
+      onTap: () => _blockTapped(block),
+      onToggleDone: () {
+        if (!_twoFingers) _toggleDone(block);
+      },
+      onRename: (text) {
+        _store.rename(blockId: block.id, to: text);
+        setState(() => _renamingId = null);
+        _focus.requestFocus();
+      },
+      onCancelRename: () {
+        if (_renamingId != block.id) return;
+        final hadKeys = _focus.hasFocus;
+        setState(() => _renamingId = null);
+        if (hadKeys) _focus.requestFocus();
+      },
+      onDragStart: (mode, at) => _blockDragStart(block, mode, at),
+      onDragUpdate: _dragUpdate,
+      onDragEnd: _blockDragEnd,
+      onMenu: (at) {
+        if (!_twoFingers) unawaited(_openMenu(block, at));
+      },
+    );
     return AnimatedPositioned(
       key: ValueKey('block-${block.id}'),
-      duration: isLive || !_motionOn
+      // A block under the pointer, or under a pinch, must not lag behind.
+      duration: isLive || !_motionOn || _pinchHeight != null
           ? Duration.zero
           : const Duration(milliseconds: 220),
       curve: Curves.easeOutCubic,
@@ -1264,34 +1415,9 @@ class PlannerGridState extends State<PlannerGrid> {
       top: geo.y(shown.start),
       width: width,
       height: height,
-      child: BlockView(
-        block: block,
-        start: shown.start,
-        end: shown.end,
-        size: Size(width, height),
-        subtasks: _subtasks[block.taskId] ?? const [],
-        isOverlay: (layer?.depth ?? 0) > 0,
-        isSelected: _store.selection.contains(block.id),
-        isDragging: isLive,
-        isRenaming: _renamingId == block.id,
-        onTap: () => _blockTapped(block),
-        onToggleDone: () => _toggleDone(block),
-        onRename: (text) {
-          _store.rename(blockId: block.id, to: text);
-          setState(() => _renamingId = null);
-          _focus.requestFocus();
-        },
-        onCancelRename: () {
-          if (_renamingId != block.id) return;
-          final hadKeys = _focus.hasFocus;
-          setState(() => _renamingId = null);
-          if (hadKeys) _focus.requestFocus();
-        },
-        onDragStart: (mode, at) => _blockDragStart(block, mode, at),
-        onDragUpdate: _dragUpdate,
-        onDragEnd: _blockDragEnd,
-        onMenu: (at) => unawaited(_openMenu(block, at)),
-      ),
+      child: _grow.contains(block.id)
+          ? _GrowIn(key: ValueKey('grow-${block.id}'), child: view)
+          : view,
     );
   }
 
@@ -1554,6 +1680,44 @@ class _ColumnGestures extends StatelessWidget {
           ),
     },
     child: child,
+  );
+}
+
+/// A new block grows in: from small and clear to its full size, once.
+class _GrowIn extends StatefulWidget {
+  const _GrowIn({super.key, required this.child});
+
+  final Widget child;
+
+  @override
+  State<_GrowIn> createState() => _GrowInState();
+}
+
+class _GrowInState extends State<_GrowIn> with SingleTickerProviderStateMixin {
+  late final _run = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 220),
+  );
+  late final _curve = CurvedAnimation(parent: _run, curve: Curves.easeOutCubic);
+  late final _scale = Tween<double>(begin: 0.85, end: 1).animate(_curve);
+
+  @override
+  void initState() {
+    super.initState();
+    unawaited(_run.forward());
+  }
+
+  @override
+  void dispose() {
+    _curve.dispose();
+    _run.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => FadeTransition(
+    opacity: _curve,
+    child: ScaleTransition(scale: _scale, child: widget.child),
   );
 }
 

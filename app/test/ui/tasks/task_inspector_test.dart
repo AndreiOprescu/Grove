@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:grove/ui/editor/rich_text_field.dart';
 import 'package:grove/ui/tasks/task_inspector.dart';
 import 'package:grove/ui/tasks/task_widgets.dart';
 
@@ -13,6 +14,10 @@ Finder byKey(String key) => find.byKey(ValueKey(key));
 /// The text field inside the widget with `key`.
 Finder input(String key) =>
     find.descendant(of: byKey(key), matching: find.byType(EditableText));
+
+/// The text of the description, as the editor has it (with the marks).
+String notesShown(WidgetTester tester) =>
+    tester.widget<EditableText>(input('inspector-notes')).controller.text;
 
 /// The panel of the chosen task, as the app shows it. "closed" when no
 /// task is chosen.
@@ -176,6 +181,109 @@ void main() {
       expect(store.task('report')!.notes, 'Three pages.\nNo more.');
     });
 
+    testWidgets('the description is the editor with its row of buttons', (
+      tester,
+    ) async {
+      await pumpInspector(tester);
+      final editor = find.descendant(
+        of: byKey('inspector-notes'),
+        matching: find.byType(RichTextField),
+      );
+      expect(editor, findsOneWidget);
+      expect(
+        find.descendant(of: editor, matching: find.byType(EditorToolbar)),
+        findsOneWidget,
+      );
+      expect(
+        find.text('The longer description. Type [[ to mention a task.'),
+        findsOneWidget,
+      );
+      // No button for an image before question Q-15 has its answer.
+      expect(find.bySemanticsLabel('Add an image'), findsNothing);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('a button of the row changes the description, and the '
+        'change is saved', (tester) async {
+      final store = await pumpInspector(
+        tester,
+        before: (store) => store.repos.tasks.save(
+          store.task('report')!.copyWith(notes: 'buy milk'),
+        ),
+      );
+      await tester.tap(find.bySemanticsLabel('Checklist'));
+      await tester.pump();
+      expect(notesShown(tester), '- [ ] buy milk');
+      await tester.pump(const Duration(milliseconds: 600));
+      expect(store.task('report')!.notes, '- [ ] buy milk');
+    });
+
+    testWidgets('[[ opens the list, with no row for the task itself, and a '
+        'pick makes a link', (tester) async {
+      // A link holds the id of its item only when the id has the form of
+      // the ids of the app.
+      const mum = '0A1B2C3D-0000-4000-8000-00000000000A';
+      final store = await pumpInspector(
+        tester,
+        before: (store) => addTask(store, 'Call mum', id: mum),
+      );
+      await tester.tap(byKey('inspector-notes'));
+      await tester.enterText(input('inspector-notes'), 'After [[');
+      await tester.pump();
+      expect(byKey('mention-$mum'), findsOneWidget);
+      expect(byKey('mention-report'), findsNothing);
+
+      await tester.tap(byKey('mention-$mum'));
+      await tester.pump();
+      expect(notesShown(tester), 'After [[Call mum|$mum]]');
+      await tester.pump(const Duration(milliseconds: 600));
+      expect(store.task('report')!.notes, 'After [[Call mum|$mum]]');
+      expect(
+        [
+          for (final item in store.linkedItems(
+            const ItemRef(ItemType.task, mum),
+          ))
+            item.id,
+        ],
+        ['report'],
+      );
+    });
+
+    testWidgets('a link typed by hand gets its id. The editor shows the saved '
+        'text when it loses the keyboard, not before', (tester) async {
+      final store = await pumpInspector(
+        tester,
+        before: (store) => addTask(store, 'Call mum', id: 'mum'),
+      );
+      await tester.tap(byKey('inspector-notes'));
+      await tester.enterText(input('inspector-notes'), 'After [[Call mum]]');
+      await tester.pump(const Duration(milliseconds: 600));
+      expect(store.task('report')!.notes, 'After [[Call mum|mum]]');
+      // The user is still in the text. It does not change under the caret.
+      expect(notesShown(tester), 'After [[Call mum]]');
+
+      await tester.tap(byKey('inspector-summary'));
+      await tester.pumpAndSettle();
+      expect(notesShown(tester), 'After [[Call mum|mum]]');
+      expect(store.task('report')!.notes, 'After [[Call mum|mum]]');
+    });
+
+    testWidgets('undo from another place shows in the description when the '
+        'user is not in it', (tester) async {
+      final store = await pumpInspector(tester);
+      await tester.tap(byKey('inspector-notes'));
+      await tester.enterText(input('inspector-notes'), 'Three pages.');
+      await tester.tap(byKey('inspector-summary'));
+      await tester.pumpAndSettle();
+      expect(store.task('report')!.notes, 'Three pages.');
+
+      store.undo();
+      await tester.pumpAndSettle();
+      expect(store.task('report')!.notes, '');
+      expect(notesShown(tester), '');
+      await endToast(tester);
+    });
+
     testWidgets('text that is not saved yet is kept when the panel closes', (
       tester,
     ) async {
@@ -208,6 +316,19 @@ void main() {
       expect(store.task('mum')!.notes, '');
       expect(find.text('Call mum'), findsOneWidget);
       expect(find.text('Three pages.'), findsNothing);
+      expect(notesShown(tester), '');
+
+      // The editor is now the one of the new task: its `[[` list has the
+      // first task, and not the new one.
+      await tester.tap(byKey('inspector-notes'));
+      await tester.enterText(input('inspector-notes'), '[[');
+      await tester.pump();
+      expect(byKey('mention-report'), findsOneWidget);
+      expect(byKey('mention-mum'), findsNothing);
+      await tester.tap(byKey('mention-report'));
+      await tester.pump(const Duration(milliseconds: 600));
+      expect(store.task('mum')!.notes, '[[Write report|report]]');
+      expect(store.task('report')!.notes, 'Three pages.');
     });
 
     testWidgets('a change from another place shows in the panel', (

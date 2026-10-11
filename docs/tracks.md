@@ -68,6 +68,10 @@ file, the plan, and `docs/assumptions.md` before it starts.
 
 ## Status
 
+### F12 — release builds and speed check
+
+- F12 release builds (not signed) and speed check: done on macOS, waits for the user; start-up and the Planner pass, the Tasks panel scroll is not settled, the workflow `release` did not run yet (proof: `docs/acceptance/F12-release.md`; Q-30 answered B: the app id stays `local.grove.grove` until the Swift app is retired; Q-31 answered A: no signing now). The feature checklist is `docs/acceptance/F12-parity.md`, on its own branch.
+
 ### Track A — engine
 
 - F5: done, waits for the user (proof: `docs/acceptance/F5.md`)
@@ -316,6 +320,13 @@ file, the plan, and `docs/assumptions.md` before it starts.
   pictures are stored as PNG). "Show data folder" and "Open System Settings"
   are not there: they open no `http` address. No real file window and no
   real browser was tried yet. The CI runs are in the proof file, "CI".
+- The planner gaps (F12 check): built, waits for the user (proof:
+  `docs/acceptance/F12-planner-gaps.md`, branch `feat/xp-planner-gaps`,
+  draft PR #15; PR #11 is merged, so it waits for no other PR): subtasks on
+  goal blocks, the focus timer,
+  tests through the screen for the planner paths, pinch zoom, the grow-in
+  after "Fit", and the pencil of a block with a note (Q-35). The requests
+  are at the end of this file.
 - Answers to "Requests to Track B, with F11-login", the F10 part
   (2026-10-11):
   - The sync card: Settings, tab "Sync" (`SyncSettings` in
@@ -524,14 +535,30 @@ file, the plan, and `docs/assumptions.md` before it starts.
     day. My golden test saves its notes by hand with
     `repos.notes.save(note, touch: false)`. If you want one clock here too:
     let the store give the stamp to the note before the save. Not urgent.
+    **Done by Track A, 2026-10-11, commit `5936405`:** the store gives the
+    stamp (`clockStamp()`) when it makes a note and at each change, undo and
+    redo. Tests: group "the stamps of a note" in
+    `app/test/state/clock_store_test.dart`. `NoteRepo.save` and `Note(...)`
+    are not changed, so your golden test can stay as it is, or use the store
+    calls now.
   - New with F9, the description of a task: when you put `RichTextField` in
     `task_inspector.dart`, the pictures of your panel change. Look at them
     after `--update-goldens`.
+    **Done by Track A, 2026-10-11, commit `17c78eb`:** the description is
+    `RichTextField` (key `inspector-notes` is on a `KeyedSubtree` around it),
+    with the words and the height of the Mac app, one editor for each task,
+    and services made one time for each task. No box around it. I made the 9
+    pictures with the panel again and looked at each one. Tests: group "the
+    text of the task" in `app/test/ui/tasks/task_inspector_test.dart`. Your
+    file `rich_text_field.dart` is not changed.
   - New with F9, images: `EditorServices.storeImage` is used by the editor.
     Since 2026-10-11 the app has a picker (Q-15 is answered). A stored
     picture is a PNG or a JPEG of at most 1600 pixels on the long side. A
     large photo is written again as a PNG, and that can be 2 to 4 MB
     (Q-28). If the sync has a size limit for an image, tell me.
+    **Track A, 2026-10-11:** nothing done, it waits for Q-15. The
+    description of a task has no "Add an image" button (`pickImages` is not
+    given).
   - New with F9, a test of yours failed once on the CI: "a change goes to the
     account some moments later" (`app/test/state/sync_store_test.dart`, line
     341: expected 0, got 1). Run 38132694388, job `build (macos-latest, ios)`,
@@ -540,6 +567,13 @@ file, the plan, and `docs/assumptions.md` before it starts.
     the timer of the store has not started the sync yet, so `idle` comes back
     at once. Please make it wait for the sync, not for the clock. I did not
     touch it.
+    **Done by Track A, 2026-10-11, commit `5936405`:** no test in
+    `sync_store_test.dart` waits for real time now. The store takes its
+    timers from `newTimer`; the tests give it `ManualTimers`
+    (`app/test/state/support.dart`) and move the time with `World.pass`. The
+    test checks: nothing goes out one tick before the wait ends, one push
+    goes out at its end. Tests of the timers:
+    `app/test/state/manual_timers_test.dart`.
   - New with F9, golden pictures close to the limit on Linux (limit 0.2 %):
     your `today_list_futuristic_light.png` is at 0.196 % and
     `tasks_desktop_futuristic_light.png` at 0.167 %; my
@@ -549,3 +583,67 @@ file, the plan, and `docs/assumptions.md` before it starts.
     They pass today. I parked one picture of mine on Linux and Windows
     (`_parked` in `app/test/ui/goldens/f9_golden_test.dart`); the limit did
     not change.
+    **Track A, 2026-10-11: looked at, nothing changed.** I found no text and
+    no line of my panels that sits on parts of a pixel and is counted. The
+    limit and `TolerantGoldenComparator` are not touched. Proof: a test that
+    is gone again (commits `b516245` and `1c3192c`) printed in the CI log
+    where the counted pixels are, with the rule of the compare. Runs
+    38141847400 and 38143266322, lines `WHERE` in the android (Linux) and
+    windows jobs. Its sums are the same as the sums of the compare.
+    - `today_list_futuristic_light.png` on Linux, 471 pixels (0.196 %): 216
+      in the gaps between the letters of the headings (the 1.5 of
+      `headingTracking`), 204 in the text of the button "Move to today", 51
+      in icons. On Windows, 252 pixels (0.105 %): 222 in the headings, 30 in
+      icons, 0 in the button.
+    - "Move to today": the box of the text is on whole pixels (x 46.00,
+      y 171.00, 143.00 x 11.00). Linux draws its letters about 1 pixel
+      higher than the Mac (rows 169 to 181, Mac 170 to 181). The compare
+      forgives 1 pixel, and this is a little more. It counts where the text
+      is light on a strong colour: 204 in minimal and futuristic, 16 in
+      grove, 0 in vintage. "Leave" beside it (dark on light) has the same
+      move and is not counted. I did not find why Linux puts it higher.
+    - `tasks_desktop_futuristic_light.png` on Linux, 1860 pixels (0.171 %;
+      0.167 % before the editor was in the panel): 852 in headings, 350 in
+      icons, 658 in other text. Of the 658, 7 are in my panel ("None"); the
+      rest is text of the planner and of the bar on top ("Drag a task
+      here…" 280, "Planner" 144, the names of the days).
+    - Vintage: the counted pixels are in the seams of the italic headings,
+      and on Linux also in one row under the text of some chips (190 pixels
+      in `tasks_desktop_vintage_light.png`). I did not find the cause of
+      that row. The pictures are at 0.131 % and 0.087 %.
+    - Text of my panels that sits on a part of a pixel in y ("1 of 5 done"
+      at 30.75, "Add a task…" at 77.75, "0/1" at 340.50) and the right end of
+      the progress bar (83.20) are not in the counted pixels, on Linux or on
+      Windows. So I did not move them.
+    - Not looked at: the pictures of Goals (0.103 % at most on Linux) and
+      the dark and small pictures.
+    For Q-17: answer A (gaps between letters) gives room for the 216 pixels
+    of the headings. I do not know if it covers the 204 of the button.
+- Requests, with the planner gaps (2026-10-11, from the helper of the
+  planner; it worked only in `app/lib/ui/planner/`):
+  - To the shell (`app/lib/ui/shell/root_view.dart`): host the focus card
+    for all screens. Put `FocusLayer(store: store, child: ...)`
+    (`app/lib/ui/planner/focus_card.dart`) around the content of `RootView`,
+    then take it out of `PlannerView.build`. Today the card shows on
+    Planner, Today and Calendar, and not on Notes and Garden. The Mac app
+    hosts it in `RootView.swift`.
+  - To the shell: the commands "Zoom In" and "Zoom Out" (Cmd or Ctrl with +
+    and -) for the whole window: `store.zoomPlanner(1.2)` and
+    `store.zoomPlanner(1 / 1.2)`. Today the keys work only while the planner
+    grid has the keyboard. The Mac app has them in the View menu.
+  - To Track A: `store.startFocus` reads `DateTime.now()`
+    (`app/lib/state/store_focus.dart`). With the clock of the store
+    (`clockOverride`) a test could start a session on the test day. Today
+    the card has a test hook (`FocusCard.clock`) and the device test uses a
+    day in 2099. Not urgent.
+  - To Track A: `PlannerBlock.hasNote` is never set by `store.blocks()`. The
+    block draws a small pencil when it is true (`block_view.dart`). Wait for
+    the owner's answer to Q-35 (which note is the "linked note" of a block),
+    then set the flag with one query for the days, not one per block.
+  - To Track A: your test "a change goes to the account some moments later"
+    (`app/test/state/sync_store_test.dart`, line 341: expected 0, got 1)
+    failed once more on the CI: run 38146327066, job
+    `build (macos-latest, macos)`, first try, commit `00974f7`. The second
+    try of the job and the 7 other jobs of that commit passed. I did not
+    touch it. That commit did not have your fix yet (`5936405`, the sync
+    tests wait for timers of the test); it came with the merge of PR #13.
