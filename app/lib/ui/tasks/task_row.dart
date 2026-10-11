@@ -49,7 +49,7 @@ class TaskRow extends StatefulWidget {
   State<TaskRow> createState() => _TaskRowState();
 }
 
-class _TaskRowState extends State<TaskRow> {
+class _TaskRowState extends State<TaskRow> with AutomaticKeepAliveClientMixin {
   final _rename = TextEditingController();
   final _renameFocus = FocusNode();
   final _subtask = TextEditingController();
@@ -60,15 +60,23 @@ class _TaskRowState extends State<TaskRow> {
   AppStore get _store => widget.store;
   TaskItem get _task => widget.task;
 
+  /// The list builds only the rows near the view. A row with a text that
+  /// is not saved yet stays when it goes out of view: a new name, or a
+  /// half-typed subtask.
+  @override
+  bool get wantKeepAlive => _renaming || _subtask.text.isNotEmpty;
+
   @override
   void initState() {
     super.initState();
     _renameFocus.addListener(_renameFocusChanged);
+    _subtask.addListener(updateKeepAlive);
   }
 
   @override
   void dispose() {
     _renameFocus.removeListener(_renameFocusChanged);
+    _subtask.removeListener(updateKeepAlive);
     _rename.dispose();
     _renameFocus.dispose();
     _subtask.dispose();
@@ -88,6 +96,7 @@ class _TaskRowState extends State<TaskRow> {
       extentOffset: _task.title.length,
     );
     setState(() => _renaming = true);
+    updateKeepAlive();
     _renameFocus.requestFocus();
   }
 
@@ -97,7 +106,12 @@ class _TaskRowState extends State<TaskRow> {
 
   void _commitRename() {
     if (!_renaming) return;
-    if (mounted) setState(() => _renaming = false);
+    if (mounted) {
+      setState(() => _renaming = false);
+      updateKeepAlive();
+    } else {
+      _renaming = false;
+    }
     final name = _rename.text.trim();
     if (name.isNotEmpty && name != _task.title) {
       _store.editTask(
@@ -203,7 +217,10 @@ class _TaskRowState extends State<TaskRow> {
         placeholder: 'Title',
         style: style.copyWith(color: theme.ink),
         onSubmitted: (_) => _commitRename(),
-        onEscape: () => setState(() => _renaming = false),
+        onEscape: () {
+          setState(() => _renaming = false);
+          updateKeepAlive();
+        },
       );
     }
     return Text(
@@ -386,6 +403,7 @@ class _TaskRowState extends State<TaskRow> {
 
   @override
   Widget build(BuildContext context) {
+    super.build(context);
     final theme = GroveTheme.of(context);
     final subtasks = _store.subtasks(_task.id);
     final selected = _store.selectedTaskId == _task.id;

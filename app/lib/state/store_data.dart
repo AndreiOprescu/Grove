@@ -8,15 +8,39 @@ class DataFolderError implements Exception {
   String toString() => 'Grove cannot find its data folder.';
 }
 
+/// The store did not import: a person is signed in to sync (the owner's
+/// answer under question card Q-18). No row changed. [toString] is a line
+/// for the screen.
+class ImportRefused implements Exception {
+  const ImportRefused();
+
+  String get message =>
+      'You are signed in to sync. Sign out first (Settings, Sync), '
+      'then import.';
+
+  @override
+  String toString() => message;
+}
+
 /// Export, import, the data folder and the note templates (PLAN §4.4, §5.8).
 extension AppStoreData on AppStore {
   // Export and import
 
   String exportData() => DataExport.export(repos.db);
 
+  /// Why an import cannot run now, as a line for the screen. Null: it can.
+  ///
+  /// An import replaces every row. With a person signed in, the sync would
+  /// send that to the account and to each device. So Grove imports only
+  /// while signed out.
+  String? get importBlocked =>
+      isSignedIn ? const ImportRefused().message : null;
+
   /// Replaces all data with the file. A bad file changes nothing, and the
-  /// error says why.
+  /// error says why. While a person is signed in to sync, it changes nothing
+  /// and throws [ImportRefused].
   void importData(String data) {
+    if (isSignedIn) throw const ImportRefused();
     DataExport.importData(data, repos);
     resetAfterReplace();
     showToast('Data imported.');
