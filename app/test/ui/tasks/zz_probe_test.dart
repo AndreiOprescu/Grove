@@ -173,7 +173,9 @@ List<Zone> zones(WidgetTester tester) {
     final place =
         'size ${style?.fontSize} gap ${style?.letterSpacing} '
         '${style?.fontStyle == FontStyle.italic ? 'italic ' : ''}'
-        'at ${at.dx.toStringAsFixed(2)},${at.dy.toStringAsFixed(2)}';
+        'at ${at.dx.toStringAsFixed(2)},${at.dy.toStringAsFixed(2)} '
+        'box ${box.size.width.toStringAsFixed(2)}x'
+        '${box.size.height.toStringAsFixed(2)}';
     final kind = headings.contains(e)
         ? 'heading'
         : style?.fontFamily == 'MaterialIcons'
@@ -227,9 +229,24 @@ class WhereComparator extends LocalFileComparator {
     now.dispose();
     mac.dispose();
 
+    // One column through the first letter of some texts, from top to bottom:
+    // the colour here and on the Mac, row by row.
+    for (final part in parts) {
+      if (!looked.any(part.name.contains)) continue;
+      final x = part.rect.left.round() + 6;
+      final line = StringBuffer();
+      for (var y = part.rect.top.round(); y < part.rect.bottom.round(); y++) {
+        if (x < 0 || x >= width || y < 0 || y >= height) continue;
+        final i = (y * width + x) * 4;
+        line.write(' $y:${_hex(a, i)}/${_hex(b, i)}');
+      }
+      debugPrint('WHERE $name: column $x of ${part.name}, here/Mac:$line');
+    }
+
     var all = 0;
     final count = <String, int>{};
     final columns = <String, Set<int>>{};
+    final rows = <String, Map<int, int>>{};
     for (var y = 0; y < height; y++) {
       for (var x = 0; x < width; x++) {
         final i = (y * width + x) * 4;
@@ -249,6 +266,8 @@ class WhereComparator extends LocalFileComparator {
         }
         count[where] = (count[where] ?? 0) + 1;
         (columns[where] ??= {}).add(x);
+        final row = rows[where] ??= {};
+        row[y] = (row[y] ?? 0) + 1;
       }
     }
     final share = (all * 100 / (width * height)).toStringAsFixed(3);
@@ -280,9 +299,27 @@ class WhereComparator extends LocalFileComparator {
         'WHERE $name: ${e.value} in ${e.key}; columns '
         '${xs.length > 40 ? '${xs.take(40).join(' ')} …' : xs.join(' ')}',
       );
+      final ys = rows[e.key]!.entries.toList()
+        ..sort((x, y) => x.key.compareTo(y.key));
+      debugPrint(
+        'WHERE $name: rows of ${e.key.split(' (').first}: '
+        '${ys.take(40).map((r) => '${r.key}:${r.value}').join(' ')}',
+      );
     }
     return true;
   }
+
+  /// The texts to look at more closely.
+  static const looked = [
+    'text "Move to today"',
+    'text "Leave"',
+    'text "due Fri 9 Oct"',
+    'heading "TODAY"',
+  ];
+
+  static String _hex(Uint8List p, int i) =>
+      [for (var c = 0; c < 3; c++) p[i + c].toRadixString(16).padLeft(2, '0')]
+          .join();
 
   static bool _near(Uint8List a, Uint8List b, int i) {
     for (var c = 0; c < 4; c++) {
