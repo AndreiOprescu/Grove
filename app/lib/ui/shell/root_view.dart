@@ -14,6 +14,7 @@ import 'screen_switch.dart';
 import 'shell_layout.dart';
 import 'shell_model.dart';
 import 'top_buttons.dart';
+import 'window_drag.dart';
 
 /// Builds a screen. null leaves the stand-in of the shell in place.
 typedef ScreenBuilder = Widget? Function(BuildContext context, Screen screen);
@@ -134,23 +135,31 @@ class RootView extends StatelessWidget {
           children: [
             SizedBox(
               height: ShellRules.desktopTopStrip,
-              child: CustomMultiChildLayout(
-                delegate: _TopStrip(dockLeft: dockLeft),
+              child: Stack(
+                fit: StackFit.expand,
                 children: [
-                  LayoutId(
-                    id: _StripPart.dock,
-                    child: LeftDock(model: model),
-                  ),
-                  LayoutId(
-                    id: _StripPart.screens,
-                    child: ScreenSwitch(
-                      model: model,
-                      showLabels: ShellRules.switchShowsLabels(width),
-                    ),
-                  ),
-                  LayoutId(
-                    id: _StripPart.buttons,
-                    child: _topRight(context, ShellLayout.desktop),
+                  // A Mac window has no title bar: the empty parts of the
+                  // strip move the window.
+                  if (WindowDragArea.isUsed) const WindowDragArea(),
+                  CustomMultiChildLayout(
+                    delegate: _TopStrip(dockLeft: dockLeft),
+                    children: [
+                      LayoutId(
+                        id: _StripPart.dock,
+                        child: LeftDock(model: model),
+                      ),
+                      LayoutId(
+                        id: _StripPart.screens,
+                        child: ScreenSwitch(
+                          model: model,
+                          showLabels: ShellRules.switchShowsLabels(width),
+                        ),
+                      ),
+                      LayoutId(
+                        id: _StripPart.buttons,
+                        child: _topRight(context, ShellLayout.desktop),
+                      ),
+                    ],
                   ),
                 ],
               ),

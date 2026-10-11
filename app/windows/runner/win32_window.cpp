@@ -53,6 +53,28 @@ void EnableFullDpiSupportIfAvailable(HWND hwnd) {
   FreeLibrary(user32_module);
 }
 
+// The smallest client area of the window in logical pixels, as the window
+// of the Mac app (Sources/Grove/GroveApp.swift: 1100 x 620).
+constexpr int kSmallestClientWidth = 1100;
+constexpr int kSmallestClientHeight = 620;
+
+// The size of a window whose client area has this size. All in physical
+// pixels.
+SIZE WindowSizeForClient(int width, int height, UINT dpi) {
+  RECT rect = {0, 0, width, height};
+  AdjustWindowRectExForDpi(&rect, WS_OVERLAPPEDWINDOW, FALSE, 0, dpi);
+  SIZE size = {rect.right - rect.left, rect.bottom - rect.top};
+  return size;
+}
+
+// The smallest size of the window on a screen with this dpi, in physical
+// pixels.
+SIZE SmallestWindowSize(UINT dpi) {
+  const double scale_factor = dpi / 96.0;
+  return WindowSizeForClient(Scale(kSmallestClientWidth, scale_factor),
+                             Scale(kSmallestClientHeight, scale_factor), dpi);
+}
+
 }  // namespace
 
 // Manages the Win32Window's window class registration.
@@ -134,10 +156,35 @@ bool Win32Window::Create(const std::wstring& title,
   UINT dpi = FlutterDesktopGetDpiForMonitor(monitor);
   double scale_factor = dpi / 96.0;
 
+  // |size| is the client area: the part that shows the app, as on the Mac,
+  // where the window has no title bar.
+  SIZE window_size = WindowSizeForClient(Scale(size.width, scale_factor),
+                                         Scale(size.height, scale_factor), dpi);
+  const SIZE smallest = SmallestWindowSize(dpi);
+  int x = Scale(origin.x, scale_factor);
+  int y = Scale(origin.y, scale_factor);
+  // Not bigger than the free part of the screen, but never under the
+  // smallest size. Then in the middle of that free part.
+  MONITORINFO monitor_info = {};
+  monitor_info.cbSize = sizeof(monitor_info);
+  if (GetMonitorInfo(monitor, &monitor_info)) {
+    const RECT& work = monitor_info.rcWork;
+    const LONG work_width = work.right - work.left;
+    const LONG work_height = work.bottom - work.top;
+    if (window_size.cx > work_width) window_size.cx = work_width;
+    if (window_size.cy > work_height) window_size.cy = work_height;
+    if (window_size.cx < smallest.cx) window_size.cx = smallest.cx;
+    if (window_size.cy < smallest.cy) window_size.cy = smallest.cy;
+    x = static_cast<int>(work.left + (work_width - window_size.cx) / 2);
+    y = static_cast<int>(work.top + (work_height - window_size.cy) / 2);
+    // The title bar stays on the screen when the screen is too small.
+    if (x < work.left) x = static_cast<int>(work.left);
+    if (y < work.top) y = static_cast<int>(work.top);
+  }
+
   HWND window = CreateWindow(
-      window_class, title.c_str(), WS_OVERLAPPEDWINDOW,
-      Scale(origin.x, scale_factor), Scale(origin.y, scale_factor),
-      Scale(size.width, scale_factor), Scale(size.height, scale_factor),
+      window_class, title.c_str(), WS_OVERLAPPEDWINDOW, x, y,
+      static_cast<int>(window_size.cx), static_cast<int>(window_size.cy),
       nullptr, nullptr, GetModuleHandle(nullptr), this);
 
   if (!window) {
@@ -195,6 +242,14 @@ Win32Window::MessageHandler(HWND hwnd,
       SetWindowPos(hwnd, nullptr, newRectSize->left, newRectSize->top, newWidth,
                    newHeight, SWP_NOZORDER | SWP_NOACTIVATE);
 
+      return 0;
+    }
+    case WM_GETMINMAXINFO: {
+      // The person cannot make the window smaller than the Mac app allows.
+      const SIZE smallest = SmallestWindowSize(FlutterDesktopGetDpiForHWND(hwnd));
+      auto info = reinterpret_cast<MINMAXINFO*>(lparam);
+      info->ptMinTrackSize.x = smallest.cx;
+      info->ptMinTrackSize.y = smallest.cy;
       return 0;
     }
     case WM_SIZE: {
