@@ -8,6 +8,7 @@ import '../theme/grove_theme.dart';
 import '../theme/panel.dart';
 import 'notice_cards.dart';
 import 'quick_add_field.dart';
+import 'sliver_column.dart';
 import 'task_format.dart';
 import 'task_row.dart';
 import 'task_section.dart';
@@ -64,7 +65,8 @@ class _TasksPaneState extends State<TasksPane> {
   );
 
   /// Today's open tasks, then the ones checked off today. The late ones
-  /// are in the list of the Planner screen.
+  /// are in the list of the Planner screen. Each part is a sliver, with a
+  /// key: a part keeps its rows when a card over it goes away.
   List<Widget> _todayContent(Map<String, ListItem> lists, DayKey day) {
     final done = [
       for (final t in _store.repos.tasks.forDay(day))
@@ -72,6 +74,7 @@ class _TasksPaneState extends State<TasksPane> {
     ];
     return [
       TaskSection(
+        key: const ValueKey('part-day'),
         store: _store,
         title: TaskFormat.dayLabel(day, today: day),
         placement: TaskPlacement.day(day),
@@ -103,6 +106,7 @@ class _TasksPaneState extends State<TasksPane> {
     return [
       if (waiting.overdue.isNotEmpty)
         TaskSection(
+          key: const ValueKey('part-overdue'),
           store: _store,
           title: 'Overdue',
           tint: theme.accent2,
@@ -114,6 +118,7 @@ class _TasksPaneState extends State<TasksPane> {
           onToggle: _toggle,
         ),
       TaskSection(
+        key: const ValueKey('part-unscheduled'),
         store: _store,
         title: 'Unscheduled',
         placement: null,
@@ -137,51 +142,51 @@ class _TasksPaneState extends State<TasksPane> {
     final theme = GroveTheme.of(context);
     final label = '$title · ${done.length}';
     void toggle() => setState(() => _showDone = !_showDone);
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      mainAxisSize: MainAxisSize.min,
-      spacing: 6,
-      children: [
-        Semantics(
-          container: true,
-          button: true,
-          expanded: _showDone,
-          label: label,
-          onTap: toggle,
-          excludeSemantics: true,
-          child: MouseRegion(
-            cursor: SystemMouseCursors.click,
-            child: GestureDetector(
-              key: const ValueKey('done-toggle'),
-              behavior: HitTestBehavior.opaque,
-              onTap: toggle,
-              child: Row(
-                spacing: 4,
-                children: [
-                  Icon(
-                    _showDone
-                        ? Icons.keyboard_arrow_down
-                        : Icons.keyboard_arrow_right,
-                    size: 13,
-                    color: theme.muted,
-                  ),
-                  Expanded(
-                    child: ThemedHeading(
-                      label,
-                      12,
-                      weight: FontWeight.w700,
+    return SliverColumn(
+      key: const ValueKey('part-done'),
+      slivers: [
+        SliverToBoxAdapter(
+          child: Semantics(
+            container: true,
+            button: true,
+            expanded: _showDone,
+            label: label,
+            onTap: toggle,
+            excludeSemantics: true,
+            child: MouseRegion(
+              cursor: SystemMouseCursors.click,
+              child: GestureDetector(
+                key: const ValueKey('done-toggle'),
+                behavior: HitTestBehavior.opaque,
+                onTap: toggle,
+                child: Row(
+                  spacing: 4,
+                  children: [
+                    Icon(
+                      _showDone
+                          ? Icons.keyboard_arrow_down
+                          : Icons.keyboard_arrow_right,
+                      size: 13,
                       color: theme.muted,
                     ),
-                  ),
-                ],
+                    Expanded(
+                      child: ThemedHeading(
+                        label,
+                        12,
+                        weight: FontWeight.w700,
+                        color: theme.muted,
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
           ),
         ),
         if (_showDone)
-          for (final task in done)
-            TaskRow(
-              key: ValueKey('row-${task.id}'),
+          TaskRows(
+            tasks: done,
+            rowBuilder: (task) => TaskRow(
               store: _store,
               task: task,
               contextDay: day,
@@ -189,6 +194,7 @@ class _TasksPaneState extends State<TasksPane> {
               isExpanded: _expanded.contains(task.id),
               toggleExpanded: () => _toggle(task.id),
             ),
+          ),
       ],
     );
   }
@@ -216,9 +222,16 @@ class _TasksPaneState extends State<TasksPane> {
             ),
           ];
           content = [
-            if (_store.welcomeVisible) WelcomeCard(store: _store),
+            if (_store.welcomeVisible)
+              SliverToBoxAdapter(
+                key: const ValueKey('card-welcome'),
+                child: WelcomeCard(store: _store),
+              ),
             if (yesterday.isNotEmpty)
-              RollOverCard(store: _store, items: yesterday),
+              SliverToBoxAdapter(
+                key: const ValueKey('card-yesterday'),
+                child: RollOverCard(store: _store, items: yesterday),
+              ),
             ..._todayContent(lists, today),
           ];
         case TasksPaneMode.unscheduled:
@@ -246,14 +259,26 @@ class _TasksPaneState extends State<TasksPane> {
                 child: ScrollConfiguration(
                   behavior: ScrollConfiguration.of(context)
                       .copyWith(scrollbars: false),
-                  child: SingleChildScrollView(
-                    padding: const EdgeInsets.only(bottom: 8),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      mainAxisSize: MainAxisSize.min,
-                      spacing: 14,
-                      children: content,
-                    ),
+                  // Slivers: a long list builds only the rows in or near
+                  // the view (see `TaskRows`).
+                  child: CustomScrollView(
+                    slivers: [
+                      // One group that paints its parts from the first to
+                      // the last, as the `Column` before it did.
+                      SliverColumn(
+                        slivers: [
+                          for (final (i, part) in content.indexed)
+                            SliverPadding(
+                              key: part.key,
+                              padding: EdgeInsets.only(top: i == 0 ? 0 : 14),
+                              sliver: part,
+                            ),
+                          const SliverPadding(
+                            padding: EdgeInsets.only(bottom: 8),
+                          ),
+                        ],
+                      ),
+                    ],
                   ),
                 ),
               ),

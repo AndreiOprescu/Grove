@@ -1,7 +1,10 @@
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:grove/ui/tasks/notice_cards.dart';
 import 'package:grove/ui/tasks/quick_add_field.dart';
+import 'package:grove/ui/tasks/task_row.dart';
+import 'package:grove/ui/tasks/task_section.dart';
 import 'package:grove/ui/tasks/tasks_pane.dart';
 
 import 'tasks_support.dart';
@@ -457,4 +460,261 @@ void main() {
       expect(find.text('1 waiting'), findsOneWidget);
     });
   });
+
+  // The list builds the rows in or near the view, and no others. With all
+  // rows built, a scroll frame of 1 000 tasks took about 3 ms.
+  group('a long list', () {
+    testWidgets('with 1 000 tasks only the rows near the view are built', (
+      tester,
+    ) async {
+      final store = paneStore();
+      addMany(store, 1000);
+      await pumpPane(tester, unscheduled(store));
+
+      expect(find.text('1000 waiting'), findsOneWidget);
+      expect(find.text('Task 0'), findsOneWidget);
+      expect(find.text('Task 999'), findsNothing);
+      // The panel is 570 points high and a row about 40. About 12 rows are
+      // in view, and some more wait just under the edge.
+      expect(builtRows(tester), inInclusiveRange(10, 40));
+    });
+
+    testWidgets('the list goes to its last row, and few rows are built there '
+        'too', (tester) async {
+      final store = paneStore();
+      addMany(store, 1000);
+      await pumpPane(tester, unscheduled(store));
+
+      final position = listPosition(tester);
+      for (
+        var i = 0;
+        i < 400 && find.text('Task 999').evaluate().isEmpty;
+        i++
+      ) {
+        position.jumpTo(position.pixels + 400);
+        await tester.pump();
+      }
+      // The length of a lazy list is a guess until its end is built.
+      for (var i = 0; i < 3; i++) {
+        position.jumpTo(position.maxScrollExtent);
+        await tester.pump();
+      }
+      expect(position.pixels, position.maxScrollExtent);
+      expect(position.pixels, greaterThan(30000));
+
+      expect(find.text('Task 999'), findsOneWidget);
+      expect(find.text('Task 0'), findsNothing);
+      expect(builtRows(tester), inInclusiveRange(10, 40));
+      // The last row is all in view, with the gap under the list.
+      final panel = tester.getRect(find.byType(TasksPane));
+      expect(
+        tester.getRect(rowFinder('task-999')).bottom,
+        lessThan(panel.bottom - 12),
+      );
+    });
+
+    testWidgets('the place in the list stays when a task changes', (
+      tester,
+    ) async {
+      final store = paneStore();
+      addMany(store, 200);
+      await pumpPane(tester, unscheduled(store));
+      final position = listPosition(tester)..jumpTo(3000);
+      await tester.pump();
+      final shown = store
+          .unscheduledTasks(today: wednesday)
+          .unscheduled
+          .firstWhere(
+            (t) => rowFinder(t.id).hitTestable().evaluate().isNotEmpty,
+          );
+      final top = tester.getTopLeft(rowFinder(shown.id)).dy;
+
+      store.editTask(
+        shown.id,
+        (t) => t.copyWith(priority: 3),
+        name: 'Set Priority',
+      );
+      await tester.pumpAndSettle();
+      expect(position.pixels, 3000);
+      expect(tester.getTopLeft(rowFinder(shown.id)).dy, top);
+
+      // A click on a row far down chooses it and does not move the list.
+      await tester.tap(rowFinder(shown.id));
+      await tester.pumpAndSettle();
+      expect(store.selectedTaskId, shown.id);
+      expect(position.pixels, 3000);
+    });
+
+    testWidgets('a row far down opens its subtasks and its menu', (
+      tester,
+    ) async {
+      final store = paneStore();
+      addMany(store, 200);
+      await pumpPane(tester, unscheduled(store));
+      listPosition(tester).jumpTo(4000);
+      await tester.pump();
+      final shown = store
+          .unscheduledTasks(today: wednesday)
+          .unscheduled
+          .where((t) => rowFinder(t.id).hitTestable().evaluate().isNotEmpty)
+          .elementAt(3);
+
+      await rightClick(tester, rowFinder(shown.id));
+      await tester.tap(find.text('Add Subtask'));
+      await tester.pumpAndSettle();
+      final field = find.byKey(ValueKey('add-subtask-${shown.id}'));
+      expect(field, findsOneWidget);
+      await typeLine(tester, field, 'A small step');
+      expect(store.subtasks(shown.id).map((s) => s.title), ['A small step']);
+      expect(find.text('A small step'), findsOneWidget);
+      expect(find.text('0/1'), findsOneWidget);
+    });
+
+    testWidgets('a row keeps a half-typed subtask when the row over it goes '
+        'away', (tester) async {
+      final store = paneStore();
+      addMany(store, 30);
+      await pumpPane(tester, unscheduled(store));
+
+      await rightClick(tester, rowFinder('task-2'));
+      await tester.tap(find.text('Add Subtask'));
+      await tester.pumpAndSettle();
+      final field = find.descendant(
+        of: find.byKey(const ValueKey('add-subtask-task-2')),
+        matching: find.byType(EditableText),
+      );
+      await tester.enterText(field, 'Half a wo');
+      await tester.pump();
+
+      // The row above is checked off: each row under it moves one place up.
+      await tester.tap(checkFinder('task-0'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Task 0'), findsNothing);
+      expect(tester.widget<EditableText>(field).controller.text, 'Half a wo');
+      expect(tester.widget<EditableText>(field).focusNode.hasFocus, isTrue);
+    });
+
+    testWidgets('a row keeps a half-typed subtask when it goes out of view', (
+      tester,
+    ) async {
+      final store = paneStore();
+      addMany(store, 200);
+      await pumpPane(tester, unscheduled(store));
+
+      await rightClick(tester, rowFinder('task-2'));
+      await tester.tap(find.text('Add Subtask'));
+      await tester.pumpAndSettle();
+      final field = find.descendant(
+        of: find.byKey(const ValueKey('add-subtask-task-2')),
+        matching: find.byType(EditableText),
+      );
+      await tester.enterText(field, 'Half a wo');
+      await tester.pump();
+      // The click on another field takes the keyboard away from the row.
+      await tester.tap(quickAdd);
+      await tester.pump();
+
+      final position = listPosition(tester)..jumpTo(5000);
+      await tester.pump();
+      expect(find.text('Task 2').hitTestable(), findsNothing);
+      position.jumpTo(0);
+      await tester.pump();
+
+      expect(tester.widget<EditableText>(field).controller.text, 'Half a wo');
+    });
+
+    testWidgets('a row that is dragged can still be dropped when the list '
+        'moved it out of view', (tester) async {
+      final store = paneStore();
+      addMany(store, 200);
+      String? dropped;
+      await pumpPane(
+        tester,
+        Flex(
+          direction: Axis.horizontal,
+          children: [
+            SizedBox(width: 320, child: unscheduled(store)),
+            Expanded(
+              child: DragTarget<String>(
+                key: const ValueKey('target'),
+                onAcceptWithDetails: (details) => dropped = details.data,
+                builder: (context, _, _) => const SizedBox.expand(),
+              ),
+            ),
+          ],
+        ),
+        size: const Size(640, 570),
+      );
+
+      final start = tester.getCenter(find.text('Task 1'));
+      final end = tester.getCenter(find.byKey(const ValueKey('target')));
+      final gesture = await tester.startGesture(
+        start,
+        kind: PointerDeviceKind.mouse,
+      );
+      await tester.pump();
+      for (var i = 1; i <= 8; i++) {
+        await gesture.moveTo(Offset.lerp(start, end, i / 8)!);
+        await tester.pump(const Duration(milliseconds: 16));
+      }
+      // The wheel turns during the drag.
+      listPosition(tester).jumpTo(5000);
+      await tester.pump();
+      expect(find.text('Task 1').hitTestable(), findsNothing);
+      await gesture.up();
+      await tester.pumpAndSettle();
+
+      expect(dropped, DragPayload.task('task-1'));
+    });
+
+    testWidgets('a long list of today takes a drop on a row far down', (
+      tester,
+    ) async {
+      final store = paneStore();
+      for (var i = 0; i < 100; i++) {
+        addTask(store, 'Task $i', sort: i.toDouble());
+      }
+      await pumpPane(tester, today(store));
+      listPosition(tester).jumpTo(2000);
+      await tester.pump();
+      final shown = [
+        for (final t in store.openTasks(TaskPlacement.day(wednesday)))
+          if (find.text(t.title).hitTestable().evaluate().isNotEmpty) t,
+      ];
+      final from = shown[4], to = shown[1];
+
+      await dragOnto(tester, find.text(from.title), find.text(to.title));
+
+      final order = [
+        for (final t in store.openTasks(TaskPlacement.day(wednesday))) t.id,
+      ];
+      expect(order.indexOf(from.id), order.indexOf(to.id) - 1);
+      expect(order, hasLength(100));
+    });
+  });
 }
+
+/// `count` open tasks with no day: "Task 0", "Task 1", and so on.
+void addMany(AppStore store, int count) {
+  store.repos.db.transaction(() {
+    for (var i = 0; i < count; i++) {
+      addTask(store, 'Task $i', bucket: TaskBucket.inbox, sort: i.toDouble());
+    }
+  });
+}
+
+/// How many task rows the panel has built.
+int builtRows(WidgetTester tester) => find.byType(TaskRow).evaluate().length;
+
+/// The scroll place of the list of the panel.
+ScrollPosition listPosition(WidgetTester tester) => tester
+    .state<ScrollableState>(
+      find
+          .ancestor(
+            of: find.byType(TaskSection),
+            matching: find.byType(Scrollable),
+          )
+          .first,
+    )
+    .position;
