@@ -43,6 +43,7 @@ class PlannerView extends StatefulWidget {
 
 class _PlannerViewState extends State<PlannerView> {
   bool _dropToStrip = false;
+  final _grid = GlobalKey<PlannerGridState>();
   int _scrollRequest = 0;
   int _todaySeen = 0;
 
@@ -269,9 +270,15 @@ class _PlannerViewState extends State<PlannerView> {
                     isDropTarget: _dropToStrip,
                     workStart: _workStart,
                     workEnd: _workEnd,
+                    // The block of "Fit" grows in.
+                    aroundFit: (fit) {
+                      final grid = _grid.currentState;
+                      grid == null ? fit() : grid.growNew(fit);
+                    },
                   ),
                   Expanded(
                     child: PlannerGrid(
+                      key: _grid,
                       store: _store,
                       days: days,
                       hourHeight: _store.plannerHourHeight,

@@ -19,9 +19,9 @@ const hour = 64.0;
 
 /// A store for the planner. Motion is off, so the screen comes to rest.
 /// "Now" is Wednesday at 10:00.
-AppStore plannerStore({int now = 10 * 60}) {
+AppStore plannerStore({int now = 10 * 60, bool motion = false}) {
   final store = makeStore(
-    prefs: MemoryPrefs()..set('appearance.motion', false),
+    prefs: MemoryPrefs()..set('appearance.motion', motion),
     clock: WallTime(day: wednesday, minute: now),
   );
   store

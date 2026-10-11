@@ -281,6 +281,7 @@ class BlockView extends StatelessWidget {
                   .number(10, weight: FontWeight.w700)
                   .copyWith(color: tint),
             ),
+          if (block.hasNote && inner >= 90) _noteIcon(tint),
           if (inner >= 110) ?_badge(theme),
         ],
       );
@@ -321,6 +322,11 @@ class BlockView extends StatelessWidget {
                           style: titleStyle,
                         ),
                       ),
+                      if (block.hasNote && inner >= 90)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 2),
+                          child: _noteIcon(tint),
+                        ),
                       if (rows.badge && inner >= 90) ?_badge(theme),
                     ],
                   ),
@@ -437,6 +443,16 @@ class BlockView extends StatelessWidget {
         ),
       ],
     ),
+  );
+
+  /// The small pencil after the title: a note links to this block (PLAN
+  /// §5.1.2).
+  Widget _noteIcon(Color tint) => Icon(
+    symbolIcon('square.and.pencil'),
+    key: ValueKey('block-note-${block.id}'),
+    size: 10,
+    color: tint,
+    semanticLabel: 'Has a linked note',
   );
 
   /// "1/4" in the title row when the block has subtasks but no line to

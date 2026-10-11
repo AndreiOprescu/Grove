@@ -1,8 +1,8 @@
 // The Day Planner on a real device (milestone F7): create, drag, resize,
 // overlap and undo. Then the paths that need a real pointer or a real key:
 // the menu of a block, a double tap, Shift and the command key at the end of
-// a drag, a drag of two blocks, and the focus timer. Then the screens of
-// milestone F9: the Day Spread, the
+// a drag, a drag of two blocks, a pinch, and the focus timer. Then the
+// screens of milestone F9: the Day Spread, the
 // card of an event and a note. Then the Garden and the Settings window of
 // milestone F10. It runs on the Mac, on Windows, on an iOS
 // simulator and on an Android emulator:
@@ -499,6 +499,54 @@ void main() {
     await tester.pump(const Duration(milliseconds: 2500));
     await tester.pumpAndSettle();
   }, skip: _finger);
+
+  testWidgets(
+    'pinch: two fingers apart make the hours taller',
+    (tester) async {
+      final store = _store();
+      _lunch(store);
+      await _open(tester, store);
+      final before = store.plannerHourHeight;
+      final column = tester.getRect(_column(wednesday));
+      // One finger is on the block, the other on empty time under it.
+      final a = Offset(
+        column.left + column.width * 0.3,
+        _at(tester, store, wednesday, 12 * 60).dy,
+      );
+      final b = Offset(
+        column.left + column.width * 0.7,
+        _at(tester, store, wednesday, 13 * 60).dy,
+      );
+
+      final first = await tester.startGesture(a, pointer: 1);
+      final second = await tester.startGesture(b, pointer: 2);
+      await tester.pump(const Duration(milliseconds: 16));
+      for (var i = 1; i <= 8; i++) {
+        await first.moveTo(a - Offset(0, 5.0 * i));
+        await second.moveTo(b + Offset(0, 5.0 * i));
+        await tester.pump(const Duration(milliseconds: 16));
+      }
+      await first.up();
+      await second.up();
+      await tester.pumpAndSettle();
+
+      expect(store.plannerHourHeight, greaterThan(before * 1.3));
+      expect(
+        tester.getSize(_column(wednesday)).height,
+        closeTo(24 * store.plannerHourHeight, 0.5),
+      );
+      // The block did not move, and nothing new was made.
+      final lunch = _named(store, 'Lunch');
+      expect(lunch.startMinute, 11 * 60 + 30);
+      expect(lunch.endMinute, 12 * 60 + 30);
+      expect(store.blocks(DayRange.single(wednesday)), hasLength(1));
+      expect(find.byKey(const ValueKey('planner-draft')), findsNothing);
+      expect(find.text('Duration'), findsNothing);
+      expect(tester.takeException(), isNull);
+    },
+    // A computer pinches on its trackpad. The widget tests cover that.
+    skip: !_finger,
+  );
 
   testWidgets('focus: "Start Focus" shows the timer; the cross stops it', (
     tester,
