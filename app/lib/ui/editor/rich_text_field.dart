@@ -334,32 +334,38 @@ class RichTextFieldState extends State<RichTextField> {
     c.style = look;
     final ids = c.imageIds;
     final canPlan = c.plannerLine() != null;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      spacing: 6,
-      children: [
-        EditorToolbar(
-          controller: c,
-          onImage: widget.pickImages == null ? null : _addImage,
-          before: _focus.requestFocus,
-        ),
-        if (ids.isNotEmpty)
-          ImageStrip(ids: ids, controller: c, services: c.services),
-        OverlayPortal(
-          controller: _portal,
-          overlayChildBuilder: (context) => _MentionLayer(
-            link: _link,
+    // A press of a mouse outside a text takes the keyboard away from it, and
+    // the owner of the text then saves it and may change it. The buttons of
+    // the editor work on the text, so a press on them is a press in the
+    // text (the Mac app does the same: GroveTextView.swift).
+    return TextFieldTapRegion(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        spacing: 6,
+        children: [
+          EditorToolbar(
             controller: c,
-            theme: theme,
-            caret: _listPlace,
+            onImage: widget.pickImages == null ? null : _addImage,
+            before: _focus.requestFocus,
           ),
-          child: CompositedTransformTarget(
-            link: _link,
-            child: _field(theme, look),
+          if (ids.isNotEmpty)
+            ImageStrip(ids: ids, controller: c, services: c.services),
+          OverlayPortal(
+            controller: _portal,
+            overlayChildBuilder: (context) => _MentionLayer(
+              link: _link,
+              controller: c,
+              theme: theme,
+              caret: _listPlace,
+            ),
+            child: CompositedTransformTarget(
+              link: _link,
+              child: _field(theme, look),
+            ),
           ),
-        ),
-        if (canPlan) _PlannerButton(theme: theme, onTap: c.addToPlanner),
-      ],
+          if (canPlan) _PlannerButton(theme: theme, onTap: c.addToPlanner),
+        ],
+      ),
     );
   }
 
@@ -826,70 +832,183 @@ class _MentionLayer extends StatelessWidget {
   final ({Rect line, Offset origin})? Function() caret;
 
   @override
-  Widget build(BuildContext context) => CompositedTransformFollower(
-    link: link,
-    showWhenUnlinked: false,
-    child: ValueListenableBuilder<MentionList?>(
-      valueListenable: controller.mentions,
-      builder: (context, open, _) {
-        if (open == null) return const SizedBox();
-        return Flow(
-          delegate: _UnderCaret(caret, controller),
-          children: [
-            MentionListView(
+  Widget build(BuildContext context) {
+    // The parts of the window the list must keep out of: the bars of a
+    // phone and its keyboard.
+    final media = MediaQuery.of(context);
+    final keyboard = media.viewInsets.bottom;
+    final safe = media.padding.copyWith(
+      bottom: keyboard > media.padding.bottom ? keyboard : media.padding.bottom,
+    );
+    return CompositedTransformFollower(
+      link: link,
+      showWhenUnlinked: false,
+      child: ValueListenableBuilder<MentionList?>(
+        valueListenable: controller.mentions,
+        builder: (context, open, _) {
+          if (open == null) return const SizedBox();
+          return UnderCaret(
+            caret: caret,
+            repaint: controller,
+            safe: safe,
+            child: MentionListView(
               theme: theme,
               list: open,
               onPick: controller.accept,
             ),
-          ],
-        );
-      },
-    ),
-  );
+          );
+        },
+      ),
+    );
+  }
 }
 
 /// Puts the list under the line of the `[[`. It reads the place when it
 /// paints, after the text has its new layout. The list goes above the line
 /// when there is no room under it, and stays inside the window.
-class _UnderCaret extends FlowDelegate {
-  _UnderCaret(this.caret, Listenable repaint) : super(repaint: repaint);
+///
+/// Its own box starts at the top left of the field. The list may stand above
+/// or left of that box, so the box does not cut it and does not keep clicks
+/// from it.
+class UnderCaret extends SingleChildRenderObjectWidget {
+  const UnderCaret({
+    super.key,
+    required this.caret,
+    required this.repaint,
+    required this.safe,
+    super.child,
+  });
 
   final ({Rect line, Offset origin})? Function() caret;
+
+  /// The list is placed again each time this tells.
+  final Listenable repaint;
+  final EdgeInsets safe;
 
   static const gap = 4.0;
   static const edge = 8.0;
 
-  @override
-  BoxConstraints getConstraintsForChild(int i, BoxConstraints constraints) =>
-      constraints.loosen();
-
-  @override
-  void paintChildren(FlowPaintingContext context) {
-    final place = caret();
-    final child = context.getChildSize(0);
-    if (place == null || child == null) return;
-    final window = context.size;
-    var x = place.line.left;
-    var y = place.line.bottom + gap;
-    final right = place.origin.dx + x + child.width;
-    if (right > window.width - edge) x -= right - (window.width - edge);
-    if (place.origin.dx + x < edge) x = edge - place.origin.dx;
-    if (place.origin.dy + y + child.height > window.height - edge &&
-        place.origin.dy + place.line.top - gap - child.height >= edge) {
-      y = place.line.top - gap - child.height;
+  /// Where a list of size `list` goes, from the top left of the field.
+  /// `line` is the line of the `[[` in the field, `origin` is where the field
+  /// is in the window.
+  static Offset place({
+    required Rect line,
+    required Offset origin,
+    required Size list,
+    required Size window,
+    EdgeInsets safe = EdgeInsets.zero,
+  }) {
+    final left = safe.left + edge;
+    final right = window.width - safe.right - edge;
+    final top = safe.top + edge;
+    final bottom = window.height - safe.bottom - edge;
+    var x = origin.dx + line.left;
+    if (x + list.width > right) x = right - list.width;
+    if (x < left) x = left;
+    final under = origin.dy + line.bottom + gap;
+    final over = origin.dy + line.top - gap - list.height;
+    var y = under;
+    if (under + list.height > bottom) {
+      if (over >= top) {
+        y = over;
+      } else {
+        // No room on either side. The side with more room, and all of the
+        // list in the window: it then covers the line.
+        final below = bottom - under;
+        final above = origin.dy + line.top - gap - top;
+        y = below >= above ? bottom - list.height : top;
+        if (y < top) y = top;
+      }
     }
-    context.paintChild(
-      0,
-      transform: Matrix4.translationValues(
-        x.roundToDouble(),
-        y.roundToDouble(),
-        0,
-      ),
+    return Offset(
+      (x - origin.dx).roundToDouble(),
+      (y - origin.dy).roundToDouble(),
     );
   }
 
   @override
-  bool shouldRepaint(_UnderCaret oldDelegate) => true;
+  RenderObject createRenderObject(BuildContext context) =>
+      _RenderUnderCaret(caret, repaint, safe);
+
+  @override
+  void updateRenderObject(
+    BuildContext context,
+    covariant RenderObject renderObject,
+  ) {
+    (renderObject as _RenderUnderCaret)
+      ..caret = caret
+      ..repaint = repaint
+      ..safe = safe
+      ..markNeedsPaint();
+  }
+}
+
+class _RenderUnderCaret extends RenderShiftedBox {
+  _RenderUnderCaret(this.caret, this._repaint, this._safe) : super(null);
+
+  ({Rect line, Offset origin})? Function() caret;
+
+  Listenable _repaint;
+  set repaint(Listenable value) {
+    if (identical(value, _repaint)) return;
+    if (attached) _repaint.removeListener(markNeedsPaint);
+    _repaint = value;
+    if (attached) _repaint.addListener(markNeedsPaint);
+  }
+
+  EdgeInsets _safe;
+  set safe(EdgeInsets value) {
+    if (value == _safe) return;
+    _safe = value;
+    markNeedsPaint();
+  }
+
+  /// False when the place of the `[[` is not known: nothing is painted and
+  /// nothing can be clicked.
+  bool _shown = false;
+
+  @override
+  void attach(PipelineOwner owner) {
+    super.attach(owner);
+    _repaint.addListener(markNeedsPaint);
+  }
+
+  @override
+  void detach() {
+    _repaint.removeListener(markNeedsPaint);
+    super.detach();
+  }
+
+  @override
+  void performLayout() {
+    size = constraints.biggest;
+    child?.layout(constraints.loosen(), parentUsesSize: true);
+  }
+
+  @override
+  void paint(PaintingContext context, Offset offset) {
+    final child = this.child;
+    final place = child == null ? null : caret();
+    if (child == null || place == null) {
+      _shown = false;
+      return;
+    }
+    final at = UnderCaret.place(
+      line: place.line,
+      origin: place.origin,
+      list: child.size,
+      window: size,
+      safe: _safe,
+    );
+    (child.parentData! as BoxParentData).offset = at;
+    _shown = true;
+    context.paintChild(child, offset + at);
+  }
+
+  // No look at its own size: the list may stand outside of it.
+  @override
+  bool hitTest(BoxHitTestResult result, {required Offset position}) =>
+      _shown && hitTestChildren(result, position: position);
 }
 
 /// The rows of the `[[` list.

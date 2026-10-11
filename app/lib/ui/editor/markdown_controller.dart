@@ -141,7 +141,10 @@ class MarkdownController extends TextEditingController {
   @override
   set value(TextEditingValue next) {
     final old = value;
-    if (_applying || next.composing.isValid || old.composing.isValid) {
+    // A word that the keyboard of a phone has not done yet is left as it
+    // is. The rules run again with the key that ends the word: a Return at
+    // the end of a word comes that way.
+    if (_applying || next.composing.isValid) {
       _set(next);
       return;
     }
@@ -149,7 +152,7 @@ class MarkdownController extends TextEditingController {
       _set(_snap(old, next));
       return;
     }
-    final change = _difference(old.text, next.text);
+    final change = _difference(old, next);
     // A key that would delete a hidden task mark deletes the visible
     // character next to it.
     final beside = MarkdownSpans.deletionBesideMark(
@@ -241,22 +244,47 @@ class MarkdownController extends TextEditingController {
     );
   }
 
-  /// The one change that turns `a` into `b`: the range of `a` that goes, and
-  /// the text that comes.
+  /// The one change that turns the text of `from` into the text of `to`:
+  /// the range that goes, and the text that comes.
+  ///
+  /// When the letter that comes or goes is the same as the one next to it,
+  /// the two texts alone do not say where the change was: `a|[[x]]` with a
+  /// `[` typed at the caret gives the same text as a `[` typed inside the
+  /// mention. The caret says where it was.
   static ({Utf16Range range, String replacement}) _difference(
-    String a,
-    String b,
+    TextEditingValue from,
+    TextEditingValue to,
   ) {
-    var head = 0;
+    final a = from.text;
+    final b = to.text;
     final most = a.length < b.length ? a.length : b.length;
+    var head = 0;
     while (head < most && a.codeUnitAt(head) == b.codeUnitAt(head)) {
       head += 1;
     }
-    var tail = 0;
-    while (tail < most - head &&
-        a.codeUnitAt(a.length - 1 - tail) ==
-            b.codeUnitAt(b.length - 1 - tail)) {
-      tail += 1;
+    int tailAfter(int head) {
+      var tail = 0;
+      while (tail < most - head &&
+          a.codeUnitAt(a.length - 1 - tail) ==
+              b.codeUnitAt(b.length - 1 - tail)) {
+        tail += 1;
+      }
+      return tail;
+    }
+
+    var tail = tailAfter(head);
+    final was = from.selection;
+    final now = to.selection;
+    if (was.isValid && now.isValid) {
+      final caret = was.start < now.start ? was.start : now.start;
+      if (caret >= 0 && caret < head) {
+        // Only when it is the same change, read at another place.
+        final other = tailAfter(caret);
+        if (other - tail == head - caret) {
+          head = caret;
+          tail = other;
+        }
+      }
     }
     return (
       range: Utf16Range(head, a.length - tail - head),

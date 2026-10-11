@@ -46,6 +46,8 @@ Future<Rig> makeRig(
   String text, {
   EditorServices Function(Rig rig)? services,
   ThemeId themeId = ThemeId.grove,
+  Size size = const Size(500, 400),
+  Alignment alignment = Alignment.topLeft,
 }) async {
   final controller = MarkdownController(text: text);
   final focus = FocusNode();
@@ -57,24 +59,27 @@ Future<Rig> makeRig(
     tester,
     StatefulBuilder(
       builder: (context, setState) => Align(
-        alignment: Alignment.topLeft,
+        alignment: alignment,
         child: SizedBox(
           width: 400,
-          child: RichTextField(
-            text: shown,
-            controller: controller,
-            focusNode: focus,
-            services: (services ?? oneTask)(rig),
-            placeholder: 'Write here',
-            onChanged: (value) => setState(() {
-              shown = value;
-              rig.text = value;
-            }),
+          // As high as its text, as in a page that scrolls.
+          child: SingleChildScrollView(
+            child: RichTextField(
+              text: shown,
+              controller: controller,
+              focusNode: focus,
+              services: (services ?? oneTask)(rig),
+              placeholder: 'Write here',
+              onChanged: (value) => setState(() {
+                shown = value;
+                rig.text = value;
+              }),
+            ),
           ),
         ),
       ),
     ),
-    size: const Size(500, 400),
+    size: size,
     themeId: themeId,
   );
   focus.requestFocus();
@@ -111,6 +116,50 @@ Future<void> caret(WidgetTester tester, Rig rig, int offset, [int? end]) async {
   );
   await tester.pump();
 }
+
+/// The key that deletes the letter in front of the caret.
+Future<void> backspace(WidgetTester tester, Rig rig) async {
+  final value = rig.controller.value;
+  final at = value.selection.start;
+  await send(tester, value.text.replaceRange(at - 1, at, ''), at - 1);
+}
+
+/// What the keyboard of a phone sends while a word is not done yet.
+Future<void> compose(WidgetTester tester, String text, int from, int to) async {
+  tester.testTextInput.updateEditingValue(
+    TextEditingValue(
+      text: text,
+      selection: TextSelection.collapsed(offset: to),
+      composing: TextRange(start: from, end: to),
+    ),
+  );
+  await tester.pump();
+}
+
+/// A click of a mouse, with a frame between the press and the release.
+Future<void> click(WidgetTester tester, Finder target) async {
+  final gesture = await tester.startGesture(
+    tester.getCenter(target),
+    kind: PointerDeviceKind.mouse,
+  );
+  await tester.pump();
+  await tester.pump(const Duration(milliseconds: 80));
+  await gesture.up();
+  await tester.pump();
+}
+
+/// Eight tasks for the `[[` list: a list 248 points high.
+EditorServices eightTasks(Rig rig) => EditorServices(
+  suggest: (_) => [
+    for (var i = 0; i < 8; i++)
+      MentionSuggestion(
+        ref: ItemRef(ItemType.task, 'T$i'),
+        title: 'Buy milk $i',
+        kind: 'Task',
+      ),
+  ],
+  title: (id) => 'Buy milk',
+);
 
 /// The pieces of text the editor draws, with their styles.
 List<TextSpan> pieces(WidgetTester tester, Rig rig) {
@@ -721,6 +770,222 @@ void main() {
       await tester.pump();
       expect(sent, ['lunch @fri 1pm']);
       expect(rig.text, 'plain\n[[lunch|E1]] Fri 13:00');
+    });
+  });
+
+  group('a key next to a unit', () {
+    testWidgets('a letter typed in front of a mention stays in front of it', (
+      tester,
+    ) async {
+      const text = 'x [[Buy milk|$id]] y';
+      final rig = await makeRig(tester, text);
+      await caret(tester, rig, 2);
+      await type(tester, rig, '[');
+      expect(rig.text, 'x [[[Buy milk|$id]] y');
+      expect(rig.controller.selection.baseOffset, 3);
+    });
+
+    testWidgets('a letter typed in front of an image stays in front of it', (
+      tester,
+    ) async {
+      const text = 'wow ![cat](grove-image:$id) y';
+      final rig = await makeRig(tester, text);
+      await caret(tester, rig, 4);
+      await type(tester, rig, '!');
+      expect(rig.text, 'wow !![cat](grove-image:$id) y');
+      expect(rig.controller.selection.baseOffset, 5);
+    });
+
+    testWidgets('Backspace in front of an image keeps the image', (
+      tester,
+    ) async {
+      const text = 'wow!![cat](grove-image:$id) y';
+      final rig = await makeRig(tester, text);
+      await caret(tester, rig, 4);
+      await backspace(tester, rig);
+      expect(rig.text, 'wow![cat](grove-image:$id) y');
+      expect(rig.controller.selection.baseOffset, 3);
+    });
+
+    testWidgets('Backspace in front of a mention keeps the mention', (
+      tester,
+    ) async {
+      const text = 'a[[[Buy milk|$id]] y';
+      final rig = await makeRig(tester, text);
+      await caret(tester, rig, 2);
+      await backspace(tester, rig);
+      expect(rig.text, 'a[[Buy milk|$id]] y');
+      expect(rig.controller.selection.baseOffset, 1);
+    });
+
+    testWidgets('Backspace on one of two spaces in front of a task mark '
+        'takes that space only', (tester) async {
+      const text = '- [ ] buy milk  ⟦t:abc⟧\nnext';
+      final rig = await makeRig(tester, text);
+      await caret(tester, rig, 15);
+      await backspace(tester, rig);
+      expect(rig.text, '- [ ] buy milk ⟦t:abc⟧\nnext');
+      expect(rig.controller.selection.baseOffset, 14);
+    });
+
+    testWidgets('a key far from the caret is still read where it is', (
+      tester,
+    ) async {
+      // What a spelling fix of the keyboard does: the caret is at the end,
+      // the change is in the middle.
+      final rig = await makeRig(tester, 'aa bb aa');
+      await caret(tester, rig, 8);
+      await send(tester, 'aa cc aa', 8);
+      expect(rig.text, 'aa cc aa');
+    });
+  });
+
+  group('the keyboard of a phone', () {
+    testWidgets('Return at the end of a word that is not done yet goes on '
+        'with the list', (tester) async {
+      final rig = await makeRig(tester, '- ');
+      await compose(tester, '- one', 2, 5);
+      expect(rig.text, '- one');
+      await send(tester, '- one\n', 6);
+      expect(rig.text, '- one\n- ');
+      expect(rig.controller.selection.baseOffset, 8);
+    });
+
+    testWidgets('Return at the end of a word that is not done yet picks the '
+        'row of the list', (tester) async {
+      final rig = await makeRig(tester, '');
+      await compose(tester, '[[bu', 2, 4);
+      expect(find.text('Buy milk'), findsOneWidget);
+      await send(tester, '[[bu\n', 5);
+      expect(rig.text, '[[Buy milk|T1]]');
+    });
+
+    testWidgets('a word that is not done yet is left as the keyboard sends '
+        'it', (tester) async {
+      final rig = await makeRig(tester, '- one');
+      await compose(tester, '- one tw', 6, 8);
+      await compose(tester, '- one two', 6, 9);
+      expect(rig.text, '- one two');
+      expect(rig.controller.value.composing, const TextRange(start: 6, end: 9));
+    });
+  });
+
+  group('a mouse on the buttons', () {
+    testWidgets(
+      'a click on a button of the row does not take the keyboard away',
+      variant: TargetPlatformVariant.desktop(),
+      (tester) async {
+        final rig = await makeRig(tester, 'make this loud');
+        await caret(tester, rig, 5, 9);
+        final focus = <bool>[];
+        void heard() => focus.add(rig.focus.hasFocus);
+        rig.focus.addListener(heard);
+        await click(tester, find.bySemanticsLabel('Bold'));
+        rig.focus.removeListener(heard);
+        expect(focus, isEmpty);
+        expect(rig.focus.hasFocus, isTrue);
+        expect(rig.text, 'make **this** loud');
+      },
+    );
+
+    testWidgets(
+      'a click on "Add to planner" does not take the keyboard away',
+      variant: TargetPlatformVariant.desktop(),
+      (tester) async {
+        final rig = await makeRig(
+          tester,
+          'plain\nlunch @fri 1pm',
+          services: (rig) =>
+              EditorServices(addToPlanner: (line) => '[[lunch|E1]] Fri 13:00'),
+        );
+        await caret(tester, rig, 12);
+        final focus = <bool>[];
+        void heard() => focus.add(rig.focus.hasFocus);
+        rig.focus.addListener(heard);
+        await click(tester, find.text('Add to planner'));
+        rig.focus.removeListener(heard);
+        expect(focus, isEmpty);
+        expect(rig.focus.hasFocus, isTrue);
+        expect(rig.text, 'plain\n[[lunch|E1]] Fri 13:00');
+      },
+    );
+  });
+
+  group('the place of the [[ list', () {
+    testWidgets('over the line when the field is at the bottom of the window, '
+        'and a click on a row still picks it', (tester) async {
+      final rig = await makeRig(
+        tester,
+        '',
+        services: eightTasks,
+        alignment: Alignment.bottomLeft,
+      );
+      await type(tester, rig, '[[');
+      await tester.pump();
+      final list = tester.getRect(find.byType(MentionListView));
+      final field = tester.getRect(find.byType(EditableText));
+      expect(list.height, 8 * RichTextField.listRow + 8);
+      expect(list.bottom, closeTo(field.top - 4, 1));
+      expect(list.top, greaterThanOrEqualTo(8));
+      for (var i = 0; i < 8; i++) {
+        expect(find.text('Buy milk $i').hitTestable(), findsOneWidget);
+      }
+      await tester.tap(find.text('Buy milk 3'));
+      await tester.pump();
+      expect(rig.text, '[[Buy milk 3|T3]]');
+    });
+
+    testWidgets('over the line when the keyboard of a phone hides the room '
+        'under it', (tester) async {
+      tester.view.viewInsets = const FakeViewPadding(bottom: 336);
+      addTearDown(tester.view.resetViewInsets);
+      final lines = [for (var i = 0; i < 20; i++) 'line $i'].join('\n');
+      final rig = await makeRig(
+        tester,
+        '$lines\n',
+        services: eightTasks,
+        size: const Size(390, 844),
+      );
+      await caret(tester, rig, lines.length + 1);
+      await type(tester, rig, '[[');
+      await tester.pump();
+      final list = tester.getRect(find.byType(MentionListView));
+      final line = tester.getRect(find.byType(EditableText)).bottom - 17;
+      // The keyboard starts at 844 - 336 = 508.
+      expect(list.bottom, lessThanOrEqualTo(508 - 8));
+      expect(list.bottom, closeTo(line - 4, 1));
+      for (var i = 0; i < 8; i++) {
+        expect(find.text('Buy milk $i').hitTestable(), findsOneWidget);
+      }
+    });
+
+    testWidgets('with no room over or under the line, all of it stays in the '
+        'window', (tester) async {
+      final lines = [for (var i = 0; i < 9; i++) 'line $i'].join('\n');
+      final rig = await makeRig(tester, '$lines\n', services: eightTasks);
+      await caret(tester, rig, lines.length + 1);
+      await type(tester, rig, '[[');
+      await tester.pump();
+      final list = tester.getRect(find.byType(MentionListView));
+      expect(list.top, greaterThanOrEqualTo(8));
+      expect(list.bottom, lessThanOrEqualTo(400 - 8));
+      for (var i = 0; i < 8; i++) {
+        expect(find.text('Buy milk $i').hitTestable(), findsOneWidget);
+      }
+    });
+
+    testWidgets('not past the right edge of the window', (tester) async {
+      final rig = await makeRig(
+        tester,
+        '',
+        services: eightTasks,
+        size: const Size(390, 844),
+      );
+      await type(tester, rig, 'a long line of words that ends far right [[');
+      await tester.pump();
+      final list = tester.getRect(find.byType(MentionListView));
+      expect(list.right, lessThanOrEqualTo(390 - 8));
+      expect(list.left, greaterThanOrEqualTo(8));
     });
   });
 
