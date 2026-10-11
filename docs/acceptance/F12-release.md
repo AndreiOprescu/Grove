@@ -212,15 +212,18 @@ I made no key, no certificate and no account. The table says what each system ne
 
 ## 5. CI, workflow `flutter`
 
-Last code commit: `f62e64f`. The commits after it change files in `docs/` only.
+Last code commit of this branch: `f62e64f`. The commits of this branch after it change files in `docs/` only. The merge `0694489` brings the base `feat/cross-platform-flutter` (pull requests #11 and #13) into the branch.
 
 | Run | For | android | windows | macos | ios |
 |---|---|---|---|---|---|
 | 38144548470, first try | push of `f62e64f` | **red** | green | green | green |
 | 38144548470, second try (only the red job ran again) | the same commit | green | green | green | green |
-| 38144952257 | the pull request #14, the same code | green | green | green | not ended when this was written |
+| 38144952257 | the pull request #14, the same code | green | green | green | green |
+| 38146308270 | the pull request #14, `9a2cd62` (tested merged with the old base `dbce123`) | **red** | green | green | green |
+| 38147557696 | the pull request #14, `c8e846b` (tested merged with the old base `dbce123`) | **red** | green | green | green |
+| 38157110084 | the pull request #14, `0694489` (tested merged with the new base `b7a20b9`) | green | green | green | green |
 
-Why Android was red in the first try: the device test `calendar: the card of a new event saves the event` (`app/integration_test/planner_test.dart:328`, a file of Track B that this branch does not change). The tap on Save did not reach the button, because the keyboard of Android came up and moved it. Track B fixed that test in commit `654e3df` on the branch `feat/xp-screens` ("the device test taps Save when the button is in view"). That fix is not on this branch yet. Nothing in this branch changes `app/lib/` or that test, and the same commit was green on Android in the second try and in the run of the pull request. So I ran the red job again once and changed nothing. Until `654e3df` is on `feat/cross-platform-flutter`, the Android job can be red again for the same reason.
+Why Android was red in the first try: the device test `calendar: the card of a new event saves the event` (`app/integration_test/planner_test.dart:328`, a file of Track B that this branch does not change). The tap on Save did not reach the button, because the keyboard of Android came up and moved it. Track B fixed that test in commit `654e3df` on the branch `feat/xp-screens` ("the device test taps Save when the button is in view"). For the first try I ran the red job again once and changed no code; it was green. That fix was not on this branch, and a pull request is tested merged with its base. The two red runs of the pull request (38146308270 and 38147557696) fail in the same test, at the same line, with the same tap point (`Offset(347.6, 567.0)`), and both merged with the old base `dbce123`, which still had the old test. Nothing in this branch changes `app/lib/` or that test. I merged `feat/cross-platform-flutter` (`b7a20b9`, with `654e3df`) into this branch in `0694489`; then the run 38157110084 merged with `b7a20b9` was green on all 4, and on Android the test `calendar: the card of a new event saves the event` passed (9 device tests passed). One green run is one try: the first red run of 38144548470 shows the failure comes and goes, so the base test is a fix, not a proof that it can never be red again.
 
 The speed check is not in this workflow.
 
