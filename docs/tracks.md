@@ -525,3 +525,38 @@ file, the plan, and `docs/assumptions.md` before it starts.
     They pass today. I parked one picture of mine on Linux and Windows
     (`_parked` in `app/test/ui/goldens/f9_golden_test.dart`); the limit did
     not change.
+- F12, the shell gaps (branch `feat/xp-shell-gaps`, proof:
+  `docs/acceptance/F12-shell-gaps.md`), 2026-10-11. Requests to the helper
+  of the planner (`app/lib/ui/planner/` is not my folder, I did not touch
+  it):
+  - The now line keeps the planner and Today at 42 % of one core. Measured
+    on the profile build with `./scripts/flutter_idle.sh`: planner 42 %,
+    today 43 %, 120 frames a second; notes 7 % (17 frames a second), garden
+    9 % (30 frames a second); planner with Motion off 0 %. The cause:
+    `_NowLineState` in `app/lib/ui/planner/planner_grid.dart` has a `Ticker`.
+    A `Ticker` that runs asks for a frame at every refresh of the screen
+    (120 a second on this Mac), and the engine draws the whole window for
+    each one, also when `_onTick` changes nothing. The background and the
+    plants had the same fault; they now use `SlowClock`
+    (`app/lib/ui/theme/slow_clock.dart`), a timer that asks for a frame only
+    when it steps. All slow clocks share one beat.
+  - The change, ready to copy: in `_NowLineState` drop
+    `SingleTickerProviderStateMixin` and the `Ticker`. Add
+    `final _clock = SlowClock(framesPerSecond: PulseMath.framesPerSecond);`
+    (20 a second; the constant is new in `theme_math.dart`). In `initState`:
+    `_clock.seconds.addListener(_onTick);`. In `_sync`:
+    `_clock.isRunning = runs; if (!runs) _opacity.value = 1;`, and add
+    `&& TickerMode.valuesOf(context).enabled` to `motionOn` (call `_sync`
+    from `didChangeDependencies`, not from `initState`), so a covered screen
+    still stops. `_onTick` becomes
+    `_opacity.value = PulseMath.opacity(_clock.seconds.value);`. In
+    `dispose`: `_clock.dispose();`. Put a `RepaintBoundary` around the
+    `Opacity`.
+  - Tests: `framesAsked(tester)` in `app/test/ui/support.dart` counts the
+    frames an idle screen asks for in one second. With a `SlowClock` no
+    `Ticker` runs, so `tester.hasRunningAnimations` is false and
+    `pumpAndSettle` comes back at once. A test that moves time must dispose
+    the widget tree in its body (a pending `Timer` fails a test).
+  - After your change please run `./scripts/flutter_idle.sh` one time and
+    write the planner number in `docs/acceptance/F12-shell-gaps.md`. I expect
+    about 9 % (the background of the Grove theme needs 20 frames a second).
