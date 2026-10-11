@@ -72,14 +72,29 @@ file, the plan, and `docs/assumptions.md` before it starts.
 
 - F5: done, waits for the user (proof: `docs/acceptance/F5.md`)
 - F11-core: done, waits for the user (proof: `docs/acceptance/F11-core.md`)
-- Sync for Track B (nothing to do now):
-  - The engine is `SyncEngine(repos: ..., remote: ...)` in
-    `package:grove/sync/sync.dart`. `await engine.sync()` pushes and pulls.
-  - The store does not call it yet. No screen needs a change. The login
-    screen and the wiring come with the login step of F11 (needs the owner's
-    Supabase keys and the answer to Q-4 in `docs/questions.md`).
-  - A pull writes the database with SQL. When the store is wired, it will
-    call `notifyListeners()` after a pull, so the screens build again.
+- F10-services: done, waits for the user (proof:
+  `docs/acceptance/F10-services.md`)
+- Migration 7 (`block_subtasks`, Swift PR #3 and PR #4): done, waits for the
+  user (proof: `docs/acceptance/migration-7.md`)
+- F8: built, waits for the user (proof: `docs/acceptance/F8.md`). CI is
+  green on the 4 jobs, with the device test in each, after Track B's fix
+  `020bf05`: run 38089300547, commit `1cc29a8`
+- F11-login (the login step of F11, with no keys): built, waits for the
+  owner's Supabase keys and for Track B to place the card (proof:
+  `docs/acceptance/F11-login.md`, questions Q-9 to Q-14). The SQL is in
+  `supabase/migrations/`. It ran on a plain Postgres on CI, never on a real
+  Supabase project. CI is green on commit `20e1121`: the 4 jobs of run
+  38091561817, and the SQL check in run 38091561825
+- Sync for Track B:
+  - The store calls the engine now (`app/lib/state/store_sync.dart`). It
+    syncs after the login, 3 seconds after a change, each 5 minutes, when
+    the app comes to the front and on `store.syncNow()`.
+  - After a pull the store calls `notifyListeners()`, so the screens build
+    again. Rows can change or go away at any time: do not keep a row object
+    in a widget, read it from the store in `build`.
+  - A build with no `app/config/supabase.json` has no sync:
+    `store.syncAvailable` is false and nothing else changes.
+  - What to do is under "Requests to Track B, with F11-login" below.
 - Either track may add new files under `app/lib/core/` (pure Dart, ports of
   Swift `GroveCore`). Track A added `app/lib/core/services/`.
 - Answers to Track B's requests:
@@ -92,7 +107,78 @@ file, the plan, and `docs/assumptions.md` before it starts.
   - It saves the theme, light/dark, motion, intensity and the open left panel
     in `Prefs` (`FilePrefs(path)` for the real app, `MemoryPrefs()` for tests).
   - Make it with `AppStore(repos: Repos(Database.open(path)), prefs: ...)`.
+- Answers to Track B's requests of F7:
+  - Subtasks in blocks (Swift PR #3): done. `store.blocks(days)` gives each
+    `PlannerBlock` a list `subtasks` of `BlockSubtask` (`id`, `title`,
+    `isDone`). A task block has the subtasks of its task, in panel order,
+    without cancelled ones. `SubtaskRules.moreLabel(hidden:, shown:, done:,
+    total:)` and `SubtaskRules.badge(done:, total:)` are in
+    `app/lib/state/rules/subtask_rules.dart`.
+  - The class `BlockSubtask` is in
+    `app/lib/state/rules/block_subtask_row.dart`. `state.dart` does NOT export
+    it, because your `planner_geometry.dart` has a class with the same name
+    and the build would stop. To change over: delete your class and
+    `import 'package:grove/state/rules/block_subtask_row.dart';`. Then you do
+    not need `store.subtasks(taskId)` for each block.
+  - Subtasks on goal blocks (Swift PR #4): done. Table `block_subtasks`
+    (shared migration 7), in the export file and in the sync. The same
+    `PlannerBlock.subtasks` list has them for a goal block. Store calls:
+    `blockSubtasks(eventId)`, `addBlockSubtask(to:, title:)`,
+    `toggleBlockSubtask(id)`, `renameBlockSubtask(id, to:)`,
+    `deleteBlockSubtask(id)`, `openBlockSubtasks(eventId)`,
+    `closeBlockSubtasks()`, and the field `editingBlockSubtasks` (an event id
+    or null). Each edit is one undo step.
+  - Yours to build (view code): the rows in a goal block, the menu lines
+    "Add Subtasks…" (a goal block with none) and "Subtasks…" (a block that
+    has some), and the editor window that shows when `editingBlockSubtasks`
+    is not null. See the Mac files `BlockSubtaskEditor.swift` and
+    `BlockView.swift` on the branch `feat/planner-subtasks`.
+- Answers to Track B's requests, with F8:
+  - The panels: `storePane(context, store, pane)` in
+    `app/lib/ui/tasks/store_panes.dart` gives the Tasks panel and the Goals
+    panel (`null` for Notes). I added it to `paneBuilder` in
+    `app/lib/ui/store_app.dart`, as you offered.
+  - The clock: done. Set `store.clockOverride = WallTime(day: ..., minute:
+    ...)`. Read it with `store.clockToday`, `store.nowMinute()` and
+    `store.clockStamp()` (the text for `completedAt` and `doneAt`). Every
+    call in `app/lib/state/` uses them. Only the constructor of `AppStore`
+    reads the real day, so set `selectedDay` after the clock. You can delete
+    `app/lib/ui/planner/planner_clock.dart`.
+  - The event editor: yours, with F9. On the Mac it is
+    `Calendar/EventEditor.swift`, and the Calendar is F9. The store is ready:
+    `editEvent(e)`, `editingEvent`, `closeEditor()`. Show the window when
+    `editingEvent` is not null.
+- Two edits in Track B's files, with F8 (please check them at your next
+  merge):
+  - `app/lib/ui/store_app.dart`: the planner screen and the Today screen sit
+    in `InspectorHost(store: store, child: ...)`. It shows `TaskInspector`
+    (the panel of the chosen task) at the right of the screen, as
+    `RootView.swift` does. On a phone the panel covers the screen. The screen
+    keeps its state.
+  - `app/test/ui/planner/planner_view_test.dart`, "Enter renames a task
+    block": the finder of the text field looks only inside
+    `InlineTitleField`. A click on a task block opens the panel of the task
+    now, and that panel has text fields too.
 - Requests to Track B:
+  - Start the services where you open the real store (you planned this for the
+    start of F7). In `app/lib/main.dart`, after
+    `WidgetsFlutterBinding.ensureInitialized()`:
+
+    ```dart
+    import 'package:grove/services/services.dart';
+
+    final prefs = FilePrefs('$dir${Platform.pathSeparator}prefs.json');
+    final notifier = AppServices.notifier(prefs);
+    final store = AppStore.open(dataDir: dir, notifier: notifier, prefs: prefs);
+    AppServices.forThisDevice(store).start();
+    ```
+
+    That gives reminders on the 4 systems, the tray icon on the Mac and on
+    Windows, and the daily backup. `AppStore.open` makes `Backups/` and
+    `prefs.json` in `dir`. `app/tool/services_check.dart` is a working example.
+  - The permission question: call `store.askForNotifications()` from your
+    welcome card and from the Settings screen, as the Mac app does. Nothing
+    asks today. `store.notifyStatus` has the three states.
   - The state layer cannot import `app/lib/ui/`. So keep one set of enums, the
     one in `app/lib/state/`: `Screen` (`screen.dart`), `LeftPane`
     (`rules/left_pane.dart`), `ThemeId` and `AppearanceMode` (`theme_id.dart`).
@@ -108,11 +194,128 @@ file, the plan, and `docs/assumptions.md` before it starts.
     example `checklist`, `note.text`). Map them to your icons.
   - Port the Swift tests of view code with your screens. The list is in
     `docs/acceptance/F5.md` ("Left for Track B").
+- Requests to Track B, with F8:
+  - Day Spread (F9): put `TasksPane(store: store, mode: TasksPaneMode.today)`
+    (`app/lib/ui/tasks/tasks_pane.dart`) in the task column. On the Mac the
+    panel of a task takes the place of the day-note column there. Use
+    `TaskInspector(store: store, taskId: store.selectedTaskId!)` for that,
+    and take `InspectorHost` off the Today screen in `store_app.dart`.
+  - A new screen that can choose a task (Calendar, Notes): wrap it in
+    `InspectorHost` in `store_app.dart`, or the panel of the task has no
+    place to show.
+  - Esc: the panel of a task closes on Esc only when the keyboard focus is
+    inside it. If you want Esc to close it from any place, add it to the
+    shell shortcuts: `store.selectedTaskId = null`.
+  - The description of a task is a plain text field. When your rich editor
+    is there (F9), tell me the widget and I put it in `task_inspector.dart`.
+  - The device test (`app/integration_test/`) has no step for the panels.
+    Add one if you want (a tap on a row of the Tasks panel opens the panel
+    of the task).
+  - Letter gap from Material (found with F8's golden pictures on CI): text
+    under a `Material` widget (`Dialog`, `Scaffold` with no
+    `DefaultTextStyle`) gets a gap of 0.25 between letters, and a
+    `TextField` gets 0.5, when the style has no `letterSpacing`.
+    `GroveTheme.body()` has none. The Mac app has no gap. Text with such a
+    gap sits on parts of a pixel, and the golden pictures are then not the
+    same on each OS. I set the gap to 0 in my own widgets. A fix for the
+    whole app is yours: `letterSpacing: 0` in `heading()`, `body()` and
+    `number()` of `grove_theme.dart`, or a `textTheme` in `toMaterial()`.
+    My guard `textOffPixels(tester)` in `app/test/ui/tasks/tasks_support.dart`
+    lists such texts; use it if you want.
+  - Android device test on CI: the step "Integration test" of the android
+    job never ended (your runs 38069455097 and 38069452005, and mine). The
+    log stops at `adb wait-for-device`: the emulator did not come up, and
+    its output went to `/dev/null`. I changed the shared files in small
+    edits: `scripts/flutter_integration.sh` sets `ANDROID_AVD_HOME`, waits
+    10 minutes at most and prints the last lines of the emulator;
+    `.github/workflows/flutter.yml` has `timeout-minutes: 45` on the step.
+    Take these with `git merge origin/feat/xp-engine`. Your two runs are
+    still "in progress"; I did not touch them.
+  - With that change the emulator starts, and your device test ran on
+    Android for the first time (run 38086903069, commit 027f849). 4 tests
+    pass. 1 test fails, 2 times of 2: "resize: the bottom edge changes the
+    end" (`app/integration_test/planner_test.dart:194`): expected end 780,
+    actual 750, so the drag of the bottom edge with a finger changed
+    nothing. The same test passes on the iPhone simulator. The test and
+    the planner are yours; I did not change them. Please find out if a
+    finger can resize a block on Android, or if only the test is wrong.
+    Until then the android job of CI is red for the two tracks.
+- Requests to Track B, with F11-login:
+  - The login has no place in the app yet. Please put the sync card in your
+    settings place (a window, a sheet or a menu, your choice):
+
+    ```dart
+    import 'package:grove/ui/auth/sync_card.dart';
+
+    SyncCard(store: store)
+    ```
+
+    It has no frame and no padding of its own, and it is as wide as you
+    make it (the pictures in `app/test/ui/auth/goldens/` are 340 wide). It
+    shows the email step, the code step, "Signed in as …" with the time of
+    the last sync, "Sync now", "Sign out", the errors, and the question of
+    the first login. In a build with no keys it shows one line: "This copy
+    of Grove has no sync."
+  - Please wrap the screens in the gate, below the `MaterialApp` (it needs
+    a `Navigator`; `RootView` or the body in `store_app.dart` is a good
+    place):
+
+    ```dart
+    import 'package:grove/ui/auth/first_sync_dialog.dart';
+
+    FirstSyncGate(store: store, child: ...)
+    ```
+
+    It opens the Q-4 window one time when `store.firstSyncQuestion` turns
+    true. "Not now" closes it, and the card keeps the question. Without the
+    gate the question shows only in the card.
+  - If you want a small sync mark in the top bar: `store.syncStatus`
+    (`SyncStatus.off`, `signedOut`, `checking`, `question`, `syncing`,
+    `error`, `upToDate`), `store.syncError`, `store.lastSyncAt` and
+    `store.syncWaiting` are there. `SyncWords.status(store, now: ...)` gives
+    the line of the card.
+  - Shared and platform files I changed, in small edits (take them with
+    `git merge origin/feat/xp-engine`): `app/pubspec.yaml` and the lock
+    file (`supabase_flutter`, on the plan's list), the plugin files that
+    Flutter makes for macOS and Windows, `app/lib/main.dart` (2 lines: the
+    backend is made and given to `AppStore.open(sync: ...)`),
+    `scripts/flutter_build.sh` (the flag for the key file), `.gitignore`
+    (`app/config/supabase.json`), the two macOS entitlement files and the
+    Android manifest (network), and the new workflow
+    `.github/workflows/supabase.yml` (SQL check, it runs only when
+    `supabase/` changes).
+  - `GroveField` has two new optional parameters (`keyboard`,
+    `plainTyping`). `textOffPixels(tester, within: finder)` can look at any
+    widget now. Nothing of yours has to change.
 
 ### Track B — screens
 
-- F6: done, waits for the user (proof: `docs/acceptance/F6.md`)
-- F7: not started
+- F6: done and merged (proof: `docs/acceptance/F6.md`)
+- F7: done, waits for the user (proof: `docs/acceptance/F7.md`). CI is green
+  on the 4 jobs, with the device test in each: run 38089136176, commit
+  `1cc29a8`, 2026-10-11.
+- F9: in work (Calendar, Notes, Day Spread, the rich editor, the event
+  editor)
+- Answers to "Requests to Track B, with F8" (2026-10-11):
+  - Android device test, "resize: the bottom edge changes the end": the test
+    was right, the app was wrong. The edge of a block waited for 18 points
+    before it took a drag. The scroll view of the grid takes a finger after
+    the touch slop of the device, and Android says 8 points. So the grid
+    scrolled and the block kept its length. Fix in `020bf05`:
+    `EdgeDragRecognizer` in `app/lib/ui/planner/block_view.dart` takes the
+    drag at the first move. Two widget tests with the Android settings are in
+    `planner_view_test.dart`. The test of the device did not change. The
+    android job is green now (5 of 5).
+  - Your two runs that hung (38069455097, 38069452005): I cancelled them, as
+    the owner's agent asked.
+  - Letter gap from Material: done in `1cc29a8`. `heading()`, `body()` and
+    `number()` of `grove_theme.dart` have `letterSpacing: 0`, and
+    `toMaterial()` gives Material a text theme with no gap. No golden picture
+    changed (yours and mine). `ThemedHeading` keeps the gap of the theme
+    (-0.2 or 1.5); that is its look. I did not touch `tasks_support.dart`.
+  - Day Spread, `InspectorHost` on new screens, Esc, the rich editor, a step
+    of the device test for the panels: with F9. See the F9 lines below when
+    they are there.
 - Answers to Track A's requests (all done on 2026-10-10):
   - One set of enums. My four are deleted. `shell_model.dart` and
     `theme_spec.dart` `export` the state ones. `AppearanceMode.brightness` is
@@ -128,11 +331,30 @@ file, the plan, and `docs/assumptions.md` before it starts.
     those lists.
   - The Swift view tests: the theme ones are ported (`ThemeSpecTests`, the 5
     `ThemeMotionTests` singles, the `AmbientMath` one; see
-    `docs/acceptance/F6.md`). The others come with their screens: F7 (Today),
-    F9 (Planner, Spread), F10-screens (editor, task rows).
-- Not done yet: `app/lib/main.dart` still starts the shell on
-  `LocalShellModel`. The real store needs a folder for the database
-  (`path_provider`). Track B does this at the start of F7.
+    `docs/acceptance/F6.md`). The planner ones are ported with F7
+    (`PlannerKindTests`, `PlannerRulesTests`, `PlannerLayoutRules`,
+    `InlineTitleRulesTests`, the Workload tests; see `docs/acceptance/F7.md`).
+    The others come with their screens: F9 (Spread), F10-screens (editor,
+    task rows, check box).
+  - The services start in `app/lib/main.dart` with your 4 lines (F7). The
+    store opens in `getApplicationSupportDirectory()` (`path_provider`).
+  - `store.askForNotifications()`: not called yet. It comes with the welcome
+    card and the Settings screen (F10-screens).
+- For Track A to know (F7):
+  - `StoreApp(store: store)` in `app/lib/ui/store_app.dart` is the app on a
+    real store. It puts the screens in with `screenBuilder`. When your panels
+    are ready (F8), tell me the widget and I add it to `paneBuilder` there, or
+    add it yourself in a small edit.
+  - Drags: wrap a row that can be dragged in `PayloadDrag(payload: ..., label:
+    ..., child: ...)` from `app/lib/ui/planner/payload_drag.dart`. The payload
+    is the text of `DragPayload`. The planner grid and the strip of tasks with
+    no time take `DragTarget<String>` drops of that text. Use the same in the
+    Tasks panel, so a task can be dragged onto the planner.
+  - `CheckBox` (`app/lib/ui/theme/check_box.dart`) and the colours of tasks
+    and priorities (`TaskPalette`, `PriorityColors`, `theme.color(name)` in
+    `app/lib/ui/theme/named_colors.dart`) are there for your task rows.
+  - The device test: `./scripts/flutter_integration.sh <target>`. The CI runs
+    it in each job after the build. It adds some minutes to each job.
 - Fonts (owner's answer to Q-1 and Q-2): 7 font families are in `app/fonts/`
   and in `app/pubspec.yaml`. Use `GroveTheme.of(context).heading()`, `.body()`
   and `.number()`; do not name a font family in a screen.
@@ -140,3 +362,19 @@ file, the plan, and `docs/assumptions.md` before it starts.
   - F8: give the Tasks and Goals panels to the shell with
     `GroveApp(paneBuilder: ...)`. Use `GroveTheme.of(context)`, `Panel`,
     `ThemedHeading`, `ThemedChip` from `app/lib/ui/theme/`.
+  - Subtasks in blocks (Swift PR #3): put the subtasks in `PlannerBlock`
+    (a `subtasks` list from `blocks()`), and port `SubtaskRules.moreLabel` and
+    `SubtaskRules.badge` to `app/lib/state/rules/`. Today the grid calls
+    `store.subtasks(taskId)` for each task block, and the labels are in
+    `app/lib/ui/planner/planner_geometry.dart`. I change over when yours are
+    there.
+  - Subtasks on goal blocks (Swift PR #4): when that PR is merged, port its
+    table (`block_subtasks`) and its store calls. The grid cannot show them
+    before that.
+  - The clock: `nowMinute()`, `showToday()`, `showDay()` and the
+    `DayKey.today()` calls in `app/lib/state/` do not use `clockOverride`.
+    Please make them use it. Then a screen test can fix the day for the whole
+    store. Today the planner has its own small helper
+    (`app/lib/ui/planner/planner_clock.dart`); I delete it after.
+  - The event editor: I build it with F9 (`app/lib/ui/calendar/`). Nothing
+    to do for you.

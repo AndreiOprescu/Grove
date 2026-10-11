@@ -46,6 +46,13 @@ void fill(Device d) {
     kind: EventKind.block,
     taskId: task.id,
   );
+  final goalBlock = EventItem(
+    title: 'Read',
+    start: at('2026-10-05T14:00'),
+    end: at('2026-10-05T15:00'),
+    kind: EventKind.block,
+    goalId: goal.id,
+  );
   r.lists.save(list);
   r.notes.save(note);
   r.goals.upsert(goal);
@@ -53,6 +60,10 @@ void fill(Device d) {
   r.tasks.save(sub);
   r.events.save(event);
   r.events.save(block);
+  r.events.save(goalBlock);
+  r.blockSubtasks.save(
+    BlockSubtaskItem(eventId: goalBlock.id, title: 'Chapter 3'),
+  );
   r.events.addExdate(event.id, DayKey('2026-10-12'));
   r.links.addManual(
     ItemRef(ItemType.note, note.id),
@@ -257,7 +268,13 @@ void main() {
       await b.sync();
 
       expect(b.repos.tasks.all(), isEmpty);
-      expect(b.repos.events.all().map((e) => e.title), ['Standup']);
+      // The block of the task went with it. The goal block has no task: it
+      // stays, with its subtask.
+      final left = b.repos.events.all();
+      expect(left.map((e) => e.title), ['Standup', 'Read']);
+      expect(b.repos.blockSubtasks.forEvent(left.last.id).map((s) => s.title), [
+        'Chapter 3',
+      ]);
       expect(b.repos.search.search('broom'), isEmpty);
       expect(b.outbox.count, 0);
       expectSame([a, b]);

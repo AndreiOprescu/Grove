@@ -49,13 +49,38 @@ extension AppStorePlanner on AppStore {
 
   List<PlannerBlock> blocks(DayRange days) {
     final tasks = <String, TaskItem?>{};
+    final taskSubs = <String, List<BlockSubtask>>{};
     final out = <PlannerBlock>[];
-    for (final e in eventItems(days)) {
+    final events = eventItems(days);
+    // Subtasks of blocks without a task: goal blocks, and old goal blocks
+    // whose goal was deleted.
+    final blockSubs =
+        _try(
+          () => repos.blockSubtasks.forEvents([
+            for (final e in events)
+              if (e.taskId == null && !e.allDay) e.id,
+          ]),
+        ) ??
+        const <String, List<BlockSubtaskItem>>{};
+    for (final e in events) {
       if (e.allDay) continue;
       final tid = e.taskId;
       final task = tid == null
           ? null
           : tasks.putIfAbsent(tid, () => _try(() => repos.tasks.get(tid)));
+      final rows = task != null
+          ? taskSubs.putIfAbsent(
+              task.id,
+              () => [
+                for (final s in subtasks(task.id))
+                  if (s.status != TaskStatus.cancelled)
+                    BlockSubtask(id: s.id, title: s.title, isDone: s.isDone),
+              ],
+            )
+          : [
+              for (final s in blockSubs[e.id] ?? const <BlockSubtaskItem>[])
+                BlockSubtask(id: s.id, title: s.title, isDone: s.isDone),
+            ];
       final day = e.start.day;
       if (!days.contains(day)) continue;
       final end = e.end.day == day ? e.end.minute : 1440;
@@ -75,6 +100,7 @@ extension AppStorePlanner on AppStore {
           isRecurring: e.seriesId != null,
           priority: task?.priority ?? 0,
           goalId: e.goalId,
+          subtasks: rows,
         ),
       );
     }
@@ -301,9 +327,7 @@ extension AppStorePlanner on AppStore {
       for (final b in blocks(DayRange.single(day)))
         if (b.taskId != taskId) b.span,
     ];
-    final from = day == DayKey.today()
-        ? max(workStart, nowMinute())
-        : workStart;
+    final from = day == clockToday ? max(workStart, nowMinute()) : workStart;
     final slot = PlannerMath.firstFreeSlot(
       length: len,
       busy: busy,
@@ -328,7 +352,7 @@ extension AppStorePlanner on AppStore {
   }) {
     final busy = [for (final b in blocks(DayRange.single(day))) b.span];
     final from = PlannerMath.snap(
-      day == DayKey.today() ? max(workStart, nowMinute()) : workStart,
+      day == clockToday ? max(workStart, nowMinute()) : workStart,
       step: step,
     );
     final out = <PlanStep>[];
@@ -588,7 +612,7 @@ extension AppStorePlanner on AppStore {
   }) => PlannerMath.firstFreeSlot(
     length: length,
     busy: [for (final b in blocks(DayRange.single(day))) b.span],
-    from: day == DayKey.today() ? max(nowMinute(), 0) : workStart,
+    from: day == clockToday ? max(nowMinute(), 0) : workStart,
     until: 1440,
     step: step,
   );

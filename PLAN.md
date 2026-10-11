@@ -389,6 +389,16 @@ Done blocks are faded with strike-through. Events are filled with their colour a
 opacity and a 3pt left border; task blocks use a dashed 1pt border + 3pt solid left
 border (exactly as in `design/layouts.html`).
 
+A task block with subtasks lists them under the title and short description, in panel
+order, without cancelled ones. Each row has a small mark and the title; done rows are
+struck through and dimmed. The marks only show; the task panel changes subtasks. The
+title keeps one line and the short description comes next. Subtasks get the lines left
+(`PlannerLayoutRules.blockRows`). When not all fit, the last line says "+3 more"; with
+one line only it says "1/4 subtasks". With no line left (and in single-line blocks) a
+small "1/4" (done/total) sits in the title row. Lines the subtasks do not need go back to
+the title and description. Subtask rows do not make the block "tight": a block on top
+may cover them, but never the title and description rows.
+
 All-day events show in a strip above the grid.
 
 #### 5.1.3 Overlap layout (pure function in `PlannerMath`)

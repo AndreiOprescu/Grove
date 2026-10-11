@@ -4,6 +4,7 @@ import 'dart:math';
 
 import 'package:flutter/foundation.dart';
 
+import '../core/model/block_subtask.dart';
 import '../core/model/day_key.dart';
 import '../core/model/event.dart';
 import '../core/model/goal.dart';
@@ -23,11 +24,13 @@ import '../core/recurrence/recurrence_engine.dart';
 import '../core/services/focus_rules.dart';
 import '../core/services/reminder_planner.dart';
 import '../data/data.dart';
+import '../sync/sync.dart';
 import 'editor_services.dart';
 import 'mutation.dart';
 import 'notifier.dart';
 import 'prefs.dart';
 import 'rules/all_tasks_rules.dart';
+import 'rules/block_subtask_row.dart';
 import 'rules/calendar_rules.dart';
 import 'rules/day_range.dart';
 import 'rules/day_rules.dart';
@@ -42,6 +45,7 @@ import 'rules/now_next.dart';
 import 'rules/plant_math.dart';
 import 'rules/planner_block.dart';
 import 'rules/settings_rules.dart';
+import 'rules/subtask_rules.dart';
 import 'rules/task_placement.dart';
 import 'rules/text.dart';
 import 'screen.dart';
@@ -49,6 +53,7 @@ import 'theme_id.dart';
 
 part 'store_appearance.dart';
 part 'store_at_date.dart';
+part 'store_block_subtasks.dart';
 part 'store_calendar.dart';
 part 'store_daily.dart';
 part 'store_data.dart';
@@ -65,6 +70,7 @@ part 'store_palette.dart';
 part 'store_planner.dart';
 part 'store_reminders.dart';
 part 'store_roll_over.dart';
+part 'store_sync.dart';
 part 'store_tasks.dart';
 part 'store_welcome.dart';
 
@@ -109,6 +115,7 @@ class AppStore extends ChangeNotifier {
     Notifier? notifier,
     Prefs? prefs,
     this.dataDir,
+    this.syncBackend,
     this._errorMessage,
   }) : notifier = notifier ?? NullNotifier(),
        prefs = prefs ?? MemoryPrefs() {
@@ -125,6 +132,7 @@ class AppStore extends ChangeNotifier {
         openFromNotification(day: day, ref: ref);
     this.notifier.onFocusDone = focusDoneFromNotification;
     _welcomeVisible = FirstRun.welcomeVisible(repos);
+    _startSync();
   }
 
   /// Opens the database in [dataDir] and does the launch steps: the daily
@@ -134,6 +142,7 @@ class AppStore extends ChangeNotifier {
     required String dataDir,
     Notifier? notifier,
     Prefs? prefs,
+    SyncBackend? sync,
   }) {
     final sep = Platform.pathSeparator;
     try {
@@ -157,6 +166,7 @@ class AppStore extends ChangeNotifier {
         notifier: notifier,
         prefs: prefs ?? FilePrefs('$dataDir${sep}prefs.json'),
         dataDir: dataDir,
+        syncBackend: sync,
       );
     } on Exception {
       return AppStore(
@@ -178,6 +188,16 @@ class AppStore extends ChangeNotifier {
   /// The folder with `grove.sqlite` and `Backups`. Null for a store in memory.
   final String? dataDir;
 
+  /// The login and the remote of the sync. Null: Grove runs with no sync
+  /// (no keys in the build, or a database that did not open). See
+  /// `store_sync.dart`.
+  final SyncBackend? syncBackend;
+  final _sync = _SyncState();
+
+  /// How long a change waits before it is sent. A burst of changes is one
+  /// sync.
+  Duration syncDelay = const Duration(seconds: 3);
+
   /// How many days ahead Grove sets reminders.
   static const reminderDays = 14;
 
@@ -185,6 +205,9 @@ class AppStore extends ChangeNotifier {
   static const paletteItemLimit = 10;
 
   bool _disposed = false;
+
+  /// True after [dispose]. A late write must not use the store then.
+  bool get isDisposed => _disposed;
 
   void _changed() {
     if (!_disposed) notifyListeners();
@@ -199,6 +222,7 @@ class AppStore extends ChangeNotifier {
     }
     _reminderSleep?.cancel();
     _freshSleep?.cancel();
+    _stopSync();
     super.dispose();
   }
 
@@ -217,6 +241,7 @@ class AppStore extends ChangeNotifier {
   void _bump() {
     _revision += 1;
     _changed();
+    _syncSoon();
   }
 
   /// Tasks just checked off that stay in the open list for a moment, so the
@@ -325,6 +350,14 @@ class AppStore extends ChangeNotifier {
     _changed();
   }
 
+  /// The goal block (an event id) whose subtask editor is open, or null.
+  String? _editingBlockSubtasks;
+  String? get editingBlockSubtasks => _editingBlockSubtasks;
+  set editingBlockSubtasks(String? v) {
+    _editingBlockSubtasks = v;
+    _changed();
+  }
+
   /// Which screen fills the window. The Today screen always shows today, so
   /// coming to it picks today.
   Screen _screen = Screen.today;
@@ -332,7 +365,7 @@ class AppStore extends ChangeNotifier {
   set screen(Screen v) {
     final old = _screen;
     _screen = v;
-    if (v == Screen.today && old != Screen.today) _selectedDay = DayKey.today();
+    if (v == Screen.today && old != Screen.today) _selectedDay = clockToday;
     _changed();
   }
 
@@ -396,6 +429,9 @@ class AppStore extends ChangeNotifier {
   /// A fixed "now" for tests. Null means the real clock.
   WallTime? clockOverride;
 
+  /// The day now, from [clockOverride] or the real clock.
+  DayKey get clockToday => clockOverride?.day ?? DayKey.today();
+
   /// The waiting reminder refresh. Tests wait on it.
   Future<void>? reminderTask;
   _Sleep? _reminderSleep;
@@ -430,6 +466,7 @@ class AppStore extends ChangeNotifier {
     _noteFilter = NoteFilter.all;
     _noteQuery = '';
     _editingEvent = null;
+    _editingBlockSubtasks = null;
     _recurringPrompt = null;
     _overloadWarning = null;
     _lingering = {};
@@ -447,6 +484,7 @@ class AppStore extends ChangeNotifier {
   /// Applies a change, saves it, and records it for undo.
   bool commit(Mutation m) {
     if (m.isEmpty) return false;
+    _addSubtasksOfDeletedBlocks(m);
     final days = _plannedDays(m);
     final before = {for (final d in days) d: plannedMinutes(d)};
     if (!_apply(m, forward: true)) return false;
@@ -460,6 +498,26 @@ class AppStore extends ChangeNotifier {
     _redoStack.clear();
     if (_undoStack.length > 200) _undoStack.removeAt(0);
     return true;
+  }
+
+  /// Deleting a block also deletes its subtasks (the database does that).
+  /// This puts them in the change, so undo brings them back.
+  void _addSubtasksOfDeletedBlocks(Mutation m) {
+    final deleted = [
+      for (final e in m.events)
+        if (e.after == null) ?e.before?.id,
+    ];
+    if (deleted.isEmpty) return;
+    final subs = _try(() => repos.blockSubtasks.forEvents(deleted));
+    if (subs == null || subs.isEmpty) return;
+    final listed = {
+      for (final c in m.blockSubtasks) ?(c.before ?? c.after)?.id,
+    };
+    for (final id in deleted) {
+      for (final sub in subs[id] ?? const <BlockSubtaskItem>[]) {
+        if (listed.add(sub.id)) m.blockSubtasks.add((before: sub, after: null));
+      }
+    }
   }
 
   // Busy-day limit
@@ -537,6 +595,11 @@ class AppStore extends ChangeNotifier {
           final x = target(e);
           if (x != null) repos.events.save(x);
         }
+        // After the events: a subtask needs its block.
+        for (final b in m.blockSubtasks) {
+          final x = target(b);
+          if (x != null) repos.blockSubtasks.save(x);
+        }
         for (final n in m.notes) {
           final x = target(n);
           if (x != null) repos.notes.save(x);
@@ -559,6 +622,10 @@ class AppStore extends ChangeNotifier {
         for (final c in m.tags) {
           if (gone.contains(c.taskId)) continue;
           repos.tags.setTaskTags(c.taskId, forward ? c.after : c.before);
+        }
+        for (final b in m.blockSubtasks) {
+          final id = source(b)?.id;
+          if (target(b) == null && id != null) repos.blockSubtasks.delete(id);
         }
         for (final e in m.events) {
           final id = source(e)?.id;
@@ -658,9 +725,27 @@ class AppStore extends ChangeNotifier {
     _toastTimer = Timer(const Duration(milliseconds: 2200), () => toast = null);
   }
 
-  /// The minute of the day now, from the real clock.
+  /// The minute of the day now, from [clockOverride] or the real clock.
   int nowMinute() {
+    final fixed = clockOverride;
+    if (fixed != null) return fixed.minute;
     final now = DateTime.now();
     return now.hour * 60 + now.minute;
+  }
+
+  /// The time stamp of now, from [clockOverride] or the real clock.
+  String clockStamp() {
+    final fixed = clockOverride;
+    if (fixed == null) return Stamp.now();
+    final at = fixed.day.date;
+    return Stamp.fromDate(
+      DateTime(
+        at.year,
+        at.month,
+        at.day,
+        fixed.minute ~/ 60,
+        fixed.minute % 60,
+      ),
+    );
   }
 }

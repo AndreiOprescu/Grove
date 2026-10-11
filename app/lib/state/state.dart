@@ -26,4 +26,6 @@ export 'rules/subtask_rules.dart';
 export 'rules/task_placement.dart';
 export 'rules/text.dart';
 export 'screen.dart';
+export '../sync/auth_gateway.dart' show Account, AuthFailure, AuthProblem;
+export '../sync/sync_backend.dart';
 export 'theme_id.dart';

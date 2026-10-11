@@ -137,6 +137,12 @@ class GroveTheme {
   static const _typewriter = ['Courier New', 'Cutive Mono', 'monospace'];
   static const _tabular = [FontFeature.tabularFigures()];
 
+  /// No gap between letters, as in the Mac app. A style with no value here
+  /// takes the gap of the Material widget above it (0.25, or 0.5 in a text
+  /// field). Text with such a gap sits on parts of a pixel, and each system
+  /// draws that in its own way.
+  static const _noGap = 0.0;
+
   /// Inter draws small text more open and large text tighter. Flutter does
   /// not pick the optical size by itself.
   TextStyle _inter(double size, FontWeight weight) => TextStyle(
@@ -144,6 +150,7 @@ class GroveTheme {
     fontFamilyFallback: _sans,
     fontSize: size,
     fontWeight: weight,
+    letterSpacing: _noGap,
     fontVariations: [FontVariation.opticalSize(size)],
   );
 
@@ -155,6 +162,7 @@ class GroveTheme {
           fontFamilyFallback: _serif,
           fontSize: size,
           fontWeight: weight,
+          letterSpacing: _noGap,
           fontVariations: [FontVariation.opticalSize(size)],
         ),
         ThemeId.minimal => _inter(size, weight),
@@ -163,6 +171,7 @@ class GroveTheme {
           fontFamilyFallback: _sans,
           fontSize: size,
           fontWeight: weight,
+          letterSpacing: _noGap,
           // the widest letters of the font (Swift: `.width(.expanded)`)
           fontVariations: const [FontVariation.width(125)],
         ),
@@ -171,6 +180,7 @@ class GroveTheme {
           fontFamilyFallback: _serif,
           fontSize: size,
           fontWeight: weight,
+          letterSpacing: _noGap,
           fontStyle: FontStyle.italic,
         ),
       };
@@ -183,6 +193,7 @@ class GroveTheme {
           fontFamilyFallback: _sans,
           fontSize: size,
           fontWeight: weight,
+          letterSpacing: _noGap,
         ),
         ThemeId.minimal || ThemeId.futuristic => _inter(size, weight),
         ThemeId.vintage => TextStyle(
@@ -190,6 +201,7 @@ class GroveTheme {
           fontFamilyFallback: _typewriter,
           fontSize: size,
           fontWeight: weight,
+          letterSpacing: _noGap,
         ),
       };
 
@@ -201,6 +213,7 @@ class GroveTheme {
           fontFamilyFallback: _mono,
           fontSize: size,
           fontWeight: weight,
+          letterSpacing: _noGap,
         ),
         _ => body(size, weight: weight).copyWith(fontFeatures: _tabular),
       };
@@ -262,7 +275,29 @@ class GroveTheme {
           outlineVariant: line,
         );
     final text = body(13);
+    // The text styles of Material come with gaps between letters. Text
+    // with no style of its own would get them.
+    const plain = TextStyle(letterSpacing: _noGap);
+    const noGaps = TextTheme(
+      displayLarge: plain,
+      displayMedium: plain,
+      displaySmall: plain,
+      headlineLarge: plain,
+      headlineMedium: plain,
+      headlineSmall: plain,
+      titleLarge: plain,
+      titleMedium: plain,
+      titleSmall: plain,
+      bodyLarge: plain,
+      bodyMedium: plain,
+      bodySmall: plain,
+      labelLarge: plain,
+      labelMedium: plain,
+      labelSmall: plain,
+    );
     return ThemeData(
+      textTheme: noGaps,
+      primaryTextTheme: noGaps,
       useMaterial3: true,
       brightness: brightness,
       colorScheme: scheme,

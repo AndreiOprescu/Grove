@@ -6,6 +6,7 @@ import 'package:grove/core/model/day_key.dart';
 import 'package:grove/data/data.dart';
 import 'package:grove/sync/sync.dart';
 
+export 'package:grove/core/model/block_subtask.dart';
 export 'package:grove/core/model/day_key.dart';
 export 'package:grove/core/model/event.dart';
 export 'package:grove/core/model/goal.dart';

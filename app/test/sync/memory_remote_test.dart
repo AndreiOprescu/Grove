@@ -2,23 +2,17 @@ import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
 
+import 'remote_contract.dart';
 import 'support.dart';
 
-RowChange change(
-  String key,
-  int stamp, {
-  String table = 'tasks',
-  bool deleted = false,
-  Map<String, Object?> data = const {},
-}) => RowChange(
-  table: table,
-  key: key,
-  stamp: stamp,
-  deleted: deleted,
-  data: data,
-);
-
 void main() {
+  group('The rules of every remote', () {
+    remoteContract(
+      make: MemoryRemote.new,
+      offline: (remote, off) => (remote as MemoryRemote).offline = off,
+    );
+  });
+
   late MemoryRemote remote;
   setUp(() => remote = MemoryRemote());
 
@@ -26,68 +20,6 @@ void main() {
     for (final c in await remote.pull(after: after, limit: limit))
       '${c.seq} ${c.key} ${c.stamp}',
   ];
-
-  test('a new row is kept and gets the next number', () async {
-    await remote.push([change('a', 10), change('b', 10)]);
-    expect(await pulled(), ['1 a 10', '2 b 10']);
-  });
-
-  test(
-    'a newer change takes the place of the row and gets a new number',
-    () async {
-      await remote.push([change('a', 10), change('b', 10)]);
-      await remote.push([change('a', 11)]);
-      expect(await pulled(), ['2 b 10', '3 a 11']);
-    },
-  );
-
-  test('an older change and a change of the same age are refused', () async {
-    await remote.push([
-      change('a', 10, data: {'title': 'first'}),
-    ]);
-    await remote.push([
-      change('a', 9, data: {'title': 'older'}),
-      change('a', 10, data: {'title': 'same age'}),
-    ]);
-    final row = (await remote.pull(after: 0, limit: 10)).single;
-    expect(row.data['title'], 'first');
-    expect(row.seq, 1);
-  });
-
-  test('a delete is a row too', () async {
-    await remote.push([change('a', 10)]);
-    await remote.push([change('a', 11, deleted: true)]);
-    final row = (await remote.pull(after: 0, limit: 10)).single;
-    expect(row.deleted, isTrue);
-  });
-
-  test('the same key in two tables is two rows', () async {
-    await remote.push([change('a', 10), change('a', 10, table: 'notes')]);
-    expect((await pulled()).length, 2);
-  });
-
-  test(
-    'a pull gives the rows after a number, lowest first, up to the limit',
-    () async {
-      await remote.push([for (var i = 0; i < 5; i++) change('k$i', 10)]);
-      expect(await pulled(after: 1, limit: 2), ['2 k1 10', '3 k2 10']);
-      expect(await pulled(after: 5), isEmpty);
-    },
-  );
-
-  test('when it is offline, push and pull throw', () async {
-    remote.offline = true;
-    expect(
-      () => remote.push([change('a', 1)]),
-      throwsA(isA<RemoteUnavailable>()),
-    );
-    expect(
-      () => remote.pull(after: 0, limit: 1),
-      throwsA(isA<RemoteUnavailable>()),
-    );
-    remote.offline = false;
-    expect(await pulled(), isEmpty);
-  });
 
   test('a push can stop half way: the first rows are kept', () async {
     remote.failPushAfter = 1;

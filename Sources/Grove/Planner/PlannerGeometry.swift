@@ -48,4 +48,43 @@ enum PlannerLayoutRules {
         return (title, lines - title)
     }
 
+    /// How a task block splits its text lines between title, short description and subtasks.
+    /// The title keeps one line and the short description comes next, as before. Subtasks get the lines left.
+    /// When they do not all fit, the last line says how many are hidden ("+3 more").
+    /// With no line left, a small count sits in the title row instead (`badge`).
+    /// Lines the subtasks do not need go back to the title (at most 2 with a description) and the description.
+    static func blockRows(height: CGFloat, hasSummary: Bool, subtaskCount: Int) -> BlockRows {
+        let old = blockTextLines(height: height, hasSummary: hasSummary)
+        guard subtaskCount > 0 else {
+            return BlockRows(title: old.title, summary: old.summary, subtasks: 0, moreRow: false, badge: false)
+        }
+        let summary = old.summary > 0 ? 1 : 0
+        let left = old.title + old.summary - 1 - summary
+        if left <= 0 {
+            return BlockRows(title: 1, summary: summary, subtasks: 0, moreRow: false, badge: true)
+        }
+        if left < subtaskCount {
+            return BlockRows(title: 1, summary: summary, subtasks: left - 1, moreRow: true, badge: false)
+        }
+        let rest = left - subtaskCount
+        if summary > 0 {
+            let more = min(1, rest)
+            return BlockRows(title: 1 + more, summary: summary + rest - more, subtasks: subtaskCount, moreRow: false, badge: false)
+        }
+        return BlockRows(title: 1 + rest, summary: 0, subtasks: subtaskCount, moreRow: false, badge: false)
+    }
+}
+
+/// The text lines of a task block. See `PlannerLayoutRules.blockRows`.
+struct BlockRows: Equatable {
+    var title: Int
+    var summary: Int
+    /// Subtask rows shown, from the top of the list.
+    var subtasks: Int
+    /// A last row that says what is not shown.
+    var moreRow: Bool
+    /// No line for subtasks at all: a small "1/4" sits in the title row.
+    var badge: Bool
+
+    func hidden(of total: Int) -> Int { max(0, total - subtasks) }
 }

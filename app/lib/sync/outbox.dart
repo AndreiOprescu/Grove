@@ -105,4 +105,24 @@ class Outbox {
   int get cursor => _meta('cursor');
 
   set cursor(int seq) => _setMeta('cursor', seq);
+
+  /// The id of the account this database syncs with, or null when it never
+  /// synced. The cursor and the outbox are true for this account only.
+  String? get account => db.queryOne(
+    "SELECT value FROM sync_meta WHERE key = 'account'",
+    const [],
+    (r) => r.text(0),
+  );
+
+  set account(String? id) {
+    if (id == null) {
+      db.execute("DELETE FROM sync_meta WHERE key = 'account'");
+    } else {
+      db.execute(
+        "INSERT INTO sync_meta (key, value) VALUES ('account', ?) "
+        'ON CONFLICT(key) DO UPDATE SET value = excluded.value',
+        [id],
+      );
+    }
+  }
 }

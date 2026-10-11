@@ -5,7 +5,7 @@ part of 'app_store.dart';
 /// and opens what the user clicks.
 extension AppStoreReminders on AppStore {
   WallTime reminderNow() =>
-      clockOverride ?? WallTime(day: DayKey.today(), minute: nowMinute());
+      clockOverride ?? WallTime(day: clockToday, minute: nowMinute());
 
   /// The reminders for the coming days, from the data now.
   List<Reminder> buildReminders() {

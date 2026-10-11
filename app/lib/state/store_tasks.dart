@@ -55,7 +55,7 @@ extension AppStoreTasks on AppStore {
     DayKey? today,
   }) => AllTasksRules.unscheduled(
     _openTopLevelWithLingering(),
-    today: today ?? DayKey.today(),
+    today: today ?? clockToday,
   );
 
   List<TaskItem> subtasks(String parentId) =>
@@ -126,7 +126,7 @@ extension AppStoreTasks on AppStore {
     String notes = '',
   }) {
     final lists = _try(repos.lists.all) ?? const <ListItem>[];
-    final today = DayKey.today();
+    final today = clockToday;
     final r = QuickAddParser(
       today: today,
       lists: [for (final l in lists) l.name],
@@ -187,7 +187,7 @@ extension AppStoreTasks on AppStore {
     if (linger && !old.isDone) _holdInList(taskId);
     final t = old.isDone
         ? old.copyWith(status: TaskStatus.open, completedAt: null)
-        : old.copyWith(status: TaskStatus.done, completedAt: Stamp.now());
+        : old.copyWith(status: TaskStatus.done, completedAt: clockStamp());
     final m = Mutation(t.isDone ? 'Complete Task' : 'Reopen Task');
     m.tasks.add((before: old, after: t));
     final rule = old.recurrence;
@@ -210,7 +210,7 @@ extension AppStoreTasks on AppStore {
   /// finished late.
   void _appendNextInstance(TaskItem old, RecurrenceRule rule, Mutation m) {
     DayKey later(DayKey a, DayKey b) => a > b ? a : b;
-    final today = DayKey.today();
+    final today = clockToday;
     final TaskPlacement placement;
     if (old.bucket == TaskBucket.week) {
       final base = later(old.planWeek ?? today, today.weekStart());

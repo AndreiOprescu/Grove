@@ -37,4 +37,13 @@ enum SubtaskRules {
         let name = raw.trimmingCharacters(in: .whitespacesAndNewlines)
         return name.isEmpty || name == current ? nil : name
     }
+
+    /// The last row of a task block when not every subtask fits: "+3 more",
+    /// or "1/4 subtasks" when no subtask row fits at all.
+    static func moreLabel(hidden: Int, shown: Int, done: Int, total: Int) -> String {
+        shown == 0 ? "\(done)/\(total) subtasks" : "+\(hidden) more"
+    }
+
+    /// The small count in a block's title row when no subtask row fits: "1/4".
+    static func badge(done: Int, total: Int) -> String { "\(done)/\(total)" }
 }

@@ -6,6 +6,7 @@ import 'package:grove/core/model/event.dart';
 import 'package:grove/core/model/task.dart';
 import 'package:grove/core/services/reminder_planner.dart';
 
+export 'package:grove/core/model/block_subtask.dart';
 export 'package:grove/core/model/day_key.dart';
 export 'package:grove/core/model/event.dart';
 export 'package:grove/core/model/goal.dart';

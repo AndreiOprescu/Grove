@@ -344,11 +344,16 @@ final class AppStore {
     func blocks(for days: ClosedRange<DayKey>) -> [PlannerBlock] {
         let events = eventItems(in: days)
         var tasks: [String: TaskItem] = [:]
+        var subs: [String: [BlockSubtask]] = [:]
         var out: [PlannerBlock] = []
         for e in events where !e.allDay {
             var task: TaskItem?
             if let tid = e.taskId {
-                if tasks[tid] == nil { tasks[tid] = try? repos.tasks.get(tid) }
+                if tasks[tid] == nil {
+                    tasks[tid] = try? repos.tasks.get(tid)
+                    subs[tid] = subtasks(of: tid).filter { $0.status != .cancelled }
+                        .map { BlockSubtask(id: $0.id, title: $0.title, isDone: $0.isDone) }
+                }
                 task = tasks[tid]
             }
             let day = e.start.day
@@ -359,7 +364,8 @@ final class AppStore {
                 endMinute: max(end, e.start.minute + 1), kind: e.kind, taskId: e.taskId,
                 isDone: e.goalId != nil ? e.doneAt != nil : (task?.isDone ?? false),
                 color: task.flatMap { $0.color.isEmpty ? nil : $0.color } ?? e.color,
-                isRecurring: e.seriesId != nil, priority: task?.priority ?? 0, goalId: e.goalId))
+                isRecurring: e.seriesId != nil, priority: task?.priority ?? 0, goalId: e.goalId,
+                subtasks: task == nil ? [] : subs[task!.id] ?? []))
         }
         return out
     }

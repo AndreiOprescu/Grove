@@ -33,6 +33,19 @@ abstract final class SubtaskRules {
     return s.isEmpty ? 'Subtasks' : 'Subtasks  $s';
   }
 
+  /// The last row of a block that has no room for all its subtasks: "+3 more".
+  /// When no row fits at all: "1/4 subtasks".
+  static String moreLabel({
+    required int hidden,
+    required int shown,
+    required int done,
+    required int total,
+  }) => shown == 0 ? '$done/$total subtasks' : '+$hidden more';
+
+  /// The small count on a block that is too short for any row: "1/4".
+  static String badge({required int done, required int total}) =>
+      '$done/$total';
+
   /// The name to save after the user edits a title, or null when nothing
   /// should be saved (empty after trimming, or not different from [current]).
   static String? renamed(String raw, {required String from}) {
