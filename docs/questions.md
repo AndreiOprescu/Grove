@@ -152,3 +152,16 @@ A) The meeting note of the block — the menu line opens or makes the same note 
 B) Leave both out, as in the Mac app — nothing to build; the plan keeps two lines that no app does.
 If no answer: nothing changes. The menu has no such line. A block can draw the pencil (`block_view.dart`), but the store gives the flag to no block.
 For A, not tried yet: `createMeetingNote` with a task block and with a goal block. They are events in the store, so it should work; the title of the note would be the title of the block.
+## Q-30 · ANSWERED B · ASK · blocks the change of the app id to `local.grove.app` (your answer to Q-26) · 2026-10-11
+With the id `local.grove.app` the Flutter app cannot reach the database of the Mac app, but on your Mac the two apps then share the settings file of macOS and the reminders. May the id change?
+A) Yes, after you copy one file — you run `cp ~/Library/Preferences/local.grove.app.plist ~/Desktop/` first. Then the id changes on the 4 systems. The Flutter app starts with an empty store; your Mac data stays in `~/Library/Application Support/Grove/`. Reminders of both apps show under one name while you use both.   ← my pick: the code shows two reasons why the database is safe, and the copy protects the one small file that is not sure.
+B) Not now — the id stays `local.grove.grove` until you stop using the Mac app. The two apps share nothing.
+If no answer: the id stays `local.grove.grove`. Nothing was changed. What was checked is in `docs/acceptance/F12-release.md`, part "The app id".
+Answer (owner, 2026-10-11): B. Not now. The id stays `local.grove.grove` while the owner uses the Swift Mac app. It changes to `local.grove.app` on the day the owner retires the Swift app. No code was changed.
+
+## Q-31 · ANSWERED A · ASK · blocks F12 (signed builds) · 2026-10-11
+Signing costs money and needs accounts in your name. Which one do you want now?
+A) None now — cost 0. The Mac app, the Windows folder and the Android APK work on your own devices, with a warning of the system on a device that is not this Mac. The iPhone build cannot be put on a phone.   ← my pick: Grove is for one user, and only the iPhone waits for it.
+B) The Apple Developer Program first, 99 USD a year — a Mac app that opens with no warning on any Mac, and the iPhone app on your phone. Windows (a code signing certificate, paid; I do not know a sure price) and the Play Store (25 USD, one time) stay for later.
+If no answer: A stays. No key, certificate or account was made. What each system needs is in `docs/acceptance/F12-release.md`, part "Signing".
+Answer (owner, 2026-10-11): A. No signing now. No key, certificate or account is made.
