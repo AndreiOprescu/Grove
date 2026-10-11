@@ -502,12 +502,28 @@ file, the plan, and `docs/assumptions.md` before it starts.
     day. My golden test saves its notes by hand with
     `repos.notes.save(note, touch: false)`. If you want one clock here too:
     let the store give the stamp to the note before the save. Not urgent.
+    **Done by Track A, 2026-10-11, commit `5936405`:** the store gives the
+    stamp (`clockStamp()`) when it makes a note and at each change, undo and
+    redo. Tests: group "the stamps of a note" in
+    `app/test/state/clock_store_test.dart`. `NoteRepo.save` and `Note(...)`
+    are not changed, so your golden test can stay as it is, or use the store
+    calls now.
   - New with F9, the description of a task: when you put `RichTextField` in
     `task_inspector.dart`, the pictures of your panel change. Look at them
     after `--update-goldens`.
+    **Done by Track A, 2026-10-11, commit `17c78eb`:** the description is
+    `RichTextField` (key `inspector-notes` is on a `KeyedSubtree` around it),
+    with the words and the height of the Mac app, one editor for each task,
+    and services made one time for each task. No box around it. I made the 9
+    pictures with the panel again and looked at each one. Tests: group "the
+    text of the task" in `app/test/ui/tasks/task_inspector_test.dart`. Your
+    file `rich_text_field.dart` is not changed.
   - New with F9, images: `EditorServices.storeImage` is used by the editor,
     but no screen can pick a file yet (Q-15). Nothing to do before the
     answer.
+    **Track A, 2026-10-11:** nothing done, it waits for Q-15. The
+    description of a task has no "Add an image" button (`pickImages` is not
+    given).
   - New with F9, a test of yours failed once on the CI: "a change goes to the
     account some moments later" (`app/test/state/sync_store_test.dart`, line
     341: expected 0, got 1). Run 38132694388, job `build (macos-latest, ios)`,
@@ -516,6 +532,13 @@ file, the plan, and `docs/assumptions.md` before it starts.
     the timer of the store has not started the sync yet, so `idle` comes back
     at once. Please make it wait for the sync, not for the clock. I did not
     touch it.
+    **Done by Track A, 2026-10-11, commit `5936405`:** no test in
+    `sync_store_test.dart` waits for real time now. The store takes its
+    timers from `newTimer`; the tests give it `ManualTimers`
+    (`app/test/state/support.dart`) and move the time with `World.pass`. The
+    test checks: nothing goes out one tick before the wait ends, one push
+    goes out at its end. Tests of the timers:
+    `app/test/state/manual_timers_test.dart`.
   - New with F9, golden pictures close to the limit on Linux (limit 0.2 %):
     your `today_list_futuristic_light.png` is at 0.196 % and
     `tasks_desktop_futuristic_light.png` at 0.167 %; my
@@ -525,6 +548,42 @@ file, the plan, and `docs/assumptions.md` before it starts.
     They pass today. I parked one picture of mine on Linux and Windows
     (`_parked` in `app/test/ui/goldens/f9_golden_test.dart`); the limit did
     not change.
+    **Track A, 2026-10-11: looked at, nothing changed.** I found no text and
+    no line of my panels that sits on parts of a pixel and is counted. The
+    limit and `TolerantGoldenComparator` are not touched. Proof: a test that
+    is gone again (commits `b516245` and `1c3192c`) printed in the CI log
+    where the counted pixels are, with the rule of the compare. Runs
+    38141847400 and 38143266322, lines `WHERE` in the android (Linux) and
+    windows jobs. Its sums are the same as the sums of the compare.
+    - `today_list_futuristic_light.png` on Linux, 471 pixels (0.196 %): 216
+      in the gaps between the letters of the headings (the 1.5 of
+      `headingTracking`), 204 in the text of the button "Move to today", 51
+      in icons. On Windows, 252 pixels (0.105 %): 222 in the headings, 30 in
+      icons, 0 in the button.
+    - "Move to today": the box of the text is on whole pixels (x 46.00,
+      y 171.00, 143.00 x 11.00). Linux draws its letters about 1 pixel
+      higher than the Mac (rows 169 to 181, Mac 170 to 181). The compare
+      forgives 1 pixel, and this is a little more. It counts where the text
+      is light on a strong colour: 204 in minimal and futuristic, 16 in
+      grove, 0 in vintage. "Leave" beside it (dark on light) has the same
+      move and is not counted. I did not find why Linux puts it higher.
+    - `tasks_desktop_futuristic_light.png` on Linux, 1860 pixels (0.171 %;
+      0.167 % before the editor was in the panel): 852 in headings, 350 in
+      icons, 658 in other text. Of the 658, 7 are in my panel ("None"); the
+      rest is text of the planner and of the bar on top ("Drag a task
+      here…" 280, "Planner" 144, the names of the days).
+    - Vintage: the counted pixels are in the seams of the italic headings,
+      and on Linux also in one row under the text of some chips (190 pixels
+      in `tasks_desktop_vintage_light.png`). I did not find the cause of
+      that row. The pictures are at 0.131 % and 0.087 %.
+    - Text of my panels that sits on a part of a pixel in y ("1 of 5 done"
+      at 30.75, "Add a task…" at 77.75, "0/1" at 340.50) and the right end of
+      the progress bar (83.20) are not in the counted pixels, on Linux or on
+      Windows. So I did not move them.
+    - Not looked at: the pictures of Goals (0.103 % at most on Linux) and
+      the dark and small pictures.
+    For Q-17: answer A (gaps between letters) gives room for the 216 pixels
+    of the headings. I do not know if it covers the 204 of the button.
 - F12, the shell gaps (branch `feat/xp-shell-gaps`, proof:
   `docs/acceptance/F12-shell-gaps.md`), 2026-10-11. Requests to the helper
   of the planner (`app/lib/ui/planner/` is not my folder, I did not touch
@@ -560,3 +619,25 @@ file, the plan, and `docs/assumptions.md` before it starts.
   - After your change please run `./scripts/flutter_idle.sh` one time and
     write the planner number in `docs/acceptance/F12-shell-gaps.md`. I expect
     about 9 % (the background of the Grove theme needs 20 frames a second).
+- F12, the shell gaps, 2026-10-11. For the helper of the release scripts
+  (branch `feat/xp-release`, PR #14; `scripts/flutter_release.sh` is not my
+  file, I did not touch it):
+  - The Mac build is `Grove.app` now, not `grove.app` (`PRODUCT_NAME = Grove`
+    in `app/macos/Runner/Configs/AppInfo.xcconfig`). Line 36 of
+    `scripts/flutter_release.sh` names
+    `build/macos/Build/Products/Release/grove.app`: please write
+    `Grove.app`. The old name still opens on a Mac disk that does not tell
+    capital letters apart, so the script does not break on this Mac or on the
+    CI Mac; the name of the app inside the zip is `Grove.app` either way.
+  - Nothing changes on Windows: `grove.exe` and the folder of the build keep
+    their names (Q-40).
+  - `scripts/flutter_integration.sh macos|windows` runs two files now:
+    `integration_test/planner_test.dart` and
+    `integration_test/window_test.dart`. Phones run the first one only.
+- F12, the shell gaps, 2026-10-11. For Track A: the top strip of a window
+  has "Search" and a gear now, so each picture with the whole window
+  changed. I made the pictures in `app/test/ui/tasks/goldens/` and
+  `app/test/ui/goals/goldens/` again and looked at each one; only the top
+  strip is different. After the merge of your `17c78eb` (the description of
+  a task) I made the 8 pictures with both changes again. No test file of
+  yours changed.

@@ -4,10 +4,17 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'sync_support.dart';
 
+/// The smallest step of the clock of the tests.
+const oneTick = Duration(milliseconds: 1);
+
+/// Much longer than any wait of the store.
+const longTime = Duration(hours: 1);
+
 void main() {
   group('A build with no keys', () {
     test('Grove works, with no login and no sync', () async {
-      final store = makeStore();
+      final timers = ManualTimers();
+      final store = makeStore()..newTimer = timers.start;
       expect(store.syncAvailable, isFalse);
       expect(store.syncStatus, SyncStatus.off);
       expect(store.isSignedIn, isFalse);
@@ -15,7 +22,9 @@ void main() {
       await store.syncNow();
       await store.signOut();
       store.quickAdd('Buy milk');
-      await wait(40);
+      // No sync waits for its time.
+      expect(timers.waiting, 0);
+      expect(store.syncTask, isNull);
       expect(store.syncError, isNull);
       expect(store.lastSyncAt, isNull);
     });
@@ -190,8 +199,7 @@ void main() {
       // No sync runs before the answer: not by hand, not after a change.
       await b.store.syncNow();
       b.store.quickAdd('One more');
-      await wait(60);
-      await idle(b.store);
+      await world.pass(longTime);
       expect(account.count, rows);
       expect(account.pushes, 1);
       expect(b.store.lastSyncAt, isNull);
@@ -316,8 +324,7 @@ void main() {
 
       // The app starts again on the same database, with the session kept.
       a.store.quickAdd('Made while b was closed');
-      await wait(60);
-      await idle(a.store);
+      await world.pass(a.store.syncDelay);
       final again = world.device(repos: repos, signedIn: me);
       await idle(again.store);
       expect(again.store.isSignedIn, isTrue);
@@ -334,11 +341,16 @@ void main() {
       await signIn(a, me);
       await signIn(b, me);
 
+      final pushes = world.of(me).pushes;
       a.store.quickAdd('Buy milk');
       expect(a.store.syncWaiting, greaterThan(0));
-      await wait(60);
-      await idle(a.store);
+      // Nothing goes before the wait of the store is over.
+      await world.pass(a.store.syncDelay - oneTick);
+      expect(a.store.syncWaiting, greaterThan(0));
+      expect(world.of(me).pushes, pushes);
+      await world.pass(oneTick);
       expect(a.store.syncWaiting, 0);
+      expect(world.of(me).pushes, pushes + 1);
 
       await b.store.syncNow();
       expect(titles(b.store), {'Buy milk'});
@@ -349,12 +361,15 @@ void main() {
       final a = world.device();
       await signIn(a, me);
       final pushes = world.of(me).pushes;
+      // Each change starts the wait again.
       for (var i = 0; i < 5; i++) {
         a.store.quickAdd('Task $i');
-        await wait(5);
+        await world.pass(a.store.syncDelay - oneTick);
       }
-      await wait(60);
-      await idle(a.store);
+      expect(world.of(me).pushes, pushes);
+      await world.pass(oneTick);
+      expect(world.of(me).pushes, pushes + 1);
+      await world.pass(longTime);
       expect(world.of(me).pushes, pushes + 1);
       expect(world.of(me).count, greaterThanOrEqualTo(5));
     });
@@ -366,8 +381,7 @@ void main() {
       final pulls = world.of(me).pulls;
       a.store.selectedTaskId = null;
       a.store.showToast('Hello');
-      await wait(60);
-      await idle(a.store);
+      await world.pass(longTime);
       expect(world.of(me).pulls, pulls);
     });
 
@@ -380,8 +394,7 @@ void main() {
       await a.store.syncNow();
       await b.store.syncNow();
       final pulls = world.of(me).pulls;
-      await wait(80);
-      await idle(b.store);
+      await world.pass(longTime);
       expect(world.of(me).pulls, pulls);
     });
 
@@ -445,7 +458,9 @@ void main() {
       final sync = a.store.syncNow();
       a.store.dispose();
       await sync;
-      await wait(60);
+      // A closed store leaves no timer behind.
+      expect(world.timers.waiting, 0);
+      await world.pass(longTime);
     });
   });
 
@@ -459,8 +474,7 @@ void main() {
 
       world.of(me).offline = true;
       a.store.quickAdd('Made offline');
-      await wait(60);
-      await idle(a.store);
+      await world.pass(a.store.syncDelay);
       expect(a.store.syncStatus, SyncStatus.error);
       expect(a.store.syncError, contains('No connection'));
       expect(a.store.syncWaiting, greaterThan(0));
@@ -482,11 +496,15 @@ void main() {
       await signIn(a, me);
       world.of(me).offline = true;
       a.store.quickAdd('Made offline');
-      await wait(60);
-      await idle(a.store);
+      await world.pass(a.store.syncDelay);
+      expect(a.store.syncStatus, SyncStatus.error);
       final pushes = world.of(me).pushes;
-      await wait(120);
+      final pulls = world.of(me).pulls;
+      // No timer waits for a new try.
+      expect(world.timers.waiting, 0);
+      await world.pass(longTime);
       expect(world.of(me).pushes, pushes);
+      expect(world.of(me).pulls, pulls);
     });
 
     test('an app with another schema number is told to update', () async {
@@ -552,7 +570,7 @@ void main() {
 
       a.store.quickAdd('Made while signed out');
       await a.store.syncNow();
-      await wait(60);
+      await world.pass(longTime);
       expect(world.of(me).pushes, pushes);
 
       await signIn(a, me);
