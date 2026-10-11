@@ -24,6 +24,7 @@ class StickyStrip extends StatefulWidget {
     required this.isDropTarget,
     required this.workStart,
     required this.workEnd,
+    this.aroundFit,
   });
 
   final AppStore store;
@@ -33,6 +34,10 @@ class StickyStrip extends StatefulWidget {
   final bool isDropTarget;
   final int workStart;
   final int workEnd;
+
+  /// Runs the "Fit" of a note. The planner gives this, so that the grid can
+  /// see which block is new and let it grow in.
+  final void Function(VoidCallback fit)? aroundFit;
 
   static const openKey = 'planner.stickyOpen';
 
@@ -76,13 +81,17 @@ class _StickyStripState extends State<StickyStrip> {
     setState(() {});
   }
 
-  void _fit(TaskItem task, DayKey day) => _store.fit(
-    taskId: task.id,
-    day: day,
-    workStart: widget.workStart,
-    workEnd: widget.workEnd,
-    step: PlannerMath.step,
-  );
+  void _fit(TaskItem task, DayKey day) {
+    void fit() => _store.fit(
+      taskId: task.id,
+      day: day,
+      workStart: widget.workStart,
+      workEnd: widget.workEnd,
+      step: PlannerMath.step,
+    );
+    final around = widget.aroundFit;
+    around == null ? fit() : around(fit);
+  }
 
   @override
   Widget build(BuildContext context) {

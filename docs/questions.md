@@ -146,6 +146,19 @@ Before the buttons show, one more thing needs a decision (the owner's, with Trac
 Answer (owner, 2026-10-11): A. The package `file_selector` is allowed. "Export JSON…" and "Import JSON…" show in Settings.
 Answer to the follow-up (owner, 2026-10-11): Import is blocked while you are signed in to sync. Grove says so in plain words (sign out first). Import works only when signed out.
 
+## Q-35 · OPEN · ASK · blocks the pencil on a block and the menu line "Open / create linked note" · 2026-10-11
+What is the "linked note" of a block in the planner? The plan wants a pencil on a block that has one (§5.1.2) and a menu line "Open / create linked note" (§5.1.4). The Mac app has neither.
+A) The meeting note of the block — the menu line opens or makes the same note as "Create meeting note" in the card of an event, and the pencil shows when that note is there.   ← my pick: the store call is there already (`createMeetingNote`), so a block has one kind of note.
+B) Leave both out, as in the Mac app — nothing to build; the plan keeps two lines that no app does.
+If no answer: nothing changes. The menu has no such line. A block can draw the pencil (`block_view.dart`), but the store gives the flag to no block.
+For A, not tried yet: `createMeetingNote` with a task block and with a goal block. They are events in the store, so it should work; the title of the note would be the title of the block.
+## Q-30 · ANSWERED B · ASK · blocks the change of the app id to `local.grove.app` (your answer to Q-26) · 2026-10-11
+With the id `local.grove.app` the Flutter app cannot reach the database of the Mac app, but on your Mac the two apps then share the settings file of macOS and the reminders. May the id change?
+A) Yes, after you copy one file — you run `cp ~/Library/Preferences/local.grove.app.plist ~/Desktop/` first. Then the id changes on the 4 systems. The Flutter app starts with an empty store; your Mac data stays in `~/Library/Application Support/Grove/`. Reminders of both apps show under one name while you use both.   ← my pick: the code shows two reasons why the database is safe, and the copy protects the one small file that is not sure.
+B) Not now — the id stays `local.grove.grove` until you stop using the Mac app. The two apps share nothing.
+If no answer: the id stays `local.grove.grove`. Nothing was changed. What was checked is in `docs/acceptance/F12-release.md`, part "The app id".
+Answer (owner, 2026-10-11): B. Not now. The id stays `local.grove.grove` while the owner uses the Swift Mac app. It changes to `local.grove.app` on the day the owner retires the Swift app. No code was changed.
+
 ## Q-22 · OPEN · ASK · blocks nothing now (Import works, signed out) · 2026-10-11
 A device that synced with an account: sign out, import, sign in again with the same account. Today the rows of the file then take the place of the rows of the account, on each device, and Grove asks nothing. Must Grove ask first?
 A) Yes — after an import the next login asks the question of a first login again ("add the data of this device" or "use the data of the account"), and what the import took away on the device is not taken away on the account. One change in the sync rules on the device; nothing changes on the server.   ← my pick: the block of Q-18 is there so that an import cannot replace the account by accident, and these three steps go around it.
@@ -158,3 +171,10 @@ What I checked (Track A, 2026-10-11, with the fake account of the tests, no real
 - One thing is lost in that last case: a setting that the device had before the import and the file has not (for example the own text for a new daily note) is taken away on the account too. The rule is older than the import: a row taken away before the first login is taken away on the account with "add the data of this device". An import takes many rows away at one time. A covers this too.
 - A device that synced before, same account again: no question, and the account gets the file (the question of this card). A row another device made after the sign-out stays.
 - Sign in with another account after the import: Grove asks, and nothing moves before the answer.
+
+## Q-31 · ANSWERED A · ASK · blocks F12 (signed builds) · 2026-10-11
+Signing costs money and needs accounts in your name. Which one do you want now?
+A) None now — cost 0. The Mac app, the Windows folder and the Android APK work on your own devices, with a warning of the system on a device that is not this Mac. The iPhone build cannot be put on a phone.   ← my pick: Grove is for one user, and only the iPhone waits for it.
+B) The Apple Developer Program first, 99 USD a year — a Mac app that opens with no warning on any Mac, and the iPhone app on your phone. Windows (a code signing certificate, paid; I do not know a sure price) and the Play Store (25 USD, one time) stay for later.
+If no answer: A stays. No key, certificate or account was made. What each system needs is in `docs/acceptance/F12-release.md`, part "Signing".
+Answer (owner, 2026-10-11): A. No signing now. No key, certificate or account is made.
