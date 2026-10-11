@@ -8,6 +8,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:grove/ui/planner/block_subtask_editor.dart';
 import 'package:grove/ui/planner/focus_card.dart';
+import 'package:grove/ui/planner/planner_grid.dart';
+import 'package:grove/ui/planner/planner_kind.dart';
+import 'package:grove/ui/planner/planner_view.dart';
 import 'package:grove/ui/store_app.dart';
 
 import '../tasks/tasks_support.dart' show pumpPane, textOffPixels;
@@ -78,13 +81,20 @@ void main() {
         ..selection = {}
         ..selectedTaskId = null
         ..screen = Screen.planner;
-      await pumpPlanner(tester, store);
+      // The planner with no shell around it: a new look of the top strip
+      // does not change this picture.
+      await pumpPane(
+        tester,
+        PlannerView(store: store, kind: PlannerKind.week),
+        size: const Size(1100, 560),
+      );
 
       for (final id in noted) {
         expect(find.byKey(ValueKey('block-note-$id')), findsOneWidget);
       }
+      expect(textOffPixels(tester, within: find.byType(PlannerGrid)), isEmpty);
       await expectLater(
-        find.byType(StoreApp),
+        find.byType(MaterialApp),
         matchesGoldenFile('goldens/planner_linked_note_grove_light.png'),
       );
     });
