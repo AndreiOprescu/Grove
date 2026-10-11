@@ -5,6 +5,7 @@ import 'dart:math';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:grove/core/planner/planner_math.dart';
+import 'package:grove/state/rules/block_subtask_row.dart';
 import 'package:grove/state/state.dart' show PlannerBlock;
 
 import '../theme/check_box.dart';
@@ -408,8 +409,9 @@ class BlockView extends StatelessWidget {
     );
   }
 
-  /// One subtask line: a small mark and the title. It only shows; the task
-  /// panel changes subtasks.
+  /// One subtask line: a small mark and the title. It only shows. The task
+  /// panel changes the subtasks of a task. The "Subtasks…" window changes
+  /// the subtasks of a goal block.
   Widget _subtaskRow(GroveTheme theme, BlockSubtask sub) => Semantics(
     container: true,
     excludeSemantics: true,

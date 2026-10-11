@@ -49,6 +49,28 @@ PlannerBlock blockNamed(AppStore store, String title) => store
     .blocks(DayRange(wednesday.adding(days: -7), wednesday.adding(days: 7)))
     .firstWhere((b) => b.title == title);
 
+/// A goal "Read" with one more block, on Wednesday when no day is given.
+/// Gives the id of the block.
+String goalBlock(
+  AppStore store, {
+  DayKey? day,
+  int start = 11 * 60,
+  int length = 90,
+}) {
+  final on = DayRange.single(day ?? wednesday);
+  final goal =
+      store.goals().where((g) => g.title == 'Read').firstOrNull ??
+      store.addGoal(title: 'Read', target: 300)!;
+  final before = {for (final b in store.blocks(on)) b.id};
+  store.scheduleGoal(
+    goalId: goal.id,
+    day: on.first,
+    start: start,
+    length: length,
+  );
+  return store.blocks(on).firstWhere((b) => !before.contains(b.id)).id;
+}
+
 Finder blockFinder(String id) => find.byKey(ValueKey('block-$id'));
 
 Finder columnFinder(DayKey day) =>
@@ -104,6 +126,16 @@ Future<void> touchDrag(
 Future<void> mouseTap(WidgetTester tester, Offset at) async {
   await tester.tapAt(at, kind: PointerDeviceKind.mouse);
   await tester.pump();
+}
+
+/// One click with the right button: the menu of a block.
+Future<void> rightClick(WidgetTester tester, Offset at) async {
+  await tester.tapAt(
+    at,
+    kind: PointerDeviceKind.mouse,
+    buttons: kSecondaryMouseButton,
+  );
+  await tester.pumpAndSettle();
 }
 
 /// Lets the double-tap window of the grid end.

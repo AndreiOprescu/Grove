@@ -10,7 +10,6 @@ import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
 import 'package:grove/core/model/day_key.dart';
 import 'package:grove/core/model/event.dart';
-import 'package:grove/core/model/task.dart';
 import 'package:grove/core/planner/planner_math.dart';
 // The store has its own `MotionRules`, for the garden.
 import 'package:grove/state/state.dart' hide MotionRules;
@@ -115,7 +114,6 @@ class PlannerGridState extends State<PlannerGrid> {
 
   List<PlannerBlock> _blocks = const [];
   Map<String, Layer> _layers = const {};
-  Map<String, List<BlockSubtask>> _subtasks = const {};
   LiveEdit? _live;
   CreateDrag? _create;
   Draft? _draft;
@@ -233,19 +231,6 @@ class PlannerGridState extends State<PlannerGrid> {
     _revision = _store.revision;
     if (_days.isEmpty) return;
     _blocks = _store.blocks(DayRange(_days.first, _days.last));
-    // Dart `PlannerBlock` has no subtasks yet (a request to Track A), so
-    // the grid reads them here.
-    final subtasks = <String, List<BlockSubtask>>{};
-    for (final b in _blocks) {
-      final taskId = b.taskId;
-      if (taskId == null || subtasks.containsKey(taskId)) continue;
-      subtasks[taskId] = [
-        for (final t in _store.subtasks(taskId))
-          if (t.status != TaskStatus.cancelled)
-            BlockSubtask(id: t.id, title: t.title, isDone: t.isDone),
-      ];
-    }
-    _subtasks = subtasks;
     _relayout();
     final ids = {for (final b in _blocks) b.id};
     final selection = _store.selection;
@@ -947,6 +932,14 @@ class PlannerGridState extends State<PlannerGrid> {
           block.isDone ? 'Mark Not Done' : 'Mark Done',
           () => store.toggleGoalBlockDone(eventId: block.id),
         ),
+      // A task block has the subtasks of its task: the task panel edits
+      // them. A plain block has the line only while it still has subtasks.
+      if (!block.isTaskBlock &&
+          (block.isGoalBlock || block.subtasks.isNotEmpty))
+        _item(
+          block.subtasks.isEmpty ? 'Add Subtasks…' : 'Subtasks…',
+          () => store.openBlockSubtasks(block.id),
+        ),
       if (taskId != null) ...[
         _item(
           block.isDone ? 'Mark Not Done' : 'Mark Done',
@@ -1269,7 +1262,7 @@ class PlannerGridState extends State<PlannerGrid> {
         start: shown.start,
         end: shown.end,
         size: Size(width, height),
-        subtasks: _subtasks[block.taskId] ?? const [],
+        subtasks: block.subtasks,
         isOverlay: (layer?.depth ?? 0) > 0,
         isSelected: _store.selection.contains(block.id),
         isDragging: isLive,

@@ -18,6 +18,7 @@ import '../theme/grove_theme.dart';
 import '../theme/named_colors.dart';
 import '../theme/panel.dart';
 import '../theme/symbols.dart';
+import 'block_subtask_editor.dart';
 import 'day_columns.dart';
 import 'planner_dialogs.dart';
 import 'planner_geometry.dart';
@@ -44,7 +45,8 @@ class _PlannerViewState extends State<PlannerView> {
   int _scrollRequest = 0;
   int _todaySeen = 0;
 
-  /// One window at a time: the plan, the warning or the question.
+  /// One window at a time: the plan, the warning, the question or the
+  /// subtasks of a goal block.
   bool _windowOpen = false;
 
   AppStore get _store => widget.store;
@@ -107,7 +109,18 @@ class _PlannerViewState extends State<PlannerView> {
     } else if (_store.planMyDayHandled != _store.planMyDayRequest) {
       _store.planMyDayHandled = _store.planMyDayRequest;
       unawaited(_showPlan());
+    } else if (_store.editingBlockSubtasks case final blockId?) {
+      unawaited(_editSubtasks(blockId));
     }
+  }
+
+  /// The subtasks of a goal block ("Subtasks…" in the menu of the block).
+  Future<void> _editSubtasks(String blockId) async {
+    _windowOpen = true;
+    await showBlockSubtaskEditor(context, _store, blockId);
+    _windowOpen = false;
+    if (_store.editingBlockSubtasks == blockId) _store.closeBlockSubtasks();
+    _openWindows();
   }
 
   Future<void> _askScope(RecurringPrompt prompt) async {
