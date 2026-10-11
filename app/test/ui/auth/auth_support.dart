@@ -32,6 +32,8 @@ Device stillDevice(World world, {String? signedIn, bool seed = false}) =>
       signedIn: signedIn,
       seed: seed,
       prefs: MemoryPrefs()..set('appearance.motion', false),
+      // `tester.pump` moves the clock of a widget test.
+      realTime: true,
     );
 
 /// Shows the sync card alone, with the gate that opens the question when

@@ -404,7 +404,7 @@ extension AppStoreSync on AppStore {
     final s = _sync;
     if (!s.ready || _disposed) return;
     _cancelSoon();
-    final sleep = s.soon = _Sleep(syncDelay);
+    final sleep = s.soon = _Sleep(syncDelay, newTimer);
     sleep.done.then((_) {
       if (_disposed || !identical(s.soon, sleep)) return;
       s.soon = null;
