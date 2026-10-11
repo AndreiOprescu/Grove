@@ -3,6 +3,8 @@
 //
 // The Mac app shows it as a popover on the event. Here it is a card in the
 // middle of the screen, over a dim layer: a popover has no room on a phone.
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -15,6 +17,7 @@ import 'package:grove/core/recurrence/recurrence_engine.dart';
 import 'package:grove/state/state.dart' hide MotionRules;
 
 import '../editor/rich_text_field.dart';
+import '../planner/planner_dialogs.dart' show showRecurringQuestion;
 import '../tasks/task_widgets.dart';
 import '../shell/shell_layout.dart';
 import '../theme/grove_theme.dart';
@@ -30,10 +33,20 @@ import '../theme/symbols.dart';
 /// planner, and a click on the screen closes a card with no unsaved change.
 /// On a phone the card is in the middle, over a dim layer.
 class EventEditorHost extends StatefulWidget {
-  const EventEditorHost({super.key, required this.store, required this.child});
+  const EventEditorHost({
+    super.key,
+    required this.store,
+    required this.child,
+    this.asksScope = false,
+  });
 
   final AppStore store;
   final Widget child;
+
+  /// True on a screen with no planner under the card (the Notes screen).
+  /// The planner asks "This event only" or "All events" for a day of a
+  /// series. With no planner, the host asks.
+  final bool asksScope;
 
   @override
   State<EventEditorHost> createState() => _EventEditorHostState();
@@ -43,7 +56,54 @@ class _EventEditorHostState extends State<EventEditorHost> {
   /// True when the open card has a change that is not saved.
   bool _dirty = false;
 
+  /// True while the question of a series is open.
+  bool _asking = false;
+
   AppStore get _store => widget.store;
+
+  @override
+  void initState() {
+    super.initState();
+    _store.addListener(_storeChanged);
+    WidgetsBinding.instance.addPostFrameCallback((_) => _ask());
+  }
+
+  @override
+  void didUpdateWidget(EventEditorHost oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.store != widget.store) {
+      oldWidget.store.removeListener(_storeChanged);
+      widget.store.addListener(_storeChanged);
+    }
+  }
+
+  @override
+  void dispose() {
+    _store.removeListener(_storeChanged);
+    super.dispose();
+  }
+
+  /// A change can come in the middle of a frame. A window opens after it.
+  void _storeChanged() {
+    if (!widget.asksScope || _store.recurringPrompt == null) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) => _ask());
+    WidgetsBinding.instance.scheduleFrame();
+  }
+
+  Future<void> _ask() async {
+    if (!mounted || !widget.asksScope || _asking) return;
+    final prompt = _store.recurringPrompt;
+    if (prompt == null) return;
+    _asking = true;
+    final scope = await showRecurringQuestion(context, prompt.verb);
+    _asking = false;
+    if (scope != null) {
+      _store.answerRecurring(scope, prompt: prompt);
+    } else if (_store.recurringPrompt?.id == prompt.id) {
+      _store.cancelRecurring();
+    }
+    unawaited(_ask());
+  }
 
   @override
   Widget build(BuildContext context) => StoreBuilder(
@@ -186,19 +246,32 @@ class _EventEditorState extends State<EventEditor> {
     widget.onDirty?.call(_isDirty);
   }
 
-  /// The event can change under the card: the arrows move it, Undo puts it
-  /// back. A card with no change of its own follows the event.
+  /// The event can change under the card: the arrows or a drag move it, Undo
+  /// puts it back. The card follows the event in each field that the user did
+  /// not change in the card. So Save does not put an old time back.
   @override
   void didUpdateWidget(EventEditor oldWidget) {
     super.didUpdateWidget(oldWidget);
     final stored = _stored;
     if (stored == _base) return;
-    if (!_isDirty) {
-      _draft = stored;
-      _drafts[_editing] = stored;
-      if (_title.text != stored.title) _title.text = stored.title;
-      if (_location.text != stored.location) _location.text = stored.location;
-    }
+    final mine = _draft;
+    final was = _base;
+    final next = stored.copyWith(
+      title: mine.title != was.title ? mine.title : stored.title,
+      start: mine.start != was.start ? mine.start : stored.start,
+      end: mine.end != was.end ? mine.end : stored.end,
+      allDay: mine.allDay != was.allDay ? mine.allDay : stored.allDay,
+      color: mine.color != was.color ? mine.color : stored.color,
+      location: mine.location != was.location ? mine.location : stored.location,
+      notes: mine.notes != was.notes ? mine.notes : stored.notes,
+      recurrence: mine.recurrence != was.recurrence
+          ? mine.recurrence
+          : stored.recurrence,
+    );
+    _draft = next;
+    _drafts[_editing] = next;
+    if (_title.text != next.title) _title.text = next.title;
+    if (_location.text != next.location) _location.text = next.location;
     _base = stored;
     widget.onDirty?.call(_isDirty);
   }
@@ -210,10 +283,29 @@ class _EventEditorState extends State<EventEditor> {
     super.dispose();
   }
 
-  void _set(EventItem next) {
+  void _set(EventItem draft) {
+    // A picker can answer after the card is gone.
+    if (!mounted) return;
+    final next = _fit(draft);
     setState(() => _draft = next);
     _drafts[_editing] = next;
     widget.onDirty?.call(_isDirty);
+  }
+
+  /// The day of the end is not before the day of the start. The last day of
+  /// a repeat is not before the day of the event: such an event would be on
+  /// no screen, with no way to open it again.
+  static EventItem _fit(EventItem e) {
+    var next = e;
+    if (next.end.day < next.start.day) {
+      next = next.copyWith(end: next.end.copyWith(day: next.start.day));
+    }
+    final rule = next.recurrence;
+    final until = rule?.until;
+    if (rule != null && until != null && until < next.start.day) {
+      next = next.copyWith(recurrence: rule.copyWith(until: next.start.day));
+    }
+    return next;
   }
 
   void _save() {
@@ -689,7 +781,11 @@ class _EventEditorState extends State<EventEditor> {
   /// M T W T F S S. The first event's own weekday is on when there is no
   /// list.
   Widget _weekdays(GroveTheme theme, RecurrenceRule rule) {
-    final start = _draft.start.day.weekdayIndex;
+    // The card of a later day of a series: the first event is the one of
+    // the series, not the day in the card.
+    final series = OccurrenceId.parse(_editing.item.id)?.series;
+    final first = series == null ? null : _store.event(series);
+    final start = (first ?? _draft).start.day.weekdayIndex;
     final on = {
       ...(rule.weekdays ?? [start]),
     };
@@ -750,11 +846,17 @@ class _EventEditorState extends State<EventEditor> {
     final count = rule.count;
     if (until != null) {
       return [
-        DayPick(
-          key: const ValueKey('event-until'),
-          day: until,
-          label: 'Last day',
-          onPick: (day) => _setRule(rule.copyWith(until: day)),
+        Flexible(
+          child: FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: Alignment.centerLeft,
+            child: DayPick(
+              key: const ValueKey('event-until'),
+              day: until,
+              label: 'Last day',
+              onPick: (day) => _setRule(rule.copyWith(until: day)),
+            ),
+          ),
         ),
       ];
     }

@@ -308,6 +308,43 @@ void main() {
     }
   });
 
+  testWidgets('a narrow day keeps its leaf and its dots inside', (
+    tester,
+  ) async {
+    final store = calendarStore();
+    addTask(store, 'One');
+    addTask(store, 'Two');
+    addTask(store, 'Three');
+    store.setNoteBody(store.dailyNote(wednesday).id, 'some words');
+    Future<void> check(Size size) async {
+      await pumpPlanner(tester, store, size: size);
+      expect(tester.takeException(), isNull, reason: '$size');
+      final cell = tester.getRect(dayFinder(wednesday));
+      for (final part in ['leaf', 'dots']) {
+        final found = find.byKey(ValueKey('month-$part-${wednesday.string}'));
+        if (found.evaluate().isEmpty) continue;
+        final box = tester.getRect(found);
+        expect(box.left, greaterThanOrEqualTo(cell.left), reason: '$size');
+        expect(box.right, lessThanOrEqualTo(cell.right), reason: '$size');
+      }
+    }
+
+    // a phone: the cell is 52 points wide
+    await check(phoneSize);
+    expect(find.byKey(ValueKey('month-leaf-${wednesday.string}')), findsOne);
+    // the narrowest window with the left panel and the panel of a task
+    store.selectedTaskId = 'one';
+    await check(const Size(700, 620));
+    // a wide window has room for all of it
+    store.selectedTaskId = null;
+    await check(desktopSize);
+    expect(find.byKey(ValueKey('month-leaf-${wednesday.string}')), findsOne);
+    expect(
+      tester.getSize(find.byKey(ValueKey('month-dots-${wednesday.string}'))),
+      const Size(16, 4),
+    );
+  });
+
   testWidgets('today has its number on the accent colour', (tester) async {
     final store = calendarStore();
     await pumpPlanner(tester, store);

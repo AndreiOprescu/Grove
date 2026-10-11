@@ -46,6 +46,25 @@ Future<void> pickInMenu(WidgetTester tester, String name, String line) async {
   await tester.pumpAndSettle();
 }
 
+/// Picks a day in the open calendar of Material, [back] months before the
+/// one it shows.
+Future<void> pickDay(WidgetTester tester, String day, {int back = 0}) async {
+  expect(find.byType(DatePickerDialog), findsOneWidget);
+  for (var i = 0; i < back; i++) {
+    await tester.tap(find.byTooltip('Previous month'));
+    await tester.pumpAndSettle();
+  }
+  await tester.tap(
+    find.descendant(
+      of: find.byType(DatePickerDialog),
+      matching: find.text(day),
+    ),
+  );
+  await tester.pumpAndSettle();
+  await tester.tap(find.text('OK'));
+  await tester.pumpAndSettle();
+}
+
 void main() {
   testWidgets('a new event is saved with its title', (tester) async {
     final store = calendarStore();
@@ -398,16 +417,7 @@ void main() {
     await tester.pumpAndSettle();
 
     await tapKey(tester, 'event-starts-day');
-    expect(find.byType(DatePickerDialog), findsOneWidget);
-    await tester.tap(
-      find.descendant(
-        of: find.byType(DatePickerDialog),
-        matching: find.text('21'),
-      ),
-    );
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('OK'));
-    await tester.pumpAndSettle();
+    await pickDay(tester, '21');
     expect(find.byType(DatePickerDialog), findsNothing);
 
     await tapKey(tester, 'event-save');
@@ -509,6 +519,188 @@ void main() {
       '2026-10-09': 'Swim',
     });
   });
+
+  testWidgets('the question of a series comes on the Notes screen too', (
+    tester,
+  ) async {
+    final store = calendarStore();
+    final e = makeEvent(store, 'Gym');
+    store.saveEvent(
+      e.copyWith(recurrence: RecurrenceRule(freq: Freq.daily)),
+      from: e,
+    );
+    final second = eventsOf(store)
+        .firstWhere((x) => x.start.day == d('2026-10-08'));
+    await pumpPlanner(tester, store);
+    store.editEvent(second);
+    await tester.pumpAndSettle();
+    // the card stays open over the Notes screen
+    store.screen = Screen.notes;
+    await tester.pumpAndSettle();
+    expect(find.byType(EventEditor), findsOneWidget);
+    await tester.enterText(fieldOf('event-title'), 'Swim');
+    await tapKey(tester, 'event-save');
+    expect(find.byType(EventEditor), findsNothing);
+    expect(find.text('All events'), findsOneWidget);
+    await tester.tap(find.text('This event only'));
+    await tester.pumpAndSettle();
+    expect(store.recurringPrompt, isNull);
+    expect(find.text('All events'), findsNothing);
+    final titles = [
+      for (final x in eventsOf(store))
+        if (x.start.day == d('2026-10-08') || x.start.day == d('2026-10-09'))
+          x.title,
+    ];
+    expect(titles, ['Swim', 'Gym']);
+
+    // Cancel of the question changes nothing, and the question comes once
+    final third = eventsOf(store)
+        .firstWhere((x) => x.start.day == d('2026-10-09'));
+    store.editEvent(third);
+    await tester.pumpAndSettle();
+    await tapKey(tester, 'event-delete');
+    expect(find.text('All events'), findsOneWidget);
+    await tester.tap(find.text('Cancel'));
+    await tester.pumpAndSettle();
+    expect(store.recurringPrompt, isNull);
+    expect(find.text('All events'), findsNothing);
+    expect(
+      eventsOf(store).where((x) => x.start.day == d('2026-10-09')),
+      hasLength(1),
+    );
+  });
+
+  testWidgets('the weekday buttons of a later day of a series start from the '
+      'first day of the series', (tester) async {
+    final store = calendarStore();
+    // a series from Monday, on Mondays and Wednesdays
+    final e = makeEvent(store, 'Gym', day: d('2026-10-05'));
+    store.saveEvent(
+      e.copyWith(
+        recurrence: RecurrenceRule(freq: Freq.weekly, weekdays: [1, 3]),
+      ),
+      from: e,
+    );
+    final wed = eventsOf(store).firstWhere((x) => x.start.day == wednesday);
+    await pumpPlanner(tester, store);
+    store.editEvent(wed);
+    await tester.pumpAndSettle();
+    // Monday off: Wednesday is the one day left
+    await tapKey(tester, 'event-weekday-1');
+    await tapKey(tester, 'event-save');
+    await tester.tap(find.text('All events'));
+    await tester.pumpAndSettle();
+    expect(store.event(e.id)!.recurrence!.weekdays, [3]);
+    final days = [
+      for (final x in eventsOf(store))
+        if (x.start.day >= d('2026-10-05') && x.start.day <= d('2026-10-18'))
+          x.start.day.string,
+    ];
+    printOnFailure('days: $days');
+    expect(days, contains('2026-10-07'));
+    expect(days, contains('2026-10-14'));
+    expect(days, isNot(contains('2026-10-12')));
+  });
+
+  testWidgets('the last day of a repeat is not before the day of the event', (
+    tester,
+  ) async {
+    final store = calendarStore();
+    final e = makeEvent(store, 'Gym');
+    await pumpPlanner(tester, store);
+    store.editEvent(e);
+    await tester.pumpAndSettle();
+    await pickInMenu(tester, 'event-repeat', 'Every day');
+    await pickInMenu(tester, 'event-ends', 'On a day');
+    await tapKey(tester, 'event-until');
+    await pickDay(tester, '15', back: 2);
+    await tapKey(tester, 'event-save');
+    expect(store.event(e.id)!.recurrence!.until, wednesday);
+    // the event is still on the screens
+    expect(eventsOf(store), hasLength(1));
+
+    // a later first day takes the last day with it
+    store.editEvent(store.event(e.id)!);
+    await tester.pumpAndSettle();
+    await tapKey(tester, 'event-starts-day');
+    await pickDay(tester, '21');
+    await tapKey(tester, 'event-save');
+    final saved = store.event(e.id)!;
+    expect(saved.start.day, d('2026-10-21'));
+    expect(saved.recurrence!.until, d('2026-10-21'));
+    expect(eventsOf(store), hasLength(1));
+  });
+
+  testWidgets('the day of the end is not before the day of the start', (
+    tester,
+  ) async {
+    final store = calendarStore();
+    final e = makeEvent(store, 'Gym');
+    await pumpPlanner(tester, store);
+    store.editEvent(e);
+    await tester.pumpAndSettle();
+    await tapKey(tester, 'event-ends-day');
+    await pickDay(tester, '5');
+    await tapKey(tester, 'event-save');
+    final saved = store.event(e.id)!;
+    expect(saved.start, e.start);
+    expect(saved.end, e.end);
+  });
+
+  testWidgets('a card with a change keeps a move of the event made under it', (
+    tester,
+  ) async {
+    final store = calendarStore();
+    final e = makeEvent(store, 'Gym');
+    await pumpPlanner(tester, store);
+    store.editEvent(e);
+    await tester.pumpAndSettle();
+    await tester.enterText(fieldOf('event-title'), 'Swim');
+    await tester.pump();
+    // the event is moved in the grid while the card is open
+    store.applyEdits(
+      [BlockEdit(id: e.id, day: wednesday, start: 14 * 60, end: 15 * 60)],
+      ripple: false,
+      name: 'Move',
+    );
+    await tester.pumpAndSettle();
+    expect(find.byType(EventEditor), findsOneWidget);
+    // the card shows the new time, and still the typed title
+    expect(
+      find.descendant(
+        of: key('event-starts-time'),
+        matching: find.text('14:00'),
+      ),
+      findsOneWidget,
+    );
+    expect(
+      tester.widget<EditableText>(fieldOf('event-title')).controller.text,
+      'Swim',
+    );
+    await tapKey(tester, 'event-save');
+    final saved = store.event(e.id)!;
+    expect(saved.title, 'Swim');
+    expect(saved.start.minute, 14 * 60);
+    expect(saved.end.minute, 15 * 60);
+  });
+
+  testWidgets(
+    'an answer of the calendar after the event is gone does nothing',
+    (tester) async {
+      final store = calendarStore();
+      final e = makeEvent(store, 'Gym');
+      await pumpPlanner(tester, store);
+      store.editEvent(e);
+      await tester.pumpAndSettle();
+      await tapKey(tester, 'event-starts-day');
+      // the event is deleted from outside, for example by the sync
+      store.deleteEvent(store.event(e.id)!);
+      await tester.pumpAndSettle();
+      await pickDay(tester, '21');
+      expect(tester.takeException(), isNull);
+      expect(eventsOf(store), isEmpty);
+    },
+  );
 
   testWidgets('the meeting note is made from a saved event only', (
     tester,

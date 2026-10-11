@@ -64,7 +64,15 @@ class _StoreAppState extends State<StoreApp> {
     final store = widget.store;
     final view = _view(screen);
     // The card of an event opens over each screen.
-    return view == null ? null : EventEditorHost(store: store, child: view);
+    // The Notes screen has no planner, so the card asks the question of a
+    // series there by itself.
+    return view == null
+        ? null
+        : EventEditorHost(
+            store: store,
+            asksScope: screen == Screen.notes,
+            child: view,
+          );
   }
 
   Widget? _view(Screen screen) {
