@@ -9,6 +9,7 @@ import 'package:grove/ui/notes/notes_pane.dart';
 import 'package:grove/ui/notes/notes_view.dart';
 
 import '../planner/planner_support.dart';
+import '../tasks/tasks_support.dart' show addTask;
 
 AppStore notesStore() => plannerStore()..screen = Screen.notes;
 
@@ -41,6 +42,18 @@ Future<void> leaveField(WidgetTester tester) async {
 /// The time the pane waits before it saves the text.
 Future<void> waitForSave(WidgetTester tester) async {
   await tester.pump(NoteEditorPane.saveDelay);
+  await tester.pump();
+}
+
+/// A click of a mouse, with a frame between the press and the release.
+Future<void> mouseClick(WidgetTester tester, Finder target) async {
+  final gesture = await tester.startGesture(
+    tester.getCenter(target),
+    kind: PointerDeviceKind.mouse,
+  );
+  await tester.pump();
+  await tester.pump(const Duration(milliseconds: 80));
+  await gesture.up();
   await tester.pump();
 }
 
@@ -189,6 +202,100 @@ void main() {
     expect(store.selectedDay, wednesday);
   });
 
+  testWidgets('the mood: each of the three, and a second click clears it', (
+    tester,
+  ) async {
+    final store = notesStore();
+    await pumpPlanner(tester, store);
+    await tapKey(tester, 'notes-today');
+    final id = store.existingDailyNote(wednesday)!.id;
+    for (final m in Mood.values) {
+      await tapKey(tester, 'mood-${m.name}');
+      expect(store.note(id)!.mood, m.value, reason: m.name);
+    }
+    // the last one was the sun; a click on it again takes the mood away
+    await tapKey(tester, 'mood-sun');
+    expect(store.note(id)!.mood, isNull);
+    await tapKey(tester, 'mood-rain');
+    expect(store.note(id)!.mood, Mood.rain.value);
+    await tapKey(tester, 'mood-cloud');
+    expect(store.note(id)!.mood, Mood.cloud.value);
+  });
+
+  testWidgets('a finished task shows under "Done today" with its time', (
+    tester,
+  ) async {
+    final store = notesStore();
+    final task = addTask(store, 'Water the plants');
+    addTask(store, 'Write the report');
+    await pumpPlanner(tester, store);
+    await tapKey(tester, 'notes-today');
+    expect(find.text('Done today'), findsOneWidget);
+    expect(find.text('Nothing finished yet.'), findsOneWidget);
+    expect(key('done-${task.id}'), findsNothing);
+
+    store.toggleDone(taskId: task.id);
+    await tester.pumpAndSettle();
+    expect(find.text('Nothing finished yet.'), findsNothing);
+    expect(
+      find.descendant(
+        of: key('done-${task.id}'),
+        matching: find.text('Water the plants'),
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(
+        of: key('done-${task.id}'),
+        matching: find.text(DayRules.finishedClock(store.task(task.id)!)),
+      ),
+      findsOneWidget,
+    );
+    // the open task is not in the list
+    expect(key('done-write-the-report'), findsNothing);
+    // the list is not written in the note
+    expect(
+      store.existingDailyNote(wednesday)!.body,
+      isNot(contains('Water the plants')),
+    );
+  });
+
+  testWidgets('the card of the week counts what is done and what is open', (
+    tester,
+  ) async {
+    final store = notesStore();
+    final done = addTask(store, 'Water the plants');
+    final open = addTask(store, 'Write the report', day: d('2026-10-08'));
+    store.toggleDone(taskId: done.id);
+    await pumpPlanner(tester, store);
+    await tapKey(tester, 'notes-week');
+    final panel = find.byType(WeekReviewPanel);
+    Finder inPanel(Finder f) => find.descendant(of: panel, matching: f);
+    final review = store.weekReview(wednesday.weekStart());
+    expect(titles(review.done), ['Water the plants']);
+    expect(titles(review.open), ['Write the report']);
+    // the two numbers, each over its word
+    expect(inPanel(find.text('done')), findsOneWidget);
+    expect(inPanel(find.text('still open')), findsOneWidget);
+    expect(inPanel(find.text('1')), findsNWidgets(2));
+    expect(inPanel(find.text('Finished')), findsOneWidget);
+    expect(inPanel(find.text('Left open')), findsOneWidget);
+    expect(
+      find.descendant(
+        of: key('week-task-${done.id}'),
+        matching: find.text('Water the plants'),
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(
+        of: key('week-task-${open.id}'),
+        matching: find.text('Write the report'),
+      ),
+      findsOneWidget,
+    );
+  });
+
   testWidgets('"This week" opens the note of the week; the summary goes in', (
     tester,
   ) async {
@@ -265,6 +372,65 @@ void main() {
     expect(shown(tester, 'note-text'), '');
   });
 
+  testWidgets('text that was not saved yet is saved when the app goes to the '
+      'back', (tester) async {
+    final store = notesStore();
+    final note = store.newNote(title: 'Draft');
+    await pumpPlanner(tester, store);
+    await tester.enterText(fieldOf('note-text'), 'Half a thought');
+    await tester.pump();
+    expect(store.note(note.id)!.body, '');
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+    await tester.pump();
+    expect(store.note(note.id)!.body, 'Half a thought');
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+    await tester.pumpAndSettle();
+    // the note is still open with the same text
+    expect(shown(tester, 'note-text'), 'Half a thought');
+  });
+
+  testWidgets('text that was not saved yet is saved when the text loses the '
+      'keyboard', (tester) async {
+    final store = notesStore();
+    final note = store.newNote(title: 'Draft');
+    await pumpPlanner(tester, store);
+    await tester.tap(fieldOf('note-text'));
+    await tester.pump();
+    await tester.enterText(fieldOf('note-text'), 'Half a thought');
+    await tester.pump();
+    expect(store.note(note.id)!.body, '');
+    await leaveField(tester);
+    expect(store.note(note.id)!.body, 'Half a thought');
+  });
+
+  testWidgets('a plain note says when it was edited; the rows keep the order '
+      'of the store', (tester) async {
+    final store = notesStore();
+    final a = store.newNote(title: 'Alpha');
+    final b = store.newNote(title: 'Beta');
+    final c = store.newNote(title: 'Gamma');
+    store.togglePin(b.id);
+    store.openNote(a.id);
+    await pumpPlanner(tester, store);
+    // under the title: "Edited", the day and the time; no kind in front
+    final line = tester.widget<Text>(find.textContaining('Edited')).data!;
+    expect(line, startsWith('Edited '));
+    expect(line, matches(RegExp(r', \d\d:\d\d$')));
+    expect(find.textContaining('Daily note'), findsNothing);
+    expect(find.textContaining('Weekly note'), findsNothing);
+
+    // the store gives the pinned notes first, then the newest; the rows
+    // follow that list from top to bottom
+    final order = [for (final n in store.notes()) n.id];
+    expect(order.first, b.id);
+    expect(order.toSet(), {a.id, b.id, c.id});
+    final tops = [
+      for (final id in order) tester.getTopLeft(key('note-row-$id')).dy,
+    ];
+    expect(tops[0], lessThan(tops[1]));
+    expect(tops[1], lessThan(tops[2]));
+  });
+
   testWidgets('a change from outside shows in the open note', (tester) async {
     final store = notesStore();
     final note = store.newNote(title: 'Alpha', body: 'one');
@@ -280,6 +446,226 @@ void main() {
     await tester.pumpAndSettle();
     expect(shown(tester, 'note-title'), 'Gamma');
   });
+
+  testWidgets('a task ticked somewhere else while the caret is in the note '
+      'stays ticked when the note closes', (tester) async {
+    final store = notesStore();
+    final task = addTask(store, 'Water', id: 'T1');
+    final a = store.newNote(title: 'Alpha', body: '- [ ] Water ⟦t:T1⟧\nx');
+    final b = store.newNote(title: 'Beta');
+    store.openNote(a.id);
+    await pumpPlanner(tester, store);
+    await tester.tap(fieldOf('note-text'));
+    await tester.pump();
+    await tester.enterText(fieldOf('note-text'), '- [ ] Water ⟦t:T1⟧\nxy');
+    await waitForSave(tester);
+    expect(store.note(a.id)!.body, '- [ ] Water ⟦t:T1⟧\nxy');
+
+    // the caret is still in the text. The task is ticked in another place
+    store.toggleDone(taskId: task.id);
+    await tester.pumpAndSettle();
+    expect(store.task('T1')!.isDone, isTrue);
+    expect(store.note(a.id)!.body, '- [x] Water ⟦t:T1⟧\nxy');
+    expect(shown(tester, 'note-text'), '- [x] Water ⟦t:T1⟧\nxy');
+
+    await tapKey(tester, 'note-row-${b.id}');
+    expect(store.note(a.id)!.body, '- [x] Water ⟦t:T1⟧\nxy');
+    expect(store.task('T1')!.isDone, isTrue);
+    await endToast(tester);
+  });
+
+  testWidgets('text that came from outside is not lost when the app goes to '
+      'the back', (tester) async {
+    final store = notesStore();
+    final note = store.newNote(title: 'Alpha', body: 'one');
+    await pumpPlanner(tester, store);
+    await tester.tap(fieldOf('note-text'));
+    await tester.pump();
+    await tester.enterText(fieldOf('note-text'), 'one two');
+    await waitForSave(tester);
+    store.setNoteBody(note.id, 'from the other device');
+    await tester.pumpAndSettle();
+    expect(shown(tester, 'note-text'), 'from the other device');
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+    await tester.pump();
+    expect(store.note(note.id)!.body, 'from the other device');
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+    await tester.pump();
+  });
+
+  testWidgets('text that is not saved yet stays when a change comes from '
+      'outside', (tester) async {
+    final store = notesStore();
+    final note = store.newNote(title: 'Alpha', body: 'one');
+    await pumpPlanner(tester, store);
+    await tester.enterText(fieldOf('note-text'), 'one two');
+    await tester.pump();
+    // before the save, another change of the store comes
+    store.togglePin(note.id);
+    await tester.pumpAndSettle();
+    expect(shown(tester, 'note-text'), 'one two');
+    await waitForSave(tester);
+    expect(store.note(note.id)!.body, 'one two');
+  });
+
+  testWidgets('a change of the text from outside while the caret is in the '
+      'title is kept', (tester) async {
+    final store = notesStore();
+    final a = store.newNote(title: 'Alpha', body: 'old text');
+    final b = store.newNote(title: 'Beta');
+    store.openNote(a.id);
+    await pumpPlanner(tester, store);
+    await tester.tap(fieldOf('note-title'));
+    await tester.pump();
+    store.setNoteBody(a.id, 'new text from the other device');
+    await tester.pumpAndSettle();
+    expect(shown(tester, 'note-text'), 'new text from the other device');
+    // a new name from outside shows too: the user typed no name
+    store.renameNote(a.id, to: 'Gamma');
+    await tester.pumpAndSettle();
+    expect(shown(tester, 'note-title'), 'Gamma');
+
+    await tapKey(tester, 'note-row-${b.id}');
+    expect(store.note(a.id)!.body, 'new text from the other device');
+    expect(store.note(a.id)!.title, 'Gamma');
+  });
+
+  testWidgets('a name the user is typing stays when a change comes from '
+      'outside', (tester) async {
+    final store = notesStore();
+    final note = store.newNote(title: 'Alpha');
+    await pumpPlanner(tester, store);
+    await tester.tap(fieldOf('note-title'));
+    await tester.pump();
+    await tester.enterText(fieldOf('note-title'), 'Trav');
+    store.renameNote(note.id, to: 'Gamma');
+    await tester.pumpAndSettle();
+    expect(shown(tester, 'note-title'), 'Trav');
+    await leaveField(tester);
+    expect(store.note(note.id)!.title, 'Trav');
+  });
+
+  testWidgets('"Delete note" right after a key: undo brings back the note '
+      'with that key', (tester) async {
+    final store = notesStore();
+    final note = store.newNote(title: 'Alpha', body: 'old');
+    await pumpPlanner(tester, store);
+    await tester.tap(fieldOf('note-text'));
+    await tester.pump();
+    await tester.enterText(fieldOf('note-text'), 'old and much new text');
+    await tester.pump();
+    await tester.tap(key('note-menu'));
+    await tester.pump();
+    // the menu opens in 300 ms, the save waits 500 ms. The menu takes the
+    // keyboard, so the text is saved before the wait is over
+    await tester.pump(const Duration(milliseconds: 300));
+    await tester.pump();
+    await tester.tap(find.text('Delete note'));
+    await tester.pumpAndSettle();
+    expect(store.note(note.id), isNull);
+    store.undo();
+    await tester.pumpAndSettle();
+    expect(store.note(note.id)!.body, 'old and much new text');
+    await endToast(tester);
+  });
+
+  testWidgets('"Duplicate" right after a key: the copy has that key', (
+    tester,
+  ) async {
+    final store = notesStore();
+    final note = store.newNote(title: 'Alpha', body: 'old');
+    await pumpPlanner(tester, store);
+    await tester.tap(fieldOf('note-text'));
+    await tester.pump();
+    await tester.enterText(fieldOf('note-text'), 'old and new');
+    await tester.pump();
+    await tester.tap(key('note-menu'));
+    await tester.pump();
+    // the menu opens in 300 ms, the save waits 500 ms. The menu takes the
+    // keyboard, so the text is saved before the wait is over
+    await tester.pump(const Duration(milliseconds: 300));
+    await tester.pump();
+    await tester.tap(find.text('Duplicate'));
+    await tester.pumpAndSettle();
+    final copy = store.notes().firstWhere((n) => n.id != note.id);
+    expect(copy.body, 'old and new');
+    await endToast(tester);
+  });
+
+  testWidgets(
+    'a click of a mouse on "Bold" does not end the typing: the open box '
+    'keeps its line and the word is bold',
+    variant: TargetPlatformVariant.only(TargetPlatform.macOS),
+    (tester) async {
+      final store = notesStore();
+      final note = store.newNote(title: 'Plan');
+      await pumpPlanner(tester, store);
+      await tester.tap(fieldOf('note-text'), kind: PointerDeviceKind.mouse);
+      await tester.pump();
+      await tester.enterText(
+        fieldOf('note-text'),
+        '- [ ] Water the plants\nmake this loud',
+      );
+      await tester.pump();
+      final field = tester.widget<EditableText>(fieldOf('note-text'));
+      final at = field.controller.text.indexOf('this');
+      field.controller.selection = TextSelection(
+        baseOffset: at,
+        extentOffset: at + 4,
+      );
+      await tester.pump();
+      await mouseClick(tester, find.bySemanticsLabel('Bold'));
+      expect(
+        shown(tester, 'note-text'),
+        '- [ ] Water the plants\nmake **this** loud',
+      );
+      expect(field.focusNode.hasFocus, isTrue);
+      expect(openTasks(store), isEmpty);
+      await waitForSave(tester);
+      expect(
+        store.note(note.id)!.body,
+        '- [ ] Water the plants\nmake **this** loud',
+      );
+
+      // the typing ends: the box makes its task, and the mark is whole
+      await leaveField(tester);
+      expect(titles(openTasks(store)), ['Water the plants']);
+      final id = openTasks(store).single.id;
+      expect(
+        store.note(note.id)!.body,
+        '- [ ] Water the plants ⟦t:$id⟧\nmake **this** loud',
+      );
+    },
+  );
+
+  testWidgets(
+    'a click of a mouse on "Add to planner" adds the line with the caret',
+    variant: TargetPlatformVariant.only(TargetPlatform.macOS),
+    (tester) async {
+      final store = notesStore();
+      store.newNote(title: 'Plan');
+      await pumpPlanner(tester, store);
+      await tester.tap(fieldOf('note-text'), kind: PointerDeviceKind.mouse);
+      await tester.pump();
+      const text = '- [ ] Water the plants\n- [ ] Feed the cat\nlunch @fri 1pm';
+      await tester.enterText(fieldOf('note-text'), text);
+      await tester.pump();
+      final field = tester.widget<EditableText>(fieldOf('note-text'));
+      field.controller.selection = const TextSelection.collapsed(
+        offset: text.length,
+      );
+      await tester.pump();
+      await mouseClick(tester, find.text('Add to planner'));
+      await tester.pump();
+      expect(find.textContaining('Added to the planner'), findsOneWidget);
+      expect(
+        shown(tester, 'note-text'),
+        startsWith('- [ ] Water the plants\n- [ ] Feed the cat\n[[lunch|'),
+      );
+      expect(field.focusNode.hasFocus, isTrue);
+      await endToast(tester);
+    },
+  );
 
   testWidgets('the title: Return renames, an empty title goes back', (
     tester,

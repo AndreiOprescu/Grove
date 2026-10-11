@@ -1,4 +1,5 @@
 // The card of an event (milestone F9): make, change and delete an event.
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart' hide Row;
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -42,6 +43,25 @@ Future<void> tapKey(WidgetTester tester, String name) async {
 Future<void> pickInMenu(WidgetTester tester, String name, String line) async {
   await tapKey(tester, name);
   await tester.tap(find.text(line).last);
+  await tester.pumpAndSettle();
+}
+
+/// Picks a day in the open calendar of Material, [back] months before the
+/// one it shows.
+Future<void> pickDay(WidgetTester tester, String day, {int back = 0}) async {
+  expect(find.byType(DatePickerDialog), findsOneWidget);
+  for (var i = 0; i < back; i++) {
+    await tester.tap(find.byTooltip('Previous month'));
+    await tester.pumpAndSettle();
+  }
+  await tester.tap(
+    find.descendant(
+      of: find.byType(DatePickerDialog),
+      matching: find.text(day),
+    ),
+  );
+  await tester.pumpAndSettle();
+  await tester.tap(find.text('OK'));
   await tester.pumpAndSettle();
 }
 
@@ -115,6 +135,12 @@ void main() {
     await tester.pumpAndSettle();
     final card = tester.getRect(find.byType(EventEditor));
     expect(card.right, desktopSize.width - 12);
+    final area = tester.getRect(
+      find
+          .ancestor(of: find.byType(EventEditor), matching: find.byType(Stack))
+          .first,
+    );
+    expect(card.top, area.top + 12);
     expect(key('event-editor-scrim'), findsNothing);
     await tester.tapAt(const Offset(300, 500));
     await tester.pumpAndSettle();
@@ -146,6 +172,12 @@ void main() {
     store.newEvent(on: wednesday);
     await tester.pumpAndSettle();
     expect(key('event-editor-scrim'), findsOneWidget);
+    // the card is in the middle of the dark layer
+    final card = tester.getRect(find.byType(EventEditor));
+    final layer = tester.getRect(key('event-editor-scrim'));
+    expect(card.center.dx, moreOrLessEquals(layer.center.dx, epsilon: 1));
+    expect(card.center.dy, moreOrLessEquals(layer.center.dy, epsilon: 1));
+    expect(layer.width, phoneSize.width);
     await tester.enterText(fieldOf('event-title'), 'Four');
     await tester.tapAt(
       tester.getRect(key('event-editor-scrim')).topLeft + const Offset(5, 5),
@@ -333,6 +365,90 @@ void main() {
     expect(key('event-ends'), findsNothing);
   });
 
+  testWidgets('each short repeat choice gives its rule', (tester) async {
+    final store = calendarStore();
+    final e = makeEvent(store, 'Gym');
+    await pumpPlanner(tester, store);
+    Future<RecurrenceRule> pick(String line) async {
+      store.editEvent(store.event(e.id)!);
+      await tester.pumpAndSettle();
+      await pickInMenu(tester, 'event-repeat', line);
+      await tapKey(tester, 'event-save');
+      expect(find.byType(EventEditor), findsNothing);
+      return store.event(e.id)!.recurrence!;
+    }
+
+    final weekdays = await pick('Every weekday');
+    expect(weekdays.freq, Freq.weekly);
+    expect(weekdays.interval, 1);
+    expect(weekdays.weekdays, [1, 2, 3, 4, 5]);
+
+    final twoWeeks = await pick('Every 2 weeks');
+    expect(twoWeeks.freq, Freq.weekly);
+    expect(twoWeeks.interval, 2);
+
+    final month = await pick('Every month');
+    expect(month.freq, Freq.monthly);
+    expect(month.interval, 1);
+
+    final year = await pick('Every year');
+    expect(year.freq, Freq.yearly);
+    expect(year.interval, 1);
+
+    // the card of the saved event shows the choice again
+    store.editEvent(store.event(e.id)!);
+    await tester.pumpAndSettle();
+    expect(
+      find.descendant(
+        of: key('event-repeat'),
+        matching: find.text('Every year'),
+      ),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('a click on the day opens the calendar, and the day is kept', (
+    tester,
+  ) async {
+    final store = calendarStore();
+    final e = makeEvent(store, 'Stand-up');
+    await pumpPlanner(tester, store);
+    store.editEvent(e);
+    await tester.pumpAndSettle();
+
+    await tapKey(tester, 'event-starts-day');
+    await pickDay(tester, '21');
+    expect(find.byType(DatePickerDialog), findsNothing);
+
+    await tapKey(tester, 'event-save');
+    final saved = store.event(e.id)!;
+    expect(saved.start.day, d('2026-10-21'));
+    expect(saved.start.minute, 9 * 60);
+    // the end goes with the start: the event keeps its hour
+    expect(saved.end.day, d('2026-10-21'));
+    expect(saved.end.minute, 10 * 60);
+  });
+
+  testWidgets('on a Mac, Cmd+Return saves', (tester) async {
+    debugDefaultTargetPlatformOverride = TargetPlatform.macOS;
+    try {
+      final store = calendarStore();
+      final e = makeEvent(store, 'Stand-up');
+      await pumpPlanner(tester, store);
+      store.editEvent(e);
+      await tester.pumpAndSettle();
+      await tester.enterText(fieldOf('event-title'), 'Daily sync');
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.metaLeft);
+      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.metaLeft);
+      await tester.pumpAndSettle();
+      expect(find.byType(EventEditor), findsNothing);
+      expect(store.event(e.id)!.title, 'Daily sync');
+    } finally {
+      debugDefaultTargetPlatformOverride = null;
+    }
+  });
+
   testWidgets('Delete takes the event away', (tester) async {
     final store = calendarStore();
     final e = makeEvent(store, 'Stand-up');
@@ -371,6 +487,220 @@ void main() {
     ];
     expect(titles, ['Swim', 'Gym']);
   });
+
+  testWidgets('"All events" changes every day of a series', (tester) async {
+    final store = calendarStore();
+    final e = makeEvent(store, 'Gym');
+    store.saveEvent(
+      e.copyWith(recurrence: RecurrenceRule(freq: Freq.daily)),
+      from: e,
+    );
+    final second = eventsOf(store)
+        .firstWhere((x) => x.start.day == d('2026-10-08'));
+    await pumpPlanner(tester, store);
+    store.editEvent(second);
+    await tester.pumpAndSettle();
+    await tester.enterText(fieldOf('event-title'), 'Swim');
+    await tapKey(tester, 'event-save');
+    expect(store.recurringPrompt, isNotNull);
+    await tester.tap(find.text('All events'));
+    await tester.pumpAndSettle();
+    expect(store.recurringPrompt, isNull);
+    final titles = {
+      for (final x in eventsOf(store))
+        if (x.start.day == wednesday ||
+            x.start.day == d('2026-10-08') ||
+            x.start.day == d('2026-10-09'))
+          x.start.day.string: x.title,
+    };
+    expect(titles, {
+      '2026-10-07': 'Swim',
+      '2026-10-08': 'Swim',
+      '2026-10-09': 'Swim',
+    });
+  });
+
+  testWidgets('the question of a series comes on the Notes screen too', (
+    tester,
+  ) async {
+    final store = calendarStore();
+    final e = makeEvent(store, 'Gym');
+    store.saveEvent(
+      e.copyWith(recurrence: RecurrenceRule(freq: Freq.daily)),
+      from: e,
+    );
+    final second = eventsOf(store)
+        .firstWhere((x) => x.start.day == d('2026-10-08'));
+    await pumpPlanner(tester, store);
+    store.editEvent(second);
+    await tester.pumpAndSettle();
+    // the card stays open over the Notes screen
+    store.screen = Screen.notes;
+    await tester.pumpAndSettle();
+    expect(find.byType(EventEditor), findsOneWidget);
+    await tester.enterText(fieldOf('event-title'), 'Swim');
+    await tapKey(tester, 'event-save');
+    expect(find.byType(EventEditor), findsNothing);
+    expect(find.text('All events'), findsOneWidget);
+    await tester.tap(find.text('This event only'));
+    await tester.pumpAndSettle();
+    expect(store.recurringPrompt, isNull);
+    expect(find.text('All events'), findsNothing);
+    final titles = [
+      for (final x in eventsOf(store))
+        if (x.start.day == d('2026-10-08') || x.start.day == d('2026-10-09'))
+          x.title,
+    ];
+    expect(titles, ['Swim', 'Gym']);
+
+    // Cancel of the question changes nothing, and the question comes once
+    final third = eventsOf(store)
+        .firstWhere((x) => x.start.day == d('2026-10-09'));
+    store.editEvent(third);
+    await tester.pumpAndSettle();
+    await tapKey(tester, 'event-delete');
+    expect(find.text('All events'), findsOneWidget);
+    await tester.tap(find.text('Cancel'));
+    await tester.pumpAndSettle();
+    expect(store.recurringPrompt, isNull);
+    expect(find.text('All events'), findsNothing);
+    expect(
+      eventsOf(store).where((x) => x.start.day == d('2026-10-09')),
+      hasLength(1),
+    );
+  });
+
+  testWidgets('the weekday buttons of a later day of a series start from the '
+      'first day of the series', (tester) async {
+    final store = calendarStore();
+    // a series from Monday, on Mondays and Wednesdays
+    final e = makeEvent(store, 'Gym', day: d('2026-10-05'));
+    store.saveEvent(
+      e.copyWith(
+        recurrence: RecurrenceRule(freq: Freq.weekly, weekdays: [1, 3]),
+      ),
+      from: e,
+    );
+    final wed = eventsOf(store).firstWhere((x) => x.start.day == wednesday);
+    await pumpPlanner(tester, store);
+    store.editEvent(wed);
+    await tester.pumpAndSettle();
+    // Monday off: Wednesday is the one day left
+    await tapKey(tester, 'event-weekday-1');
+    await tapKey(tester, 'event-save');
+    await tester.tap(find.text('All events'));
+    await tester.pumpAndSettle();
+    expect(store.event(e.id)!.recurrence!.weekdays, [3]);
+    final days = [
+      for (final x in eventsOf(store))
+        if (x.start.day >= d('2026-10-05') && x.start.day <= d('2026-10-18'))
+          x.start.day.string,
+    ];
+    printOnFailure('days: $days');
+    expect(days, contains('2026-10-07'));
+    expect(days, contains('2026-10-14'));
+    expect(days, isNot(contains('2026-10-12')));
+  });
+
+  testWidgets('the last day of a repeat is not before the day of the event', (
+    tester,
+  ) async {
+    final store = calendarStore();
+    final e = makeEvent(store, 'Gym');
+    await pumpPlanner(tester, store);
+    store.editEvent(e);
+    await tester.pumpAndSettle();
+    await pickInMenu(tester, 'event-repeat', 'Every day');
+    await pickInMenu(tester, 'event-ends', 'On a day');
+    await tapKey(tester, 'event-until');
+    await pickDay(tester, '15', back: 2);
+    await tapKey(tester, 'event-save');
+    expect(store.event(e.id)!.recurrence!.until, wednesday);
+    // the event is still on the screens
+    expect(eventsOf(store), hasLength(1));
+
+    // a later first day takes the last day with it
+    store.editEvent(store.event(e.id)!);
+    await tester.pumpAndSettle();
+    await tapKey(tester, 'event-starts-day');
+    await pickDay(tester, '21');
+    await tapKey(tester, 'event-save');
+    final saved = store.event(e.id)!;
+    expect(saved.start.day, d('2026-10-21'));
+    expect(saved.recurrence!.until, d('2026-10-21'));
+    expect(eventsOf(store), hasLength(1));
+  });
+
+  testWidgets('the day of the end is not before the day of the start', (
+    tester,
+  ) async {
+    final store = calendarStore();
+    final e = makeEvent(store, 'Gym');
+    await pumpPlanner(tester, store);
+    store.editEvent(e);
+    await tester.pumpAndSettle();
+    await tapKey(tester, 'event-ends-day');
+    await pickDay(tester, '5');
+    await tapKey(tester, 'event-save');
+    final saved = store.event(e.id)!;
+    expect(saved.start, e.start);
+    expect(saved.end, e.end);
+  });
+
+  testWidgets('a card with a change keeps a move of the event made under it', (
+    tester,
+  ) async {
+    final store = calendarStore();
+    final e = makeEvent(store, 'Gym');
+    await pumpPlanner(tester, store);
+    store.editEvent(e);
+    await tester.pumpAndSettle();
+    await tester.enterText(fieldOf('event-title'), 'Swim');
+    await tester.pump();
+    // the event is moved in the grid while the card is open
+    store.applyEdits(
+      [BlockEdit(id: e.id, day: wednesday, start: 14 * 60, end: 15 * 60)],
+      ripple: false,
+      name: 'Move',
+    );
+    await tester.pumpAndSettle();
+    expect(find.byType(EventEditor), findsOneWidget);
+    // the card shows the new time, and still the typed title
+    expect(
+      find.descendant(
+        of: key('event-starts-time'),
+        matching: find.text('14:00'),
+      ),
+      findsOneWidget,
+    );
+    expect(
+      tester.widget<EditableText>(fieldOf('event-title')).controller.text,
+      'Swim',
+    );
+    await tapKey(tester, 'event-save');
+    final saved = store.event(e.id)!;
+    expect(saved.title, 'Swim');
+    expect(saved.start.minute, 14 * 60);
+    expect(saved.end.minute, 15 * 60);
+  });
+
+  testWidgets(
+    'an answer of the calendar after the event is gone does nothing',
+    (tester) async {
+      final store = calendarStore();
+      final e = makeEvent(store, 'Gym');
+      await pumpPlanner(tester, store);
+      store.editEvent(e);
+      await tester.pumpAndSettle();
+      await tapKey(tester, 'event-starts-day');
+      // the event is deleted from outside, for example by the sync
+      store.deleteEvent(store.event(e.id)!);
+      await tester.pumpAndSettle();
+      await pickDay(tester, '21');
+      expect(tester.takeException(), isNull);
+      expect(eventsOf(store), isEmpty);
+    },
+  );
 
   testWidgets('the meeting note is made from a saved event only', (
     tester,

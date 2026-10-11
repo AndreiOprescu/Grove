@@ -7,6 +7,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:grove/core/model/link.dart';
 import 'package:grove/state/state.dart' hide MotionRules;
+import 'package:grove/ui/editor/editor_tools.dart';
 import 'package:grove/ui/editor/markdown_controller.dart';
 import 'package:grove/ui/editor/rich_text_field.dart';
 import 'package:grove/ui/theme/grove_theme.dart';
@@ -25,6 +26,9 @@ class Rig {
   String text = '';
   final told = <String>[];
   final opened = <String?>[];
+
+  /// The web addresses the editor sent to the browser.
+  final links = <Uri>[];
 }
 
 EditorServices oneTask(Rig rig) => EditorServices(
@@ -46,6 +50,12 @@ Future<Rig> makeRig(
   String text, {
   EditorServices Function(Rig rig)? services,
   ThemeId themeId = ThemeId.grove,
+  Size size = const Size(500, 400),
+  Alignment alignment = Alignment.topLeft,
+  ImagePicker? pickImages,
+  LinkOpener? openLink,
+  // Wraps the editor, as the app does with `EditorTools`.
+  Widget Function(Widget child)? around,
 }) async {
   final controller = MarkdownController(text: text);
   final focus = FocusNode();
@@ -57,24 +67,31 @@ Future<Rig> makeRig(
     tester,
     StatefulBuilder(
       builder: (context, setState) => Align(
-        alignment: Alignment.topLeft,
+        alignment: alignment,
         child: SizedBox(
           width: 400,
-          child: RichTextField(
-            text: shown,
-            controller: controller,
-            focusNode: focus,
-            services: (services ?? oneTask)(rig),
-            placeholder: 'Write here',
-            onChanged: (value) => setState(() {
-              shown = value;
-              rig.text = value;
-            }),
+          // As high as its text, as in a page that scrolls.
+          child: SingleChildScrollView(
+            child: (around ?? (child) => child)(
+              RichTextField(
+                text: shown,
+                controller: controller,
+                focusNode: focus,
+                services: (services ?? oneTask)(rig),
+                placeholder: 'Write here',
+                pickImages: pickImages,
+                openLink: openLink,
+                onChanged: (value) => setState(() {
+                  shown = value;
+                  rig.text = value;
+                }),
+              ),
+            ),
           ),
         ),
       ),
     ),
-    size: const Size(500, 400),
+    size: size,
     themeId: themeId,
   );
   focus.requestFocus();
@@ -111,6 +128,50 @@ Future<void> caret(WidgetTester tester, Rig rig, int offset, [int? end]) async {
   );
   await tester.pump();
 }
+
+/// The key that deletes the letter in front of the caret.
+Future<void> backspace(WidgetTester tester, Rig rig) async {
+  final value = rig.controller.value;
+  final at = value.selection.start;
+  await send(tester, value.text.replaceRange(at - 1, at, ''), at - 1);
+}
+
+/// What the keyboard of a phone sends while a word is not done yet.
+Future<void> compose(WidgetTester tester, String text, int from, int to) async {
+  tester.testTextInput.updateEditingValue(
+    TextEditingValue(
+      text: text,
+      selection: TextSelection.collapsed(offset: to),
+      composing: TextRange(start: from, end: to),
+    ),
+  );
+  await tester.pump();
+}
+
+/// A click of a mouse, with a frame between the press and the release.
+Future<void> click(WidgetTester tester, Finder target) async {
+  final gesture = await tester.startGesture(
+    tester.getCenter(target),
+    kind: PointerDeviceKind.mouse,
+  );
+  await tester.pump();
+  await tester.pump(const Duration(milliseconds: 80));
+  await gesture.up();
+  await tester.pump();
+}
+
+/// Eight tasks for the `[[` list: a list 248 points high.
+EditorServices eightTasks(Rig rig) => EditorServices(
+  suggest: (_) => [
+    for (var i = 0; i < 8; i++)
+      MentionSuggestion(
+        ref: ItemRef(ItemType.task, 'T$i'),
+        title: 'Buy milk $i',
+        kind: 'Task',
+      ),
+  ],
+  title: (id) => 'Buy milk',
+);
 
 /// The pieces of text the editor draws, with their styles.
 List<TextSpan> pieces(WidgetTester tester, Rig rig) {
@@ -275,6 +336,62 @@ void main() {
       final rig = await makeRig(tester, text);
       final drawn = pieces(tester, rig).map((p) => p.text!).join();
       expect(drawn.length, text.length);
+    });
+
+    testWidgets('bold, italic, code, a quote and a tag each have their look', (
+      tester,
+    ) async {
+      final rig = await makeRig(
+        tester,
+        'plain **bold** *slant* `code` #tag\n> said',
+      );
+      final theme = GroveTheme.of(tester.element(find.byType(EditableText)));
+      final plain = pieceWith(tester, rig, 'plain ').style!;
+      expect(plain.fontWeight, isNot(FontWeight.w700));
+      expect(plain.fontStyle, isNot(FontStyle.italic));
+      expect(plain.color, theme.ink);
+
+      expect(pieceWith(tester, rig, 'bold').style!.fontWeight, FontWeight.w700);
+      expect(
+        pieceWith(tester, rig, 'slant').style!.fontStyle,
+        FontStyle.italic,
+      );
+
+      final code = pieceWith(tester, rig, 'code').style!;
+      expect(code.backgroundColor, theme.surface2);
+      expect(code.fontFamily, theme.number(12).fontFamily);
+      // the line of the code is as high as the line of the text
+      expect(
+        code.fontSize! * code.height!,
+        closeTo(plain.fontSize! * plain.height!, 1e-9),
+      );
+
+      expect(pieceWith(tester, rig, '#tag').style!.color, theme.accent2);
+
+      // a quote: pale words after a mark in the accent colour
+      expect(pieceWith(tester, rig, 'said').style!.color, theme.muted);
+      final mark = pieces(tester, rig).firstWhere((p) => p.text!.contains('>'));
+      expect(mark.style!.color, theme.accent);
+      // the marks stay in the text, but pale
+      final star = pieces(tester, rig).firstWhere((p) => p.text == '**').style!;
+      expect(star.color, theme.muted.withValues(alpha: 0.55));
+    });
+
+    testWidgets('a web link and an @date are underlined in the accent colour', (
+      tester,
+    ) async {
+      final rig = await makeRig(tester, 'see https://grove.example/a on @fri');
+      final theme = GroveTheme.of(tester.element(find.byType(EditableText)));
+      final link = pieceWith(tester, rig, 'https://grove.example/a').style!;
+      expect(link.color, theme.accent);
+      expect(link.decoration, TextDecoration.underline);
+      expect(link.decorationStyle, isNot(TextDecorationStyle.dotted));
+      final date = pieceWith(tester, rig, '@fri').style!;
+      expect(date.color, theme.accent);
+      expect(date.decoration, TextDecoration.underline);
+      expect(date.decorationStyle, TextDecorationStyle.dotted);
+      // the words around them are plain
+      expect(pieceWith(tester, rig, 'see ').style!.decoration, isNull);
     });
 
     testWidgets('a bullet is drawn as a dot', (tester) async {
@@ -468,6 +585,262 @@ void main() {
       for (final piece in rest) {
         expect(piece.style?.fontSize, lessThan(0.1), reason: piece.text);
       }
+    });
+  });
+
+  group('web links', () {
+    const text = 'see https://grove.example/a now';
+    final address = Uri.parse('https://grove.example/a');
+
+    /// The middle of the letters `from` to `to` of the text.
+    Offset place(WidgetTester tester, int from, int to) {
+      final editable = tester.renderObject<RenderBox>(
+        find.byType(EditableText),
+      );
+      final state = tester.state<EditableTextState>(find.byType(EditableText));
+      final boxes = state.renderEditable.getBoxesForSelection(
+        TextSelection(baseOffset: from, extentOffset: to),
+      );
+      return editable.localToGlobal(boxes.first.toRect().center);
+    }
+
+    /// One click, at `at` of the clock of the pointer.
+    Future<void> clickAt(
+      WidgetTester tester,
+      Offset where, {
+      Duration at = Duration.zero,
+    }) async {
+      final gesture = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      await gesture.down(where, timeStamp: at);
+      await gesture.up(timeStamp: at);
+      await gesture.removePointer();
+      await tester.pump();
+    }
+
+    LinkOpener browser(Rig Function() rig, {bool works = true}) => (url) async {
+      rig().links.add(url);
+      return works;
+    };
+
+    testWidgets('a click on a web link opens it in the browser', (
+      tester,
+    ) async {
+      late Rig rig;
+      rig = await makeRig(tester, text, openLink: browser(() => rig));
+      await clickAt(tester, place(tester, 4, 27));
+      expect(rig.links, [address]);
+      expect(rig.told, isEmpty);
+      // The text did not change.
+      expect(rig.text, text);
+    });
+
+    testWidgets('a tap of a finger opens it too', (tester) async {
+      late Rig rig;
+      rig = await makeRig(tester, text, openLink: browser(() => rig));
+      await tester.tapAt(place(tester, 4, 27));
+      await tester.pump();
+      expect(rig.links, [address]);
+    });
+
+    testWidgets('a click on plain words opens nothing', (tester) async {
+      late Rig rig;
+      rig = await makeRig(tester, text, openLink: browser(() => rig));
+      await clickAt(tester, place(tester, 0, 3));
+      await clickAt(tester, place(tester, 28, 31));
+      expect(rig.links, isEmpty);
+    });
+
+    testWidgets('with no browser a click on a web link does nothing', (
+      tester,
+    ) async {
+      final rig = await makeRig(tester, text);
+      await clickAt(tester, place(tester, 4, 27));
+      expect(rig.links, isEmpty);
+      expect(rig.told, isEmpty);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('the editor takes the browser of the app around it', (
+      tester,
+    ) async {
+      late Rig rig;
+      rig = await makeRig(
+        tester,
+        text,
+        around: (child) =>
+            EditorTools(openLink: browser(() => rig), child: child),
+      );
+      await clickAt(tester, place(tester, 4, 27));
+      expect(rig.links, [address]);
+    });
+
+    testWidgets('the second click of a double click does not open it again', (
+      tester,
+    ) async {
+      late Rig rig;
+      rig = await makeRig(tester, text, openLink: browser(() => rig));
+      final where = place(tester, 4, 27);
+      await clickAt(tester, where, at: const Duration(seconds: 5));
+      await clickAt(tester, where, at: const Duration(milliseconds: 5150));
+      expect(rig.links, [address]);
+      // A click some time later opens it again.
+      await clickAt(tester, where, at: const Duration(seconds: 7));
+      expect(rig.links, [address, address]);
+    });
+
+    testWidgets('a drag over a web link opens nothing', (tester) async {
+      late Rig rig;
+      rig = await makeRig(tester, text, openLink: browser(() => rig));
+      final gesture = await tester.startGesture(
+        place(tester, 4, 6),
+        kind: PointerDeviceKind.mouse,
+      );
+      await tester.pump();
+      await gesture.moveTo(place(tester, 20, 22));
+      await tester.pump();
+      await gesture.up();
+      await tester.pump();
+      expect(rig.links, isEmpty);
+    });
+
+    testWidgets('a browser that cannot open the link: Grove says so', (
+      tester,
+    ) async {
+      late Rig rig;
+      rig = await makeRig(
+        tester,
+        text,
+        openLink: browser(() => rig, works: false),
+      );
+      await clickAt(tester, place(tester, 4, 27));
+      await tester.pump();
+      expect(rig.links, [address]);
+      expect(rig.told, ['Grove could not open the link.']);
+    });
+
+    testWidgets('a browser that fails with an error: Grove says so', (
+      tester,
+    ) async {
+      final rig = await makeRig(
+        tester,
+        text,
+        openLink: (url) async => throw StateError('no browser'),
+      );
+      await clickAt(tester, place(tester, 4, 27));
+      await tester.pump();
+      expect(rig.told, ['Grove could not open the link.']);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('the dot at the end of a sentence is not a part of the link', (
+      tester,
+    ) async {
+      late Rig rig;
+      rig = await makeRig(
+        tester,
+        'see https://grove.example/a.',
+        openLink: browser(() => rig),
+      );
+      await clickAt(tester, place(tester, 4, 27));
+      expect(rig.links, [address]);
+    });
+  });
+
+  group('the picker of the app', () {
+    PickedImage picture(String name) => (
+      name: name,
+      image: (
+        mime: 'image/png',
+        data: Uint8List.fromList([1, 2, 3]),
+        width: 4,
+        height: 3,
+      ),
+    );
+
+    EditorServices keeps(Rig rig) =>
+        EditorServices(storeImage: (image) => id, notify: rig.told.add);
+
+    testWidgets('"Add an image" puts the picked pictures in the text', (
+      tester,
+    ) async {
+      var asked = 0;
+      final rig = await makeRig(
+        tester,
+        'see',
+        services: keeps,
+        pickImages: () async {
+          asked += 1;
+          return [picture('door')];
+        },
+      );
+      await caret(tester, rig, 3);
+      await tester.tap(find.bySemanticsLabel('Add an image'));
+      await tester.pump();
+      await tester.pump();
+      expect(asked, 1);
+      expect(rig.text, contains('![door](grove-image:$id)'));
+      expect(find.byKey(const ValueKey('image-$id')), findsOneWidget);
+    });
+
+    testWidgets('the editor takes the picker of the app around it', (
+      tester,
+    ) async {
+      final rig = await makeRig(
+        tester,
+        '',
+        services: keeps,
+        around: (child) => EditorTools(
+          pickImages: () async => [picture('gate')],
+          child: child,
+        ),
+      );
+      await tester.tap(find.bySemanticsLabel('Add an image'));
+      await tester.pump();
+      await tester.pump();
+      expect(rig.text, contains('![gate](grove-image:$id)'));
+    });
+
+    testWidgets('a closed file window changes nothing', (tester) async {
+      final rig = await makeRig(
+        tester,
+        'see',
+        services: keeps,
+        pickImages: () async => const [],
+      );
+      await tester.tap(find.bySemanticsLabel('Add an image'));
+      await tester.pump();
+      await tester.pump();
+      expect(rig.text, 'see');
+      expect(rig.told, isEmpty);
+    });
+
+    testWidgets('a file that is not a picture: Grove says so', (tester) async {
+      final rig = await makeRig(
+        tester,
+        'see',
+        services: keeps,
+        pickImages: () async => const [(name: 'notes', image: null)],
+      );
+      await tester.tap(find.bySemanticsLabel('Add an image'));
+      await tester.pump();
+      await tester.pump();
+      expect(rig.text, 'see');
+      expect(rig.told, ['notes is not an image Grove can read.']);
+    });
+
+    testWidgets('a file window that fails: Grove says so', (tester) async {
+      final rig = await makeRig(
+        tester,
+        'see',
+        services: keeps,
+        pickImages: () async => throw StateError('no window'),
+      );
+      await tester.tap(find.bySemanticsLabel('Add an image'));
+      await tester.pump();
+      await tester.pump();
+      expect(rig.text, 'see');
+      expect(rig.told, ['Grove could not open the file window.']);
+      expect(tester.takeException(), isNull);
     });
   });
 
@@ -665,6 +1038,222 @@ void main() {
       await tester.pump();
       expect(sent, ['lunch @fri 1pm']);
       expect(rig.text, 'plain\n[[lunch|E1]] Fri 13:00');
+    });
+  });
+
+  group('a key next to a unit', () {
+    testWidgets('a letter typed in front of a mention stays in front of it', (
+      tester,
+    ) async {
+      const text = 'x [[Buy milk|$id]] y';
+      final rig = await makeRig(tester, text);
+      await caret(tester, rig, 2);
+      await type(tester, rig, '[');
+      expect(rig.text, 'x [[[Buy milk|$id]] y');
+      expect(rig.controller.selection.baseOffset, 3);
+    });
+
+    testWidgets('a letter typed in front of an image stays in front of it', (
+      tester,
+    ) async {
+      const text = 'wow ![cat](grove-image:$id) y';
+      final rig = await makeRig(tester, text);
+      await caret(tester, rig, 4);
+      await type(tester, rig, '!');
+      expect(rig.text, 'wow !![cat](grove-image:$id) y');
+      expect(rig.controller.selection.baseOffset, 5);
+    });
+
+    testWidgets('Backspace in front of an image keeps the image', (
+      tester,
+    ) async {
+      const text = 'wow!![cat](grove-image:$id) y';
+      final rig = await makeRig(tester, text);
+      await caret(tester, rig, 4);
+      await backspace(tester, rig);
+      expect(rig.text, 'wow![cat](grove-image:$id) y');
+      expect(rig.controller.selection.baseOffset, 3);
+    });
+
+    testWidgets('Backspace in front of a mention keeps the mention', (
+      tester,
+    ) async {
+      const text = 'a[[[Buy milk|$id]] y';
+      final rig = await makeRig(tester, text);
+      await caret(tester, rig, 2);
+      await backspace(tester, rig);
+      expect(rig.text, 'a[[Buy milk|$id]] y');
+      expect(rig.controller.selection.baseOffset, 1);
+    });
+
+    testWidgets('Backspace on one of two spaces in front of a task mark '
+        'takes that space only', (tester) async {
+      const text = '- [ ] buy milk  ⟦t:abc⟧\nnext';
+      final rig = await makeRig(tester, text);
+      await caret(tester, rig, 15);
+      await backspace(tester, rig);
+      expect(rig.text, '- [ ] buy milk ⟦t:abc⟧\nnext');
+      expect(rig.controller.selection.baseOffset, 14);
+    });
+
+    testWidgets('a key far from the caret is still read where it is', (
+      tester,
+    ) async {
+      // What a spelling fix of the keyboard does: the caret is at the end,
+      // the change is in the middle.
+      final rig = await makeRig(tester, 'aa bb aa');
+      await caret(tester, rig, 8);
+      await send(tester, 'aa cc aa', 8);
+      expect(rig.text, 'aa cc aa');
+    });
+  });
+
+  group('the keyboard of a phone', () {
+    testWidgets('Return at the end of a word that is not done yet goes on '
+        'with the list', (tester) async {
+      final rig = await makeRig(tester, '- ');
+      await compose(tester, '- one', 2, 5);
+      expect(rig.text, '- one');
+      await send(tester, '- one\n', 6);
+      expect(rig.text, '- one\n- ');
+      expect(rig.controller.selection.baseOffset, 8);
+    });
+
+    testWidgets('Return at the end of a word that is not done yet picks the '
+        'row of the list', (tester) async {
+      final rig = await makeRig(tester, '');
+      await compose(tester, '[[bu', 2, 4);
+      expect(find.text('Buy milk'), findsOneWidget);
+      await send(tester, '[[bu\n', 5);
+      expect(rig.text, '[[Buy milk|T1]]');
+    });
+
+    testWidgets('a word that is not done yet is left as the keyboard sends '
+        'it', (tester) async {
+      final rig = await makeRig(tester, '- one');
+      await compose(tester, '- one tw', 6, 8);
+      await compose(tester, '- one two', 6, 9);
+      expect(rig.text, '- one two');
+      expect(rig.controller.value.composing, const TextRange(start: 6, end: 9));
+    });
+  });
+
+  group('a mouse on the buttons', () {
+    testWidgets(
+      'a click on a button of the row does not take the keyboard away',
+      variant: TargetPlatformVariant.desktop(),
+      (tester) async {
+        final rig = await makeRig(tester, 'make this loud');
+        await caret(tester, rig, 5, 9);
+        final focus = <bool>[];
+        void heard() => focus.add(rig.focus.hasFocus);
+        rig.focus.addListener(heard);
+        await click(tester, find.bySemanticsLabel('Bold'));
+        rig.focus.removeListener(heard);
+        expect(focus, isEmpty);
+        expect(rig.focus.hasFocus, isTrue);
+        expect(rig.text, 'make **this** loud');
+      },
+    );
+
+    testWidgets(
+      'a click on "Add to planner" does not take the keyboard away',
+      variant: TargetPlatformVariant.desktop(),
+      (tester) async {
+        final rig = await makeRig(
+          tester,
+          'plain\nlunch @fri 1pm',
+          services: (rig) =>
+              EditorServices(addToPlanner: (line) => '[[lunch|E1]] Fri 13:00'),
+        );
+        await caret(tester, rig, 12);
+        final focus = <bool>[];
+        void heard() => focus.add(rig.focus.hasFocus);
+        rig.focus.addListener(heard);
+        await click(tester, find.text('Add to planner'));
+        rig.focus.removeListener(heard);
+        expect(focus, isEmpty);
+        expect(rig.focus.hasFocus, isTrue);
+        expect(rig.text, 'plain\n[[lunch|E1]] Fri 13:00');
+      },
+    );
+  });
+
+  group('the place of the [[ list', () {
+    testWidgets('over the line when the field is at the bottom of the window, '
+        'and a click on a row still picks it', (tester) async {
+      final rig = await makeRig(
+        tester,
+        '',
+        services: eightTasks,
+        alignment: Alignment.bottomLeft,
+      );
+      await type(tester, rig, '[[');
+      await tester.pump();
+      final list = tester.getRect(find.byType(MentionListView));
+      final field = tester.getRect(find.byType(EditableText));
+      expect(list.height, 8 * RichTextField.listRow + 8);
+      expect(list.bottom, closeTo(field.top - 4, 1));
+      expect(list.top, greaterThanOrEqualTo(8));
+      for (var i = 0; i < 8; i++) {
+        expect(find.text('Buy milk $i').hitTestable(), findsOneWidget);
+      }
+      await tester.tap(find.text('Buy milk 3'));
+      await tester.pump();
+      expect(rig.text, '[[Buy milk 3|T3]]');
+    });
+
+    testWidgets('over the line when the keyboard of a phone hides the room '
+        'under it', (tester) async {
+      tester.view.viewInsets = const FakeViewPadding(bottom: 336);
+      addTearDown(tester.view.resetViewInsets);
+      final lines = [for (var i = 0; i < 20; i++) 'line $i'].join('\n');
+      final rig = await makeRig(
+        tester,
+        '$lines\n',
+        services: eightTasks,
+        size: const Size(390, 844),
+      );
+      await caret(tester, rig, lines.length + 1);
+      await type(tester, rig, '[[');
+      await tester.pump();
+      final list = tester.getRect(find.byType(MentionListView));
+      final line = tester.getRect(find.byType(EditableText)).bottom - 17;
+      // The keyboard starts at 844 - 336 = 508.
+      expect(list.bottom, lessThanOrEqualTo(508 - 8));
+      expect(list.bottom, closeTo(line - 4, 1));
+      for (var i = 0; i < 8; i++) {
+        expect(find.text('Buy milk $i').hitTestable(), findsOneWidget);
+      }
+    });
+
+    testWidgets('with no room over or under the line, all of it stays in the '
+        'window', (tester) async {
+      final lines = [for (var i = 0; i < 9; i++) 'line $i'].join('\n');
+      final rig = await makeRig(tester, '$lines\n', services: eightTasks);
+      await caret(tester, rig, lines.length + 1);
+      await type(tester, rig, '[[');
+      await tester.pump();
+      final list = tester.getRect(find.byType(MentionListView));
+      expect(list.top, greaterThanOrEqualTo(8));
+      expect(list.bottom, lessThanOrEqualTo(400 - 8));
+      for (var i = 0; i < 8; i++) {
+        expect(find.text('Buy milk $i').hitTestable(), findsOneWidget);
+      }
+    });
+
+    testWidgets('not past the right edge of the window', (tester) async {
+      final rig = await makeRig(
+        tester,
+        '',
+        services: eightTasks,
+        size: const Size(390, 844),
+      );
+      await type(tester, rig, 'a long line of words that ends far right [[');
+      await tester.pump();
+      final list = tester.getRect(find.byType(MentionListView));
+      expect(list.right, lessThanOrEqualTo(390 - 8));
+      expect(list.left, greaterThanOrEqualTo(8));
     });
   });
 
