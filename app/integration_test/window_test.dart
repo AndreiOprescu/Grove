@@ -1,11 +1,14 @@
 // The window of Grove on a computer (PLAN §5.8, Sources/Grove/GroveApp.swift):
-// it opens 1280 × 800 and is never under 1100 × 620. On the Mac it has no
+// it opens 1280 × 800 and is never under 1100 × 620, on a screen with room
+// for that. On the Mac it has no
 // title bar: the app fills the whole window and its top strip starts next
 // to the three window buttons. Run it on the Mac and on Windows:
 //   ./scripts/flutter_integration.sh macos|windows
 //
 // The native side is in macos/Runner/MainFlutterWindow.swift and in
 // windows/runner/win32_window.cpp.
+import 'dart:math' as math;
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -49,13 +52,16 @@ void main() {
       'paddingTop=$padding dock=${dock.dx},${dock.dy}',
     );
 
-    // Never under the smallest size, also on a small screen.
-    expect(window.width, greaterThanOrEqualTo(_smallest.width - 0.5));
-    expect(window.height, greaterThanOrEqualTo(_smallest.height - 0.5));
+    // Never under the smallest size. A screen that is smaller than that
+    // (a test machine can be 1024 × 768) is the limit: the window fills
+    // it, less the frame of the window and the bar of the system.
+    final leastWidth = math.min(_smallest.width, screen.width - 40);
+    final leastHeight = math.min(_smallest.height, screen.height - 120);
+    expect(window.width, greaterThanOrEqualTo(leastWidth - 0.5));
+    expect(window.height, greaterThanOrEqualTo(leastHeight - 0.5));
     expect(window.width, lessThanOrEqualTo(_first.width + 0.5));
     expect(window.height, lessThanOrEqualTo(_first.height + 0.5));
-    // A screen with room for it gets the first size. (A screen of a test
-    // machine can be 1024 × 768: the window is smaller there.)
+    // A screen with room for it gets the first size.
     if (screen.width >= 1440 && screen.height >= 960) {
       expect(window.width, closeTo(_first.width, 0.5));
       expect(window.height, closeTo(_first.height, 0.5));

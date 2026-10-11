@@ -160,11 +160,10 @@ bool Win32Window::Create(const std::wstring& title,
   // where the window has no title bar.
   SIZE window_size = WindowSizeForClient(Scale(size.width, scale_factor),
                                          Scale(size.height, scale_factor), dpi);
-  const SIZE smallest = SmallestWindowSize(dpi);
   int x = Scale(origin.x, scale_factor);
   int y = Scale(origin.y, scale_factor);
-  // Not bigger than the free part of the screen, but never under the
-  // smallest size. Then in the middle of that free part.
+  // Not bigger than the free part of the screen (the system does not make
+  // a window bigger than the screen). Then in the middle of that free part.
   MONITORINFO monitor_info = {};
   monitor_info.cbSize = sizeof(monitor_info);
   if (GetMonitorInfo(monitor, &monitor_info)) {
@@ -173,13 +172,8 @@ bool Win32Window::Create(const std::wstring& title,
     const LONG work_height = work.bottom - work.top;
     if (window_size.cx > work_width) window_size.cx = work_width;
     if (window_size.cy > work_height) window_size.cy = work_height;
-    if (window_size.cx < smallest.cx) window_size.cx = smallest.cx;
-    if (window_size.cy < smallest.cy) window_size.cy = smallest.cy;
     x = static_cast<int>(work.left + (work_width - window_size.cx) / 2);
     y = static_cast<int>(work.top + (work_height - window_size.cy) / 2);
-    // The title bar stays on the screen when the screen is too small.
-    if (x < work.left) x = static_cast<int>(work.left);
-    if (y < work.top) y = static_cast<int>(work.top);
   }
 
   HWND window = CreateWindow(
@@ -246,10 +240,16 @@ Win32Window::MessageHandler(HWND hwnd,
     }
     case WM_GETMINMAXINFO: {
       // The person cannot make the window smaller than the Mac app allows.
+      // On a screen that is smaller than that, the biggest size the system
+      // allows is the limit.
       const SIZE smallest = SmallestWindowSize(FlutterDesktopGetDpiForHWND(hwnd));
       auto info = reinterpret_cast<MINMAXINFO*>(lparam);
-      info->ptMinTrackSize.x = smallest.cx;
-      info->ptMinTrackSize.y = smallest.cy;
+      info->ptMinTrackSize.x = smallest.cx < info->ptMaxTrackSize.x
+                                   ? smallest.cx
+                                   : info->ptMaxTrackSize.x;
+      info->ptMinTrackSize.y = smallest.cy < info->ptMaxTrackSize.y
+                                   ? smallest.cy
+                                   : info->ptMaxTrackSize.y;
       return 0;
     }
     case WM_SIZE: {
