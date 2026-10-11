@@ -668,6 +668,10 @@ file, the plan, and `docs/assumptions.md` before it starts.
     `Grove.app`. The old name still opens on a Mac disk that does not tell
     capital letters apart, so the script does not break on this Mac or on the
     CI Mac; the name of the app inside the zip is `Grove.app` either way.
+    **Done, 2026-10-12**, on `feat/xp-shell-gaps` after the merge of PR #14:
+    `scripts/flutter_release.sh` (line 36) and `scripts/flutter_perf.sh`
+    (lines 52, 58, 89: the app and its program `Contents/MacOS/Grove`). A
+    test in `app/test/app_name_test.dart` holds both scripts.
   - Nothing changes on Windows: `grove.exe` and the folder of the build keep
     their names (Q-40).
   - `scripts/flutter_integration.sh macos|windows` runs two files now:

@@ -57,6 +57,20 @@ void main() {
       expect(scheme, contains('BuildableName = "Grove.app"'));
     });
 
+    // The release build and the speed check take the app out of the build
+    // folder by its name. A Mac disk that tells capital letters apart finds
+    // only the right name.
+    test('macOS: the scripts name the same app and the same program', () {
+      final release = read('../scripts/flutter_release.sh');
+      expect(release, isNot(contains('grove.app')));
+      expect(release, contains('build/macos/Build/Products/Release/Grove.app'));
+      final perf = read('../scripts/flutter_perf.sh');
+      expect(perf, isNot(contains('grove.app')));
+      expect(perf, contains(r'build/macos/Build/Products/$mode_dir/Grove.app'));
+      expect(perf, isNot(contains('Contents/MacOS/grove')));
+      expect(perf, contains('Contents/MacOS/Grove'));
+    });
+
     test('iOS: the name under the icon and the name of the bundle', () {
       final plist = read('ios/Runner/Info.plist');
       expect(plistString(plist, 'CFBundleDisplayName'), 'Grove');
