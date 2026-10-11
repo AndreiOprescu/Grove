@@ -312,7 +312,8 @@ file, the plan, and `docs/assumptions.md` before it starts.
   runs are in the proof file, "CI".
 - The planner gaps (F12 check): built, waits for the user (proof:
   `docs/acceptance/F12-planner-gaps.md`, branch `feat/xp-planner-gaps`,
-  draft PR #15, on top of PR #11): subtasks on goal blocks, the focus timer,
+  draft PR #15; PR #11 is merged, so it waits for no other PR): subtasks on
+  goal blocks, the focus timer,
   tests through the screen for the planner paths, pinch zoom, the grow-in
   after "Fit", and the pencil of a block with a note (Q-35). The requests
   are at the end of this file.

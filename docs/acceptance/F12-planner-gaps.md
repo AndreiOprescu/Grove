@@ -2,9 +2,9 @@
 
 A check of the Flutter app against `PLAN.md` gave a list of gaps in the Day Planner. This file takes each one: is it real, what was built, which tests prove it, and what is not verified.
 
-Branch `feat/xp-planner-gaps`, draft PR #15 into `feat/cross-platform-flutter`. The branch sits on top of `feat/xp-screens` (draft PR #11), so PR #11 goes first.
+Branch `feat/xp-planner-gaps`, draft PR #15 into `feat/cross-platform-flutter`. The branch was made on top of `feat/xp-screens` (PR #11). PR #11 and PR #13 are merged now, and `feat/cross-platform-flutter` (`b7a20b9`) is merged into this branch (`096e994`). So PR #15 waits for no other PR.
 
-Check: `./scripts/flutter_test.sh` (2026-10-11: 2229 tests passed, analyze clean, format clean). 152 of them are new here. Before this branch there were 2031; 46 more came with the merge of `feat/xp-screens`. Device check: `app/integration_test/planner_test.dart`, 7 new tests, 16 in all. CI run: see "CI" below.
+Check: `./scripts/flutter_test.sh` (2026-10-11, on `096e994`: 2250 tests passed, analyze clean, format clean). 152 of them are new here. Before this branch there were 2031; 46 more came with the merge of `feat/xp-screens`, and 21 more with the merge of `feat/cross-platform-flutter` (the engine requests of PR #13). Device check: `app/integration_test/planner_test.dart`, 7 new tests, 16 in all. CI run: see "CI" below.
 
 For each gap I looked at the code first. The claims came from a check by another helper, so they were second-hand.
 
@@ -131,30 +131,31 @@ The check said: "overlaps cascade in layers, not equal columns". That is true, a
 
 ## CI
 
-Commit `00974f7` (the last commit with code: the merge of `feat/xp-screens` on top of `b2f1e5b`), workflow `flutter`, 2026-10-11.
+Commit `096e994` (the head with all code: the merge of `feat/cross-platform-flutter`, `b7a20b9`, into this branch), workflow `flutter`, 2026-10-11. The merge changed no planner file.
 
-Run 38146389696 (pull request #15): green on the 4 jobs.
+Run 38157016863 (push) and run 38157020499 (pull request #15): both green on the 4 jobs at the first try. The numbers are the same in the two runs.
 
 | Job | Test | Build | Integration test (16 tests) |
 |---|---|---|---|
-| `build (ubuntu-latest, android)`, Android emulator | pass (2228, 1 skipped) | pass | pass (13, 3 skipped) |
-| `build (windows-latest, windows)` | pass (2228, 1 skipped) | pass | pass (15, 1 skipped) |
-| `build (macos-latest, macos)` | pass (2229) | pass | pass (15, 1 skipped) |
-| `build (macos-latest, ios)`, iPhone simulator | pass (2229) | pass | pass (13, 3 skipped) |
+| `build (ubuntu-latest, android)`, Android emulator | pass (2249, 1 skipped) | pass | pass (13, 3 skipped) |
+| `build (windows-latest, windows)` | pass (2249, 1 skipped) | pass | pass (15, 1 skipped) |
+| `build (macos-latest, macos)` | pass (2250) | pass | pass (15, 1 skipped) |
+| `build (macos-latest, ios)`, iPhone simulator | pass (2250) | pass | pass (13, 3 skipped) |
 
 The skips are on purpose. On Linux and Windows one golden picture of F9 is parked (Q-17). On the phones the 3 device tests that need a mouse and a keyboard are skipped. On the computers the pinch with two fingers is skipped.
 
-Run 38146327066 (push) of the same commit: android, windows and ios were green at the first try. The macOS job was red at the first try: 2228 tests passed and 1 failed, in the step "Test". I ran that one job again (`gh run rerun 38146327066 --failed`) with no change of code, and it was green. So this run is green on the 4 jobs after one second try of one job.
-
-- The red test was `app/test/state/sync_store_test.dart`, "a change goes to the account some moments later" (line 341: expected 0, got 1). It is Track A's test, and not a planner test. It is the same test that failed once before on a slow CI machine (see `docs/tracks.md`, "a test of yours failed once on the CI"). I did not touch it.
-- No golden picture failed. The 4 new pictures against the limit of 0.2 %:
+No golden picture failed. The 4 new pictures against the limit of 0.2 % (from the job logs of run 38157016863):
 
 | Picture | Linux | Windows | macOS, iOS job |
 |---|---|---|---|
-| `planner_subtasks_grove_light.png` | 0.096 % | 0.094 % | 0.000 % |
-| `planner_focus_done_grove_light.png` | 0.032 % | 0.041 % | 0.000 % |
-| `focus_card_grove_light.png` | 0.006 % | 0.016 % | 0.000 % |
-| `focus_card_futuristic_dark.png` | 0.006 % | 0.000 % | 0.000 % |
+| `planner_subtasks_grove_light.png` | 0.094 % | 0.096 % | 0.000 % |
+| `planner_focus_done_grove_light.png` | 0.041 % | 0.032 % | 0.000 % |
+| `focus_card_grove_light.png` | 0.016 % | 0.006 % | 0.000 % |
+| `focus_card_futuristic_dark.png` | 0.000 % | 0.006 % | 0.000 % |
+
+Before the merge, commit `00974f7` (the merge of `feat/xp-screens` on top of `b2f1e5b`): run 38146389696 (pull request #15) was green on the 4 jobs (2229 tests; 2228 and 1 skipped on Linux and Windows). Run 38146327066 (push) was green on android, windows and ios at the first try. Its macOS job was red at the first try: 2228 tests passed and 1 failed, in the step "Test". That one job ran again (`gh run rerun 38146327066 --failed`) with no change of code, and it was green.
+
+- The red test was `app/test/state/sync_store_test.dart`, "a change goes to the account some moments later" (line 341: expected 0, got 1). It is Track A's test, and not a planner test. It is the same test that failed once before on a slow CI machine (see `docs/tracks.md`, "a test of yours failed once on the CI"). Nobody touched it here. Track A's fix (`5936405`) came with the merge of PR #13, and the test passed in the 8 jobs of `096e994`.
 
 ## Notes
 
