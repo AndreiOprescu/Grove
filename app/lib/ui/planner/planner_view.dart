@@ -1,6 +1,8 @@
 // Port of Sources/Grove/Planner/PlannerView.swift: the time grid with its
 // header. `PlannerKind.week` is the Planner screen. `PlannerKind.today` is
 // the timeline of one day: a small header and no day names.
+// `PlannerKind.month` is the Calendar screen: the same header over the grid
+// of the month.
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -10,13 +12,13 @@ import 'package:grove/core/model/event.dart';
 import 'package:grove/core/planner/planner_math.dart';
 import 'package:grove/state/state.dart' hide MotionRules;
 
+import '../calendar/month_view.dart';
 import '../shell/shell_layout.dart';
 import '../theme/grove_theme.dart';
 import '../theme/named_colors.dart';
 import '../theme/panel.dart';
 import '../theme/symbols.dart';
 import 'day_columns.dart';
-import 'planner_clock.dart';
 import 'planner_dialogs.dart';
 import 'planner_geometry.dart';
 import 'planner_grid.dart';
@@ -25,8 +27,10 @@ import 'sticky_strip.dart';
 import 'workload.dart';
 
 class PlannerView extends StatefulWidget {
-  const PlannerView({super.key, required this.store, required this.kind})
-    : assert(kind != PlannerKind.month, 'The month has its own screen.');
+  const PlannerView({super.key, required this.store, required this.kind});
+
+  /// The setting of the mood colours of the month.
+  static const moodTintKey = 'calendar.moodTint';
 
   final AppStore store;
   final PlannerKind kind;
@@ -159,7 +163,7 @@ class _PlannerViewState extends State<PlannerView> {
       ? [_store.selectedDay]
       : _kind.days(
           selected: _store.selectedDay,
-          today: _store.plannerToday,
+          today: _store.clockToday,
           sundayFirst: _store.weekStartsSunday,
         );
 
@@ -170,12 +174,16 @@ class _PlannerViewState extends State<PlannerView> {
   }
 
   void _goToday() {
-    _store.selectedDay = _store.plannerToday;
+    _store.selectedDay = _store.clockToday;
     setState(() => _scrollRequest += 1);
   }
 
   String _title(BuildContext context, List<DayKey> days) {
     if (_kind == PlannerKind.today) return 'Timeline';
+    if (_kind == PlannerKind.month) {
+      final day = _store.selectedDay;
+      return '${NotesRules.months[day.month - 1]} ${day.year}';
+    }
     if (days.length == 1) return NotesRules.longDay(days.first);
     return '${NotesRules.shortDate(days.first)} – '
         '${NotesRules.shortDate(days.last)} ${days.last.year}';
@@ -191,8 +199,35 @@ class _PlannerViewState extends State<PlannerView> {
         ShellRules.layoutFor(MediaQuery.sizeOf(context).width) ==
         ShellLayout.phone;
     final pad = phone ? 12.0 : 16.0;
-    final events = _store.allDayEvents(DayRange(days.first, days.last));
     final corners = BorderRadius.circular(theme.radius);
+    if (_kind == PlannerKind.month) {
+      return Padding(
+        padding: EdgeInsets.fromLTRB(pad, 6, pad, pad),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          spacing: 10,
+          children: [
+            _header(context, theme, days),
+            Expanded(
+              child: Panel(
+                child: ClipRRect(
+                  borderRadius: corners,
+                  child: MonthView(
+                    store: _store,
+                    moodTint: _moodTint,
+                    // A click on a day opens the Planner on that week.
+                    openDay: (day) => _store
+                      ..selectedDay = day
+                      ..screen = Screen.planner,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+    final events = _store.allDayEvents(DayRange(days.first, days.last));
     final content = Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       spacing: 10,
@@ -258,7 +293,43 @@ class _PlannerViewState extends State<PlannerView> {
     );
   }
 
+  bool get _moodTint => _store.prefs.getBool(PlannerView.moodTintKey) ?? false;
+
+  /// The numbers of the month: its events and its open tasks.
+  String get _monthStats {
+    final grid = _kind.days(
+      selected: _store.selectedDay,
+      today: _store.clockToday,
+      sundayFirst: _store.weekStartsSunday,
+    );
+    final info = _store.dayInfo(DayRange(grid.first, grid.last));
+    final month = _store.selectedDay.month;
+    final events = <String>{};
+    var tasks = 0;
+    for (final day in grid) {
+      if (day.month != month) continue;
+      events.addAll([
+        for (final e in info[day]?.events ?? const <EventItem>[]) e.id,
+      ]);
+      tasks += info[day]?.openTasks ?? 0;
+    }
+    return '${events.length} event${events.length == 1 ? '' : 's'} · '
+        '$tasks open task${tasks == 1 ? '' : 's'}';
+  }
+
+  /// Under the title: the workload bar for a day, the numbers of the month
+  /// for the month.
   Widget _stats() {
+    if (_kind == PlannerKind.month) {
+      final theme = GroveTheme.of(context);
+      return Text(
+        _monthStats,
+        key: const ValueKey('month-stats'),
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: theme.body(11).copyWith(color: theme.muted),
+      );
+    }
     final t = _totals;
     return WorkloadBar(
       planned: t.planned,
@@ -294,7 +365,7 @@ class _PlannerViewState extends State<PlannerView> {
       ),
       _HeaderButton(
         label: 'Note for the day',
-        tooltip: day == _store.plannerToday
+        tooltip: day == _store.clockToday
             ? "Today's note"
             : 'Note for ${NotesRules.weekdayName(day)} '
                   '${NotesRules.shortDate(day)}',
@@ -388,7 +459,20 @@ class _PlannerViewState extends State<PlannerView> {
     ],
   );
 
-  Widget _planButton({required bool compact, bool small = false}) => compact
+  Widget _planButton({required bool compact, bool small = false}) =>
+      _kind == PlannerKind.month
+      ? _HeaderButton(
+          key: const ValueKey('mood-tint'),
+          label: 'Tint days by mood',
+          tooltip: 'Tint each day by the mood of its note',
+          icon: symbolIcon('face.smiling'),
+          active: _moodTint,
+          onTap: () {
+            _store.prefs.set(PlannerView.moodTintKey, !_moodTint);
+            setState(() {});
+          },
+        )
+      : compact
       ? _HeaderButton(
           key: const ValueKey('plan-my-day'),
           label: 'Plan my day',
@@ -408,24 +492,26 @@ class _PlannerViewState extends State<PlannerView> {
         );
 
   List<Widget> _zoomButtons({bool small = false}) => [
-    _HeaderButton(
-      label: 'Zoom out',
-      tooltip: 'Zoom out',
-      icon: Icons.zoom_out,
-      small: small,
-      onTap: () => _store.zoomPlanner(1 / 1.2),
-    ),
-    _HeaderButton(
-      label: 'Zoom in',
-      tooltip: 'Zoom in',
-      icon: Icons.zoom_in,
-      small: small,
-      onTap: () => _store.zoomPlanner(1.2),
-    ),
+    if (_kind != PlannerKind.month) ...[
+      _HeaderButton(
+        label: 'Zoom out',
+        tooltip: 'Zoom out',
+        icon: Icons.zoom_out,
+        small: small,
+        onTap: () => _store.zoomPlanner(1 / 1.2),
+      ),
+      _HeaderButton(
+        label: 'Zoom in',
+        tooltip: 'Zoom in',
+        icon: Icons.zoom_in,
+        small: small,
+        onTap: () => _store.zoomPlanner(1.2),
+      ),
+    ],
   ];
 
   Widget _dayHeaders(GroveTheme theme, List<DayKey> days) {
-    final today = _store.plannerToday;
+    final today = _store.clockToday;
     return DecoratedBox(
       decoration: BoxDecoration(
         border: Border(bottom: BorderSide(color: theme.line)),
@@ -523,6 +609,7 @@ class _HeaderButton extends StatelessWidget {
     this.icon,
     this.text,
     this.small = false,
+    this.active,
   }) : assert(icon != null || text != null, 'A picture or a word.');
 
   /// The name a screen reader says.
@@ -533,10 +620,14 @@ class _HeaderButton extends StatelessWidget {
   final String? text;
   final bool small;
 
+  /// A switch that is on or off. null is a plain button.
+  final bool? active;
+
   @override
   Widget build(BuildContext context) {
     final theme = GroveTheme.of(context);
     final icon = this.icon;
+    final on = active ?? false;
     final height = small ? 24.0 : 28.0;
     Widget button = MouseRegion(
       cursor: SystemMouseCursors.click,
@@ -545,9 +636,14 @@ class _HeaderButton extends StatelessWidget {
         onTap: onTap,
         child: DecoratedBox(
           decoration: BoxDecoration(
-            color: theme.surface2,
+            color: on
+                ? Color.alphaBlend(
+                    theme.accent.withValues(alpha: 0.22),
+                    theme.surface2,
+                  )
+                : theme.surface2,
             borderRadius: BorderRadius.circular(7),
-            border: Border.all(color: theme.line),
+            border: Border.all(color: on ? theme.accent : theme.line),
           ),
           child: ConstrainedBox(
             constraints: BoxConstraints(minWidth: height, minHeight: height),
@@ -557,7 +653,11 @@ class _HeaderButton extends StatelessWidget {
                 widthFactor: 1,
                 heightFactor: 1,
                 child: icon != null
-                    ? Icon(icon, size: small ? 14 : 16, color: theme.ink)
+                    ? Icon(
+                        icon,
+                        size: small ? 14 : 16,
+                        color: on ? theme.accent : theme.ink,
+                      )
                     : Text(
                         text!,
                         maxLines: 1,
@@ -581,6 +681,7 @@ class _HeaderButton extends StatelessWidget {
       container: true,
       excludeSemantics: true,
       button: true,
+      toggled: active,
       label: label,
       tooltip: tooltip,
       onTap: onTap,

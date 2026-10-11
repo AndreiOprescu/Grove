@@ -99,3 +99,21 @@ Who can make an account in your Supabase project? The address and the public key
 A) Only you — after your first login you turn off "Allow new users to sign up" in Supabase. Nobody else can sign in.   ← my pick: Grove is for one user, and the free plan is yours.
 B) Each person who has the app — a person sees only their own rows, but uses the space and the emails of your project.
 If no answer: sign-up stays open, as Supabase makes a new project. The step for A is in `docs/acceptance/F11-login.md`. The code is the same for both.
+
+## Q-15 · OPEN · ASK · blocks F9 (add an image to a note) · 2026-10-11
+May Grove use the package `file_selector` (from the Flutter team) to pick an image file? It is not on the plan's list.
+A) Yes — "Add an image" works in notes and in the notes of an event, on the 4 systems. One new package.   ← my pick: the plan wants images in the editor, and Flutter has no file window of its own.
+B) No — a note shows the images it has, but you cannot add one in the Flutter app.
+If no answer: B stays. The button "Add an image" is hidden. The editor is ready for it: it takes the picker as one parameter.
+
+## Q-16 · OPEN · ASK · blocks F9 (web links in a note) · 2026-10-11
+May Grove use the package `url_launcher` (from the Flutter team) to open a web link in the browser? It is not on the plan's list.
+A) Yes — a click on a web link in a note opens the browser. One new package.   ← my pick: a link that does nothing looks broken.
+B) No — a web link has the look of a link, and a click does nothing.
+If no answer: B stays. Links to tasks, notes and events (`[[`) work now; they need no package.
+
+## Q-17 · OPEN · ASK · blocks F9 (one golden picture on Linux and Windows) · 2026-10-11
+The futuristic Day Spread picture is 0.203 % (Windows) and 0.210 % (Linux) off the macOS picture, and the limit is 0.2 %. Nothing moved. May the compare let a thin gap between two letters or two lines pass?
+A) Yes — the compare also takes a gap of 1 to 2 pixels between two letters or two lines as a soft edge. The limit stays 0.2 %. The picture runs on all 4 jobs again, and the pictures at 0.196 % and 0.197 % get room.   ← my pick: the cause is the box font of the tests, not the app.
+B) No — the compare stays. The picture gets less on it until it passes. A new heading can push a picture over again.
+If no answer: the compare and the limit stay. `spread_desktop_futuristic_light.png` is checked on the macOS and iOS jobs only; the test is skipped on Linux and Windows (`_parked` in `app/test/ui/goldens/f9_golden_test.dart`).

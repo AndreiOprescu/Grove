@@ -1,6 +1,7 @@
 // The Day Planner on a real device (milestone F7): create, drag, resize,
-// overlap and undo. It runs on the Mac, on Windows, on an iOS simulator and
-// on an Android emulator:
+// overlap and undo. Then the screens of milestone F9: the Day Spread, the
+// card of an event and a note. It runs on the Mac, on Windows, on an iOS
+// simulator and on an Android emulator:
 //   ./scripts/flutter_integration.sh macos|windows|ios|android
 //
 // A phone uses a finger: press, hold, then drag. A computer uses the mouse.
@@ -12,9 +13,16 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:grove/core/model/day_key.dart';
+import 'package:grove/core/model/task.dart';
 import 'package:grove/data/data.dart';
 import 'package:grove/state/state.dart';
+import 'package:grove/ui/calendar/event_editor.dart';
+import 'package:grove/ui/calendar/month_view.dart';
+import 'package:grove/ui/notes/note_editor_pane.dart';
+import 'package:grove/ui/shell/shell_layout.dart';
+import 'package:grove/ui/spread/day_spread_view.dart';
 import 'package:grove/ui/store_app.dart';
+import 'package:grove/ui/tasks/task_inspector.dart';
 import 'package:integration_test/integration_test.dart';
 
 /// A Wednesday. "Now" is 11:00 on this day, so the grid opens at 10:00.
@@ -65,6 +73,19 @@ PlannerBlock _named(AppStore store, String title) => store
 Finder _block(String id) => find.byKey(ValueKey('block-$id'));
 
 Finder _column(DayKey day) => find.byKey(ValueKey('day-column-${day.string}'));
+
+Finder _key(String name) => find.byKey(ValueKey(name));
+
+/// The text field inside the widget with this key.
+Finder _field(String name) =>
+    find.descendant(of: _key(name), matching: find.byType(EditableText));
+
+/// A phone shows one part of a screen at a time.
+bool _phone(WidgetTester tester) =>
+    ShellRules.layoutFor(
+      tester.view.physicalSize.width / tester.view.devicePixelRatio,
+    ) ==
+    ShellLayout.phone;
 
 /// The point of the day column at `minute`, in window points.
 Offset _at(WidgetTester tester, AppStore store, DayKey day, int minute) {
@@ -252,5 +273,84 @@ void main() {
     // Let the short message at the bottom of the window go away.
     await tester.pump(const Duration(milliseconds: 2500));
     await tester.pumpAndSettle();
+  });
+
+  testWidgets('today: the Day Spread opens, a tap on a task opens its panel', (
+    tester,
+  ) async {
+    final store = _store()..screen = Screen.today;
+    store.repos.tasks.save(
+      TaskItem(
+        id: 'report',
+        title: 'Write the report',
+        bucket: TaskBucket.day,
+        planDate: wednesday,
+      ),
+    );
+    store.repos.tasks.save(
+      TaskItem(id: 'bread', title: 'Buy bread', bucket: TaskBucket.inbox),
+    );
+    await _open(tester, store);
+    expect(find.byType(DaySpreadView), findsOneWidget);
+    expect(find.text('Wednesday 7 October'), findsOneWidget);
+    expect(_column(wednesday), findsOneWidget);
+
+    // A wide window has the tasks of today beside the timeline. A phone has
+    // the tasks in the panel at the left.
+    var row = 'task-report';
+    if (_phone(tester)) {
+      store.leftPane = LeftPane.tasks;
+      await tester.pumpAndSettle();
+      row = 'task-bread';
+    }
+    expect(_key(row).hitTestable(), findsOneWidget);
+    await tester.tap(_key(row));
+    await tester.pumpAndSettle();
+    expect(store.selectedTaskId, row.substring('task-'.length));
+    expect(find.byType(TaskInspector), findsOneWidget);
+  });
+
+  testWidgets('calendar: the card of a new event saves the event', (
+    tester,
+  ) async {
+    final store = _store()..screen = Screen.calendar;
+    await _open(tester, store);
+    expect(find.byType(MonthView), findsOneWidget);
+
+    final day = wednesday.adding(days: 8);
+    store.newEvent(on: day);
+    await tester.pumpAndSettle();
+    expect(find.byType(EventEditor), findsOneWidget);
+    await tester.enterText(_field('event-title'), 'Dentist');
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(_key('event-save'));
+    await tester.pumpAndSettle();
+    await tester.tap(_key('event-save'));
+    await tester.pumpAndSettle();
+    expect(find.byType(EventEditor), findsNothing);
+    final saved = store.eventItems(DayRange(day, day)).single;
+    expect(saved.title, 'Dentist');
+    expect(saved.allDay, isTrue);
+    expect(find.text('Dentist'), findsOneWidget);
+  });
+
+  testWidgets('notes: the text of a note is saved a moment after typing', (
+    tester,
+  ) async {
+    final store = _store()..screen = Screen.notes;
+    await _open(tester, store);
+    expect(find.text('No notes here yet.'), findsOneWidget);
+
+    await tester.tap(_key('notes-new'));
+    await tester.pumpAndSettle();
+    final note = store.notes().single;
+    expect(store.selectedNoteId, note.id);
+    expect(find.byType(NoteEditorPane), findsOneWidget);
+
+    await tester.enterText(_field('note-text'), 'Hello from the device');
+    await tester.pump();
+    await tester.pump(NoteEditorPane.saveDelay);
+    await tester.pumpAndSettle();
+    expect(store.note(note.id)!.body, 'Hello from the device');
   });
 }

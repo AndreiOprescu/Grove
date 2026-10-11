@@ -20,7 +20,6 @@ import '../theme/named_colors.dart';
 import '../theme/theme_math.dart';
 import 'block_view.dart';
 import 'inline_title_field.dart';
-import 'planner_clock.dart';
 import 'planner_geometry.dart';
 
 /// A move or a resize that runs now. Nothing is saved until it ends.
@@ -313,7 +312,7 @@ class PlannerGridState extends State<PlannerGrid> {
 
   /// On a whole point, so the blocks and their text are drawn sharp.
   double get _nowTarget =>
-      max(0, _geo.y(max(0, _store.plannerNow - 60))).roundToDouble();
+      max(0, _geo.y(max(0, _store.nowMinute() - 60))).roundToDouble();
 
   /// Puts "now" one hour below the top of the grid.
   void scrollToNow({required bool animated}) {
@@ -756,7 +755,7 @@ class PlannerGridState extends State<PlannerGrid> {
       return KeyEventResult.handled;
     }
     if (key == LogicalKeyboardKey.keyN && !shift) {
-      final today = _store.plannerToday;
+      final today = _store.clockToday;
       final day = _days.contains(today) ? today : _days.first;
       final slot = _store.nextFreeSlot(
         day: day,
@@ -1060,8 +1059,8 @@ class PlannerGridState extends State<PlannerGrid> {
 
   List<Widget> _layerWidgets(GroveTheme theme, PlannerGeometry geo) {
     const gutter = PlannerGeometry.gutterWidth;
-    final today = _store.plannerToday;
-    final now = _store.plannerNow;
+    final today = _store.clockToday;
+    final now = _store.nowMinute();
     final todayIndex = _days.indexOf(today);
     final indents = _indents(geo);
 
