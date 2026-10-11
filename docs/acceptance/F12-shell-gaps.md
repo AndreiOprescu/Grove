@@ -32,7 +32,7 @@ Built:
 - Cmd+K (Ctrl+K on Windows and Android) opens and closes it (`app/lib/ui/app.dart`, `ShellKeys`).
 - A phone gets the search picture with no word, and a box as wide as the screen allows.
 
-Tests: `app/test/ui/shell/command_palette_test.dart` (26 tests), 8 pictures `palette_*.png` in `app/test/ui/goldens/` (`f12_shell_golden_test.dart`). The top strip changed, so 64 older pictures with the whole window were made again and looked at.
+Tests: `app/test/ui/shell/command_palette_test.dart` (26 tests), 8 pictures `palette_*.png` in `app/test/ui/goldens/` (`f12_shell_golden_test.dart`). The top strip changed, so 64 older pictures with the whole window were made again and looked at. After the merge of the base on 2026-10-12, 2 more pictures were made again for the same cause and looked at: `planner_subtasks_grove_light.png` and `planner_focus_done_grove_light.png` in `app/test/ui/planner/goldens/`; only the top strip is different.
 
 Not verified: the palette with a real keyboard on Windows, Android and iOS.
 
