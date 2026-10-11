@@ -19,6 +19,12 @@ typedef ScreenBuilder = Widget? Function(BuildContext context, Screen screen);
 /// Builds a left panel. null leaves the stand-in of the shell in place.
 typedef PaneBuilder = Widget? Function(BuildContext context, LeftPane pane);
 
+/// Builds what stands in front of the Appearance button.
+typedef TopActionBuilder = Widget? Function(
+  BuildContext context,
+  ShellLayout layout,
+);
+
 class RootView extends StatelessWidget {
   const RootView({
     super.key,
@@ -26,6 +32,8 @@ class RootView extends StatelessWidget {
     this.screenBuilder,
     this.paneBuilder,
     this.shortcuts,
+    this.onSettings,
+    this.topActions,
   });
 
   final ShellModel model;
@@ -35,9 +43,18 @@ class RootView extends StatelessWidget {
   /// More shortcuts for the whole window, for example Undo.
   final Map<ShortcutActivator, VoidCallback>? shortcuts;
 
+  /// Opens the Settings window. With null there is no "Settings…" in the
+  /// menu and no shortcut.
+  final void Function(BuildContext context)? onSettings;
+
+  /// A small thing in front of the Appearance button, for example the sync
+  /// mark. null shows nothing.
+  final TopActionBuilder? topActions;
+
   /// The shortcuts of the View menu of the Mac app. Command on Apple
   /// devices, Ctrl on the others.
-  Map<ShortcutActivator, VoidCallback> get _shortcuts {
+  Map<ShortcutActivator, VoidCallback> _shortcuts(BuildContext context) {
+    final onSettings = this.onSettings;
     final apple =
         defaultTargetPlatform == TargetPlatform.macOS ||
         defaultTargetPlatform == TargetPlatform.iOS;
@@ -50,6 +67,9 @@ class RootView extends StatelessWidget {
       key(LogicalKeyboardKey.digit3): () => model.screen = Screen.calendar,
       key(LogicalKeyboardKey.digit4): () => model.screen = Screen.notes,
       key(LogicalKeyboardKey.digit5): () => model.screen = Screen.garden,
+      // Swift: the Settings scene, Command and comma.
+      if (onSettings != null)
+        key(LogicalKeyboardKey.comma): () => onSettings(context),
       ...?shortcuts,
     };
   }
@@ -73,7 +93,7 @@ class RootView extends StatelessWidget {
       final layout = ShellRules.layoutFor(width);
       final pane = LeftPane.isAvailable(model.screen) ? model.leftPane : null;
       return CallbackShortcuts(
-        bindings: _shortcuts,
+        bindings: _shortcuts(context),
         child: Focus(
           autofocus: true,
           child: Scaffold(
@@ -101,6 +121,22 @@ class RootView extends StatelessWidget {
     },
   );
 
+  Widget _topRight(BuildContext context, ShellLayout layout) {
+    final onSettings = this.onSettings;
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      spacing: 6,
+      children: [
+        ?topActions?.call(context, layout),
+        AppearanceButton(
+          model: model,
+          layout: layout,
+          onSettings: onSettings == null ? null : () => onSettings(context),
+        ),
+      ],
+    );
+  }
+
   Widget _desktop(BuildContext context, double width, LeftPane? pane) =>
       SafeArea(
         child: Column(
@@ -124,7 +160,7 @@ class RootView extends StatelessWidget {
                   Positioned(
                     right: 16,
                     top: 5,
-                    child: AppearanceButton(model: model),
+                    child: _topRight(context, ShellLayout.desktop),
                   ),
                 ],
               ),
@@ -163,7 +199,7 @@ class RootView extends StatelessWidget {
               children: [
                 LeftDock(model: model, layout: ShellLayout.phone),
                 const Spacer(),
-                AppearanceButton(model: model, layout: ShellLayout.phone),
+                _topRight(context, ShellLayout.phone),
               ],
             ),
           ),

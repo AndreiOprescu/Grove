@@ -68,6 +68,12 @@ extension AppStoreNotes on AppStore {
     return _sorted(out, (a, b) => compareIgnoringCase(a.title, b.title));
   }
 
+  /// Saves a note with the time of the store's clock as its last change
+  /// ([AppStore.clockStamp]). The repo alone takes the real clock, so a test
+  /// or a picture with a fixed clock would show the real day.
+  void _saveNote(Note n) =>
+      repos.notes.save(n.copyWith(updatedAt: clockStamp()), touch: false);
+
   // Daily and weekly notes
 
   /// The note of a day. It is made the first time it is asked for. That is not
@@ -80,8 +86,9 @@ extension AppStoreNotes on AppStore {
       body: template(NoteKind.daily),
       kind: NoteKind.daily,
       date: day,
+      createdAt: clockStamp(),
     );
-    _try(() => repos.notes.save(n));
+    _try(() => _saveNote(n));
     _bump();
     return n;
   }
@@ -99,8 +106,9 @@ extension AppStoreNotes on AppStore {
       body: template(NoteKind.weekly),
       kind: NoteKind.weekly,
       date: monday,
+      createdAt: clockStamp(),
     );
-    _try(() => repos.notes.save(n));
+    _try(() => _saveNote(n));
     _bump();
     return n;
   }
@@ -128,6 +136,7 @@ extension AppStoreNotes on AppStore {
     final n = Note(
       title: title ?? NotesRules.untitled(existing: existing),
       body: body,
+      createdAt: clockStamp(),
     );
     commit(Mutation('New Note')..notes.add((before: null, after: n)));
     openNote(n.id);
@@ -180,6 +189,7 @@ extension AppStoreNotes on AppStore {
     final copy = Note(
       title: NotesRules.copyTitle(old.title, existing: existing),
       body: NoteParser.withoutMarkers(old.body),
+      createdAt: clockStamp(),
     );
     commit(Mutation('Duplicate Note')..notes.add((before: null, after: copy)));
     openNote(copy.id);

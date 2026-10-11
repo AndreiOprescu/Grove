@@ -304,7 +304,63 @@ file, the plan, and `docs/assumptions.md` before it starts.
   links (Q-16). CI is green on the 4 jobs, with the device test (8 tests) in
   each: run 38132697606, commit `c62116b`, 2026-10-11. One golden picture
   (the futuristic Day Spread) is skipped on Linux and Windows; Q-17 asks the
-  owner.
+  owner. The owner merged PR #10 at `a6a52c0`. After that, three agents
+  checked F9 (a verifier and two reviewers). Their findings are fixed in
+  `1bfbce9`, `c0c0871` and `2634cfb` on `feat/xp-screens`; these commits are
+  in no merged PR yet. The runs are in `docs/acceptance/F9.md`, "CI".
+- F10-screens: built, waits for the user (proof:
+  `docs/acceptance/F10-screens.md`): the Garden, the growing plant (the big
+  one, and the small one in the header of the Day Spread) and the Settings
+  window with 6 tabs. "Export" and "Import" are built and hidden (Q-18).
+  "Show data folder" and "Open System Settings" are not there (Q-16). The CI
+  runs are in the proof file, "CI".
+- Answers to "Requests to Track B, with F11-login", the F10 part
+  (2026-10-11):
+  - The sync card: Settings, tab "Sync" (`SyncSettings` in
+    `app/lib/ui/settings/settings_tabs.dart`). Settings opens from the last
+    line of the Appearance menu and with Cmd or Ctrl and comma.
+  - The gate: `FirstSyncGate(store: store, child: ...)` is around `RootView`
+    in `store_app.dart`, under the navigator (`GroveApp.homeBuilder`, a new
+    optional parameter in the shared file `app/lib/ui/app.dart`). The
+    question opens with and without the Settings window.
+  - The sync mark: `SyncMark` in `app/lib/ui/settings/sync_mark.dart`, in
+    front of the Appearance button. It shows nothing for `SyncStatus.off`. A
+    tap opens Settings on the Sync tab. Its tooltip is
+    `SyncWords.status(store, now: ...)`; for an error it says "The last sync
+    did not work. Open Settings to see why."
+  - `store.askForNotifications()`: the Notifications tab calls it the first
+    time the switch goes on, and from the button "Allow notifications". The
+    tab calls `store.refreshNotifyStatus()` when it opens.
+  - The tests of these parts use your `World`, `stillDevice` and
+    `signInWithCard` (`app/test/ui/settings/settings_sync_test.dart`). No
+    test calls a real project. I did not touch `app/lib/ui/auth/`.
+- Requests to Track A, with F10-screens:
+  - A store call that saves a view setting and tells the screens. The
+    Planner tab of Settings writes `planner.defaultLength`,
+    `planner.hourHeight`, `planner.workStart`, `planner.workEnd`,
+    `planner.dailyLimitMin`, `calendar.moodTint` and
+    `calendar.weekStartsSunday` with `store.prefs.set(...)`, and then calls
+    `store.setIntensity(store.intensity)` only to make the store tell the
+    screens (`saveSetting` in `settings_tabs.dart`). One call, for example
+    `store.setSetting(key, value)`, would be cleaner. I change over when it
+    is there.
+  - Import with sync signed in. `DataSettings` calls
+    `store.saveSafetyCopy()` and then `store.importData(text)`. What must
+    happen to the account then is yours and the owner's to decide (a note is
+    in Q-18). The two buttons are hidden in the real app until Q-18 has an
+    answer, so nothing can go wrong today.
+  - `SettingsRules.notifyStatusText(denied)` says "System Settings" on each
+    system. On Windows and Android the place has another name. Your string;
+    change it if you want.
+- For Track A to know (F10-screens):
+  - The small plant is `GrowingPlant(progress: store.plantProgress, motion:
+    store.motionSetting)` in `app/lib/ui/theme/growing_plant.dart`, if you
+    want it in a panel.
+  - `SettingsRow`, `SettingsSection`, `GroveSwitch` and `SettingsSlider` are
+    in `app/lib/ui/settings/settings_parts.dart`.
+  - `RootView` and `GroveApp` have two new optional parameters:
+    `onSettings` and `topActions` (a small thing in front of the Appearance
+    button).
 - Answers to "Requests to Track B, with F8", the F9 part (2026-10-11):
   - Day Spread: the Today screen is `DaySpreadView(store: store)` in
     `app/lib/ui/spread/day_spread_view.dart`. Its first column is your
@@ -450,12 +506,28 @@ file, the plan, and `docs/assumptions.md` before it starts.
     day. My golden test saves its notes by hand with
     `repos.notes.save(note, touch: false)`. If you want one clock here too:
     let the store give the stamp to the note before the save. Not urgent.
+    **Done by Track A, 2026-10-11, commit `5936405`:** the store gives the
+    stamp (`clockStamp()`) when it makes a note and at each change, undo and
+    redo. Tests: group "the stamps of a note" in
+    `app/test/state/clock_store_test.dart`. `NoteRepo.save` and `Note(...)`
+    are not changed, so your golden test can stay as it is, or use the store
+    calls now.
   - New with F9, the description of a task: when you put `RichTextField` in
     `task_inspector.dart`, the pictures of your panel change. Look at them
     after `--update-goldens`.
+    **Done by Track A, 2026-10-11, commit `17c78eb`:** the description is
+    `RichTextField` (key `inspector-notes` is on a `KeyedSubtree` around it),
+    with the words and the height of the Mac app, one editor for each task,
+    and services made one time for each task. No box around it. I made the 9
+    pictures with the panel again and looked at each one. Tests: group "the
+    text of the task" in `app/test/ui/tasks/task_inspector_test.dart`. Your
+    file `rich_text_field.dart` is not changed.
   - New with F9, images: `EditorServices.storeImage` is used by the editor,
     but no screen can pick a file yet (Q-15). Nothing to do before the
     answer.
+    **Track A, 2026-10-11:** nothing done, it waits for Q-15. The
+    description of a task has no "Add an image" button (`pickImages` is not
+    given).
   - New with F9, a test of yours failed once on the CI: "a change goes to the
     account some moments later" (`app/test/state/sync_store_test.dart`, line
     341: expected 0, got 1). Run 38132694388, job `build (macos-latest, ios)`,
@@ -464,6 +536,13 @@ file, the plan, and `docs/assumptions.md` before it starts.
     the timer of the store has not started the sync yet, so `idle` comes back
     at once. Please make it wait for the sync, not for the clock. I did not
     touch it.
+    **Done by Track A, 2026-10-11, commit `5936405`:** no test in
+    `sync_store_test.dart` waits for real time now. The store takes its
+    timers from `newTimer`; the tests give it `ManualTimers`
+    (`app/test/state/support.dart`) and move the time with `World.pass`. The
+    test checks: nothing goes out one tick before the wait ends, one push
+    goes out at its end. Tests of the timers:
+    `app/test/state/manual_timers_test.dart`.
   - New with F9, golden pictures close to the limit on Linux (limit 0.2 %):
     your `today_list_futuristic_light.png` is at 0.196 % and
     `tasks_desktop_futuristic_light.png` at 0.167 %; my
@@ -473,3 +552,39 @@ file, the plan, and `docs/assumptions.md` before it starts.
     They pass today. I parked one picture of mine on Linux and Windows
     (`_parked` in `app/test/ui/goldens/f9_golden_test.dart`); the limit did
     not change.
+    **Track A, 2026-10-11: looked at, nothing changed.** I found no text and
+    no line of my panels that sits on parts of a pixel and is counted. The
+    limit and `TolerantGoldenComparator` are not touched. Proof: a test that
+    is gone again (commits `b516245` and `1c3192c`) printed in the CI log
+    where the counted pixels are, with the rule of the compare. Runs
+    38141847400 and 38143266322, lines `WHERE` in the android (Linux) and
+    windows jobs. Its sums are the same as the sums of the compare.
+    - `today_list_futuristic_light.png` on Linux, 471 pixels (0.196 %): 216
+      in the gaps between the letters of the headings (the 1.5 of
+      `headingTracking`), 204 in the text of the button "Move to today", 51
+      in icons. On Windows, 252 pixels (0.105 %): 222 in the headings, 30 in
+      icons, 0 in the button.
+    - "Move to today": the box of the text is on whole pixels (x 46.00,
+      y 171.00, 143.00 x 11.00). Linux draws its letters about 1 pixel
+      higher than the Mac (rows 169 to 181, Mac 170 to 181). The compare
+      forgives 1 pixel, and this is a little more. It counts where the text
+      is light on a strong colour: 204 in minimal and futuristic, 16 in
+      grove, 0 in vintage. "Leave" beside it (dark on light) has the same
+      move and is not counted. I did not find why Linux puts it higher.
+    - `tasks_desktop_futuristic_light.png` on Linux, 1860 pixels (0.171 %;
+      0.167 % before the editor was in the panel): 852 in headings, 350 in
+      icons, 658 in other text. Of the 658, 7 are in my panel ("None"); the
+      rest is text of the planner and of the bar on top ("Drag a task
+      here…" 280, "Planner" 144, the names of the days).
+    - Vintage: the counted pixels are in the seams of the italic headings,
+      and on Linux also in one row under the text of some chips (190 pixels
+      in `tasks_desktop_vintage_light.png`). I did not find the cause of
+      that row. The pictures are at 0.131 % and 0.087 %.
+    - Text of my panels that sits on a part of a pixel in y ("1 of 5 done"
+      at 30.75, "Add a task…" at 77.75, "0/1" at 340.50) and the right end of
+      the progress bar (83.20) are not in the counted pixels, on Linux or on
+      Windows. So I did not move them.
+    - Not looked at: the pictures of Goals (0.103 % at most on Linux) and
+      the dark and small pictures.
+    For Q-17: answer A (gaps between letters) gives room for the 216 pixels
+    of the headings. I do not know if it covers the 204 of the button.

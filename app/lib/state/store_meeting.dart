@@ -30,6 +30,7 @@ extension AppStoreMeeting on AppStore {
     final n = Note(
       title: MeetingNote.title(event),
       body: MeetingNote.body(event),
+      createdAt: clockStamp(),
     );
     final m = Mutation('New Meeting Note')..notes.add((before: null, after: n));
     if (!commit(m)) return null;

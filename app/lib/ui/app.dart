@@ -15,6 +15,9 @@ class GroveApp extends StatefulWidget {
     this.screenBuilder,
     this.paneBuilder,
     this.shortcuts,
+    this.onSettings,
+    this.topActions,
+    this.homeBuilder,
   });
 
   final ShellModel? model;
@@ -23,6 +26,16 @@ class GroveApp extends StatefulWidget {
 
   /// More shortcuts for the whole window, for example Undo.
   final Map<ShortcutActivator, VoidCallback>? shortcuts;
+
+  /// Opens the Settings window. See `RootView.onSettings`.
+  final void Function(BuildContext context)? onSettings;
+
+  /// See `RootView.topActions`.
+  final TopActionBuilder? topActions;
+
+  /// Puts a widget around the window, under the navigator. For a thing that
+  /// opens a dialog by itself.
+  final Widget Function(BuildContext context, Widget home)? homeBuilder;
 
   @override
   State<GroveApp> createState() => _GroveAppState();
@@ -52,6 +65,15 @@ class _GroveAppState extends State<GroveApp> {
   @override
   Widget build(BuildContext context) {
     final model = _model;
+    final homeBuilder = widget.homeBuilder;
+    final Widget root = RootView(
+      model: model,
+      screenBuilder: widget.screenBuilder,
+      paneBuilder: widget.paneBuilder,
+      shortcuts: widget.shortcuts,
+      onSettings: widget.onSettings,
+      topActions: widget.topActions,
+    );
     return ListenableBuilder(
       listenable: model,
       builder: (context, _) => MaterialApp(
@@ -75,12 +97,9 @@ class _GroveAppState extends State<GroveApp> {
           ),
           child: child!,
         ),
-        home: RootView(
-          model: model,
-          screenBuilder: widget.screenBuilder,
-          paneBuilder: widget.paneBuilder,
-          shortcuts: widget.shortcuts,
-        ),
+        home: homeBuilder == null
+            ? root
+            : Builder(builder: (context) => homeBuilder(context, root)),
       ),
     );
   }
