@@ -1,6 +1,7 @@
 // The name a person sees is "Grove" on each system. The id of the app and
 // the names that make the data folder do not change: a change there would
-// start the app with an empty folder.
+// start the app with an empty folder. One exception, the owner's answer to
+// Q-40: the Windows product name got a capital G.
 //
 // These are the files of the native projects. The tests read them from the
 // folder `app/`, where `flutter test` runs.
@@ -128,10 +129,14 @@ void main() {
 
     // path_provider_windows makes the data folder from these two texts:
     // %APPDATA%\<CompanyName>\<ProductName>.
+    // The product name is "Grove" since the answer to Q-40 (2026-10-12). A
+    // normal Windows disk does not tell "grove" and "Grove" apart, so the
+    // folder is the same one there. The other names did not change.
     test('Windows: the two names of the data folder, and the file name', () {
       final rc = read('windows/runner/Runner.rc');
       expect(resourceValue(rc, 'CompanyName'), 'local.grove');
-      expect(resourceValue(rc, 'ProductName'), 'grove');
+      expect(resourceValue(rc, 'ProductName'), 'Grove');
+      expect(resourceValue(rc, 'InternalName'), 'grove');
       expect(resourceValue(rc, 'OriginalFilename'), 'grove.exe');
       expect(
         read('windows/CMakeLists.txt'),

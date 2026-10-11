@@ -17,7 +17,7 @@ No new package. No new entitlement. The app id did not change (`local.grove.grov
 | 2 | Keys and menus | Yes | Yes | Tests. The Mac menu bar was not looked at by eye. |
 | 3 | Errors of the store | Yes | Yes | Tests and pictures. |
 | 4 | Window size and title bar | Yes | Yes | Mac: device test on this Mac. Windows: device test on the CI. Not tried with a real mouse. |
-| 5 | The shown name "Grove" | Yes | Yes, but one text on Windows stays (Q-40) | Tests, a clean Mac build, CI builds. |
+| 5 | The shown name "Grove" | Yes | Yes. The Windows "Product name" too, since 2026-10-12 (Q-40: B) | Tests, a clean Mac build, CI builds. Not on a real Windows machine. |
 | 6 | Idle CPU | Yes | In part: the background and the plants | Measured, numbers below. The planner and Today are still high. |
 | 7 | "Show data folder" | Yes | Yes, Mac and Windows | Mac: one device check. Windows: not verified. |
 
@@ -85,6 +85,8 @@ Built: "Grove" in `app/macos/Runner/Configs/AppInfo.xcconfig` (`PRODUCT_NAME`), 
 
 Not changed, by rule: the bundle id, the Android `applicationId` and `namespace`. Not changed, and asked in **Q-40**: the Windows "Product name" (`grove`). With the "Company name" it makes the data folder `%APPDATA%\local.grove\grove`; a change would start the app with an empty folder. `grove.exe` keeps its name.
 
+**Changed on 2026-10-12, Q-40 answered B:** the Windows "Product name" is "Grove" (`app/windows/runner/Runner.rc`, the line `VALUE "ProductName"`). Only that text changed. The "Company name" (`local.grove`), the "Internal name" (`grove`), the file name `grove.exe`, `BINARY_NAME` and the app id are the old ones. The data folder is now `%APPDATA%\local.grove\Grove`. On a normal Windows disk that is the same folder as `%APPDATA%\local.grove\grove`, because big and small letters are equal there. On a disk set to tell them apart the app starts with a new empty folder; the old one stays where it is. The test 'Windows: the two names of the data folder, and the file name' in `app/test/app_name_test.dart` failed first (expected "Grove", got "grove"), then passed. The scripts and the workflows find the build as before: none of them reads the "Product name"; `scripts/flutter_release.sh` copies `build/windows/x64/runner/Release`, and `.github/workflows/flutter.yml` names `app/build/windows/x64/runner/Release/`. **Not verified: on a real Windows machine** (the "Details" tab of `grove.exe`, and that the app finds its old data folder).
+
 Tests: `app/test/app_name_test.dart` (9 tests: 6 for the name, 3 for the ids and the folder). Before the change 5 failed. A clean build with `./scripts/flutter_build.sh macos` gave `build/macos/Build/Products/Release/Grove.app` with `CFBundleName` Grove, `CFBundleExecutable` Grove, `CFBundleIdentifier` local.grove.grove.
 
 The scripts: `scripts/flutter_build.sh`, `scripts/flutter_integration.sh`, `scripts/flutter_idle.sh` and `.github/workflows/flutter.yml` do not name the app file; they still work (CI below). `scripts/flutter_release.sh` on the branch `feat/xp-release` (PR #14) names `grove.app`: a request is in `docs/tracks.md`.
@@ -140,6 +142,6 @@ The screen of the CI machines is 1024 × 768. So the CI proves the smallest size
 
 ## Questions and requests
 
-- **Q-40** (`docs/questions.md`, open, has a default): the Windows "Product name" stays "grove" or becomes "Grove".
+- **Q-40** (`docs/questions.md`): answered B on 2026-10-12. The Windows "Product name" is "Grove" now, see part 5.
 - `docs/tracks.md`: the now line of the planner (idle CPU); `Grove.app` in `scripts/flutter_release.sh`; the pictures of Track A that were made again.
 - `docs/assumptions.md`: 19 lines that start with "2026-10-11 · Cross-platform port F12 shell gaps".

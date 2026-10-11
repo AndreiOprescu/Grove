@@ -166,8 +166,9 @@ B) The Apple Developer Program first, 99 USD a year — a Mac app that opens wit
 If no answer: A stays. No key, certificate or account was made. What each system needs is in `docs/acceptance/F12-release.md`, part "Signing".
 Answer (owner, 2026-10-11): A. No signing now. No key, certificate or account is made.
 
-## Q-40 · OPEN · DEFAULT · blocks nothing (one text in the details of `grove.exe`) · 2026-10-11
+## Q-40 · ANSWERED B · DEFAULT · blocks nothing (one text in the details of `grove.exe`) · 2026-10-11
 On Windows, may the "Product name" of the program change from "grove" to "Grove"? The data folder gets its name from this text: `%APPDATA%\local.grove\grove`.
 A) Keep "grove" — the data folder stays the same for sure; the window, the taskbar and Task Manager already say "Grove", only the "Details" tab of the file says "grove".   ← my pick: the brief says not to change a name that makes the data folder.
 B) Change it to "Grove" — the "Details" tab says "Grove" too; on a normal Windows disk the folder is the same one (big and small letters are equal there), on a disk set to tell them apart the app would start with an empty folder.
 If no answer: A stays. The file name `grove.exe` stays too.
+Answer (owner, 2026-10-12): B. The Windows "Product name" becomes "Grove".
