@@ -310,6 +310,12 @@ file, the plan, and `docs/assumptions.md` before it starts.
   window with 6 tabs. "Export" and "Import" are built and hidden (Q-18).
   "Show data folder" and "Open System Settings" are not there (Q-16). The CI
   runs are in the proof file, "CI".
+- The planner gaps (F12 check): built, waits for the user (proof:
+  `docs/acceptance/F12-planner-gaps.md`, branch `feat/xp-planner-gaps`,
+  draft PR #15, on top of PR #11): subtasks on goal blocks, the focus timer,
+  tests through the screen for the planner paths, pinch zoom, the grow-in
+  after "Fit", and the pencil of a block with a note (Q-35). The requests
+  are at the end of this file.
 - Answers to "Requests to Track B, with F11-login", the F10 part
   (2026-10-11):
   - The sync card: Settings, tab "Sync" (`SyncSettings` in
@@ -525,3 +531,30 @@ file, the plan, and `docs/assumptions.md` before it starts.
     They pass today. I parked one picture of mine on Linux and Windows
     (`_parked` in `app/test/ui/goldens/f9_golden_test.dart`); the limit did
     not change.
+- Requests, with the planner gaps (2026-10-11, from the helper of the
+  planner; it worked only in `app/lib/ui/planner/`):
+  - To the shell (`app/lib/ui/shell/root_view.dart`): host the focus card
+    for all screens. Put `FocusLayer(store: store, child: ...)`
+    (`app/lib/ui/planner/focus_card.dart`) around the content of `RootView`,
+    then take it out of `PlannerView.build`. Today the card shows on
+    Planner, Today and Calendar, and not on Notes and Garden. The Mac app
+    hosts it in `RootView.swift`.
+  - To the shell: the commands "Zoom In" and "Zoom Out" (Cmd or Ctrl with +
+    and -) for the whole window: `store.zoomPlanner(1.2)` and
+    `store.zoomPlanner(1 / 1.2)`. Today the keys work only while the planner
+    grid has the keyboard. The Mac app has them in the View menu.
+  - To Track A: `store.startFocus` reads `DateTime.now()`
+    (`app/lib/state/store_focus.dart`). With the clock of the store
+    (`clockOverride`) a test could start a session on the test day. Today
+    the card has a test hook (`FocusCard.clock`) and the device test uses a
+    day in 2099. Not urgent.
+  - To Track A: `PlannerBlock.hasNote` is never set by `store.blocks()`. The
+    block draws a small pencil when it is true (`block_view.dart`). Wait for
+    the owner's answer to Q-35 (which note is the "linked note" of a block),
+    then set the flag with one query for the days, not one per block.
+  - To Track A: your test "a change goes to the account some moments later"
+    (`app/test/state/sync_store_test.dart`, line 341: expected 0, got 1)
+    failed once more on the CI: run 38146327066, job
+    `build (macos-latest, macos)`, first try, commit `00974f7`. The second
+    try of the job and the 7 other jobs of that commit passed. I did not
+    touch it.
