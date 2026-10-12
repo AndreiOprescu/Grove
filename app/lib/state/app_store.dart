@@ -9,6 +9,7 @@ import '../core/model/block_subtask.dart';
 import '../core/model/day_key.dart';
 import '../core/model/event.dart';
 import '../core/model/goal.dart';
+import '../core/model/goal_subtask.dart';
 import '../core/model/ids.dart';
 import '../core/model/link.dart';
 import '../core/model/note.dart';
@@ -61,6 +62,7 @@ part 'store_data.dart';
 part 'store_editor.dart';
 part 'store_events.dart';
 part 'store_focus.dart';
+part 'store_goal_subtasks.dart';
 part 'store_goals.dart';
 part 'store_meeting.dart';
 part 'store_menu_bar.dart';
@@ -494,6 +496,7 @@ class AppStore extends ChangeNotifier {
   bool commit(Mutation m) {
     if (m.isEmpty) return false;
     _addSubtasksOfDeletedBlocks(m);
+    _addSubtasksOfDeletedGoals(m);
     final days = _plannedDays(m);
     final before = {for (final d in days) d: plannedMinutes(d)};
     if (!_apply(m, forward: true)) return false;
@@ -525,6 +528,24 @@ class AppStore extends ChangeNotifier {
     for (final id in deleted) {
       for (final sub in subs[id] ?? const <BlockSubtaskItem>[]) {
         if (listed.add(sub.id)) m.blockSubtasks.add((before: sub, after: null));
+      }
+    }
+  }
+
+  /// Deleting a goal also deletes its subtasks (the database does that).
+  /// This puts them in the change, so undo brings them back.
+  void _addSubtasksOfDeletedGoals(Mutation m) {
+    final deleted = [
+      for (final g in m.goals)
+        if (g.after == null) ?g.before?.id,
+    ];
+    if (deleted.isEmpty) return;
+    final subs = _try(() => repos.goalSubtasks.forGoals(deleted));
+    if (subs == null || subs.isEmpty) return;
+    final listed = {for (final c in m.goalSubtasks) ?(c.before ?? c.after)?.id};
+    for (final id in deleted) {
+      for (final sub in subs[id] ?? const <GoalSubtaskItem>[]) {
+        if (listed.add(sub.id)) m.goalSubtasks.add((before: sub, after: null));
       }
     }
   }
@@ -617,6 +638,11 @@ class AppStore extends ChangeNotifier {
           final x = target(g);
           if (x != null) repos.goals.upsert(x);
         }
+        // After the goals: a subtask needs its goal.
+        for (final s in m.goalSubtasks) {
+          final x = target(s);
+          if (x != null) repos.goalSubtasks.save(x);
+        }
         for (final x in forward ? m.exdates : m.exdates.reversed) {
           if (x.add == forward) {
             repos.events.addExdate(x.eventId, x.day);
@@ -643,6 +669,10 @@ class AppStore extends ChangeNotifier {
         for (final n in m.notes) {
           final id = source(n)?.id;
           if (target(n) == null && id != null) repos.notes.delete(id);
+        }
+        for (final s in m.goalSubtasks) {
+          final id = source(s)?.id;
+          if (target(s) == null && id != null) repos.goalSubtasks.delete(id);
         }
         for (final g in m.goals) {
           final id = source(g)?.id;

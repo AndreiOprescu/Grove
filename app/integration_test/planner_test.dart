@@ -4,8 +4,8 @@
 // a drag, a drag of two blocks, a pinch, and the focus timer. Then the
 // screens of milestone F9: the Day Spread, the
 // card of an event and a note. Then the Garden and the Settings window of
-// milestone F10. It runs on the Mac, on Windows, on an iOS
-// simulator and on an Android emulator:
+// milestone F10, and the subtasks of a goal. It runs on the Mac, on Windows,
+// on an iOS simulator and on an Android emulator:
 //   ./scripts/flutter_integration.sh macos|windows|ios|android
 //
 // A phone uses a finger: press, hold, then drag. A computer uses the mouse.
@@ -686,6 +686,36 @@ void main() {
     await tester.pump(NoteEditorPane.saveDelay);
     await tester.pumpAndSettle();
     expect(store.note(note.id)!.body, 'Hello from the device');
+  });
+
+  testWidgets('goals: a tap opens a goal, a typed line is a subtask of the '
+      'goal, a tap ticks it', (tester) async {
+    final store = _store()..leftPane = LeftPane.goals;
+    final goal = store.addGoal(title: 'Read')!;
+    await _open(tester, store);
+    expect(_key('goal-${goal.id}').hitTestable(), findsOneWidget);
+
+    await tester.tap(_key('goal-${goal.id}'));
+    await tester.pumpAndSettle();
+    final add = 'goal-subtask-add-${goal.id}';
+    expect(_key(add), findsOneWidget);
+    await tester.enterText(_field(add), 'Chapter 3');
+    await tester.testTextInput.receiveAction(TextInputAction.done);
+    await tester.pumpAndSettle();
+    final sub = store.goalSubtasks(goal.id).single;
+    expect(sub.title, 'Chapter 3');
+
+    await _tapInView(tester, _key('goal-subtask-check-${sub.id}'));
+    expect(store.goalSubtasks(goal.id).single.isDone, isTrue);
+
+    // Closed again, the goal says that its one subtask is done.
+    await _tapInView(
+      tester,
+      find.descendant(of: _key('goal-${goal.id}'), matching: find.text('Read')),
+    );
+    expect(_key(add), findsNothing);
+    expect(find.text('1 done'), findsOneWidget);
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets('garden and settings: the plant shows, a theme card works', (

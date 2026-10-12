@@ -1,6 +1,7 @@
 // Port of Sources/Grove/Goals/GoalRow.swift.
 import 'package:flutter/material.dart';
 import 'package:grove/core/model/goal.dart';
+import 'package:grove/core/model/goal_subtask.dart';
 import 'package:grove/state/state.dart' hide MotionRules;
 
 import '../planner/inline_title_field.dart' show BlurAction, InlineTitleRules;
@@ -10,11 +11,14 @@ import '../tasks/task_widgets.dart';
 import '../theme/grove_theme.dart';
 import '../theme/named_colors.dart';
 import '../theme/panel.dart';
+import 'goal_subtasks.dart';
 
 /// One goal in the panel: colour dot, title, "2.5 / 5 h done", a bar and
-/// "4 h planned". A goal is never done itself; its blocks are ticked in the
-/// planner. Click it to open the editor under it; click again to close.
-/// Drag it onto a day to plan a block of it. Right-click to edit or delete.
+/// "4 h planned", and its subtasks under them. A goal is never done itself;
+/// its blocks are ticked in the planner. A closed goal shows its first three
+/// subtasks that are not done. Click it to open it: all subtasks, a line to
+/// add one, and "Edit goal…" for the editor. Click again to close. Drag it
+/// onto a day to plan a block of it. Right-click to edit or delete.
 class GoalRow extends StatelessWidget {
   const GoalRow({
     super.key,
@@ -23,13 +27,30 @@ class GoalRow extends StatelessWidget {
     required this.progress,
     required this.isOpen,
     required this.onToggle,
-  });
+    this.subtasks = const [],
+    this.isEditing = false,
+    VoidCallback? onEdit,
+  }) : onEdit = onEdit ?? onToggle;
 
   final AppStore store;
   final GoalItem goal;
   final GoalProgress progress;
+
+  /// The subtasks of the goal, in list order. Every block of the goal has
+  /// this one list.
+  final List<GoalSubtaskItem> subtasks;
   final bool isOpen;
+
+  /// The editor of the goal (name, kind, target, colour) shows in the open
+  /// goal.
+  final bool isEditing;
+
+  /// Opens the goal, or closes it.
   final VoidCallback onToggle;
+
+  /// Shows the editor in the open goal (it opens the goal when needed), or
+  /// hides it.
+  final VoidCallback onEdit;
 
   Future<void> _confirmDelete(BuildContext context) async {
     final delete = await showDialog<bool>(
@@ -92,19 +113,21 @@ class GoalRow extends StatelessWidget {
 
   void _menu(BuildContext context, Offset global) =>
       showGroveMenu(context, global, [
-        MenuLine(isOpen ? 'Close Editor' : 'Edit…', onToggle),
+        MenuLine(isOpen && isEditing ? 'Close Editor' : 'Edit…', onEdit),
         const MenuLine.divider(),
         MenuLine('Delete Goal…', () => _confirmDelete(context)),
       ]);
 
-  /// The part that is always there. A click opens or closes the editor; a
+  /// The part that is always there. A click opens or closes the goal; a
   /// drag plans a block.
   Widget _summary(BuildContext context, GroveTheme theme, Color tint) =>
       Semantics(
         container: true,
         button: true,
         label: GoalRules.accessibilityText(goal.title, progress),
-        hint: 'Click to edit. Drag it into a day to plan time for it',
+        hint:
+            'Click to show its subtasks. Drag it into a day to plan time '
+            'for it',
         onTap: onToggle,
         excludeSemantics: true,
         child: PayloadDrag(
@@ -191,23 +214,83 @@ class GoalRow extends StatelessWidget {
         ),
       ),
       child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 10),
+        padding: const EdgeInsets.symmetric(vertical: 8),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           mainAxisSize: MainAxisSize.min,
           children: [
-            _summary(context, theme, tint),
-            if (isOpen)
+            Padding(padding: _sides, child: _summary(context, theme, tint)),
+            // The subtasks start at the edge of the row: a check box has
+            // room for a finger around it.
+            if (!isOpen)
+              GoalSubtasksClosed(
+                store: store,
+                goal: goal,
+                subtasks: subtasks,
+                onOpen: onToggle,
+              ),
+            if (isOpen) ...[
+              GoalSubtasksOpen(
+                key: ValueKey('goal-subtasks-${goal.id}'),
+                store: store,
+                goal: goal,
+                subtasks: subtasks,
+              ),
+              _editLine(theme),
+            ],
+            if (isOpen && isEditing)
               Padding(
-                padding: const EdgeInsets.only(top: 10),
+                padding: _sides.copyWith(top: 6),
                 child: GoalEditor(
                   key: ValueKey('goal-editor-${goal.id}'),
                   store: store,
                   goal: goal,
-                  onClose: onToggle,
+                  onClose: onEdit,
                 ),
               ),
           ],
+        ),
+      ),
+    );
+  }
+
+  static const _sides = EdgeInsets.symmetric(horizontal: 10);
+
+  /// "Edit goal…" in an open goal: shows the editor under it, or hides it.
+  /// It starts under the name of the goal, as the subtasks do.
+  Widget _editLine(GroveTheme theme) {
+    final label = isEditing ? 'Close editor' : 'Edit goal…';
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: Padding(
+        padding: const EdgeInsets.only(left: goalSubtaskTarget, right: 10),
+        child: Semantics(
+          container: true,
+          button: true,
+          label: label,
+          onTap: onEdit,
+          excludeSemantics: true,
+          child: MouseRegion(
+            cursor: SystemMouseCursors.click,
+            child: GestureDetector(
+              key: ValueKey('goal-edit-${goal.id}'),
+              behavior: HitTestBehavior.opaque,
+              onTap: onEdit,
+              child: SizedBox(
+                height: goalSubtaskTarget,
+                child: WholeCenter(
+                  child: SizedBox(
+                    width: double.infinity,
+                    child: Text(
+                      label,
+                      maxLines: 1,
+                      style: theme.body(12).copyWith(color: theme.accent),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
         ),
       ),
     );

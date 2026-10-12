@@ -59,7 +59,8 @@ Do these steps in this order. They cost nothing on the free plan.
 
 1. **Make the project.** Sign in at supabase.com, "New project", free plan, a region near you. Keep the database password in your password manager.
 2. **Apply the SQL.** Dashboard → SQL Editor → new query. Paste the whole file `supabase/migrations/20261011000000_grove_sync.sql` and run it. It says "Success. No rows returned". It is safe to run again.
-   - Look: Table Editor shows 14 tables in `public` (13 data tables and `sync_state`), each with RLS on. Storage shows the bucket `grove-attachments`, not public.
+   - Since 2026-10-12 (the subtasks of a goal): then paste and run the whole file `supabase/migrations/20261012000000_grove_sync_goal_subtasks.sql` the same way. It adds the table `goal_subtasks` and moves the schema number from 7 to 8. The app and the server must have the same number, so the sync of a build with goal subtasks works only after this second file. It is safe to run again.
+   - Look: Table Editor shows 15 tables in `public` (14 data tables and `sync_state`), each with RLS on. Storage shows the bucket `grove-attachments`, not public.
 3. **Email login.** Authentication → Sign In / Providers → Email must be on (it is, in a new project).
    - Authentication → Emails → Templates: in "Magic Link" and in "Confirm signup" add a line with the code, for example `Your code for Grove: {{ .Token }}`. The first login of an address uses "Confirm signup", each later login uses "Magic Link". Without this line the email has no code, and Grove cannot finish the login (Q-9).
    - The mail service of a new project sends only a few emails each hour, and only to the addresses of the members of your Supabase organisation. Sign in to Grove with the address of your Supabase account.
