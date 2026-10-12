@@ -1,4 +1,4 @@
-package local.grove.grove
+package local.grove.app
 
 import io.flutter.embedding.android.FlutterActivity
 

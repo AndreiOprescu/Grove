@@ -1,7 +1,9 @@
 // The name a person sees is "Grove" on each system. The id of the app and
 // the names that make the data folder do not change: a change there would
-// start the app with an empty folder. One exception, the owner's answer to
-// Q-40: the Windows product name got a capital G.
+// start the app with an empty folder. Two exceptions. The owner's answer to
+// Q-40: the Windows product name got a capital G. The owner's answers to
+// Q-26 and Q-30: the id is `local.grove.app` since 2026-10-12, the day the
+// Swift app was retired. The old id is in docs/acceptance/retire-swift.md.
 //
 // These are the files of the native projects. The tests read them from the
 // folder `app/`, where `flutter test` runs.
@@ -40,7 +42,10 @@ void main() {
     });
 
     test('macOS: the Xcode project names the same app', () {
-      final project = read('macos/Runner.xcodeproj/project.pbxproj');
+      // The id `local.grove.app` has the text "grove.app" in it. It is not
+      // a file name, so it is taken out before the check.
+      final project = read('macos/Runner.xcodeproj/project.pbxproj')
+          .replaceAll('local.grove.app', '');
       expect(project, isNot(contains('grove.app')));
       expect(project, contains('Grove.app'));
       // The unit tests of the runner start inside the app.
@@ -70,6 +75,16 @@ void main() {
       expect(perf, contains(r'build/macos/Build/Products/$mode_dir/Grove.app'));
       expect(perf, isNot(contains('Contents/MacOS/grove')));
       expect(perf, contains('Contents/MacOS/Grove'));
+      // The install script takes the app that the release script built.
+      // It names the data folder, which has the id in it; see above.
+      final install = read('../scripts/flutter_install.sh')
+          .replaceAll('local.grove.app', '');
+      expect(install, isNot(contains('grove.app')));
+      expect(
+        install,
+        contains('BUILT="app/build/macos/Build/Products/Release/Grove.app"'),
+      );
+      expect(install, contains('./scripts/flutter_release.sh macos'));
     });
 
     test('iOS: the name under the icon and the name of the bundle', () {
@@ -105,7 +120,7 @@ void main() {
         read('macos/Runner/Configs/AppInfo.xcconfig'),
         contains(
           RegExp(
-            r'^PRODUCT_BUNDLE_IDENTIFIER = local\.grove\.grove$',
+            r'^PRODUCT_BUNDLE_IDENTIFIER = local\.grove\.app$',
             multiLine: true,
           ),
         ),
@@ -114,7 +129,14 @@ void main() {
           .allMatches(read('ios/Runner.xcodeproj/project.pbxproj'))
           .map((m) => m[1])
           .toSet();
-      expect(ids, {'local.grove.grove', 'local.grove.grove.RunnerTests'});
+      expect(ids, {'local.grove.app', 'local.grove.app.RunnerTests'});
+      // On the Mac the id of the app is in AppInfo.xcconfig; the project
+      // file has only the ids of the unit tests of the runner.
+      final macIds = RegExp(r'PRODUCT_BUNDLE_IDENTIFIER = ([^;]*);')
+          .allMatches(read('macos/Runner.xcodeproj/project.pbxproj'))
+          .map((m) => m[1])
+          .toSet();
+      expect(macIds, {'local.grove.app.RunnerTests'});
     });
 
     test('Android: the application id', () {
@@ -123,8 +145,22 @@ void main() {
           .whereType<File>()
           .firstWhere((f) => f.uri.pathSegments.last.startsWith('build.gradle'))
           .readAsStringSync();
-      expect(gradle, contains('applicationId = "local.grove.grove"'));
-      expect(gradle, contains('namespace = "local.grove.grove"'));
+      expect(gradle, contains('applicationId = "local.grove.app"'));
+      expect(gradle, contains('namespace = "local.grove.app"'));
+      // The start class is in the folder and the package of the id.
+      expect(
+        read('android/app/src/main/kotlin/local/grove/app/MainActivity.kt'),
+        startsWith('package local.grove.app\n'),
+      );
+      // No folder of an older id is left beside it.
+      expect(
+        Directory('android/app/src/main/kotlin/local/grove')
+            .listSync()
+            .map((e) => e.uri.pathSegments.lastWhere((s) => s.isNotEmpty))
+            // Finder can put a hidden file here on a Mac.
+            .where((name) => !name.startsWith('.')),
+        ['app'],
+      );
     });
 
     // path_provider_windows makes the data folder from these two texts:
