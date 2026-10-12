@@ -107,9 +107,13 @@ class _QuickAddFieldState extends State<QuickAddField> {
 
   Widget _preview(GroveTheme theme) {
     final lists = [for (final l in _store.repos.lists.all()) l.name];
+    final placement = widget.placement;
     final result = QuickAddParser(
       today: _store.clockToday,
       lists: lists,
+      // as `AppStore.quickAdd` does: a time alone is a time on the day of
+      // the list
+      defaultDay: placement is DayPlacement ? placement.day : null,
     ).parse(_text.text);
     return Wrap(
       spacing: 4,

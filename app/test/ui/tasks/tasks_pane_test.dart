@@ -370,6 +370,143 @@ void main() {
     });
   });
 
+  group('the list of tomorrow', () {
+    final thursday = wednesday.adding(days: 1);
+    Widget tomorrow(AppStore store) =>
+        TasksPane(store: store, mode: TasksPaneMode.today, day: thursday);
+    Finder inDay(Finder what) => find.descendant(
+      of: find.byKey(const ValueKey('part-day')),
+      matching: what,
+    );
+
+    testWidgets('it shows the tasks of tomorrow under "Tomorrow"', (
+      tester,
+    ) async {
+      final store = paneStore();
+      addTask(store, 'Buy milk');
+      addTask(store, 'Pack the bag', day: thursday);
+      addTask(store, 'Print the ticket', day: thursday, sort: 1);
+      store.toggleDone(taskId: 'print-the-ticket');
+      await pumpPane(tester, tomorrow(store));
+
+      expect(inDay(find.text('Tomorrow')), findsOneWidget);
+      expect(inDay(find.text('Today')), findsNothing);
+      expect(rowFinder('pack-the-bag'), findsOneWidget);
+      expect(rowFinder('buy-milk'), findsNothing);
+      // the count and the bar are of tomorrow
+      expect(find.text('1 of 2 done'), findsOneWidget);
+      expect(find.text('Done · 1'), findsOneWidget);
+    });
+
+    testWidgets('Return in the quick-add field adds a task to tomorrow', (
+      tester,
+    ) async {
+      final store = paneStore();
+      await pumpPane(tester, tomorrow(store));
+
+      await typeLine(tester, quickAdd, 'Buy milk');
+
+      final tasks = store.openTasks(TaskPlacement.day(thursday));
+      expect(tasks.map((t) => t.title), ['Buy milk']);
+      expect(store.openTasks(TaskPlacement.day(wednesday)), isEmpty);
+      expect(rowFinder(tasks.single.id), findsOneWidget);
+      // the task is in the list in view, so no message says where it went
+      expect(store.toast, isNull);
+    });
+
+    testWidgets('a time with no day is a time tomorrow, and the field says '
+        'so before Return', (tester) async {
+      final store = paneStore();
+      await pumpPane(tester, tomorrow(store));
+
+      await tester.tap(quickAdd);
+      await tester.pump();
+      await tester.enterText(
+        find.descendant(of: quickAdd, matching: find.byType(EditableText)),
+        'Call Ana 3pm',
+      );
+      await tester.pump();
+      expect(find.text('Thu 8 Oct'), findsOneWidget);
+      expect(find.text('Wed 7 Oct'), findsNothing);
+
+      await tester.testTextInput.receiveAction(TextInputAction.done);
+      await tester.pumpAndSettle();
+      final task = store.openTasks(TaskPlacement.day(thursday)).single;
+      expect(task.title, 'Call Ana');
+      final block = store.blocks(DayRange.single(thursday)).single;
+      expect(block.taskId, task.id);
+      expect(block.startMinute, 15 * 60);
+      expect(store.blocks(DayRange.single(wednesday)), isEmpty);
+      expect(store.toast, isNull);
+    });
+
+    testWidgets('with no words typed, the field names the day', (tester) async {
+      final store = paneStore();
+      await pumpPane(tester, tomorrow(store));
+      await tester.tap(quickAdd);
+      await tester.pump();
+      await tester.enterText(
+        find.descendant(of: quickAdd, matching: find.byType(EditableText)),
+        'Buy milk',
+      );
+      await tester.pump();
+      expect(
+        find.descendant(
+          of: find.byType(QuickAddField),
+          matching: find.text('Tomorrow'),
+        ),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('the card of yesterday is a card of today only', (
+      tester,
+    ) async {
+      final store = paneStore();
+      addYesterday(store, 'Old report');
+      await pumpPane(tester, today(store));
+      expect(find.byType(RollOverCard), findsOneWidget);
+
+      await pumpPane(tester, tomorrow(store));
+      expect(find.byType(RollOverCard), findsNothing);
+      expect(find.byKey(const ValueKey('card-yesterday')), findsNothing);
+    });
+
+    testWidgets('the welcome card is a card of today only', (tester) async {
+      final repos = Repos(Database.inMemory());
+      FirstRun.seedIfNew(repos, today: wednesday);
+      final store = makeStore(
+        repos: repos,
+        prefs: MemoryPrefs()..set('appearance.motion', false),
+        clock: WallTime(day: wednesday, minute: 10 * 60),
+      );
+      await pumpPane(tester, today(store));
+      expect(find.byType(WelcomeCard), findsOneWidget);
+
+      await pumpPane(tester, tomorrow(store));
+      expect(find.byType(WelcomeCard), findsNothing);
+    });
+
+    testWidgets('a due day is still named from the real today', (tester) async {
+      final store = paneStore();
+      addTask(store, 'Pack the bag', day: thursday, due: '2026-10-08');
+      addTask(store, 'Send the form', day: thursday, due: '2026-10-06');
+      await pumpPane(tester, tomorrow(store));
+      // Thursday is "tomorrow" and Tuesday is "yesterday": the list of
+      // tomorrow does not move the day the words count from
+      expect(find.text('due Tomorrow'), findsOneWidget);
+      expect(find.text('due Yesterday'), findsOneWidget);
+      expect(find.text('due Today'), findsNothing);
+    });
+
+    testWidgets('the text of the panel sits on whole pixels', (tester) async {
+      final store = paneStore();
+      addTask(store, 'Pack the bag', day: thursday);
+      await pumpPane(tester, tomorrow(store));
+      expect(textOffPixels(tester), isEmpty);
+    });
+  });
+
   group('the unscheduled list', () {
     testWidgets('an empty list says so', (tester) async {
       final store = paneStore();
