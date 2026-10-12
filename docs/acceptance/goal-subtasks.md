@@ -3,7 +3,7 @@
 Branch `feat/xp-goal-subtasks`, into `feat/cross-platform-flutter`. Flutter app only: nothing in `Sources/` (the Swift Mac app) changed.
 The owner's words: "I want goals to also have subtasks. A goal category (not an instance) shares the subtasks, and are listed under the goal on the left goal panel. They can be added by clicking on the goal on the left panel and adding a subtask. 3 subtasks should be displayed under the goal, and can be expanded by clicking on the goal."
 Check: `./scripts/flutter_test.sh` (2026-10-12: 2560 tests passed, analyze clean, format clean). 104 of them are new. The base had 2456.
-CI: see "CI" at the end.
+CI run 38232435290 (commit 20e1368): green on Android, Windows, macOS, iOS, with the device tests. `supabase-sql` run 38232435324: green.
 
 ## What was built
 
@@ -113,4 +113,6 @@ Pictures made again on this Mac and looked at one by one: `goals_desktop_grove_l
 
 ## CI
 
-Filled in after the runs (see the pull request).
+- Workflow `flutter`, run 38232435290 (commit 20e1368, the last commit with code): green on Android, Windows, macOS and iOS. Each job ran the unit, widget and golden tests (2560; on Android and Windows 2559 and 1 skipped) and then the device tests. The new device test "goals: a tap opens a goal, a typed line is a subtask of the goal, a tap ticks it" passed on all 4. No job was run a second time.
+- Workflow `supabase-sql`, run 38232435324 (commit 20e1368): green. Both SQL files ran on Postgres, two times, then the checks.
+- The commits after 20e1368 change files in `docs/` only.
