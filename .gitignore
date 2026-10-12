@@ -1,6 +1,4 @@
-.build/
 build/
-dist/
 *.sqlite
 *.sqlite-*
 .DS_Store
