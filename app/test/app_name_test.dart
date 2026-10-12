@@ -147,10 +147,11 @@ void main() {
           .readAsStringSync();
       expect(gradle, contains('applicationId = "local.grove.app"'));
       expect(gradle, contains('namespace = "local.grove.app"'));
-      // The start class is in the folder and the package of the id.
+      // The start class is in the folder and the package of the id. A line
+      // ends with "\r\n" in a Windows checkout, so the test reads a line.
       expect(
         read('android/app/src/main/kotlin/local/grove/app/MainActivity.kt'),
-        startsWith('package local.grove.app\n'),
+        contains(RegExp(r'^package local\.grove\.app$', multiLine: true)),
       );
       // No folder of an older id is left beside it.
       expect(

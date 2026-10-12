@@ -155,6 +155,13 @@ $ git grep -n 'local\.grove\.grove' -- . ':!docs'
 See the pull request for the run of the workflow `flutter` (the 4 systems, with the device
 tests).
 
+The first runs (38260788067 and 38260821083, commit `8e39c7a`) were red on Windows:
+"2684 tests passed, 1 failed". The test "Android: the application id" in
+`app/test/app_name_test.dart` wanted the first line of `MainActivity.kt` to end with "\n".
+A Windows checkout ends a line with "\r\n". The file was correct; the test was wrong. The
+test now reads the line with a pattern that takes the two line ends. After the change,
+`./scripts/flutter_test.sh` on this Mac: exit 0, "+2686: All tests passed!".
+
 ## Not verified
 
 - `scripts/flutter_install.sh` was never run.
