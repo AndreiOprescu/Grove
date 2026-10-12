@@ -2,7 +2,7 @@
 
 Three parts of the Day Planner that came after the planner gaps (`docs/acceptance/F12-planner-gaps.md`). This file takes each one: is the gap real, what was built, which tests prove it, which engine files changed, and what is not verified.
 
-Branch `feat/xp-planner-notes`, a draft pull request into `feat/cross-platform-flutter`. The base (`ec73831`, with PR #16 and PR #17) is merged into the branch (`6b2c582`).
+Branch `feat/xp-planner-notes`, draft PR #19 into `feat/cross-platform-flutter`. The base (`ec73831`, with PR #16 and PR #17) is merged into the branch (`6b2c582`).
 
 Check: `./scripts/flutter_test.sh` (2026-10-12, on `6b2c582`: 2334 tests passed, analyze clean, format clean). 59 of them are new here. The base has 2275. Device check: `app/integration_test/planner_test.dart`, 1 test changed, none new. CI run: see "CI" below.
 
@@ -100,7 +100,23 @@ The task said "an idle planner asks for no frames". That holds with motion off, 
 
 ## CI
 
-To come: the run for the last code commit.
+Commit `ac95999` (the head; the last code commit is the merge `6b2c582`, and `ac95999` adds only files in `docs/`), workflow `flutter`, 2026-10-12.
+
+Run 38181158902 (push) and run 38181181378 (pull request #19): both green on the 4 jobs at the first try. No job ran again. The numbers are the same in the two runs.
+
+| Job | Test | Build | Integration test (16 tests) |
+|---|---|---|---|
+| `build (ubuntu-latest, android)`, Android emulator | pass (2333, 1 skipped) | pass | pass (13, 3 skipped) |
+| `build (windows-latest, windows)` | pass (2333, 1 skipped) | pass | pass (15, 1 skipped) |
+| `build (macos-latest, macos)` | pass (2334) | pass | pass (15, 1 skipped) |
+| `build (macos-latest, ios)`, iPhone simulator | pass (2334) | pass | pass (13, 3 skipped) |
+
+The skips are the same as before this branch. On Linux and Windows one golden picture of F9 is parked (Q-17). On the phones the 3 device tests that need a mouse and a keyboard are skipped. On the computers the pinch with two fingers is skipped.
+
+- The changed device test, "focus: "Start Focus" shows the timer; the cross stops it", passed in the 4 jobs of both runs.
+- The new picture `planner_linked_note_grove_light.png` against the limit of 0.2 %: 0.080 % on Linux, 0.072 % on Windows, 0.000 % in the macOS job and in the iOS job. No golden picture failed.
+- The test "a strip drop is one undo step that brings back the block" (`app/test/state/planner_store_test.dart`), which failed one time on the base on Windows, passed in the 8 jobs.
+- A later commit that changes only files in `docs/` starts no run: the workflow looks only at `app/`, the `scripts/flutter_*.sh` files and its own file.
 
 ## Notes
 

@@ -347,7 +347,8 @@ file, the plan, and `docs/assumptions.md` before it starts.
   after "Fit", and the pencil of a block with a note (Q-35). The requests
   are at the end of this file.
 - The planner notes (F12, after the gaps): built, waits for the user (proof:
-  `docs/acceptance/F12-planner-notes.md`, branch `feat/xp-planner-notes`):
+  `docs/acceptance/F12-planner-notes.md`, branch `feat/xp-planner-notes`,
+  draft PR #19):
   the linked note of a block (Q-35, answer A: the menu line and the pencil),
   the focus timer on the clock of the store, and a now line that asks for a
   frame only when it changes. Two open cards, both with a default: Q-36 and
