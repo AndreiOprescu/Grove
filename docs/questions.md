@@ -222,3 +222,10 @@ A) Keep "grove" — the data folder stays the same for sure; the window, the tas
 B) Change it to "Grove" — the "Details" tab says "Grove" too; on a normal Windows disk the folder is the same one (big and small letters are equal there), on a disk set to tell them apart the app would start with an empty folder.
 If no answer: A stays. The file name `grove.exe` stays too.
 Answer (owner, 2026-10-12): B. The Windows "Product name" becomes "Grove".
+
+## Q-52 · ANSWERED A · ASK · blocks the wake-up line and the sleep line of the planner · 2026-10-12
+Is the time of the wake-up line and of the sleep line one time for all days, or does each day have its own?
+A) Each day has its own lines — you set them for the day you look at; a new line starts at the time of the nearest day that has one, so most days need one click.   ← my pick: you said "during the day", and a late night changes only that day.
+B) One time for all days — you set the two lines once and each day shows them; a change on one day changes all days, also the past ones.
+If no answer: nothing is built until you answer; the storage is not the same for A and B.
+Answer (owner, 2026-10-12): A. Each day has its own lines.
