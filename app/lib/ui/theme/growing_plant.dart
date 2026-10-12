@@ -30,6 +30,10 @@ class GrowingPlant extends StatelessWidget {
   /// How long a new leaf takes to grow.
   static const growTime = Duration(milliseconds: 500);
 
+  /// The fastest turn of the sway, in degrees a second.
+  static const swaySpeed =
+      PlantMath.swayAmplitude * 2 * pi / PlantMath.swayPeriod;
+
   @override
   Widget build(BuildContext context) {
     final theme = GroveTheme.of(context);
@@ -57,22 +61,33 @@ class GrowingPlant extends StatelessWidget {
           tween: Tween(end: leaves.toDouble()),
           duration: motionOn ? growTime : Duration.zero,
           curve: Curves.easeOutBack,
-          builder: (context, amount, _) => SwayClock(
-            on: motionOn,
-            builder: (context, seconds) => Transform.rotate(
-              angle: motionOn
-                  ? PlantMath.swayDegrees(at: seconds) * pi / 180
-                  : 0,
-              alignment: Alignment.bottomCenter,
-              child: CustomPaint(
-                size: Size.infinite,
-                painter: PlantPainter(
-                  amount: amount,
-                  flower: flower,
-                  green: vintage ? theme.accent2 : theme.accent,
-                  pot: vintage ? theme.accent3 : theme.accent2,
-                  petal: vintage ? theme.accent : theme.accent2,
-                  heart: theme.accent3,
+          // The two boundaries: a sway draws only the plant again, not the
+          // screen around it.
+          builder: (context, amount, _) => RepaintBoundary(
+            child: SwayClock(
+              on: motionOn,
+              // A small plant moves little: few frames show all of it.
+              framesPerSecond: SwayClock.framesFor(
+                reach: height,
+                degreesPerSecond: swaySpeed,
+              ),
+              builder: (context, seconds) => Transform.rotate(
+                angle: motionOn
+                    ? PlantMath.swayDegrees(at: seconds) * pi / 180
+                    : 0,
+                alignment: Alignment.bottomCenter,
+                child: RepaintBoundary(
+                  child: CustomPaint(
+                    size: Size.infinite,
+                    painter: PlantPainter(
+                      amount: amount,
+                      flower: flower,
+                      green: vintage ? theme.accent2 : theme.accent,
+                      pot: vintage ? theme.accent3 : theme.accent2,
+                      petal: vintage ? theme.accent : theme.accent2,
+                      heart: theme.accent3,
+                    ),
+                  ),
                 ),
               ),
             ),

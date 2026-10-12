@@ -7,6 +7,8 @@ import 'package:grove/ui/theme/grove_theme.dart';
 import 'package:grove/ui/theme/growing_plant.dart';
 import 'package:grove/ui/theme/theme_spec.dart';
 
+import '../support.dart';
+
 Future<void> pumpPlant(
   WidgetTester tester,
   PlantProgress progress, {
@@ -122,8 +124,12 @@ void main() {
       const PlantProgress(done: 1, total: 4),
       motion: true,
     );
-    expect(tester.hasRunningAnimations, isTrue);
-    await tester.pump(const Duration(milliseconds: 1250));
+    // The sway runs on a timer, not on a ticker: it asks for a frame 11
+    // times a second (a small plant moves little), not at every refresh of
+    // the screen.
+    expect(tester.hasRunningAnimations, isFalse);
+    expect(await framesAsked(tester), 11);
+    await tester.pump(const Duration(milliseconds: 250));
     await tester.pump(const Duration(milliseconds: 40));
     // a quarter of the 5 seconds: about 3 degrees
     expect(angle(), closeTo(0.052, 0.004));

@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 import 'dart:math';
 
@@ -689,10 +690,16 @@ class AppStore extends ChangeNotifier {
     }
     for (final e in m.events) {
       final now = forward ? e.after : e.before;
-      // Task blocks hold no text.
-      if (now == null || now.kind != EventKind.event) continue;
+      if (now == null) continue;
       final was = forward ? e.before : e.after;
       final ref = ItemRef(ItemType.event, now.id);
+      if (now.kind != EventKind.event) {
+        // A task block or a goal block holds no text. But a note can link to
+        // it (its meeting note): a block that was brought back gets the link
+        // again.
+        if (was == null) repos.refs.rebuildIncoming(ref);
+        continue;
+      }
       if (was == null || was.notes != now.notes) {
         final canonical = repos.refs.reindex(ref, now.notes);
         if (canonical != now.notes) {
@@ -743,6 +750,15 @@ class AppStore extends ChangeNotifier {
     if (fixed != null) return fixed.minute;
     final now = DateTime.now();
     return now.hour * 60 + now.minute;
+  }
+
+  /// The moment now, from [clockOverride] or the real clock. A fixed clock
+  /// has whole minutes.
+  DateTime clockNow() {
+    final fixed = clockOverride;
+    if (fixed == null) return DateTime.now();
+    final at = fixed.day.date;
+    return DateTime(at.year, at.month, at.day, 0, fixed.minute);
   }
 
   /// The time stamp of now, from [clockOverride] or the real clock.

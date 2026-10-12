@@ -4,7 +4,7 @@
     <!-- Reminders are scheduled again after the phone starts. -->
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>
     <application
-        android:label="grove"
+        android:label="Grove"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <activity

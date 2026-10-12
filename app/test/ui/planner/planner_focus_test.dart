@@ -20,7 +20,131 @@ Future<void> startFromMenu(WidgetTester tester) async {
   await tester.pumpAndSettle();
 }
 
+/// How full the bar of the card is, 0 to 1.
+double bar(WidgetTester tester) =>
+    tester.widget<ProgressBar>(inCard(find.byType(ProgressBar))).fraction;
+
 void main() {
+  // The card has no clock of its own here: it reads the clock of the store,
+  // as the app does.
+  group('the clock of the store', () {
+    void moveClock(AppStore store, int hour, int minute) =>
+        store.clockOverride = WallTime(
+          day: store.clockOverride!.day,
+          minute: hour * 60 + minute,
+        );
+
+    testWidgets('the test moves the clock and the bar follows', (tester) async {
+      final store = focusStore();
+      hourBlock(store, 'Write report');
+      await pumpPlanner(tester, store);
+      await startFromMenu(tester);
+
+      // The session starts at 10:00, the time of the store.
+      expect(store.focus?.start, DateTime(2099, 3, 4, 10));
+      expect(inCard(find.text('1:00:00')), findsOneWidget);
+      expect(bar(tester), 0);
+
+      moveClock(store, 10, 15);
+      await tester.pump(const Duration(seconds: 1));
+      expect(inCard(find.text('45:00')), findsOneWidget);
+      expect(bar(tester), 0.25);
+
+      moveClock(store, 10, 30);
+      await tester.pump(const Duration(seconds: 1));
+      expect(inCard(find.text('30:00')), findsOneWidget);
+      expect(bar(tester), 0.5);
+
+      moveClock(store, 10, 57);
+      await tester.pump(const Duration(seconds: 1));
+      expect(inCard(find.text('3:00')), findsOneWidget);
+      expect(bar(tester), 0.95);
+      expect(store.focus?.finished, isFalse);
+    });
+
+    testWidgets('a clock that stands still keeps the card still', (
+      tester,
+    ) async {
+      final store = focusStore();
+      hourBlock(store, 'Write report');
+      moveClock(store, 10, 30);
+      await pumpPlanner(tester, store);
+      await startFromMenu(tester);
+
+      expect(inCard(find.text('30:00')), findsOneWidget);
+      await tester.pump(const Duration(minutes: 5));
+      expect(inCard(find.text('30:00')), findsOneWidget);
+      expect(bar(tester), 0);
+      expect(store.focus?.finished, isFalse);
+    });
+
+    testWidgets('the clock reaches the end of the block: the card asks '
+        '"Mark done?"', (tester) async {
+      final store = focusStore();
+      hourBlock(store, 'Write report');
+      await pumpPlanner(tester, store);
+      await startFromMenu(tester);
+
+      moveClock(store, 11, 0);
+      await tester.pump(const Duration(seconds: 1));
+      await tester.pump();
+      expect(inCard(find.text('Time is up. Mark done?')), findsOneWidget);
+      expect(store.focus?.finished, isTrue);
+    });
+
+    testWidgets('a session that starts in the middle of the block has an '
+        'empty bar, and half of the rest fills half of it', (tester) async {
+      final store = focusStore();
+      hourBlock(store, 'Write report');
+      moveClock(store, 10, 40);
+      await pumpPlanner(tester, store);
+      await startFromMenu(tester);
+      expect(store.focus?.start, DateTime(2099, 3, 4, 10, 40));
+      expect(inCard(find.text('20:00')), findsOneWidget);
+      expect(bar(tester), 0);
+
+      moveClock(store, 10, 50);
+      await tester.pump(const Duration(seconds: 1));
+      expect(inCard(find.text('10:00')), findsOneWidget);
+      expect(bar(tester), 0.5);
+    });
+
+    testWidgets('a block of the test day starts a session, also when the '
+        'real clock is past that day', (tester) async {
+      // "Now" is 10:00 on Wednesday 7 October 2026.
+      final store = plannerStore();
+      store.createFromDraft(
+        title: 'Write report',
+        day: wednesday,
+        start: 10 * 60,
+        end: 11 * 60,
+        asEvent: false,
+      );
+      await pumpPlanner(tester, store);
+      await rightClick(tester, pointAt(tester, wednesday, 10 * 60 + 30));
+      await tester.tap(find.text('Start Focus'));
+      await tester.pumpAndSettle();
+
+      expect(store.focus?.start, DateTime(2026, 10, 7, 10));
+      expect(inCard(find.text('1:00:00')), findsOneWidget);
+      expect(find.text('This block is over.'), findsNothing);
+    });
+
+    testWidgets('a block that is over by the clock of the store starts no '
+        'session', (tester) async {
+      final store = focusStore();
+      hourBlock(store, 'Write report');
+      moveClock(store, 11, 30);
+      await pumpPlanner(tester, store);
+      await startFromMenu(tester);
+
+      expect(store.focus, isNull);
+      expect(card, findsNothing);
+      expect(store.toast, 'This block is over.');
+      await endToast(tester);
+    });
+  });
+
   group('the focus timer', () {
     testWidgets('no session, no card', (tester) async {
       final store = focusStore();
@@ -203,6 +327,9 @@ void main() {
       // The block ended five minutes ago.
       setFocusClock(tester, 11, 5);
       store.screen = Screen.planner;
+      // The window hosts the card, so it was on Notes too. It reads the
+      // clock at its next beat, one second at most.
+      await tester.pump(const Duration(seconds: 1));
       await tester.pumpAndSettle();
       expect(inCard(find.text('Time is up. Mark done?')), findsOneWidget);
       expect(store.focus?.finished, isTrue);

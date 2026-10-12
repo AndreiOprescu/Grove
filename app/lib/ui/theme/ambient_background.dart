@@ -1,14 +1,13 @@
 // Port of the views in Sources/Grove/Theme/AmbientBackground.swift and
 // ThemeDecor.swift: what is drawn behind every screen.
-import 'dart:async';
 import 'dart:math' as math;
 import 'dart:ui' as ui;
 
 import 'package:flutter/foundation.dart';
-import 'package:flutter/scheduler.dart';
 import 'package:flutter/widgets.dart';
 
 import 'grove_theme.dart';
+import 'slow_clock.dart';
 import 'theme_math.dart';
 
 /// Everything behind a screen: the background colour, the drifting circles,
@@ -59,22 +58,15 @@ class AmbientBackground extends StatefulWidget {
   /// The Accent intensity setting, 0 to 1.
   final double intensity;
 
-  /// The circles are drawn again at most this often.
-  static const framesPerSecond = 30;
-
   @override
   State<AmbientBackground> createState() => _AmbientBackgroundState();
 }
 
 class _AmbientBackgroundState extends State<AmbientBackground>
-    with SingleTickerProviderStateMixin, WidgetsBindingObserver {
-  late final Ticker _ticker = createTicker(_onTick);
-
-  /// Seconds the circles have moved. The painter listens to it.
-  final _time = ValueNotifier<double>(0);
-
-  /// The value of [_time] when the ticker last started.
-  double _startedAt = 0;
+    with WidgetsBindingObserver {
+  /// Seconds the circles have moved. The painter listens to it. A timer and
+  /// not a ticker: see [SlowClock].
+  final _clock = SlowClock(framesPerSecond: AmbientMath.mostFrames);
 
   @override
   void initState() {
@@ -104,34 +96,30 @@ class _AmbientBackgroundState extends State<AmbientBackground>
 
   /// Starts or stops the clock to match the settings and the app state.
   void _sync() {
-    final state = WidgetsBinding.instance.lifecycleState;
-    final runs = MotionRules.ambientRuns(
-      motionOn: _motionOn,
-      windowIsKey: state == null || state == AppLifecycleState.resumed,
+    final theme = GroveTheme.of(context);
+    // The whole window is drawn again with the circles, so: as seldom as
+    // the look allows.
+    _clock.framesPerSecond = AmbientMath.framesPerSecond(
+      strength: AmbientMath.strength(
+        base: theme.blobOpacity,
+        intensity: widget.intensity,
+      ),
+      background: theme.bg,
+      colors: theme.blobs,
     );
-    if (runs && !_ticker.isActive) {
-      _startedAt = _time.value;
-      unawaited(_ticker.start());
-    } else if (!runs && _ticker.isActive) {
-      _ticker.stop();
-    }
-  }
-
-  void _onTick(Duration elapsed) {
-    final now =
-        _startedAt + elapsed.inMicroseconds / Duration.microsecondsPerSecond;
-    // A screen may draw 120 times a second. The circles are slow, so 30 is
-    // enough.
-    if (now - _time.value >= 1 / AmbientBackground.framesPerSecond - 0.001) {
-      _time.value = now;
-    }
+    _clock.isRunning = MotionRules.ambientRuns(
+      // A cover over this part of the window stops it too.
+      motionOn: _motionOn && TickerMode.valuesOf(context).enabled,
+      windowIsKey: MotionRules.windowIsKey(
+        WidgetsBinding.instance.lifecycleState,
+      ),
+    );
   }
 
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
-    _ticker.dispose();
-    _time.dispose();
+    _clock.dispose();
     super.dispose();
   }
 
@@ -147,7 +135,7 @@ class _AmbientBackgroundState extends State<AmbientBackground>
             base: theme.blobOpacity,
             intensity: widget.intensity,
           ),
-          time: _time,
+          time: _clock.seconds,
           still: !_motionOn,
         ),
       ),
@@ -184,9 +172,8 @@ class _BlobPainter extends CustomPainter {
         centre,
         radius,
         [
-          colors[i].withValues(alpha: strength),
-          colors[i].withValues(alpha: strength * 0.55),
-          colors[i].withValues(alpha: 0),
+          for (final part in AmbientMath.fade)
+            colors[i].withValues(alpha: strength * part),
         ],
         const [0, 0.5, 1],
       );
