@@ -123,9 +123,11 @@ void main() {
       final path = join(dir, 'o.sqlite');
       var db = Database.open(path);
       final e = goalBlock(Repos(db));
-      // Take the database back to shared schema 6 and sync schema 2.
+      // Take the database back to shared schema 6 and sync schema 2. The
+      // subtasks of a goal (shared schema 8) came later, so they go too.
       db.executeScript('''
         DROP TABLE block_subtasks;
+        DROP TABLE goal_subtasks;
         PRAGMA user_version = 6;
         UPDATE sync_meta SET value = '2' WHERE key = 'schema';
         DELETE FROM sync_meta WHERE key = 'triggers';

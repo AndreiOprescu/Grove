@@ -88,10 +88,18 @@ class QuickAddResult {
 /// Turns one line of text ("Call mum tomorrow 6pm for 20m #home !2") into a task.
 /// Matched words are removed from the title. Words it does not know stay in the title.
 class QuickAddParser {
-  const QuickAddParser({required this.today, this.lists = const []});
+  const QuickAddParser({
+    required this.today,
+    this.lists = const [],
+    this.defaultDay,
+  });
 
   final DayKey today;
   final List<String> lists;
+
+  /// The day of a clock time or of a repeat rule when the text names no day:
+  /// the day of the list the user types in. `today` when null.
+  final DayKey? defaultDay;
 
   QuickAddResult parse(String input) {
     final trimmed = input.split(_space).where((w) => w.isNotEmpty).join(' ');
@@ -522,14 +530,15 @@ class _Run {
   // result
 
   QuickAddResult finish() {
-    final today = parser.today;
+    // The day when the text names none.
+    final base = parser.defaultDay ?? parser.today;
     final kind = dateKind;
     DayKey? planDate = kind is _Day ? kind.day : null;
     final planWeek = kind is _Week ? kind.week : null;
     final someday = kind is _Someday;
     final rule = recurrence;
     if (rule != null && planDate == null && planWeek == null && !someday) {
-      planDate = firstOccurrence(rule, today);
+      planDate = firstOccurrence(rule, base);
     }
     if (startMinute != null && planDate == null) {
       if (planWeek != null || someday) {
@@ -543,7 +552,7 @@ class _Run {
         }
         startMinute = null;
       } else {
-        planDate = today;
+        planDate = base;
       }
     }
     final bucket = planDate != null

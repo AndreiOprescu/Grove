@@ -4,6 +4,7 @@ import '../core/model/block_subtask.dart';
 import '../core/model/day_key.dart';
 import '../core/model/event.dart';
 import '../core/model/goal.dart';
+import '../core/model/goal_subtask.dart';
 import '../core/model/link.dart';
 import '../core/model/note.dart';
 import '../core/model/recurrence.dart';
@@ -470,7 +471,8 @@ class GoalRepo {
   );
 
   /// Deletes the goal. Its blocks stay as plain blocks: they lose the goal
-  /// (and any old done time).
+  /// (and any old done time). Its subtasks go with it (the database does
+  /// that).
   void delete(String id) {
     db.transaction(() {
       db.execute(
@@ -593,6 +595,80 @@ class BlockSubtaskRepo {
 
   void delete(String id) =>
       db.execute('DELETE FROM block_subtasks WHERE id = ?', [id]);
+}
+
+/// The subtasks of goals. A subtask belongs to one goal, so every block of
+/// the goal has the same list.
+class GoalSubtaskRepo {
+  GoalSubtaskRepo(this.db);
+
+  final Database db;
+
+  static const _cols = [
+    'id',
+    'goal_id',
+    'title',
+    'done_at',
+    'sort',
+    'created_at',
+    'updated_at',
+  ];
+  static final _select = 'SELECT ${_cols.join(',')} FROM goal_subtasks';
+  static const _order = 'ORDER BY sort, created_at, rowid';
+  static final _upsert = _upsertSql('goal_subtasks', _cols);
+
+  static GoalSubtaskItem _map(Row r) => GoalSubtaskItem(
+    id: r.text(0),
+    goalId: r.text(1),
+    title: r.text(2),
+    doneAt: r.optText(3),
+    sort: r.asDouble(4),
+    createdAt: r.text(5),
+    updatedAt: r.text(6),
+  );
+
+  /// Insert or update. Refreshes `updatedAt`. Throws when the goal does not
+  /// exist (foreign key).
+  void save(GoalSubtaskItem sub) {
+    final s = sub.copyWith(updatedAt: Stamp.now());
+    db.execute(_upsert, [
+      s.id,
+      s.goalId,
+      s.title,
+      s.doneAt,
+      s.sort,
+      s.createdAt,
+      s.updatedAt,
+    ]);
+  }
+
+  GoalSubtaskItem? get(String id) =>
+      db.query('$_select WHERE id = ?', [id], _map).firstOrNull;
+
+  /// The subtasks of one goal, in list order.
+  List<GoalSubtaskItem> forGoal(String goalId) =>
+      db.query('$_select WHERE goal_id = ? $_order', [goalId], _map);
+
+  /// The subtasks of many goals in one query, by goal id. A goal with no
+  /// subtasks has no entry. The ids go in as one JSON list, so the SQL text
+  /// is the same for any number of goals.
+  Map<String, List<GoalSubtaskItem>> forGoals(Iterable<String> goalIds) {
+    final ids = goalIds.toList();
+    final out = <String, List<GoalSubtaskItem>>{};
+    if (ids.isEmpty) return out;
+    final rows = db.query(
+      '$_select WHERE goal_id IN (SELECT value FROM json_each(?)) $_order',
+      [jsonEncode(ids)],
+      _map,
+    );
+    for (final s in rows) {
+      (out[s.goalId] ??= []).add(s);
+    }
+    return out;
+  }
+
+  void delete(String id) =>
+      db.execute('DELETE FROM goal_subtasks WHERE id = ?', [id]);
 }
 
 class NoteRepo {
@@ -908,6 +984,7 @@ class Repos {
     : search = SearchIndex(db),
       goals = GoalRepo(db),
       blockSubtasks = BlockSubtaskRepo(db),
+      goalSubtasks = GoalSubtaskRepo(db),
       lists = ListRepo(db),
       tags = TagRepo(db),
       links = LinkRepo(db),
@@ -933,6 +1010,7 @@ class Repos {
   late final NoteRepo notes;
   final GoalRepo goals;
   final BlockSubtaskRepo blockSubtasks;
+  final GoalSubtaskRepo goalSubtasks;
   final ListRepo lists;
   final TagRepo tags;
   final LinkRepo links;

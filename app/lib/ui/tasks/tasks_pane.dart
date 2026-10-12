@@ -20,10 +20,19 @@ enum TasksPaneMode { today, unscheduled }
 
 /// A task list for the left side of the Today and Planner screens.
 class TasksPane extends StatefulWidget {
-  const TasksPane({super.key, required this.store, required this.mode});
+  const TasksPane({
+    super.key,
+    required this.store,
+    required this.mode,
+    this.day,
+  });
 
   final AppStore store;
   final TasksPaneMode mode;
+
+  /// The day of the list in the `today` mode. Null is today. The Today
+  /// screen gives tomorrow when it shows tomorrow.
+  final DayKey? day;
 
   @override
   State<TasksPane> createState() => _TasksPaneState();
@@ -48,7 +57,7 @@ class _TasksPaneState extends State<TasksPane> {
     ],
   );
 
-  /// "Tasks", how many of today are done, and a bar for it.
+  /// "Tasks", how many of the day are done, and a bar for it.
   Widget _todayHeader(GroveTheme theme, PlantProgress progress) => Column(
     crossAxisAlignment: CrossAxisAlignment.stretch,
     mainAxisSize: MainAxisSize.min,
@@ -64,10 +73,14 @@ class _TasksPaneState extends State<TasksPane> {
     ],
   );
 
-  /// Today's open tasks, then the ones checked off today. The late ones
-  /// are in the list of the Planner screen. Each part is a sliver, with a
-  /// key: a part keeps its rows when a card over it goes away.
-  List<Widget> _todayContent(Map<String, ListItem> lists, DayKey day) {
+  /// The open tasks of the day, then the ones checked off that day. The
+  /// late ones are in the list of the Planner screen. Each part is a sliver,
+  /// with a key: a part keeps its rows when a card over it goes away.
+  List<Widget> _todayContent(
+    Map<String, ListItem> lists,
+    DayKey day,
+    DayKey today,
+  ) {
     final done = [
       for (final t in _store.repos.tasks.forDay(day))
         if (t.isDone && !_store.lingering.contains(t.id)) t,
@@ -76,7 +89,7 @@ class _TasksPaneState extends State<TasksPane> {
       TaskSection(
         key: const ValueKey('part-day'),
         store: _store,
-        title: TaskFormat.dayLabel(day, today: day),
+        title: TaskFormat.dayLabel(day, today: today),
         placement: TaskPlacement.day(day),
         tasks: _store.openTasks(TaskPlacement.day(day)),
         contextDay: day,
@@ -212,27 +225,31 @@ class _TasksPaneState extends State<TasksPane> {
       final List<Widget> content;
       switch (widget.mode) {
         case TasksPaneMode.today:
-          final yesterday = _store.rollOverItems();
+          final day = widget.day ?? today;
+          // The two cards are about the real today: the first steps of a
+          // new user, and what was left open yesterday.
+          final isToday = day == today;
+          final yesterday = isToday ? _store.rollOverItems() : null;
           top = [
-            _todayHeader(theme, _store.plantProgress(today)),
+            _todayHeader(theme, _store.plantProgress(day)),
             QuickAddField(
               store: _store,
-              placement: TaskPlacement.day(today),
-              placementLabel: TaskFormat.dayLabel(today, today: today),
+              placement: TaskPlacement.day(day),
+              placementLabel: TaskFormat.dayLabel(day, today: today),
             ),
           ];
           content = [
-            if (_store.welcomeVisible)
+            if (isToday && _store.welcomeVisible)
               SliverToBoxAdapter(
                 key: const ValueKey('card-welcome'),
                 child: WelcomeCard(store: _store),
               ),
-            if (yesterday.isNotEmpty)
+            if (yesterday != null && yesterday.isNotEmpty)
               SliverToBoxAdapter(
                 key: const ValueKey('card-yesterday'),
                 child: RollOverCard(store: _store, items: yesterday),
               ),
-            ..._todayContent(lists, today),
+            ..._todayContent(lists, day, today),
           ];
         case TasksPaneMode.unscheduled:
           final waiting = _store.unscheduledTasks(today: today);

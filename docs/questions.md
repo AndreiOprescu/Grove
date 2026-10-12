@@ -222,3 +222,19 @@ A) Keep "grove" — the data folder stays the same for sure; the window, the tas
 B) Change it to "Grove" — the "Details" tab says "Grove" too; on a normal Windows disk the folder is the same one (big and small letters are equal there), on a disk set to tell them apart the app would start with an empty folder.
 If no answer: A stays. The file name `grove.exe` stays too.
 Answer (owner, 2026-10-12): B. The Windows "Product name" becomes "Grove".
+
+## Q-48 · ANSWERED A · ASK · blocks the subtasks of a goal (what a click on a goal does) · 2026-10-12
+What does a click on a goal in the Goals panel do, now that a goal has subtasks? Before, the click opened the editor of the goal.
+A) The click opens the subtasks — all of them and a line to add one. The editor is one click more: the line "Edit goal…" in the open goal, or "Edit…" in the right-click menu.   ← my pick: your words were "added by clicking on the goal" and "expanded by clicking on the goal".
+B) The click opens the subtasks and the editor together — one click for both; an open goal is then very tall, and on a phone the editor pushes the other goals off the screen.
+If no answer: A stays. It is built.
+Answer (owner, 2026-10-12): A.
+The builder got this answer from the coordinator of the session, with the plan ("A, yes to all"). The proof is in `docs/acceptance/goal-subtasks.md`.
+
+## Q-49 · ANSWERED A · ASK · blocks the subtasks of a goal (the new table) · 2026-10-12
+May the new table `goal_subtasks` be migration 8 of the shared database schema? The Swift Mac app has 7 on its branch and 6 on `main`.
+A) Yes, migration 8 — one number for the database, the export file and the sync, as for each table before. The Swift Mac app then refuses an export file of this app ("from a newer Grove"). This app still imports the files of the Mac app (schema 6 and 7).   ← my pick: the export, the import and the sync read one list of tables and one number; a second number is a new rule in each of them.
+B) Keep the number 7 and put the table on a track of this app only — the export file still says schema 7; the app then has two kinds of tables, and it was not tried if the Mac app reads a file with a table it does not know.
+If no answer: A stays. It is built.
+Answer (owner, 2026-10-12): A.
+The builder got this answer from the coordinator of the session, with the plan ("A, yes to all"). To go back the other way, from this app to the Mac app, the Mac app needs migration 8 too. Nothing in `Sources/` was changed.

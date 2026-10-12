@@ -171,9 +171,12 @@ void main() {
         final r = makeRepos();
         DataExport.importData(jsonEncode(mac), r);
         final ours = decode(DataExport.export(r.db));
-        expect(ours['schema'], 7);
+        expect(ours['schema'], Migrations.all.length);
         final a = mac['tables'] as Map<String, dynamic>;
         final b = ours['tables'] as Map<String, dynamic>;
+        // The subtasks of a goal are in this app only: no Mac file has them.
+        expect(a.keys, isNot(contains('goal_subtasks')));
+        expect(b.remove('goal_subtasks'), isEmpty);
         if (version == 6) {
           expect(a.keys, isNot(contains('block_subtasks')));
           expect(b.remove('block_subtasks'), isEmpty);
