@@ -182,6 +182,13 @@ A) Keep the pulse, at 20 steps a second — with "Motion on" an idle planner dra
 B) No pulse — the line stands still, and an idle planner draws nothing, with motion on too. The plan loses the line of §6.3.
 If no answer: A stays. It is built. The measure of the processor use is a request in `docs/tracks.md` ("Requests, with the planner notes").
 
+## Q-26 · ANSWERED B · DEFAULT · blocks F12 (release builds) · 2026-10-11
+Which id does the Flutter app have? `PLAN.md` §0 says `local.grove.app`. The Flutter app has `local.grove.grove`.
+A) Keep `local.grove.grove` — the Mac app and the Flutter app are two apps, each with its own data folder. Both can be on one Mac.   ← my pick: nothing of the Mac app is touched before you retire it.
+B) Use `local.grove.app` — one id, as the plan says. On a Mac the Flutter app then takes the place of the Swift app.
+If no answer: A stays. It is what is built.
+Answer (owner, 2026-10-11): B. The id will be `local.grove.app`, but not now. See Q-30: the id stays `local.grove.grove` while the owner uses the Swift Mac app.
+
 ## Q-30 · ANSWERED B · ASK · blocks the change of the app id to `local.grove.app` (your answer to Q-26) · 2026-10-11
 With the id `local.grove.app` the Flutter app cannot reach the database of the Mac app, but on your Mac the two apps then share the settings file of macOS and the reminders. May the id change?
 A) Yes, after you copy one file — you run `cp ~/Library/Preferences/local.grove.app.plist ~/Desktop/` first. Then the id changes on the 4 systems. The Flutter app starts with an empty store; your Mac data stays in `~/Library/Application Support/Grove/`. Reminders of both apps show under one name while you use both.   ← my pick: the code shows two reasons why the database is safe, and the copy protects the one small file that is not sure.
