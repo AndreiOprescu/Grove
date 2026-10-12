@@ -2,9 +2,10 @@ name: flutter
 
 # A branch of work (`feat/xp-*`) is checked through its pull request only.
 # With a push trigger for those branches too, each commit ran two times.
+# `main` is in the list for the time after the Flutter app is on `main`.
 on:
   push:
-    branches: [feat/cross-platform-flutter]
+    branches: [main, feat/cross-platform-flutter]
     paths: ['app/**', 'scripts/flutter_*.sh', '.github/workflows/flutter.yml']
   pull_request:
     paths: ['app/**', 'scripts/flutter_*.sh', '.github/workflows/flutter.yml']

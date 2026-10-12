@@ -4,7 +4,7 @@ name: supabase-sql
 # Supabase project and no key.
 on:
   push:
-    branches: [feat/cross-platform-flutter, 'feat/xp-*']
+    branches: [main, feat/cross-platform-flutter, 'feat/xp-*']
     paths: ['supabase/**', '.github/workflows/supabase.yml']
   pull_request:
     paths: ['supabase/**', '.github/workflows/supabase.yml']
