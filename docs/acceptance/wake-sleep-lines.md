@@ -4,9 +4,9 @@ The owner asked: "I want there to be the following markers on the day planner: w
 
 This file takes each thing asked: what was built, which tests prove it, and what is not verified.
 
-Branch `feat/xp-wake-sleep`, draft PR #24 into `feat/cross-platform-flutter`. The base (`8351ccd`, with PR #18, #19 and #20) is merged into the branch (`b8a6bbb`).
+Branch `feat/xp-wake-sleep`, draft PR #24 into `feat/cross-platform-flutter`. The base is merged into the branch two times: `8351ccd` (PR #18, #19 and #20) in `b8a6bbb`, and `c0c5b81` (PR #22, docs) in `5d60096`.
 
-Check: `./scripts/flutter_test.sh` (2026-10-12, on this Mac: 2525 tests passed, analyze clean, format clean). 69 of them are new here. The base has 2456. Device check: `app/integration_test/planner_test.dart`, 1 new test; it runs only in CI. CI run: see "CI" below.
+Check: `./scripts/flutter_test.sh` (2026-10-12, on this Mac: 2528 tests passed, analyze clean, format clean). 72 of them are new here. The base has 2456. Device check: `app/integration_test/planner_test.dart`, 1 new test; it runs only in CI. CI run: see "CI" below.
 
 ## What the user sees
 
@@ -51,7 +51,7 @@ Engine files:
 
 Screen files:
 
-- New `app/lib/ui/planner/day_markers.dart`: the menu of "+" and the layer that draws the lines and takes the drag.
+- New `app/lib/ui/planner/day_markers.dart`: the menu of "+", the layer that draws the lines and takes the drag, and `DayMarkerPlus`, the "+" of the button as two bars on whole pixels.
 - `app/lib/ui/planner/planner_grid.dart`: one layer after the now line; a flag so the grid does not scroll and starts no block drag during a line drag; `scrollToMinute`.
 - `app/lib/ui/planner/planner_view.dart`: the "+" in `_zoomButtons`, `_showDayMarkers`, and the two width limits of the header (470 and 680 points; they were 430 and 640).
 - `app/lib/ui/theme/symbols.dart`: the moon.
@@ -80,9 +80,11 @@ Screen files:
 
 `app/test/ui/planner/day_marker_golden_test.dart` (7 pictures in `app/test/ui/planner/goldens/`): `day_lines_desktop_grove_light.png`, `day_lines_desktop_minimal_light.png`, `day_lines_desktop_futuristic_light.png`, `day_lines_desktop_vintage_light.png`, `day_lines_desktop_grove_dark.png`, `day_lines_phone_grove_light.png`, `day_lines_today_drag_grove_light.png`. I looked at each: the two dashed lines, the labels at the right end with the sun or the moon and the time, the dark label during a drag.
 
+The same file has 3 tests "the "+" has no soft edge" (the Planner, a phone, Today): they draw the screen and read the points inside the "+" button. There are two colours only, the button and the ink.
+
 `app/integration_test/planner_test.dart` (1 new device test): "day lines: "+" adds the wake-up line, a drag moves it, a tap takes it away". A finger on Android and iOS, the mouse on macOS and Windows.
 
-The tests failed first for the right reason ("key not found", and for the header: too wide from 458 to 482 points, dates cut at 664 points) and passed after the code. Three guard tests ("a line that goes away ...", "a block drag that runs ...", "no frame ...") passed at once; I broke the code on purpose to see each one fail, then put the code back.
+The tests failed first for the right reason ("key not found"; for the header: too wide from 458 to 482 points, dates cut at 664 points; for the "+": more than two colours with the shape of the icon font) and passed after the code. Three guard tests ("a line that goes away ...", "a block drag that runs ...", "no frame ...") passed at once; I broke the code on purpose to see each one fail, then put the code back.
 
 ## Old pictures made again
 
@@ -90,9 +92,28 @@ The "+" is in each picture with the header of the Planner or the "Timeline" row 
 
 How I checked them: a script compared each new picture with the old one point by point and cut out the changed part of both. I looked at each of the 48 pairs. In all of them the changed points are in the row of the header only: the "+" is new, and the buttons left of it moved by 38 points. In the 6 pictures of Goals the dates of the header lose one more letter; that is the test font, where each letter is a square. I looked at two whole pictures as well (`goals_desktop_grove_light.png`, `goals_desktop_futuristic_light.png`).
 
+## The "+" was drawn again after the first CI run
+
+In CI run 124 the android job failed on one old picture, `planner_phone_grove_light.png` (test "planner phone grove"): 0.204 % of the points were off, and the limit is 0.2 %. All tests of the lines passed there, and so did the 7 new pictures.
+
+The cause: the "+" was a shape of the icon font. Such a shape has soft edges, and Linux draws them in another way than the Mac. 24 of the 671 points that were off were the "+". Without them the picture is at 647 points; the limit is 658.
+
+The fix (commit `79c6326`): the "+" is two bars of 2 points on whole pixels, drawn by `DayMarkerPlus`. The limit and `TolerantGoldenComparator` did not change. 55 pictures were made again: the 48 old ones and the 7 new ones. A script compared each with the picture before: in each one the points that changed by more than the noise are in the 10 by 10 points of the "+". I looked at the old and the new "+" of all 55, and at two whole pictures (`planner_phone_grove_light.png`, `day_lines_today_drag_grove_light.png`).
+
 ## CI
 
-See the end of this file.
+Workflow `flutter`, 4 jobs each (android, windows, macos, ios), with the device tests.
+
+| Run | Commit | android | windows | macos | ios |
+|---|---|---|---|---|---|
+| 124 (push) | `814cc11` (the code of `99cba46`) | failed: one old picture, see above | green | green | green |
+| 125 (pull request) | `814cc11` | failed: the same picture | green | green | green |
+| 128, 129 | `5d60096` (merge of the docs of the base) | cancelled by me: the same code as run 124, and a newer commit was pushed | | | |
+| 134 (push), 135 (pull request) | `79c6326` (the "+" as two bars) | not finished | not finished | not finished | not finished |
+
+No run is green on all 4 jobs yet. The new device test of the lines passed on windows, macos and ios in runs 124 and 125. On android the job stopped at the picture test, before the device tests.
+
+The android result of the fix is an estimate made on this Mac: the picture of run 124 with the new "+" has 647 points off, and 658 are allowed.
 
 ## Not verified
 
@@ -100,4 +121,5 @@ See the end of this file.
 - A real phone. The phone layout is tested in widget tests, and the device test runs on an emulator and a simulator in CI.
 - Sync against a real Supabase project. The tests use the test backend.
 - The header in the futuristic theme and the vintage theme: the dates were cut at some widths before this change (up to 704 and 824 points of the planner); the cut now ends 36 points later.
+- The picture `planner_phone_grove_light.png` is near the limit on Linux also without the "+": about 647 points are off and 658 are allowed. That comes from the letters and icons that were there before. A later change of that screen can make the android job fail on it.
 - The strip of a line that takes the drag is 8 points high and lies over a block under it. A finger that starts a scroll exactly on a line moves the line. Undo puts it back.
