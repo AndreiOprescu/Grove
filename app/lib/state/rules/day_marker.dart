@@ -24,6 +24,12 @@ enum DayMarkerKind {
     DayMarkerKind.wake => 'Wake-up Line',
     DayMarkerKind.sleep => 'Sleep Line',
   };
+
+  /// The picture next to the time, as the SF Symbol name of the Mac app.
+  String get symbol => switch (this) {
+    DayMarkerKind.wake => 'sun.max',
+    DayMarkerKind.sleep => 'moon',
+  };
 }
 
 /// One line of one day, at a minute since midnight.

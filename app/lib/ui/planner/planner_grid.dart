@@ -17,6 +17,7 @@ import '../theme/grove_theme.dart';
 import '../theme/named_colors.dart';
 import '../theme/theme_math.dart';
 import 'block_view.dart';
+import 'day_markers.dart';
 import 'inline_title_field.dart';
 import 'planner_geometry.dart';
 
@@ -152,6 +153,9 @@ class PlannerGridState extends State<PlannerGrid> {
   /// fingers zoom: they do not move a block, make one or open a menu.
   bool _twoFingers = false;
 
+  /// True while a wake-up line or a sleep line is dragged (`DayMarkerLayer`).
+  bool _markerDrag = false;
+
   AppStore get _store => widget.store;
   List<DayKey> get _days => widget.days;
   double get _hourHeight => _pinchHeight ?? widget.hourHeight;
@@ -166,7 +170,7 @@ class PlannerGridState extends State<PlannerGrid> {
       PlannerGeometry.gutterWidth + PlannerGeometry.dayOffset(_dayWidth, index);
   double _dayWidthAt(int index) => PlannerGeometry.dayWidthAt(_dayWidth, index);
 
-  bool get _isDragging => _live != null || _create != null;
+  bool get _isDragging => _live != null || _create != null || _markerDrag;
   double get _scrollY => _scroll.hasClients ? _scroll.offset : 0;
 
   /// The new block that waits for its title, for tests.
@@ -344,7 +348,25 @@ class PlannerGridState extends State<PlannerGrid> {
   /// Puts "now" one hour below the top of the grid.
   void scrollToNow({required bool animated}) {
     if (!_scroll.hasClients) return;
-    final target = min(_nowTarget, _scroll.position.maxScrollExtent);
+    _scrollTo(_nowTarget, animated: animated);
+  }
+
+  /// Brings a minute of the day on the screen, one hour below the top of
+  /// the grid. A minute that is on the screen stays where it is.
+  void scrollToMinute(int minute, {required bool animated}) {
+    if (!_scroll.hasClients) return;
+    final y = _geo.y(minute);
+    final position = _scroll.position;
+    const margin = 24.0;
+    if (y >= position.pixels + margin &&
+        y <= position.pixels + position.viewportDimension - margin) {
+      return;
+    }
+    _scrollTo(max(0, y - _hourHeight).roundToDouble(), animated: animated);
+  }
+
+  void _scrollTo(double y, {required bool animated}) {
+    final target = min(y, _scroll.position.maxScrollExtent);
     if (animated && _motionOn) {
       unawaited(
         _scroll.animateTo(
@@ -1263,6 +1285,20 @@ class PlannerGridState extends State<PlannerGrid> {
             child: ExcludeSemantics(child: _NowLine(pulses: _motionOn)),
           ),
         ),
+      Positioned.fill(
+        child: DayMarkerLayer(
+          key: const ValueKey('day-marker-layer'),
+          store: _store,
+          days: _days,
+          geo: geo,
+          dayLeft: _dayLeft,
+          dayWidth: _dayWidthAt,
+          scroll: _scroll,
+          inViewport: _inViewport,
+          canStart: () => !_isDragging && !_twoFingers,
+          onDragging: (on) => setState(() => _markerDrag = on),
+        ),
+      ),
       ?_draftWidget(theme, geo),
       ?_liveLabel(theme, geo),
     ];
