@@ -3,14 +3,34 @@ part of 'app_store.dart';
 /// Moving around the window. The menu and the screen switch call these.
 extension AppStoreNavigation on AppStore {
   /// View ▸ Today. The Planner and the Calendar stay where they are and move
-  /// to today. Every other screen goes to the Today screen. The timeline
-  /// scrolls to the current time.
+  /// to today. Every other screen goes to the Today screen, and that screen
+  /// shows today again. The timeline scrolls to the current time.
   void showToday() {
     _selectedDay = clockToday;
     if (_screen != Screen.planner && _screen != Screen.calendar) {
       _screen = Screen.today;
+      _todayScreenDay = null;
     }
     todayRequest += 1;
+  }
+
+  /// The day on the Today screen: today, or tomorrow after the "Tomorrow"
+  /// switch of its header. The store keeps the day and not a yes or no: after
+  /// midnight that day is today, so the screen stays on the day the user
+  /// looks at.
+  DayKey get todayScreenDay {
+    final today = clockToday;
+    final chosen = _todayScreenDay;
+    return chosen == today.adding(days: 1) ? chosen! : today;
+  }
+
+  /// The Today screen shows only tomorrow, to plan the next day. The choice
+  /// lasts while the app runs.
+  bool get showsTomorrow => todayScreenDay != clockToday;
+  set showsTomorrow(bool on) {
+    _todayScreenDay = on ? clockToday.adding(days: 1) : null;
+    if (_screen == Screen.today) _selectedDay = todayScreenDay;
+    _changed();
   }
 
   /// The panel open on the left of the Today and Planner screens, or null when
@@ -41,11 +61,15 @@ extension AppStoreNavigation on AppStore {
     if (!LeftPane.isAvailable(_screen)) screen = Screen.planner;
   }
 
-  /// Opens [day] where it can be seen. Today goes to the Today screen, which
-  /// only ever shows today. Any other day opens the Planner on its week.
+  /// Opens [day] where it can be seen. Today goes to the Today screen, on
+  /// today. Tomorrow stays on the Today screen when that screen shows it. Any
+  /// other day opens the Planner on its week.
   void showDay(DayKey day) {
+    final today = day == clockToday;
+    if (today) _todayScreenDay = null;
+    final shown = _screen == Screen.today && day == todayScreenDay;
     _selectedDay = day;
-    screen = day == clockToday ? Screen.today : Screen.planner;
+    screen = today || shown ? Screen.today : Screen.planner;
   }
 
   /// The height of one hour on the planner grid. Saved in `planner.hourHeight`.

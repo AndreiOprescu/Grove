@@ -56,6 +56,7 @@ void fill(Device d) {
   r.lists.save(list);
   r.notes.save(note);
   r.goals.upsert(goal);
+  r.goalSubtasks.save(GoalSubtaskItem(goalId: goal.id, title: 'Chapter 4'));
   r.tasks.save(task);
   r.tasks.save(sub);
   r.events.save(event);

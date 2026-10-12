@@ -4,13 +4,15 @@
 //   cd app && flutter test --update-goldens test/ui/goals
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:grove/core/model/goal_subtask.dart';
 import 'package:grove/ui/store_app.dart';
 
 import '../planner/planner_support.dart';
 import '../tasks/tasks_support.dart' show textOffPixels;
 
 /// Three goals with blocks in the week: one of hours with done and planned
-/// time, one of sessions over its target, one with nothing planned.
+/// time, one of sessions over its target, one with nothing planned. The
+/// first has five subtasks (one is done), the second two, the third none.
 AppStore _scene({ThemeId theme = ThemeId.grove, bool dark = false}) {
   final store = plannerStore(now: 10 * 60 + 20);
   store
@@ -58,11 +60,37 @@ AppStore _scene({ThemeId theme = ThemeId.grove, bool dark = false}) {
   block('gym-1', 'gym', -2, 10 * 60, 60);
   block('gym-2', 'gym', -1, 11 * 60, 60);
   block('gym-3', 'gym', 2, 10 * 60, 60);
+  void subtask(String goal, int at, String title, {bool done = false}) =>
+      store.repos.goalSubtasks.save(
+        GoalSubtaskItem(
+          id: '$goal-s$at',
+          goalId: goal,
+          title: title,
+          sort: at + 0.0,
+          doneAt: done ? '2026-10-06T12:00:00' : null,
+          createdAt: '2026-10-05T09:00:00',
+        ),
+      );
+  subtask('read', 1, 'Chapter 3', done: true);
+  subtask('read', 2, 'Chapter 4');
+  subtask('read', 3, 'Notes for the book club on Thursday evening');
+  subtask('read', 4, 'Return the library books');
+  subtask('read', 5, 'Pick the next book');
+  subtask('gym', 1, 'Legs');
+  subtask('gym', 2, 'Stretch after');
   return store..leftPane = LeftPane.goals;
 }
 
-Future<void> _openEditor(WidgetTester tester, String goal) async {
+/// A click on the goal: it shows all its subtasks.
+Future<void> _open(WidgetTester tester, String goal) async {
   await tester.tap(find.byKey(ValueKey('goal-$goal')));
+  await tester.pumpAndSettle();
+}
+
+/// The open goal with its editor too.
+Future<void> _openEditor(WidgetTester tester, String goal) async {
+  await _open(tester, goal);
+  await tester.tap(find.byKey(ValueKey('goal-edit-$goal')));
   await tester.pumpAndSettle();
 }
 
@@ -77,7 +105,7 @@ void main() {
       await withRealShadows(() async {
         final store = _scene(theme: theme);
         await pumpPlanner(tester, store);
-        await _openEditor(tester, 'read');
+        await _open(tester, 'read');
         expect(textOffPixels(tester), isEmpty);
         await expectLater(
           find.byType(StoreApp),

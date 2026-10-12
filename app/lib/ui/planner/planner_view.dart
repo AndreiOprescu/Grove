@@ -29,13 +29,22 @@ import 'sticky_strip.dart';
 import 'workload.dart';
 
 class PlannerView extends StatefulWidget {
-  const PlannerView({super.key, required this.store, required this.kind});
+  const PlannerView({
+    super.key,
+    required this.store,
+    required this.kind,
+    this.day,
+  });
 
   /// The setting of the mood colours of the month.
   static const moodTintKey = 'calendar.moodTint';
 
   final AppStore store;
   final PlannerKind kind;
+
+  /// The day of the one-day timeline (`PlannerKind.today`). Null is today.
+  /// The Today screen gives tomorrow when it shows tomorrow.
+  final DayKey? day;
 
   @override
   State<PlannerView> createState() => _PlannerViewState();
@@ -166,6 +175,14 @@ class _PlannerViewState extends State<PlannerView> {
     _openWindows();
   }
 
+  /// Whose tasks "Plan my day" plans, for its tooltip: the day in view.
+  String get _planDayWord =>
+      switch (_store.clockToday.daysUntil(_store.selectedDay)) {
+        0 => "today's",
+        1 => "tomorrow's",
+        _ => "the chosen day's",
+      };
+
   // Days
 
   /// A narrow screen shows one day column in place of the week.
@@ -178,7 +195,7 @@ class _PlannerViewState extends State<PlannerView> {
       ? [_store.selectedDay]
       : _kind.days(
           selected: _store.selectedDay,
-          today: _store.clockToday,
+          today: widget.day ?? _store.clockToday,
           sundayFirst: _store.weekStartsSunday,
         );
 
@@ -504,7 +521,7 @@ class _PlannerViewState extends State<PlannerView> {
           key: const ValueKey('plan-my-day'),
           label: 'Plan my day',
           tooltip:
-              "Plan my day: fit today's unscheduled tasks into free "
+              'Plan my day: fit $_planDayWord unscheduled tasks into free '
               'working hours',
           icon: symbolIcon('wand.and.stars'),
           small: small,
@@ -513,7 +530,8 @@ class _PlannerViewState extends State<PlannerView> {
       : _HeaderButton(
           key: const ValueKey('plan-my-day'),
           label: 'Plan my day',
-          tooltip: "Fit today's unscheduled tasks into free working hours",
+          tooltip:
+              'Fit $_planDayWord unscheduled tasks into free working hours',
           text: 'Plan my day',
           onTap: _showPlan,
         );

@@ -81,6 +81,7 @@ The heart of Grove. A timeline of your day, with your tasks on the side.
 - A **workload bar** shows how full the day is. It turns red when you plan too much.
 - Start a **focus timer** on any block.
 - Yesterday's unfinished blocks? Grove offers to **roll them over**.
+- Planning ahead? The **Today / Tomorrow** switch in the header shows only tomorrow.
 
 ### Planner — your week at a glance
 Seven days side by side. Drag blocks between days. Zoom in and out with `⌘ =` and `⌘ −`
@@ -332,6 +333,9 @@ data is on a server that is yours.
 2. Open **SQL Editor**. Paste the whole file
    [`supabase/migrations/20261011000000_grove_sync.sql`](supabase/migrations/20261011000000_grove_sync.sql)
    and run it.
+   Then do the same with
+   [`supabase/migrations/20261012000000_grove_sync_goal_subtasks.sql`](supabase/migrations/20261012000000_grove_sync_goal_subtasks.sql).
+   Sync works only after both files.
 3. Open **Authentication ▸ Emails ▸ Templates**. In "Magic Link" and in "Confirm signup",
    add this line: `Your code for Grove: {{ .Token }}`
 4. Make the key file and fill in the two fields:

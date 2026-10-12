@@ -14,6 +14,7 @@ export 'rules/day_range.dart';
 export 'rules/day_rules.dart';
 export 'rules/drag_payload.dart';
 export 'rules/goal_rules.dart';
+export 'rules/goal_subtask_rules.dart';
 export 'rules/inspector_options.dart';
 export 'rules/left_pane.dart';
 export 'rules/meeting_note.dart';

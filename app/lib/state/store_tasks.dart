@@ -107,29 +107,37 @@ extension AppStoreTasks on AppStore {
 
   /// Makes a task from one line of text ("Call mum tomorrow 6pm for 20m #home
   /// !2"). [placement] is used when the text names no date. A clock time on a
-  /// day makes a time block too.
+  /// day makes a time block too. In the list of a day, a time with no day is
+  /// a time on that day.
   TaskItem? quickAdd(
     String text, {
     TaskPlacement placement = TaskPlacement.inbox,
   }) {
-    final made = quickAddChange(text, placement: placement);
+    final made = quickAddChange(
+      text,
+      placement: placement,
+      defaultDay: placement is DayPlacement ? placement.day : null,
+    );
     if (made == null) return null;
     return commit(made.change) ? made.task : null;
   }
 
   /// The change that [quickAdd] would commit, and the task in it. Null when
   /// the text has no words for a title. [notes] is the text of the task's
-  /// notes field.
+  /// notes field. [defaultDay] is the day of a clock time when the text names
+  /// no day; today when null.
   ({TaskItem task, Mutation change})? quickAddChange(
     String text, {
     required TaskPlacement placement,
     String notes = '',
+    DayKey? defaultDay,
   }) {
     final lists = _try(repos.lists.all) ?? const <ListItem>[];
     final today = clockToday;
     final r = QuickAddParser(
       today: today,
       lists: [for (final l in lists) l.name],
+      defaultDay: defaultDay,
     ).parse(text);
     if (r.title.trim().isEmpty) return null;
 
