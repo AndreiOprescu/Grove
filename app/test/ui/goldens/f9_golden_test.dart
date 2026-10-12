@@ -198,6 +198,26 @@ AppStore _spread({ThemeId theme = ThemeId.grove, bool dark = false}) {
   return store;
 }
 
+/// The same store with the Today screen on tomorrow: Thursday has two
+/// events, a task with a time and two tasks with none. Wednesday still has
+/// its plan, and none of it may be in the picture.
+AppStore _tomorrow({bool dark = false}) {
+  final store = _spread(dark: dark);
+  final thursday = wednesday.adding(days: 1);
+  _event(store, 'Design review', thursday, start: 9 * 60 + 30, end: 10 * 60);
+  _event(store, 'Dentist', thursday, start: 12 * 60, end: 13 * 60);
+  store.createFromDraft(
+    title: 'Pack the bag',
+    day: thursday,
+    start: 10 * 60 + 30,
+    end: 11 * 60 + 30,
+    asEvent: false,
+  );
+  addTask(store, 'Print the ticket', id: 'TASK-5', day: thursday, sort: 1);
+  addTask(store, 'Call the hotel', id: 'TASK-6', day: thursday, sort: 2);
+  return store..showsTomorrow = true;
+}
+
 Future<void> _shot(
   WidgetTester tester,
   AppStore store,
@@ -308,5 +328,32 @@ void main() {
 
   testWidgets('day spread phone grove', (tester) async {
     await _shot(tester, _spread(), 'spread_phone_grove_light', size: phoneSize);
+  });
+
+  testWidgets('day spread on tomorrow, desktop grove', (tester) async {
+    await _shot(
+      tester,
+      _tomorrow(),
+      'spread_tomorrow_desktop_grove_light',
+      size: _wide,
+    );
+  });
+
+  testWidgets('day spread on tomorrow, desktop grove dark', (tester) async {
+    await _shot(
+      tester,
+      _tomorrow(dark: true),
+      'spread_tomorrow_desktop_grove_dark',
+      size: _wide,
+    );
+  });
+
+  testWidgets('day spread on tomorrow, phone grove', (tester) async {
+    await _shot(
+      tester,
+      _tomorrow(),
+      'spread_tomorrow_phone_grove_light',
+      size: phoneSize,
+    );
   });
 }

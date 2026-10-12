@@ -73,6 +73,19 @@ abstract final class SpreadRules {
     return (timeline: one < 0 ? 0 : one, note: 0);
   }
 
+  /// The "Today / Tomorrow" switch of the header, in a desktop window. Both
+  /// words fit in each theme. A phone gives the switch its own row.
+  static const daySwitchWidth = 188.0;
+
+  /// The height of the touch area of the switch. The control looks smaller:
+  /// the rest of the area is empty space over and under it. The same height
+  /// as a dock button on a phone.
+  static const daySwitchTouch = 40.0;
+
+  /// The room of the plant in the header: a whole number, so the switch on
+  /// its left starts on a whole point.
+  static const plantSlot = 36.0;
+
   /// The line under the big date.
   static String subtitle({
     required bool isToday,
@@ -84,4 +97,14 @@ abstract final class SpreadRules {
         ? 'Nothing planned'
         : '${progress.percent}% of the day grown';
   }
+
+  /// The line under the date in the tomorrow view. It names the day, so the
+  /// screen cannot be read as today. No greeting and no growth: both belong
+  /// to today.
+  static String tomorrowSubtitle(PlantProgress progress) =>
+      switch (progress.total) {
+        0 => 'Tomorrow · No tasks yet',
+        1 => 'Tomorrow · 1 task planned',
+        final n => 'Tomorrow · $n tasks planned',
+      };
 }

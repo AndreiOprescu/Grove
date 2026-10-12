@@ -77,6 +77,27 @@ void main() {
     );
   });
 
+  test('tomorrow is named, with no greeting and no growth', () {
+    expect(
+      SpreadRules.tomorrowSubtitle(const PlantProgress(done: 0, total: 0)),
+      'Tomorrow · No tasks yet',
+    );
+    expect(
+      SpreadRules.tomorrowSubtitle(const PlantProgress(done: 0, total: 1)),
+      'Tomorrow · 1 task planned',
+    );
+    expect(
+      SpreadRules.tomorrowSubtitle(const PlantProgress(done: 1, total: 3)),
+      'Tomorrow · 3 tasks planned',
+    );
+  });
+
+  test('the switch is on whole points, and a finger can hit it', () {
+    expect(SpreadRules.daySwitchWidth % 1, 0);
+    expect(SpreadRules.plantSlot % 1, 0);
+    expect(SpreadRules.daySwitchTouch, greaterThanOrEqualTo(40));
+  });
+
   test('the columns of a window: the timeline takes what is left', () {
     final c = SpreadRules.columns(width: 1280, tasks: 340);
     expect(c.tasks, 340);

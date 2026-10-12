@@ -2,7 +2,10 @@
 // (PLAN §8, layout B). A header with the date, then three columns: the
 // tasks, the timeline of the day, the note of the day. The panel of the
 // chosen task takes the place of the note. The timeline is the main column:
-// it takes the width the other two leave.
+// it takes the width the other two leave. A switch in the header shows
+// tomorrow in place of today, to plan the next day.
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:grove/core/model/day_key.dart';
 import 'package:grove/state/state.dart' hide MotionRules;
@@ -40,6 +43,10 @@ class _DaySpreadViewState extends State<DaySpreadView> {
   /// Keeps the timeline, with its scroll place, when the columns change.
   final _timeline = GlobalKey();
 
+  /// Looks at the clock: at midnight the day of the screen is a new one.
+  Timer? _clock;
+  late DayKey _clockDay;
+
   AppStore get _store => widget.store;
 
   double get _saved =>
@@ -51,17 +58,34 @@ class _DaySpreadViewState extends State<DaySpreadView> {
   @override
   void initState() {
     super.initState();
-    _keepToday();
+    _clockDay = _store.clockToday;
+    _keepDay();
+    // No store change tells that midnight passed. The screen is drawn again
+    // only when the day is a new one, so this asks for no frame on any
+    // other beat.
+    _clock = Timer.periodic(const Duration(seconds: 20), (_) {
+      if (!mounted || _clockDay == _store.clockToday) return;
+      setState(() => _clockDay = _store.clockToday);
+      _keepDay();
+    });
   }
 
-  /// This screen is always today.
-  void _keepToday() {
+  @override
+  void dispose() {
+    _clock?.cancel();
+    super.dispose();
+  }
+
+  /// This screen has its own day: today, or tomorrow after the switch of
+  /// the header (`AppStore.todayScreenDay`). The day another screen chose
+  /// does not come here.
+  void _keepDay() {
     final store = _store;
-    if (store.selectedDay == store.clockToday) return;
+    if (store.selectedDay == store.todayScreenDay) return;
     writeLater(store, () {
       if (store.screen == Screen.today &&
-          store.selectedDay != store.clockToday) {
-        store.selectedDay = store.clockToday;
+          store.selectedDay != store.todayScreenDay) {
+        store.selectedDay = store.todayScreenDay;
       }
     });
   }
@@ -69,14 +93,15 @@ class _DaySpreadViewState extends State<DaySpreadView> {
   @override
   Widget build(BuildContext context) => StoreBuilder(
     store: _store,
-    onChange: _keepToday,
+    onChange: _keepDay,
     builder: (context) {
+      final day = _store.todayScreenDay;
       final phone =
           ShellRules.layoutFor(MediaQuery.sizeOf(context).width) ==
           ShellLayout.phone;
       final timeline = KeyedSubtree(
         key: _timeline,
-        child: PlannerView(store: _store, kind: PlannerKind.today),
+        child: PlannerView(store: _store, kind: PlannerKind.today, day: day),
       );
       if (phone) {
         // A phone shows one day column. The tasks are in the left panel,
@@ -87,7 +112,9 @@ class _DaySpreadViewState extends State<DaySpreadView> {
             padding: const EdgeInsets.fromLTRB(12, 6, 12, 12),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
-              spacing: 10,
+              // 4 and not 10: the touch area of the switch has empty space
+              // under the control
+              spacing: 4,
               children: [
                 SpreadHeader(store: _store, compact: true),
                 Expanded(child: timeline),
@@ -110,8 +137,11 @@ class _DaySpreadViewState extends State<DaySpreadView> {
             SpreadHeader(store: _store),
             Expanded(
               child: LayoutBuilder(
-                builder: (context, box) =>
-                    _columns(box.maxWidth + 2 * SpreadRules.side, timeline),
+                builder: (context, box) => _columns(
+                  box.maxWidth + 2 * SpreadRules.side,
+                  timeline,
+                  day,
+                ),
               ),
             ),
           ],
@@ -120,7 +150,7 @@ class _DaySpreadViewState extends State<DaySpreadView> {
     },
   );
 
-  Widget _columns(double width, Widget timeline) {
+  Widget _columns(double width, Widget timeline, DayKey day) {
     final taskId = _store.selectedTaskId;
     final inspector = taskId == null
         ? null
@@ -144,7 +174,11 @@ class _DaySpreadViewState extends State<DaySpreadView> {
           SizedBox(
             key: const ValueKey('spread-tasks'),
             width: tasks,
-            child: TasksPane(store: _store, mode: TasksPaneMode.today),
+            child: TasksPane(
+              store: _store,
+              mode: TasksPaneMode.today,
+              day: day,
+            ),
           ),
           _handle(),
         ],
@@ -175,7 +209,15 @@ class _DaySpreadViewState extends State<DaySpreadView> {
             width: note,
             child:
                 inspector ??
-                DayNoteColumn(store: _store, day: _store.clockToday),
+                DayNoteColumn(
+                  // A new column when "tomorrow" turns into "today" at
+                  // midnight: the note of today is made then.
+                  key: ValueKey(
+                    day == _store.clockToday ? 'note-today' : 'note-next',
+                  ),
+                  store: _store,
+                  day: day,
+                ),
           ),
         ],
       ],
@@ -219,56 +261,144 @@ class _DaySpreadViewState extends State<DaySpreadView> {
   }
 }
 
-/// The big date, the greeting, the growth of the day and the plant. This
-/// screen is always today.
+/// The big date, the greeting, the growth of the day, the plant, and the
+/// switch between today and tomorrow. The tomorrow view has no greeting, no
+/// growth and no plant: those are about the real today.
 class SpreadHeader extends StatelessWidget {
   const SpreadHeader({super.key, required this.store, this.compact = false});
 
   final AppStore store;
 
-  /// A phone: smaller letters.
+  /// A phone: smaller letters, and the switch on its own row.
   final bool compact;
+
+  /// The gap between the parts of the row.
+  static const _gap = 16.0;
 
   @override
   Widget build(BuildContext context) {
     final theme = GroveTheme.of(context);
-    final day = store.clockToday;
+    final day = store.todayScreenDay;
+    final isToday = !store.showsTomorrow;
     final progress = store.plantProgress(day);
-    return Row(
-      spacing: 16,
+    final words = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      spacing: 2,
       children: [
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            spacing: 2,
-            children: [
-              ThemedHeading(
-                NotesRules.longDay(day),
-                compact ? 22 : 28,
-                key: const ValueKey('spread-date'),
-              ),
-              Text(
-                SpreadRules.subtitle(
+        ThemedHeading(
+          NotesRules.longDay(day),
+          compact ? 22 : 28,
+          key: const ValueKey('spread-date'),
+        ),
+        Text(
+          isToday
+              ? SpreadRules.subtitle(
                   isToday: true,
                   greeting: Greeting.text(hour: store.nowMinute() ~/ 60),
                   progress: progress,
-                ),
-                key: const ValueKey('spread-subtitle'),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: theme.body(12).copyWith(color: theme.muted),
+                )
+              : SpreadRules.tomorrowSubtitle(progress),
+          key: const ValueKey('spread-subtitle'),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: theme.body(12).copyWith(color: theme.muted),
+        ),
+      ],
+    );
+    // The plant grows with the tasks done today. Tomorrow has an empty
+    // place of the same size, so the switch does not move.
+    final plant = SizedBox(
+      width: SpreadRules.plantSlot,
+      height: 44,
+      child: isToday
+          ? Align(
+              alignment: Alignment.centerRight,
+              child: GrowingPlant(
+                progress: progress,
+                motion: store.motionSetting,
+                height: 44,
               ),
+            )
+          : null,
+    );
+    if (compact) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        mainAxisSize: MainAxisSize.min,
+        spacing: 2,
+        children: [
+          Row(
+            spacing: _gap,
+            children: [
+              Expanded(child: words),
+              plant,
             ],
           ),
+          SizedBox(
+            height: SpreadRules.daySwitchTouch,
+            child: _DaySwitch(store: store),
+          ),
+        ],
+      );
+    }
+    // The switch is over its place in the row and as high as the row: it
+    // then sits on a whole point, whatever the height of the letters is.
+    return Stack(
+      children: [
+        Row(
+          spacing: _gap,
+          children: [
+            Expanded(child: words),
+            const SizedBox(
+              width: SpreadRules.daySwitchWidth,
+              height: SpreadRules.daySwitchTouch,
+            ),
+            plant,
+          ],
         ),
-        GrowingPlant(
-          progress: progress,
-          motion: store.motionSetting,
-          height: 44,
+        Positioned(
+          top: 0,
+          bottom: 0,
+          right: SpreadRules.plantSlot + _gap,
+          width: SpreadRules.daySwitchWidth,
+          child: _DaySwitch(store: store),
         ),
       ],
     );
   }
+}
+
+/// "Today / Tomorrow": which day the screen shows. The control is small. The
+/// box around it takes a touch too, so a finger has the room of a dock
+/// button: a tap over or under a word picks that word.
+class _DaySwitch extends StatelessWidget {
+  const _DaySwitch({required this.store});
+
+  final AppStore store;
+
+  void _pick(bool tomorrow) {
+    if (tomorrow != store.showsTomorrow) store.showsTomorrow = tomorrow;
+  }
+
+  @override
+  Widget build(BuildContext context) => GestureDetector(
+    key: const ValueKey('spread-day-touch'),
+    behavior: HitTestBehavior.opaque,
+    // The two buttons inside are what a screen reader gets.
+    excludeFromSemantics: true,
+    onTapUp: (tap) => _pick(tap.localPosition.dx >= context.size!.width / 2),
+    child: WholeCenter(
+      child: Segments<bool>(
+        key: const ValueKey('spread-day-switch'),
+        value: store.showsTomorrow,
+        values: const [false, true],
+        name: (tomorrow) => tomorrow ? 'Tomorrow' : 'Today',
+        tip: (tomorrow) => tomorrow ? 'Plan tomorrow' : 'Back to today',
+        label: 'Day shown',
+        onPick: _pick,
+      ),
+    ),
+  );
 }
 
 /// The note of a day, in the third column. A day with no note yet shows a

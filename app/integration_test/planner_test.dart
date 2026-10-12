@@ -647,6 +647,92 @@ void main() {
     expect(find.byType(TaskInspector), findsOneWidget);
   });
 
+  testWidgets('today: the switch of the header shows only tomorrow, and a '
+      'new block lands there', (tester) async {
+    final store = _store()..screen = Screen.today;
+    final thursday = wednesday.adding(days: 1);
+    for (final (id, title, day) in [
+      ('report', 'Write the report', wednesday),
+      ('pack', 'Pack the bag', thursday),
+    ]) {
+      store.repos.tasks.save(
+        TaskItem(id: id, title: title, bucket: TaskBucket.day, planDate: day),
+      );
+    }
+    await _open(tester, store);
+    expect(find.text('Wednesday 7 October'), findsOneWidget);
+    expect(_column(wednesday), findsOneWidget);
+    expect(_key('now-line'), findsOneWidget);
+
+    // The words are in the header of a wide window and on their own row on
+    // a phone. Both take the pointer of this device.
+    final tomorrow = find.descendant(
+      of: _key('spread-day-switch'),
+      matching: find.text('Tomorrow'),
+    );
+    expect(tomorrow.hitTestable(), findsOneWidget);
+    await tester.tap(tomorrow, kind: _pointer);
+    await tester.pumpAndSettle();
+    expect(store.showsTomorrow, isTrue);
+    expect(find.text('Thursday 8 October'), findsOneWidget);
+    expect(find.text('Wednesday 7 October'), findsNothing);
+    expect(_column(thursday), findsOneWidget);
+    expect(_column(wednesday), findsNothing);
+    expect(_key('now-line'), findsNothing);
+
+    // A wide window has the task list of the day beside the timeline.
+    if (!_phone(tester)) {
+      expect(_key('task-pack').hitTestable(), findsOneWidget);
+      expect(_key('task-report'), findsNothing);
+      await tester.tap(_key('quick-add'), kind: _pointer);
+      await tester.pump();
+      await tester.enterText(_field('quick-add'), 'Buy milk');
+      await tester.testTextInput.receiveAction(TextInputAction.done);
+      await tester.pumpAndSettle();
+      final added = store.openTasks(TaskPlacement.day(thursday));
+      expect(added.map((t) => t.title), contains('Buy milk'));
+      expect(store.openTasks(TaskPlacement.day(wednesday)), hasLength(1));
+    }
+
+    // A block drawn on the timeline is a block of tomorrow.
+    await _drag(
+      tester,
+      _at(tester, store, thursday, 11 * 60 + 30),
+      Offset(0, store.plannerHourHeight),
+    );
+    final draft = find.byKey(const ValueKey('planner-draft'));
+    expect(draft, findsOneWidget);
+    await tester.enterText(
+      find.descendant(of: draft, matching: find.byType(EditableText)),
+      'Deep work',
+    );
+    await tester.testTextInput.receiveAction(TextInputAction.done);
+    await tester.pumpAndSettle();
+    final block = _named(store, 'Deep work');
+    expect(block.day, thursday);
+    expect(block.startMinute, 11 * 60 + 30);
+    expect(store.blocks(DayRange.single(wednesday)), isEmpty);
+    expect(_block(block.id), findsOneWidget);
+
+    // Back: a touch just over the word "Today", in the empty part of the
+    // place that takes a touch.
+    final touch = tester.getRect(_key('spread-day-touch'));
+    final control = tester.getRect(_key('spread-day-switch'));
+    expect(touch.height, greaterThanOrEqualTo(40));
+    expect(touch.top, lessThan(control.top));
+    await tester.tapAt(
+      Offset(touch.left + touch.width / 4, touch.top + 1),
+      kind: _pointer,
+    );
+    await tester.pumpAndSettle();
+    expect(store.showsTomorrow, isFalse);
+    expect(find.text('Wednesday 7 October'), findsOneWidget);
+    expect(_column(wednesday), findsOneWidget);
+    expect(_key('now-line'), findsOneWidget);
+    expect(_block(block.id), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('calendar: the card of a new event saves the event', (
     tester,
   ) async {
