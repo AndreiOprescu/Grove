@@ -97,6 +97,86 @@ Future<void> showDayMarkerMenu(
   action?.call();
 }
 
+/// The "+" of the button above the schedule: two bars on whole pixels.
+///
+/// A shape of the icon font has soft edges, and each system draws them in
+/// its own way. The "+" is on every screen with the planner, so it is drawn
+/// here, with no soft edge.
+class DayMarkerPlus extends LeafRenderObjectWidget {
+  const DayMarkerPlus({super.key, required this.size, required this.color});
+
+  /// The side of the square of an icon.
+  final double size;
+  final Color color;
+
+  @override
+  RenderObject createRenderObject(BuildContext context) =>
+      _RenderPlus(size, color);
+
+  @override
+  void updateRenderObject(BuildContext context, RenderObject renderObject) {
+    (renderObject as _RenderPlus)
+      ..side = size
+      ..color = color;
+  }
+}
+
+class _RenderPlus extends RenderBox {
+  _RenderPlus(this._side, this._color);
+
+  double _side;
+  set side(double value) {
+    if (value == _side) return;
+    _side = value;
+    markNeedsLayout();
+  }
+
+  Color _color;
+  set color(Color value) {
+    if (value == _color) return;
+    _color = value;
+    markNeedsPaint();
+  }
+
+  @override
+  Size computeDryLayout(BoxConstraints constraints) =>
+      constraints.constrain(Size.square(_side));
+
+  @override
+  void performLayout() => size = computeDryLayout(constraints);
+
+  // As a shape of the icon font: a click on the "+" is a click on its button.
+  @override
+  bool hitTestSelf(Offset position) => true;
+
+  @override
+  void paint(PaintingContext context, Offset offset) {
+    // A header can put its buttons half a point down: the bars go to the
+    // whole point next to it.
+    final place = localToGlobal(Offset.zero);
+    final at =
+        offset +
+        Offset(
+          place.dx.roundToDouble() - place.dx,
+          place.dy.roundToDouble() - place.dy,
+        );
+    final paint = Paint()..color = _color;
+    // Each bar is two points thick, as thick as a shape of the icon font
+    // looks, and the middle of the square is a whole point.
+    final middle = at + Offset(_side / 2, _side / 2);
+    final arm = _side >= 16 ? 5.0 : 4.0;
+    context.canvas
+      ..drawRect(
+        Rect.fromCenter(center: middle, width: arm * 2, height: 2),
+        paint,
+      )
+      ..drawRect(
+        Rect.fromCenter(center: middle, width: 2, height: arm * 2),
+        paint,
+      );
+  }
+}
+
 /// A drag of a line that runs now. Nothing is saved until it ends.
 class _LineDrag {
   _LineDrag({

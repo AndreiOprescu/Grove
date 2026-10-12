@@ -710,7 +710,10 @@ class _HeaderButton extends StatelessWidget {
               child: Center(
                 widthFactor: 1,
                 heightFactor: 1,
-                child: icon != null
+                // The "+" of the day lines has no soft edge.
+                child: icon == Icons.add
+                    ? DayMarkerPlus(size: small ? 14 : 16, color: theme.ink)
+                    : icon != null
                     ? Icon(
                         icon,
                         size: small ? 14 : 16,
