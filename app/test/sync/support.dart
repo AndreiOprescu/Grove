@@ -10,6 +10,7 @@ export 'package:grove/core/model/block_subtask.dart';
 export 'package:grove/core/model/day_key.dart';
 export 'package:grove/core/model/event.dart';
 export 'package:grove/core/model/goal.dart';
+export 'package:grove/core/model/goal_subtask.dart';
 export 'package:grove/core/model/link.dart';
 export 'package:grove/core/model/note.dart';
 export 'package:grove/core/model/task.dart';

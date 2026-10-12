@@ -2,9 +2,11 @@ import 'database.dart';
 import 'sync_schema.dart';
 
 /// Ordered schema migrations. Index N takes the database from user_version N to N+1.
-/// These are the Mac app's migrations, word for word. Both apps read the same
-/// number, and an export file carries it. Never edit a shipped migration; append
-/// a new one, in the Mac app and here.
+/// 1 to 7 are the Mac app's migrations, word for word. 8 is in this app only
+/// (the Mac app has no subtasks of a goal). The export file carries the
+/// number, and an app refuses a file with a higher number than its own: the
+/// Mac app does not read a file of this app. Never edit a shipped migration;
+/// append a new one.
 abstract final class Migrations {
   static const all = <String>[
     // 1 — initial schema
@@ -149,6 +151,17 @@ abstract final class Migrations {
     );
     CREATE INDEX block_subtasks_event ON block_subtasks(event_id);
     ''',
+
+    // 8 — subtasks of a goal. They hang off the goal, so every block of the goal has the same list.
+    // A new table only: no old row changes. Not in the Mac app.
+    '''
+    CREATE TABLE goal_subtasks (
+      id TEXT PRIMARY KEY, goal_id TEXT NOT NULL REFERENCES goals(id) ON DELETE CASCADE,
+      title TEXT NOT NULL, done_at TEXT, sort REAL NOT NULL DEFAULT 0,
+      created_at TEXT NOT NULL, updated_at TEXT NOT NULL
+    );
+    CREATE INDEX goal_subtasks_goal ON goal_subtasks(goal_id);
+    ''',
   ];
 
   static void run(Database db) {
@@ -163,14 +176,15 @@ abstract final class Migrations {
 }
 
 /// Changes that only this app makes, for sync (cross-platform plan F11).
-/// They have their own number in `sync_meta`, so `user_version` stays the Mac
-/// app's number and the Mac app can still read our export files.
+/// They have their own number in `sync_meta`, so they do not raise
+/// `user_version`.
 abstract final class SyncMigrations {
   /// The tables the sync columns go on. The same list as `DataExport.tables`.
   static const syncedTables = [
     'lists',
     'notes',
     'goals',
+    'goal_subtasks',
     'tasks',
     'events',
     'block_subtasks',
@@ -190,6 +204,7 @@ abstract final class SyncMigrations {
     'tasks',
     'events',
     'block_subtasks',
+    'goal_subtasks',
   };
 
   /// The columns each sync migration added, by table. The export leaves them out.
@@ -217,6 +232,9 @@ abstract final class SyncMigrations {
     // from before it has the table with no sync columns and no outbox lines.
     // On a new database, 1 and 2 did the work and this changes nothing.
     (db) => SyncSchema.addTable(db, 'block_subtasks'),
+    // 4 — `goal_subtasks` (shared migration 8) joins the sync, in the same
+    // way.
+    (db) => SyncSchema.addTable(db, 'goal_subtasks'),
   ];
 
   static const _key = 'schema';

@@ -14,7 +14,9 @@ import 'goal_row.dart';
 /// Every block in the week is planned time; a block ticked done in the
 /// planner is done time. A goal is never done: it stays every week. The
 /// numbers are for the week that holds the selected day, the week the
-/// Planner shows. One goal at a time can be open for editing.
+/// Planner shows. A goal has subtasks under it; every block of the goal has
+/// that one list. One goal at a time can be open: it shows all its
+/// subtasks, and its editor when asked.
 class GoalsPane extends StatefulWidget {
   const GoalsPane({super.key, required this.store});
 
@@ -27,12 +29,24 @@ class GoalsPane extends StatefulWidget {
 class _GoalsPaneState extends State<GoalsPane> {
   String? _openGoal;
 
+  /// The open goal shows its editor too.
+  bool _editing = false;
+
   AppStore get _store => widget.store;
 
   /// Opens the goal, or closes it when it is the open one. Opening one
   /// closes the other.
-  void _toggle(String id) =>
-      setState(() => _openGoal = _openGoal == id ? null : id);
+  void _toggle(String id) => setState(() {
+    _openGoal = _openGoal == id ? null : id;
+    _editing = false;
+  });
+
+  /// Shows the editor of the goal, and opens the goal for it when needed.
+  /// Hides the editor when it shows: the goal stays open.
+  void _edit(String id) => setState(() {
+    _editing = !(_openGoal == id && _editing);
+    _openGoal = id;
+  });
 
   Widget _emptyState(GroveTheme theme) => Center(
     child: Column(
@@ -59,6 +73,7 @@ class _GoalsPaneState extends State<GoalsPane> {
       final sundayFirst = _store.weekStartsSunday;
       final week = GoalRules.week(day, sundayFirst: sundayFirst);
       final goals = _store.goals();
+      final subtasks = _store.goalSubtasksOf([for (final g in goals) g.id]);
       return Panel(
         child: Padding(
           padding: const EdgeInsets.all(12),
@@ -101,8 +116,11 @@ class _GoalsPaneState extends State<GoalsPane> {
                                     weekOf: day,
                                     sundayFirst: sundayFirst,
                                   ),
+                                  subtasks: subtasks[goal.id] ?? const [],
                                   isOpen: _openGoal == goal.id,
+                                  isEditing: _openGoal == goal.id && _editing,
                                   onToggle: () => _toggle(goal.id),
+                                  onEdit: () => _edit(goal.id),
                                 ),
                             ],
                           ),
