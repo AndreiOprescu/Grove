@@ -26,6 +26,9 @@ Finder step(Finder scope, {required bool up}) => find.descendant(
 
 final adder = find.byType(GoalAddRow);
 
+/// "Edit goal…" in an open goal.
+Finder editLine(GoalItem goal) => byKey('goal-edit-${goal.id}');
+
 Future<void> tapOn(WidgetTester tester, Finder finder) async {
   await tester.ensureVisible(finder);
   await tester.pumpAndSettle();
@@ -206,26 +209,40 @@ void main() {
       },
     );
 
-    testWidgets('a click opens it, a second click closes it', (tester) async {
+    // A click on a goal opens its subtasks. The editor is one more click
+    // away: "Edit goal…" in the open goal.
+    Future<void> openEditor(WidgetTester tester, GoalItem goal) async {
+      await tapOn(tester, goalRow(goal));
+      await tapOn(tester, editLine(goal));
+    }
+
+    testWidgets('"Edit goal…" in the open goal opens it, a click on the goal '
+        'closes it', (tester) async {
       await withGoals(tester);
       expect(find.byType(GoalEditor), findsNothing);
       await tapOn(tester, goalRow(read));
+      expect(find.byType(GoalEditor), findsNothing);
+      await tapOn(tester, editLine(read));
       expect(nameField(read), findsOneWidget);
+      await tapOn(tester, goalRow(read));
+      expect(find.byType(GoalEditor), findsNothing);
+      // The goal opens without the editor the next time.
       await tapOn(tester, goalRow(read));
       expect(find.byType(GoalEditor), findsNothing);
     });
 
     testWidgets('one goal is open at a time', (tester) async {
       await withGoals(tester);
-      await tapOn(tester, goalRow(read));
-      await tapOn(tester, goalRow(gym));
+      await openEditor(tester, read);
+      await openEditor(tester, gym);
       expect(nameField(read), findsNothing);
+      expect(editLine(read), findsNothing);
       expect(nameField(gym), findsOneWidget);
     });
 
     testWidgets('Return saves the name and closes the editor', (tester) async {
       final store = await withGoals(tester);
-      await tapOn(tester, goalRow(read));
+      await openEditor(tester, read);
       await typeLine(tester, nameField(read), 'Read books');
       expect(store.goal(read.id)!.title, 'Read books');
       expect(find.byType(GoalEditor), findsNothing);
@@ -235,7 +252,7 @@ void main() {
       tester,
     ) async {
       final store = await withGoals(tester);
-      await tapOn(tester, goalRow(read));
+      await openEditor(tester, read);
       await tester.tap(nameField(read));
       await tester.enterText(input(nameField(read)), 'Read books');
       await tester.sendKeyEvent(LogicalKeyboardKey.escape);
@@ -246,7 +263,7 @@ void main() {
 
     testWidgets('a typed name is saved when the editor closes', (tester) async {
       final store = await withGoals(tester);
-      await tapOn(tester, goalRow(read));
+      await openEditor(tester, read);
       await tester.tap(nameField(read));
       await tester.enterText(input(nameField(read)), 'Read books');
       await tapOn(tester, goalRow(gym));
@@ -257,7 +274,7 @@ void main() {
       tester,
     ) async {
       final store = await withGoals(tester);
-      await tapOn(tester, goalRow(read));
+      await openEditor(tester, read);
       final editor = find.byType(GoalEditor);
 
       await tapOn(tester, step(editor, up: true));
@@ -283,7 +300,7 @@ void main() {
 
     testWidgets('each change of the editor is one undo step', (tester) async {
       final store = await withGoals(tester);
-      await tapOn(tester, goalRow(read));
+      await openEditor(tester, read);
       await tapOn(tester, step(find.byType(GoalEditor), up: true));
       store.undo();
       await tester.pumpAndSettle();
@@ -365,6 +382,7 @@ void main() {
       },
     );
     await tapOn(tester, goalRow(goal));
+    await tapOn(tester, editLine(goal));
     expect(nameField(goal), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
