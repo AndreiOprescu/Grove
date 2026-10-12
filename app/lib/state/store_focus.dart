@@ -51,8 +51,9 @@ class FocusSession {
 /// Focus mode (PLAN §5.1.7). `FocusRules` has the arithmetic.
 extension AppStoreFocus on AppStore {
   /// Starts the count down to the end of [block]. A running session is replaced.
+  /// "Now" is the clock of the store ([clockNow]), so a test can set it.
   void startFocus(EventItem block) {
-    final now = DateTime.now();
+    final now = clockNow();
     if (!FocusRules.canStart(block, now: now)) {
       showToast('This block is over.');
       return;
