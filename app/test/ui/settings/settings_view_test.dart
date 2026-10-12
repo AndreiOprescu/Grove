@@ -486,6 +486,94 @@ void main() {
       expect(message(tester), 'The path is copied.');
     });
 
+    // Swift: `Button("Show data folder")` in the Data tab.
+    testWidgets('"Show data folder" asks the system for the folder', (
+      tester,
+    ) async {
+      final store = _diskStore();
+      final files = FakeFiles()..canShowFolder = true;
+      await openSettings(tester, store, tab: SettingsTab.data, files: files);
+      expect(
+        find.descendant(
+          of: keyed('settings-show-folder'),
+          matching: find.text('Show data folder'),
+        ),
+        findsOneWidget,
+      );
+      await tapIn(tester, keyed('settings-show-folder'));
+      expect(files.shown, [store.dataDir]);
+      // The folder is on the screen: the window says nothing more.
+      expect(keyed('settings-data-message'), findsNothing);
+      // The path can still be copied.
+      expect(keyed('settings-copy-path'), findsOneWidget);
+    });
+
+    testWidgets('the system does not open the folder: the window says so', (
+      tester,
+    ) async {
+      final files = FakeFiles()
+        ..canShowFolder = true
+        ..shows = false;
+      await openSettings(
+        tester,
+        _diskStore(),
+        tab: SettingsTab.data,
+        files: files,
+      );
+      await tapIn(tester, keyed('settings-show-folder'));
+      expect(
+        message(tester),
+        'Grove could not open the folder. You can copy its path.',
+      );
+      expect(keyed('settings-copy-path'), findsOneWidget);
+    });
+
+    testWidgets('an error of the system is a message, not a crash', (
+      tester,
+    ) async {
+      final files = FakeFiles()
+        ..canShowFolder = true
+        ..failure = StateError('no');
+      await openSettings(
+        tester,
+        _diskStore(),
+        tab: SettingsTab.data,
+        files: files,
+      );
+      await tapIn(tester, keyed('settings-show-folder'));
+      expect(tester.takeException(), isNull);
+      expect(
+        message(tester),
+        'Grove could not open the folder. You can copy its path.',
+      );
+    });
+
+    testWidgets('no "Show data folder" on a phone, with no file windows and '
+        'with no folder', (tester) async {
+      // A phone: the system has no window of folders.
+      await openSettings(
+        tester,
+        _diskStore(),
+        tab: SettingsTab.data,
+        files: FakeFiles(),
+      );
+      expect(keyed('settings-show-folder'), findsNothing);
+      expect(keyed('settings-copy-path'), findsOneWidget);
+      await tester.pumpWidget(const SizedBox());
+      // No file windows in this copy of Grove.
+      await openSettings(tester, _diskStore(), tab: SettingsTab.data);
+      expect(keyed('settings-show-folder'), findsNothing);
+      await tester.pumpWidget(const SizedBox());
+      // A store in memory has no folder.
+      await openSettings(
+        tester,
+        plannerStore(),
+        tab: SettingsTab.data,
+        files: FakeFiles()..canShowFolder = true,
+      );
+      expect(keyed('settings-show-folder'), findsNothing);
+    });
+
     testWidgets('a store in memory says so', (tester) async {
       await openSettings(tester, plannerStore(), tab: SettingsTab.data);
       expect(

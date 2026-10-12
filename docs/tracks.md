@@ -669,10 +669,20 @@ file, the plan, and `docs/assumptions.md` before it starts.
     then take it out of `PlannerView.build`. Today the card shows on
     Planner, Today and Calendar, and not on Notes and Garden. The Mac app
     hosts it in `RootView.swift`.
+    **Done, 2026-10-12**, on `feat/xp-shell-gaps` (PR #18): `RootView` has
+    `contentLayer`, `StoreApp` gives it the `FocusLayer`, and
+    `PlannerView.build` no longer has one. Tests:
+    `app/test/ui/shell/focus_host_test.dart`.
   - To the shell: the commands "Zoom In" and "Zoom Out" (Cmd or Ctrl with +
     and -) for the whole window: `store.zoomPlanner(1.2)` and
     `store.zoomPlanner(1 / 1.2)`. Today the keys work only while the planner
     grid has the keyboard. The Mac app has them in the View menu.
+    **Done, 2026-10-12**, on `feat/xp-shell-gaps` (PR #18). The two lines
+    were in the View menu of that branch before this request
+    (`app/lib/ui/shell/app_menus.dart`, keys `=` and `-`); the request was
+    written on a base without it. New now: the window also takes the keys
+    that the grid takes (`+`, the number pad, with Shift or not). Tests:
+    `app/test/ui/shell/app_menus_test.dart`.
   - To Track A: `store.startFocus` reads `DateTime.now()`
     (`app/lib/state/store_focus.dart`). With the clock of the store
     (`clockOverride`) a test could start a session on the test day. Today
@@ -731,3 +741,64 @@ file, the plan, and `docs/assumptions.md` before it starts.
     (`planner_linked_note_grove_light.png`) shows the planner with no shell,
     so the strip does not change it. After the merge of both branches, run
     the golden tests once and look at these three.
+- F12, the shell gaps (branch `feat/xp-shell-gaps`, proof:
+  `docs/acceptance/F12-shell-gaps.md`), 2026-10-11. Requests to the helper
+  of the planner (`app/lib/ui/planner/` is not my folder, I did not touch
+  it):
+  - The now line keeps the planner and Today at 42 % of one core. Measured
+    on the profile build with `./scripts/flutter_idle.sh`: planner 42 %,
+    today 43 %, 120 frames a second; notes 7 % (17 frames a second), garden
+    9 % (30 frames a second); planner with Motion off 0 %. The cause:
+    `_NowLineState` in `app/lib/ui/planner/planner_grid.dart` has a `Ticker`.
+    A `Ticker` that runs asks for a frame at every refresh of the screen
+    (120 a second on this Mac), and the engine draws the whole window for
+    each one, also when `_onTick` changes nothing. The background and the
+    plants had the same fault; they now use `SlowClock`
+    (`app/lib/ui/theme/slow_clock.dart`), a timer that asks for a frame only
+    when it steps. All slow clocks share one beat.
+  - The change, ready to copy: in `_NowLineState` drop
+    `SingleTickerProviderStateMixin` and the `Ticker`. Add
+    `final _clock = SlowClock(framesPerSecond: PulseMath.framesPerSecond);`
+    (20 a second; the constant is new in `theme_math.dart`). In `initState`:
+    `_clock.seconds.addListener(_onTick);`. In `_sync`:
+    `_clock.isRunning = runs; if (!runs) _opacity.value = 1;`, and add
+    `&& TickerMode.valuesOf(context).enabled` to `motionOn` (call `_sync`
+    from `didChangeDependencies`, not from `initState`), so a covered screen
+    still stops. `_onTick` becomes
+    `_opacity.value = PulseMath.opacity(_clock.seconds.value);`. In
+    `dispose`: `_clock.dispose();`. Put a `RepaintBoundary` around the
+    `Opacity`.
+  - Tests: `framesAsked(tester)` in `app/test/ui/support.dart` counts the
+    frames an idle screen asks for in one second. With a `SlowClock` no
+    `Ticker` runs, so `tester.hasRunningAnimations` is false and
+    `pumpAndSettle` comes back at once. A test that moves time must dispose
+    the widget tree in its body (a pending `Timer` fails a test).
+  - After your change please run `./scripts/flutter_idle.sh` one time and
+    write the planner number in `docs/acceptance/F12-shell-gaps.md`. I expect
+    about 9 % (the background of the Grove theme needs 20 frames a second).
+- F12, the shell gaps, 2026-10-11. For the helper of the release scripts
+  (branch `feat/xp-release`, PR #14; `scripts/flutter_release.sh` is not my
+  file, I did not touch it):
+  - The Mac build is `Grove.app` now, not `grove.app` (`PRODUCT_NAME = Grove`
+    in `app/macos/Runner/Configs/AppInfo.xcconfig`). Line 36 of
+    `scripts/flutter_release.sh` names
+    `build/macos/Build/Products/Release/grove.app`: please write
+    `Grove.app`. The old name still opens on a Mac disk that does not tell
+    capital letters apart, so the script does not break on this Mac or on the
+    CI Mac; the name of the app inside the zip is `Grove.app` either way.
+    **Done, 2026-10-12**, on `feat/xp-shell-gaps` after the merge of PR #14:
+    `scripts/flutter_release.sh` (line 36) and `scripts/flutter_perf.sh`
+    (lines 52, 58, 89: the app and its program `Contents/MacOS/Grove`). A
+    test in `app/test/app_name_test.dart` holds both scripts.
+  - Nothing changes on Windows: `grove.exe` and the folder of the build keep
+    their names (Q-40).
+  - `scripts/flutter_integration.sh macos|windows` runs two files now:
+    `integration_test/planner_test.dart` and
+    `integration_test/window_test.dart`. Phones run the first one only.
+- F12, the shell gaps, 2026-10-11. For Track A: the top strip of a window
+  has "Search" and a gear now, so each picture with the whole window
+  changed. I made the pictures in `app/test/ui/tasks/goldens/` and
+  `app/test/ui/goals/goldens/` again and looked at each one; only the top
+  strip is different. After the merge of your `17c78eb` (the description of
+  a task) I made the 8 pictures with both changes again. No test file of
+  yours changed.

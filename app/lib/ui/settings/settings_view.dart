@@ -39,6 +39,14 @@ abstract class SettingsFiles {
   /// Asks for one file and reads it. null when the person closed the
   /// window.
   Future<({String name, String text})?> open();
+
+  /// True on a system with a window of folders (Finder, Explorer). "Show
+  /// data folder" is hidden on the others.
+  bool get canShowFolder => false;
+
+  /// Opens the folder `path` in the window of folders of the system. False
+  /// when the system did not open it.
+  Future<bool> showFolder(String path) async => false;
 }
 
 /// Opens the Settings window on `tab`.

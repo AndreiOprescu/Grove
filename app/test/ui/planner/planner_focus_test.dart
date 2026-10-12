@@ -327,6 +327,9 @@ void main() {
       // The block ended five minutes ago.
       setFocusClock(tester, 11, 5);
       store.screen = Screen.planner;
+      // The window hosts the card, so it was on Notes too. It reads the
+      // clock at its next beat, one second at most.
+      await tester.pump(const Duration(seconds: 1));
       await tester.pumpAndSettle();
       expect(inCard(find.text('Time is up. Mark done?')), findsOneWidget);
       expect(store.focus?.finished, isTrue);
