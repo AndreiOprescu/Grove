@@ -15,6 +15,9 @@ typedef ExdateChange = ({String eventId, DayKey day, bool add});
 /// Tag names of a task before and after.
 typedef TagChange = ({String taskId, List<String> before, List<String> after});
 
+/// One row of the settings table before and after. Null means "no row".
+typedef SettingChange = ({String key, String? before, String? after});
+
 /// One undoable change. Holds the before and after state of every item it touches.
 class Mutation {
   Mutation(this.name, {this.mergeKey, DateTime? at})
@@ -35,6 +38,9 @@ class Mutation {
   /// Tags live in their own table, so they are tracked here.
   final List<TagChange> tags = [];
 
+  /// Rows of the settings table: the wake-up and sleep lines of a day.
+  final List<SettingChange> settings = [];
+
   /// Typing makes many small changes. Changes with the same key, close in
   /// time, become one undo step.
   String? mergeKey;
@@ -47,7 +53,8 @@ class Mutation {
       goals.isEmpty &&
       blockSubtasks.isEmpty &&
       tags.isEmpty &&
-      exdates.isEmpty;
+      exdates.isEmpty &&
+      settings.isEmpty;
 
   Mutation _copy() => Mutation(name, mergeKey: mergeKey, at: at)..append(this);
 
@@ -67,7 +74,9 @@ class Mutation {
         tags.isNotEmpty ||
         next.tags.isNotEmpty ||
         exdates.isNotEmpty ||
-        next.exdates.isNotEmpty) {
+        next.exdates.isNotEmpty ||
+        settings.isNotEmpty ||
+        next.settings.isNotEmpty) {
       return null;
     }
     final m = _copy();
@@ -99,5 +108,6 @@ class Mutation {
     blockSubtasks.addAll(other.blockSubtasks);
     tags.addAll(other.tags);
     exdates.addAll(other.exdates);
+    settings.addAll(other.settings);
   }
 }

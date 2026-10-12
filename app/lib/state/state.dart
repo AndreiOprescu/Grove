@@ -9,6 +9,7 @@ export 'notifier.dart';
 export 'prefs.dart';
 export 'rules/all_tasks_rules.dart';
 export 'rules/calendar_rules.dart';
+export 'rules/day_marker.dart';
 export 'rules/day_range.dart';
 export 'rules/day_rules.dart';
 export 'rules/drag_payload.dart';
