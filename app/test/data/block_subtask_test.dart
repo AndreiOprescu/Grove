@@ -269,7 +269,7 @@ void main() {
       final a = twoBlocksOfOneGoal();
       a.blockSubtasks.save(sub('S1', 'E1', 'A', sort: 1));
       final obj = jsonDecode(DataExport.export(a.db)) as Map<String, Object?>;
-      expect(obj['schema'], 7);
+      expect(obj['schema'], Migrations.all.length);
       final rows = (obj['tables'] as Map)['block_subtasks'] as List;
       expect((rows.single as Map).keys.toSet(), {
         'id',
