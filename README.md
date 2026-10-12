@@ -332,6 +332,9 @@ data is on a server that is yours.
 2. Open **SQL Editor**. Paste the whole file
    [`supabase/migrations/20261011000000_grove_sync.sql`](supabase/migrations/20261011000000_grove_sync.sql)
    and run it.
+   Then do the same with
+   [`supabase/migrations/20261012000000_grove_sync_goal_subtasks.sql`](supabase/migrations/20261012000000_grove_sync_goal_subtasks.sql).
+   Sync works only after both files.
 3. Open **Authentication ▸ Emails ▸ Templates**. In "Magic Link" and in "Confirm signup",
    add this line: `Your code for Grove: {{ .Token }}`
 4. Make the key file and fill in the two fields:
