@@ -164,14 +164,17 @@ void main() {
   });
 
   group('One list for every block of the goal', () {
-    test('a block has no goal subtask of its own: the list hangs on the goal', () {
-      final r = twoGoals();
-      r.goalSubtasks.save(sub('S1', 'G1', 'Chapter 3'));
-      for (final block in ['E1', 'E2']) {
-        final goal = r.events.get(block)!.goalId!;
-        expect(ids(r.goalSubtasks.forGoal(goal)), ['S1'], reason: block);
-      }
-    });
+    test(
+      'a block has no goal subtask of its own: the list hangs on the goal',
+      () {
+        final r = twoGoals();
+        r.goalSubtasks.save(sub('S1', 'G1', 'Chapter 3'));
+        for (final block in ['E1', 'E2']) {
+          final goal = r.events.get(block)!.goalId!;
+          expect(ids(r.goalSubtasks.forGoal(goal)), ['S1'], reason: block);
+        }
+      },
+    );
 
     test('a deleted block does not touch the list of the goal', () {
       final r = twoGoals();

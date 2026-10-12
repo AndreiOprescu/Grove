@@ -1,7 +1,6 @@
 import 'dart:math';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:grove/core/model/goal_subtask.dart';
 
 import '../data/helpers.dart';
 import 'support.dart';
@@ -325,24 +324,27 @@ void main() {
       expectSame([a, b]);
     });
 
-    test('two devices change the same subtask: the later change stays', () async {
-      final g = await shared();
-      final s = GoalSubtaskItem(goalId: g.id, title: 'One');
-      a.repos.goalSubtasks.save(s);
-      await settle([a, b]);
+    test(
+      'two devices change the same subtask: the later change stays',
+      () async {
+        final g = await shared();
+        final s = GoalSubtaskItem(goalId: g.id, title: 'One');
+        a.repos.goalSubtasks.save(s);
+        await settle([a, b]);
 
-      a.later();
-      a.repos.goalSubtasks.save(s.copyWith(doneAt: '2026-10-05T11:00:00'));
-      b.later();
-      b.repos.goalSubtasks.save(s.copyWith(title: 'One, changed'));
-      await settle([a, b]);
+        a.later();
+        a.repos.goalSubtasks.save(s.copyWith(doneAt: '2026-10-05T11:00:00'));
+        b.later();
+        b.repos.goalSubtasks.save(s.copyWith(title: 'One, changed'));
+        await settle([a, b]);
 
-      for (final d in [a, b]) {
-        final back = d.repos.goalSubtasks.get(s.id)!;
-        expect(back.title, 'One, changed');
-        expect(back.isDone, isFalse);
-      }
-    });
+        for (final d in [a, b]) {
+          final back = d.repos.goalSubtasks.get(s.id)!;
+          expect(back.title, 'One, changed');
+          expect(back.isDone, isFalse);
+        }
+      },
+    );
 
     test(
       'an import on one device replaces the subtasks on the other',
