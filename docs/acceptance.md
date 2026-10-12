@@ -1,5 +1,7 @@
 # Acceptance proof for PLAN §1.1
 
+> **2026-10-12.** This file is the proof for the first Grove, the Swift app for macOS (`Sources/`). The proof for the Flutter app (`app/`) is in the folder `docs/acceptance/`; start with `docs/acceptance/F12-parity.md`.
+
 Checked on 2026-10-05 at commit `3bf5447` with `./scripts/test.sh`: 845 tests in 73 suites, 0 failures.
 P = proven by automated tests. PT = logic is tested, the screen or gesture is not. M = only a person can check it.
 "Click" says what to do by hand. Test names are `Suite.test`.

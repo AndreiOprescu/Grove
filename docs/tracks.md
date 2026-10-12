@@ -1,5 +1,7 @@
 # Cross-platform port — two parallel tracks
 
+> **Status, 2026-10-12.** The milestones of both tracks are built and merged in `feat/cross-platform-flutter`. This file stays as the record of the split and of the requests between the tracks. The repo folder is now `/Users/andrei/Desktop/Grove-project`; the path `/Users/andrei/Desktop/Grove` in the table below is the old name.
+
 The milestones F5–F12 in `docs/cross-platform-plan.md` are split into two
 tracks. Two agents work at the same time, one per track. Each agent reads this
 file, the plan, and `docs/assumptions.md` before it starts.
