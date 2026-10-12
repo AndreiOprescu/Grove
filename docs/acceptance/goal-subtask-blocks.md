@@ -78,9 +78,17 @@ The table order: with the old order (`goal_subtasks` right after `goals`) the te
 ## Not verified
 
 - Nobody looked at it in the running app. The app was not started on this Mac (a build here opens the owner's real data). The proof is tests and pictures. The pictures use the test font (blocks for letters), so the mark looks cut there; with the real font "12 Oct 10:00" must fit in 84 points. The owner should look at it once.
-- `supabase/tests/run.sh` did not run on this Mac (no `psql`). The CI job `supabase-sql` runs the three SQL files on Postgres.
+- `supabase/tests/run.sh` did not run on this Mac (no `psql`). The CI ran it; see "The CI" below.
 - No call to a real Supabase project.
 - An upgrade of a real database of the owner from schema 8 to 9 was tested only on test databases.
+
+## The CI
+
+For commit `209da79`, on draft PR #26:
+
+- `flutter`, run 38260692400 (the run of the PR): green on the 4 systems (macOS, iOS, Android, Windows).
+- `supabase`, runs 38260692390 and 38260661099: green. This is `supabase/tests/run.sh` with the three SQL files on Postgres.
+- `flutter`, run 38260661027 (the run of the push, same commit): Android and Windows green. Somebody cancelled the macOS and the iOS job while they ran. No test failed in it.
 
 ## For the owner
 
