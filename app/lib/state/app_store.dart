@@ -243,6 +243,10 @@ class AppStore extends ChangeNotifier {
     _changed();
   }
 
+  /// The day the Today screen shows after its "Tomorrow" switch. Null is
+  /// today. Not saved: each start opens on today (see `todayScreenDay`).
+  DayKey? _todayScreenDay;
+
   /// Bumped after every write so views reload.
   int _revision = 0;
   int get revision => _revision;
@@ -366,14 +370,14 @@ class AppStore extends ChangeNotifier {
     _changed();
   }
 
-  /// Which screen fills the window. The Today screen always shows today, so
-  /// coming to it picks today.
+  /// Which screen fills the window. The Today screen shows its own day, today
+  /// or tomorrow, so coming to it picks that day.
   Screen _screen = Screen.today;
   Screen get screen => _screen;
   set screen(Screen v) {
     final old = _screen;
     _screen = v;
-    if (v == Screen.today && old != Screen.today) _selectedDay = clockToday;
+    if (v == Screen.today && old != Screen.today) _selectedDay = todayScreenDay;
     _changed();
   }
 

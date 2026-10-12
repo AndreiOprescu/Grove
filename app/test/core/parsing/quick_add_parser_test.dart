@@ -162,6 +162,26 @@ void main() {
       expect(r.title, 'Standup');
     });
 
+    test('time alone means the day of the list, when the list has one', () {
+      const inList = QuickAddParser(
+        today: DayKey('2026-10-02'),
+        defaultDay: DayKey('2026-10-03'),
+      );
+      final r = inList.parse('Standup 9am');
+      expect(r.planDate, d('2026-10-03'));
+      expect(r.namedADay, isFalse);
+      expect(r.chips.first.text, 'Sat 3 Oct');
+      // a repeat rule starts on that day too: the first Monday from there
+      expect(inList.parse('Water plants every day').planDate, d('2026-10-03'));
+      expect(inList.parse('Gym every mon').planDate, d('2026-10-05'));
+      // a day in the text wins, and "tomorrow" still counts from today
+      expect(inList.parse('Standup today 9am').planDate, d('2026-10-02'));
+      expect(inList.parse('Standup tomorrow').planDate, d('2026-10-03'));
+      expect(inList.parse('Standup in 2 days').planDate, d('2026-10-04'));
+      // no time and no day: the list places the task, the parser does not
+      expect(inList.parse('Standup').planDate, isNull);
+    });
+
     test('lengths', () {
       expect(p('Write for 45m').durationMin, 45);
       expect(p('Write for 1h').durationMin, 60);
