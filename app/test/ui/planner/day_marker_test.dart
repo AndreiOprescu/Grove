@@ -184,6 +184,39 @@ void main() {
       expect(tester.takeException(), isNull);
     });
 
+    // The header of the Today screen has a switch "Today | Tomorrow".
+    for (final (name, size) in [
+      ('', desktopSize),
+      (' on a phone', phoneSize),
+    ]) {
+      testWidgets('the Today screen on "Tomorrow"$name: the "+" and the lines '
+          'are those of tomorrow', (tester) async {
+        final store = plannerStore()..screen = Screen.today;
+        final tomorrow = wednesday.adding(days: 1);
+        store.addDayMarker(DayMarkerKind.sleep, wednesday);
+        store.showsTomorrow = true;
+        await pumpPlanner(tester, store, size: size);
+        // The sleep line of today is not a line of tomorrow.
+        expect(chip(DayMarkerKind.sleep), findsNothing);
+        expect(chip(DayMarkerKind.sleep, tomorrow), findsNothing);
+
+        await pickFromAdd(tester, 'Add wake-up line');
+
+        expect(store.dayMarker(DayMarkerKind.wake, tomorrow), 7 * 60);
+        expect(store.dayMarker(DayMarkerKind.wake, wednesday), isNull);
+        expect(chip(DayMarkerKind.wake, tomorrow), findsOneWidget);
+        expect(shownTime(tester, DayMarkerKind.wake, tomorrow), '07:00');
+
+        // Back on today: its own line, and not the one of tomorrow.
+        store.showsTomorrow = false;
+        await tester.pumpAndSettle();
+        expect(chip(DayMarkerKind.wake, tomorrow), findsNothing);
+        expect(chip(DayMarkerKind.wake), findsNothing);
+        expect(chip(DayMarkerKind.sleep), findsOneWidget);
+        expect(tester.takeException(), isNull);
+      });
+    }
+
     testWidgets('the month has no "+"', (tester) async {
       final store = plannerStore()..screen = Screen.calendar;
       await pumpPlanner(tester, store);
