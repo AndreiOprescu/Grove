@@ -81,6 +81,7 @@ The heart of Grove. A timeline of your day, with your tasks on the side.
 - A **workload bar** shows how full the day is. It turns red when you plan too much.
 - Start a **focus timer** on any block.
 - Yesterday's unfinished blocks? Grove offers to **roll them over**.
+- Planning ahead? The **Today / Tomorrow** switch in the header shows only tomorrow.
 
 ### Planner — your week at a glance
 Seven days side by side. Drag blocks between days. Zoom in and out with `⌘ =` and `⌘ −`

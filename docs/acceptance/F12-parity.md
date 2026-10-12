@@ -98,7 +98,7 @@ The states:
 
 | PLAN.md | Feature | Flutter code | Proof | State |
 |---|---|---|---|---|
-| §5.1 | Planner screen is a fixed week; Today is the timeline of today; no mode picker | `ui/planner/planner_kind.dart`, `ui/planner/planner_view.dart` | `ui/planner/planner_kind_test.dart` "the week has 7 days and starts on Monday", "today shows only today". PV "shows the week, the hours and the now line". DS "the screen is always today". | proof |
+| §5.1 | Planner screen is a fixed week; Today is the timeline of today; no mode picker | `ui/planner/planner_kind.dart`, `ui/planner/planner_view.dart` | `ui/planner/planner_kind_test.dart` "the week has 7 days and starts on Monday", "today shows only today". PV "shows the week, the hours and the now line". DS "the screen keeps its own day: today, or tomorrow" (since 2026-10-12 a switch in the header of Today shows only tomorrow: `docs/acceptance/today-tomorrow.md`). | proof |
 | §5.1 | Previous, Next and Today in the header | `ui/planner/planner_view.dart` | PV "Previous and Next move one week". | proof |
 | §5.1.1 | Grid maths: minute to point and back; the grid is 00:00–24:00 | `ui/planner/planner_geometry.dart` | PR "minutes and points", "day columns start on whole points and fill the grid". | proof |
 | §5.1.1 | Zoom stays between 36 and 160 points for an hour | `ui/planner/planner_geometry.dart` | PR "zoom stays in its range". | proof |
