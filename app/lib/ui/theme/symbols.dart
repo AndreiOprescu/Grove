@@ -44,6 +44,8 @@ const Map<String, IconData> _icons = {
   'chevron.left': Icons.chevron_left,
   // the top of the window
   'gearshape': Icons.settings_outlined,
+  // the sleep line of the planner
+  'moon': Icons.bedtime_outlined,
 };
 
 /// True when `name` has its own icon.

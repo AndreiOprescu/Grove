@@ -281,6 +281,45 @@ void main() {
     expect(block.endMinute, 13 * 60);
   });
 
+  testWidgets('day lines: "+" adds the wake-up line, a drag moves it, a tap '
+      'takes it away', (tester) async {
+    final store = _store();
+    await _open(tester, store);
+
+    await tester.tap(_key('day-marker-add'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Add wake-up line'));
+    await tester.pumpAndSettle();
+    expect(store.dayMarker(DayMarkerKind.wake, wednesday), 7 * 60);
+
+    // The grid brought 07:00 into view. A line needs no hold: the finger
+    // moves it at once and the grid stays where it is.
+    final line = _key('day-marker-wake-${wednesday.string}');
+    expect(line.hitTestable(), findsOneWidget);
+    final before = tester.getCenter(line);
+    await _drag(
+      tester,
+      before,
+      Offset(0, store.plannerHourHeight),
+      hold: false,
+    );
+    expect(store.dayMarker(DayMarkerKind.wake, wednesday), 8 * 60);
+    expect(
+      tester.getCenter(line).dy,
+      closeTo(before.dy + store.plannerHourHeight, 1),
+    );
+    expect(find.descendant(of: line, matching: find.text('08:00')), findsOne);
+    expect(store.blocks(DayRange.single(wednesday)), isEmpty);
+    expect(find.byKey(const ValueKey('planner-draft')), findsNothing);
+
+    await tester.tap(line);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Remove wake-up line'));
+    await tester.pumpAndSettle();
+    expect(store.dayMarker(DayMarkerKind.wake, wednesday), isNull);
+    expect(line, findsNothing);
+  });
+
   testWidgets('overlap: two blocks at the same time are both in view', (
     tester,
   ) async {

@@ -20,6 +20,7 @@ import '../theme/panel.dart';
 import '../theme/symbols.dart';
 import 'block_subtask_editor.dart';
 import 'day_columns.dart';
+import 'day_markers.dart';
 import 'planner_dialogs.dart';
 import 'planner_geometry.dart';
 import 'planner_grid.dart';
@@ -416,7 +417,9 @@ class _PlannerViewState extends State<PlannerView> {
     return LayoutBuilder(
       builder: (context, box) {
         final stats = SizedBox(width: 220, child: _stats());
-        if (box.maxWidth >= 640) {
+        // One row leaves the dates the room they had before the "+" of
+        // the day lines came.
+        if (box.maxWidth >= 680) {
           return Row(
             spacing: 10,
             children: [
@@ -440,7 +443,9 @@ class _PlannerViewState extends State<PlannerView> {
             Expanded(child: title),
           ],
         );
-        if (box.maxWidth >= 430) {
+        // The words "Plan my day", the "+" of the day lines and the zoom
+        // need this much room next to the numbers.
+        if (box.maxWidth >= 470) {
           return Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             mainAxisSize: MainAxisSize.min,
@@ -531,8 +536,39 @@ class _PlannerViewState extends State<PlannerView> {
           onTap: _showPlan,
         );
 
+  /// The menu of "+". The lines are for one day: the day of a one-day
+  /// view, and the selected day of the week.
+  void _showDayMarkers(BuildContext context) {
+    final days = _days(context);
+    final day = days.length == 1 || !days.contains(_store.selectedDay)
+        ? days.first
+        : _store.selectedDay;
+    unawaited(
+      showDayMarkerMenu(
+        context,
+        store: _store,
+        day: day,
+        nameDay: days.length > 1,
+        // A new line can be above or below the hours on the screen.
+        onAdded: (minute) =>
+            _grid.currentState?.scrollToMinute(minute, animated: true),
+      ),
+    );
+  }
+
   List<Widget> _zoomButtons({bool small = false}) => [
     if (_kind != PlannerKind.month) ...[
+      // The wake-up line and the sleep line of the day (`day_markers.dart`).
+      Builder(
+        builder: (context) => _HeaderButton(
+          key: const ValueKey('day-marker-add'),
+          label: 'Add a wake-up or sleep line',
+          tooltip: 'Add a wake-up or sleep line',
+          icon: Icons.add,
+          small: small,
+          onTap: () => _showDayMarkers(context),
+        ),
+      ),
       _HeaderButton(
         label: 'Zoom out',
         tooltip: 'Zoom out',
@@ -692,7 +728,10 @@ class _HeaderButton extends StatelessWidget {
               child: Center(
                 widthFactor: 1,
                 heightFactor: 1,
-                child: icon != null
+                // The "+" of the day lines has no soft edge.
+                child: icon == Icons.add
+                    ? DayMarkerPlus(size: small ? 14 : 16, color: theme.ink)
+                    : icon != null
                     ? Icon(
                         icon,
                         size: small ? 14 : 16,
