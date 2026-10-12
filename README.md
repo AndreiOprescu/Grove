@@ -8,12 +8,12 @@
 <h3 align="center">Your day, your tasks, your notes and your goals.<br>One calm place that grows with you.</h3>
 
 <p align="center">
-  <img alt="macOS 26+" src="https://img.shields.io/badge/macOS-26%2B-5E7F4F?style=flat-square&logo=apple&logoColor=white">
-  <img alt="Swift 6" src="https://img.shields.io/badge/Swift-6-C77B4E?style=flat-square&logo=swift&logoColor=white">
-  <img alt="Zero dependencies" src="https://img.shields.io/badge/dependencies-zero-7FA36B?style=flat-square">
-  <img alt="Local-first" src="https://img.shields.io/badge/data-stays%20on%20your%20Mac-D9B44A?style=flat-square">
+  <img alt="macOS, Windows, Android, iOS" src="https://img.shields.io/badge/macOS%20%C2%B7%20Windows%20%C2%B7%20Android%20%C2%B7%20iOS-one%20app-5E7F4F?style=flat-square">
+  <img alt="Flutter 3.47" src="https://img.shields.io/badge/Flutter-3.47-C77B4E?style=flat-square&logo=flutter&logoColor=white">
+  <img alt="Local-first" src="https://img.shields.io/badge/data-stays%20on%20your%20device-D9B44A?style=flat-square">
+  <img alt="Sync is optional" src="https://img.shields.io/badge/sync-optional-7FA36B?style=flat-square">
   <img alt="MIT license" src="https://img.shields.io/badge/license-MIT-A9C79A?style=flat-square">
-  <img alt="1030 tests" src="https://img.shields.io/badge/tests-1030%20passing-8DB57A?style=flat-square">
+  <img alt="2456 tests" src="https://img.shields.io/badge/tests-2456%20passing-8DB57A?style=flat-square">
 </p>
 
 <p align="center">
@@ -28,6 +28,7 @@
     <source media="(prefers-color-scheme: dark)" srcset="docs/images/today-tab-dark-mode.png">
     <img src="docs/images/today-screen-light-mode.png" alt="Grove Today view: the day timeline, open tasks and the daily note" width="100%">
   </picture>
+  <br><sub>The pictures on this page are from the first Mac version of Grove. The new app follows the same design.</sub>
 </p>
 
 ---
@@ -60,9 +61,9 @@ Nothing is an island.
 <td width="33%" valign="top">
 
 ### 🔒 Yours, and only yours
-No account. No cloud. No tracking. No network at all.
-Your data lives in one file on your Mac,
-with automatic backups.
+No account needed. No tracking.
+Your data lives in one file on your device,
+with automatic backups. Sync is there only if you turn it on.
 
 </td>
 </tr>
@@ -82,7 +83,8 @@ The heart of Grove. A timeline of your day, with your tasks on the side.
 - Yesterday's unfinished blocks? Grove offers to **roll them over**.
 
 ### Planner — your week at a glance
-Seven days side by side. Drag blocks between days. Zoom in and out with `⌘ =` and `⌘ −`.
+Seven days side by side. Drag blocks between days. Zoom in and out with `⌘ =` and `⌘ −`
+(`Ctrl` in place of `⌘` on Windows).
 
 <p align="center">
   <img src="docs/images/planner-tab.png" alt="Grove Planner: a full week of blocks, goals and sticky notes" width="100%">
@@ -144,17 +146,20 @@ It is a quiet reward for a good day.
 **Grove** (natural, the default), **Minimal**, **Futuristic** and **Vintage**.
 Each one has its own colours, fonts and shapes, in a light look and a dark look.
 Soft light drifts in the background. Motion can be turned off, and Grove follows
-the macOS *Reduce motion* setting.
+the *Reduce motion* setting of your system.
 
 ### Small things that feel good
 - **Command palette** (`⌘ K`) to find and do anything.
-- A **menu bar leaf** that shows what is now and what is next.
-- **Reminders** before blocks start.
+- A **leaf in the menu bar** (macOS) or the **system tray** (Windows) that shows what is now and what is next.
+- **Reminders** for events, blocks and due times.
+- **Optional sync** between your devices, with your own free Supabase project.
 - **Settings** behind the gear: theme, light or dark, busy-day limit, mood tint and more.
 - **Undo everything** with `⌘ Z`.
 
 <details>
 <summary><b>Keyboard shortcuts</b></summary>
+
+On Windows, use `Ctrl` in place of `⌘`.
 
 | Keys | Action |
 |---|---|
@@ -166,6 +171,7 @@ the macOS *Reduce motion* setting.
 | `⌘ K` | Command palette |
 | `⌘ =` / `⌘ −` | Zoom the planner |
 | `⌘ Z` / `⇧ ⌘ Z` | Undo / Redo |
+| `⌘ ,` | Settings |
 | `Space` | Tick the selected block done |
 
 </details>
@@ -176,122 +182,281 @@ the macOS *Reduce motion* setting.
 
 - **Time-blockers.** Students, makers, freelancers and anyone who plans the day in blocks.
 - **People tired of five apps.** Tasks, calendar, notes and goals in one window.
-- **Privacy people.** Your plans never leave your Mac.
-- **Mac lovers.** Grove is native. It is fast, it uses Mac fonts, and it feels at home.
+- **Privacy people.** Your plans stay on your device. They leave it only if you turn sync on.
+- **People with more than one device.** One app for Mac, Windows, Android and iPhone.
 
 ---
 
 ## 📦 Install
 
+Grove is one app for four systems. It is built with [Flutter](https://flutter.dev).
+There is no ready-made download yet, so you build it from the source. That takes a few commands.
+
 | Platform | Status | How |
 |---|---|---|
-| 🍎 **macOS** 26+ (Apple Silicon) | ✅ Ready | Build from source — 3 commands, below |
-| 🪟 **Windows** | 🌱 Coming | Planned |
-| 🤖 **Android** | 🌱 Coming | Planned |
-| 📱 **iOS / iPadOS** | 🌱 Coming | Planned |
+| 🍎 **macOS** 12+ | ✅ Works | [Build from source](#macos) |
+| 🪟 **Windows** 10 / 11 (64-bit) | 🧪 Builds and passes its tests on a build server. Not yet tried by hand on a PC. | [Build from source](#windows) |
+| 🤖 **Android** | 🧪 Builds and passes its tests on a build server. Not yet tried by hand on a phone. | [Build from source](#android) |
+| 📱 **iOS / iPadOS** 15+ | 🧪 Builds without a signature. You sign it with your own Apple ID. | [Build from source](#ios-and-ipados) |
+
+### Before you start
+
+1. Install [Git](https://git-scm.com/downloads).
+2. Install [Flutter](https://docs.flutter.dev/get-started/install) 3.47 (the stable channel).
+3. Run `flutter doctor`. It tells you what is missing for your system.
+4. Get Grove:
+
+```bash
+git clone https://github.com/AndreiOprescu/Grove.git
+cd Grove
+```
 
 ### macOS
 
-You need macOS 26 or newer and Apple's free Command Line Tools. You do **not** need Xcode.
+You need a Mac with macOS 12 or newer and [Xcode](https://apps.apple.com/app/xcode/id497799835).
 
 ```bash
-# 1. Get Apple's Command Line Tools (skip if you have them)
-xcode-select --install
+# 1. Build
+./scripts/flutter_build.sh macos
 
-# 2. Get Grove
-git clone https://github.com/AndreiOprescu/Grove.git
-cd Grove
+# 2. Put the app in your Applications folder
+ditto app/build/macos/Build/Products/Release/Grove.app /Applications/Grove.app
 
-# 3. Build and install
+# 3. Open it
+open /Applications/Grove.app
+```
+
+The first build takes a few minutes.
+
+### Windows
+
+You need Windows 10 or 11 (64-bit) and
+[Visual Studio 2022](https://visualstudio.microsoft.com/downloads/) with the workload
+**Desktop development with C++**. A Windows app can only be built on Windows.
+
+Run this in PowerShell, in the `Grove` folder:
+
+```powershell
+cd app
+flutter pub get
+flutter build windows --release
+```
+
+The app is the folder `app\build\windows\x64\runner\Release`. Copy the **whole folder** to a
+place you like, for example `%LOCALAPPDATA%\Grove`. Then start `grove.exe` in that folder.
+`grove.exe` does not run alone: it needs the files next to it.
+
+### Android
+
+You need [Android Studio](https://developer.android.com/studio). It brings the Android SDK
+and Java.
+
+```bash
+# 1. Build the APK (the install file)
+./scripts/flutter_build.sh android
+
+# 2. Connect the phone with USB debugging on, then install
+adb install app/build/app/outputs/flutter-apk/app-release.apk
+```
+
+No cable? Copy `app-release.apk` to the phone and open it there. Android asks you to allow
+the install first.
+
+> [!WARNING]
+> The APK is signed with the test key of **your** computer. An APK that was built on
+> another computer cannot update it. Android then makes you remove Grove first, and
+> **its data goes with it**. Always build your updates on the same computer.
+
+### iOS and iPadOS
+
+You need a Mac with Xcode, an iPhone or iPad with iOS 15 or newer, and an Apple ID.
+Apple lets only signed apps run on a phone, so you sign Grove with your own Apple ID.
+
+```bash
+cd app
+flutter pub get
+open ios/Runner.xcworkspace
+```
+
+In Xcode:
+
+1. Select **Runner** ▸ **Signing & Capabilities**.
+2. Pick your **Team** (your Apple ID).
+3. If Xcode says the bundle identifier is taken, change it to one of your own.
+
+Then connect the device and run:
+
+```bash
+flutter run --release
+```
+
+With a free Apple ID the app stops after 7 days. Then you run the command again.
+A paid Apple Developer account gives one year.
+
+### Update
+
+```bash
+git pull
+```
+
+Then build and install again, the same way. Your data stays where it is.
+
+### Where your data is
+
+| System | Place |
+|---|---|
+| macOS | `~/Library/Containers/local.grove.grove/Data/Library/Application Support/local.grove.grove/` |
+| Windows | `%APPDATA%\local.grove\Grove` |
+| Android, iOS | Inside the app. It goes away when you remove the app. |
+
+The file is `grove.sqlite`. Grove makes a backup each day and keeps the newest 14 in `Backups`.
+On a Mac and on Windows, **Settings ▸ Data ▸ Show data folder** opens the place.
+
+### Uninstall
+
+Quit Grove and delete the app (`/Applications/Grove.app`, or your Windows folder, or the app
+on your phone). On a Mac and on Windows your data stays in the folder above. Delete that
+folder only if you want to erase everything.
+
+### Sync between your devices (optional)
+
+Grove works with no account. If you want the same data on all your devices, Grove can sync
+through [Supabase](https://supabase.com). You make your own free Supabase project, so your
+data is on a server that is yours.
+
+> [!NOTE]
+> Sync is new. It passes its tests against a test server. It is not yet proven against a
+> real Supabase project. Keep a backup until it is.
+
+1. Make a free project at [supabase.com](https://supabase.com).
+2. Open **SQL Editor**. Paste the whole file
+   [`supabase/migrations/20261011000000_grove_sync.sql`](supabase/migrations/20261011000000_grove_sync.sql)
+   and run it.
+3. Open **Authentication ▸ Emails ▸ Templates**. In "Magic Link" and in "Confirm signup",
+   add this line: `Your code for Grove: {{ .Token }}`
+4. Make the key file and fill in the two fields:
+
+   ```bash
+   cp app/config/supabase.example.json app/config/supabase.json
+   ```
+
+   `SUPABASE_URL` is the "Project URL". `SUPABASE_ANON_KEY` is the `anon` `public` key.
+   Never use the `service_role` key. Git ignores this file; never commit it.
+5. Build again. `./scripts/flutter_build.sh` finds the file by itself. On Windows, add
+   `--dart-define-from-file=config/supabase.json` to the build command.
+6. In Grove, open **Settings ▸ Sync**. Type your email, then type the code from the email.
+
+A build with no key file has no sync.
+The full steps are in [`docs/acceptance/F11-login.md`](docs/acceptance/F11-login.md).
+
+### Nothing is signed yet
+
+No build has the signature of a known developer. On the computer that built it, the app
+just runs. If you **download** a build that another computer made:
+
+- **macOS** stops it. Allow it in **System Settings ▸ Privacy & Security ▸ Open Anyway**.
+- **Windows** shows "Windows protected your PC". Click **More info ▸ Run anyway**.
+- **Android** installs it by hand only. See the warning above.
+- **iOS** cannot install it at all without your own signature.
+
+### The first Grove (Swift, macOS only)
+
+Grove started as a native Mac app in Swift. Its code is still here, in `Sources/` and
+`Tests/`. It needs macOS 26 or newer and Apple's Command Line Tools:
+
+```bash
 ./scripts/install.sh
 ```
 
-The script builds Grove, puts it in `~/Applications/Grove.app`, adds a **Grove** icon to
-your Desktop and opens the app. The first build takes a few minutes.
-
-**Update:** run `git pull` and then `./scripts/install.sh` again. Your data stays safe.
-
-**Uninstall:** quit Grove, then delete `~/Applications/Grove.app` and the `Grove` icon on
-your Desktop. Your data is in `~/Library/Application Support/Grove/`. Delete that folder
-only if you want to erase everything.
-
-### Windows, Android and iOS
-
-These are on the way. The plan is one shared app built with
-[Flutter](https://flutter.dev), with optional sync between your devices.
-Read the plan: [`docs/cross-platform-plan.md`](https://github.com/AndreiOprescu/Grove/blob/feat/cross-platform-flutter/docs/cross-platform-plan.md).
+That builds `~/Applications/Grove.app` and adds a **Grove** icon to your Desktop. It keeps
+its data in `~/Library/Application Support/Grove/`. The two apps do **not** share data.
+New work goes into the Flutter app.
 
 ---
 
 ## 🔧 How it works (for the curious)
 
-Grove is a native SwiftUI app with **zero third-party packages** and **no Xcode project**.
-It builds with Swift Package Manager and a shell script.
+Grove is a Flutter app, written in Dart. One code base draws the same screens on all four
+systems. It lives in [`app/`](app/).
 
 ```mermaid
 flowchart LR
-    UI["SwiftUI + AppKit views<br/>Today · Planner · Calendar · Notes · Garden"]
-    Store["AppStore<br/>@Observable, @MainActor<br/>every change is a Mutation"]
+    UI["Flutter widgets<br/>Today · Planner · Calendar · Notes · Garden"]
+    Store["AppStore<br/>every change is a Mutation"]
     Undo["Undo / redo<br/>one Mutation = one step"]
-    Core["GroveCore<br/>pure logic, no UI"]
+    Core["core<br/>pure Dart, no UI"]
     Repo["Repositories<br/>tasks · events · notes · goals"]
     DB[("SQLite<br/>WAL + FTS5 search")]
+    Sync["sync (optional)<br/>outbox, push and pull"]
+    Cloud[("Your Supabase<br/>project")]
 
     UI -->|user action| Store
     Store --> Undo
     Store --> Repo
     Store -.uses.-> Core
     Repo --> DB
-    Store -->|revision bump, redraw| UI
+    Store -->|redraw| UI
+    DB --> Sync
+    Sync <--> Cloud
 ```
 
-**Two modules.**
-- `GroveCore` is plain Swift with no UI imports. It holds the models, the database,
-  migrations, the planner maths (snapping, overlap columns, free time), the quick-add parser,
-  repeat rules, search, backups and export. It is where most of the tests live.
-- `Grove` is the app: SwiftUI views, the `AppStore`, themes and the menu bar.
+**Layers.**
+- `lib/core` is pure Dart with no Flutter imports. It holds the models, the planner maths
+  (snapping, overlap columns, free time), the quick-add parser, repeat rules and the garden.
+- `lib/data` is the database: migrations, repositories, search, backups, export and import.
+- `lib/state` is the `AppStore` and its rules.
+- `lib/sync` is the sync engine. `lib/services` talks to the system: reminders, the tray,
+  the window, Supabase.
+- `lib/ui` is the screens, the editor and the four themes.
+
+A check in the test script keeps Flutter out of `core`, `data` and `sync`.
 
 **One way to change data.** Every edit is a `Mutation` sent through `commit`. That gives
 undo and redo for free, and keeps the database and the screen in step.
 
-**SQLite, straight from the system.** No ORM and no SwiftData. Grove talks to the
-`sqlite3` C library. The schema moves forward with numbered migrations
-(`PRAGMA user_version`). Full-text search uses an FTS5 table.
+**SQLite, with no ORM.** Grove talks to SQLite through the `sqlite3` package. The schema
+moves forward with numbered migrations. Full-text search uses an FTS5 table.
 
-**Local time, on purpose.** Dates are stored as local wall-clock text
-(`2026-10-09T14:30`). It is a personal, one-device app, so there are no time-zone surprises.
+**Local first.** The database on your device is the truth. The app works with no network.
+With sync on, each change waits in an outbox and goes to the server when it can. If two
+devices change the same thing, the last write wins.
 
-**Art in code.** There are no image files in the app. The icon is drawn by
-`scripts/make_icon.swift`. The garden, the plant and the drifting background light
-are drawn by SwiftUI at run time.
+**Few packages.** Eight, all listed in [`app/pubspec.yaml`](app/pubspec.yaml): SQLite,
+Supabase, notifications, time zones, the tray, file pickers, paths and links. The fonts
+are bundled and open (OFL).
 
-**Tested.** 1030 tests with Swift Testing. Run them with:
+**Art in code.** The app icon is drawn by `scripts/make_flutter_icons.swift`. The garden,
+the plant and the drifting background light are drawn at run time.
+
+**Tested.** 2456 tests. The script also checks the format and runs the analyzer:
 
 ```bash
-./scripts/test.sh
+./scripts/flutter_test.sh
 ```
+
+When the app changes, GitHub Actions runs the tests and builds it for all four systems.
 
 <details>
 <summary><b>Project layout</b></summary>
 
 ```text
-Sources/
-├─ GroveCore/        pure logic (no UI)
-│  ├─ Model/         Task, Event, Note, Goal, Recurrence, DayKey …
-│  ├─ Database/      SQLite wrapper, migrations, repositories
-│  ├─ Planner/       PlannerMath: snap, overlap layout, free slots
-│  ├─ Parsing/       quick-add, note links, @dates, markdown
-│  ├─ Recurrence/    repeat rules
-│  └─ Services/      search, backup, export, garden, reminders, roll-over
-└─ Grove/            the app (SwiftUI)
-   ├─ Planner/  Tasks/  Calendar/  Notes/  Goals/  Garden/
-   ├─ Editor/        rich text for notes and task bodies
-   ├─ Theme/         four themes, ambient light, the growing plant
-   ├─ Settings/  MenuBar/  Reminders/  Layouts/  Shared/
-   └─ AppStore*.swift
-Tests/               GroveCoreTests, GroveTests
-scripts/             build_app.sh · install.sh · test.sh · make_icon.swift
-docs/                assumptions, acceptance proof
+app/                 the Flutter app (all four systems)
+├─ lib/
+│  ├─ core/          pure Dart: model, parsing, planner, recurrence, services
+│  ├─ data/          SQLite, migrations, repositories, search, backup, export
+│  ├─ state/         AppStore, undo, rules
+│  ├─ sync/          outbox, push and pull, last write wins
+│  ├─ services/      reminders, tray, window, Supabase
+│  └─ ui/            planner · tasks · calendar · notes · goals · garden ·
+│                    editor · settings · shell · theme · auth
+├─ test/             unit, widget and golden tests
+├─ config/           supabase.example.json (your key file goes here)
+└─ macos/ windows/ android/ ios/    the native shells
+supabase/            the SQL for your sync project
+scripts/             flutter_build.sh · flutter_test.sh · flutter_release.sh ·
+                     make_flutter_icons.swift
+docs/                plan, decisions (ADR), assumptions, acceptance proof
+Sources/ Tests/      the first Grove (Swift, macOS only)
 ```
 
 </details>
@@ -302,9 +467,11 @@ docs/                assumptions, acceptance proof
 
 - [x] Day Planner, tasks, calendar, notes, goals, garden
 - [x] Four themes, each in light and dark
-- [ ] Windows, Android and iOS with Flutter
-- [ ] Optional sync between devices
-- [ ] A ready-made download for macOS
+- [x] One app for macOS, Windows, Android and iOS with Flutter
+- [x] Optional sync between devices (built and tested)
+- [ ] Prove sync against a real server
+- [ ] Try the app by hand on a Windows PC, an Android phone and an iPhone
+- [ ] Ready-made, signed downloads
 
 ---
 
