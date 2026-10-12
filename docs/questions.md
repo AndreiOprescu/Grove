@@ -238,3 +238,10 @@ B) Keep the number 7 and put the table on a track of this app only — the expor
 If no answer: A stays. It is built.
 Answer (owner, 2026-10-12): A.
 The builder got this answer from the coordinator of the session, with the plan ("A, yes to all"). To go back the other way, from this app to the Mac app, the Mac app needs migration 8 too. Nothing in `Sources/` was changed.
+
+## Q-52 · ANSWERED A · ASK · blocks the wake-up line and the sleep line of the planner · 2026-10-12
+Is the time of the wake-up line and of the sleep line one time for all days, or does each day have its own?
+A) Each day has its own lines — you set them for the day you look at; a new line starts at the time of the nearest day that has one, so most days need one click.   ← my pick: you said "during the day", and a late night changes only that day.
+B) One time for all days — you set the two lines once and each day shows them; a change on one day changes all days, also the past ones.
+If no answer: nothing is built until you answer; the storage is not the same for A and B.
+Answer (owner, 2026-10-12): A. Each day has its own lines.

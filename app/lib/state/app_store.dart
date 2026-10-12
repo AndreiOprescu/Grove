@@ -34,6 +34,7 @@ import 'prefs.dart';
 import 'rules/all_tasks_rules.dart';
 import 'rules/block_subtask_row.dart';
 import 'rules/calendar_rules.dart';
+import 'rules/day_marker.dart';
 import 'rules/day_range.dart';
 import 'rules/day_rules.dart';
 import 'rules/drag_payload.dart';
@@ -59,6 +60,7 @@ part 'store_block_subtasks.dart';
 part 'store_calendar.dart';
 part 'store_daily.dart';
 part 'store_data.dart';
+part 'store_day_markers.dart';
 part 'store_editor.dart';
 part 'store_events.dart';
 part 'store_focus.dart';
@@ -621,6 +623,7 @@ class AppStore extends ChangeNotifier {
     T? source<T>(Change<T> c) => forward ? c.before : c.after;
     try {
       repos.db.transaction(() {
+        _applySettings(m, forward: forward);
         for (final t in m.tasks) {
           final x = target(t);
           if (x != null) repos.tasks.save(x);
