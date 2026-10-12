@@ -74,6 +74,98 @@ void main() {
     expect(s.toast, isNotNull);
   });
 
+  group('the clock of the store', () {
+    AppStore at(DayKey day, int minute) => makeStore(
+      notifier: FakeNotifier(),
+      clock: WallTime(day: day, minute: minute),
+    );
+
+    test('the session starts at the time of the clock of the store', () {
+      // The real clock says that this block is over. The clock of the store
+      // says that it runs.
+      final s = at(past, 620);
+      final b = addBlock(s, day: past);
+      s.startFocus(b);
+      final f = s.focus;
+      expect(f, isNotNull);
+      expect(s.toast, isNull);
+      expect(f!.start, DateTime(2020, 3, 4, 10, 20));
+      expect(f.end, DateTime(2020, 3, 4, 11));
+    });
+
+    test('a block that is over by the clock of the store cannot be '
+        'focused', () {
+      // The real clock says that this block is far away.
+      final s = at(future, 661);
+      s.startFocus(addBlock(s, day: future));
+      expect(s.focus, isNull);
+      expect(s.toast, 'This block is over.');
+    });
+
+    test('a block can be focused until its last minute, and not at its '
+        'end', () {
+      final s = at(future, 659);
+      final b = addBlock(s, day: future);
+      s.startFocus(b);
+      expect(s.focus?.start, DateTime(2099, 3, 4, 10, 59));
+      s.stopFocus();
+
+      s.clockOverride = const WallTime(day: future, minute: 660);
+      s.startFocus(b);
+      expect(s.focus, isNull);
+    });
+
+    test('a block of tomorrow can be focused, a block of yesterday '
+        'cannot', () {
+      final s = at(future, 620);
+      final next = addBlock(s, day: future.adding(days: 1));
+      final before = addBlock(s, day: future.adding(days: -1), taskId: 'T2');
+      s.startFocus(next);
+      expect(s.focus?.blockId, next.id);
+      expect(s.focus?.start, DateTime(2099, 3, 4, 10, 20));
+      s.stopFocus();
+      s.startFocus(before);
+      expect(s.focus, isNull);
+    });
+
+    test('the test moves the clock and the session is that much further', () {
+      final s = at(past, 600);
+      s.startFocus(addBlock(s, day: past));
+      final f = s.focus!;
+      double done() =>
+          FocusRules.progress(start: f.start, end: f.end, now: s.clockNow());
+      int left() => FocusRules.remaining(until: f.end, now: s.clockNow());
+
+      expect(done(), 0);
+      expect(left(), 3600);
+      s.clockOverride = const WallTime(day: past, minute: 630);
+      expect(done(), 0.5);
+      expect(left(), 1800);
+      s.clockOverride = const WallTime(day: past, minute: 660);
+      expect(done(), 1);
+      expect(left(), 0);
+    });
+
+    test('with no fixed clock, "now" is the real clock', () {
+      final s = store();
+      expect(s.clockOverride, isNull);
+      final before = DateTime.now();
+      final now = s.clockNow();
+      final after = DateTime.now();
+      expect(now.isBefore(before), isFalse);
+      expect(now.isAfter(after), isFalse);
+      // A session starts at the real "now" then, as before.
+      s.startFocus(addBlock(s, day: future));
+      expect(s.focus!.start.isBefore(before), isFalse);
+      expect(s.focus!.start.isAfter(DateTime.now()), isFalse);
+    });
+
+    test('a fixed clock gives its day and its minute', () {
+      final s = at(const DayKey('2026-10-07'), 14 * 60 + 5);
+      expect(s.clockNow(), DateTime(2026, 10, 7, 14, 5));
+    });
+  });
+
   test('stopping ends the session and cancels the notification', () async {
     final fake = FakeNotifier();
     final s = store(fake);

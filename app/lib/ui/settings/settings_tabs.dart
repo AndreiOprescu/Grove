@@ -750,6 +750,22 @@ class _DataSettingsState extends State<DataSettings> {
     _report('The path is copied.');
   }
 
+  /// Swift: "Show data folder" opens the folder in Finder.
+  Future<void> _showFolder(SettingsFiles files, String path) async {
+    var shown = false;
+    try {
+      shown = await files.showFolder(path);
+    } on Object {
+      shown = false;
+    }
+    if (!shown) {
+      _report(
+        'Grove could not open the folder. You can copy its path.',
+        failed: true,
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = GroveTheme.of(context);
@@ -793,6 +809,12 @@ class _DataSettingsState extends State<DataSettings> {
                       ),
                     ),
                   ],
+                  if (dir != null && files != null && files.canShowFolder)
+                    CardButton(
+                      key: const ValueKey('settings-show-folder'),
+                      label: 'Show data folder',
+                      onTap: () => unawaited(_showFolder(files, dir)),
+                    ),
                   if (dir != null)
                     CardButton(
                       key: const ValueKey('settings-copy-path'),

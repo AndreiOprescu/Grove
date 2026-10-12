@@ -41,6 +41,23 @@ class FakeFiles implements SettingsFiles {
   @override
   bool canSave = true;
 
+  /// True: a system with a window of folders (a Mac, Windows).
+  @override
+  bool canShowFolder = false;
+
+  /// False: the system does not open the folder.
+  bool shows = true;
+
+  /// The folders the screen asked the system to show.
+  final shown = <String>[];
+
+  @override
+  Future<bool> showFolder(String path) async {
+    if (failure case final f?) throw f;
+    shown.add(path);
+    return shows;
+  }
+
   /// Runs while the window of "Import" is open.
   Future<void> Function()? whileOpen;
 

@@ -63,6 +63,25 @@ Future<void> pumpApp(
   }
 }
 
+/// How many frames the app asks for in `time` while nobody touches it. The
+/// clock of the test goes on in steps of one millisecond, so a running
+/// ticker asks for 1000 frames a second here; on a device it asks for one
+/// at each refresh of the screen.
+Future<int> framesAsked(
+  WidgetTester tester, {
+  Duration time = const Duration(seconds: 1),
+}) async {
+  var frames = 0;
+  for (var ms = 0; ms < time.inMilliseconds; ms++) {
+    await tester.binding.delayed(const Duration(milliseconds: 1));
+    if (tester.binding.hasScheduledFrame) {
+      frames++;
+      await tester.pump();
+    }
+  }
+  return frames;
+}
+
 /// Loads the Material icon font of the Flutter SDK. Without it a test
 /// draws every icon as an empty box.
 Future<void> loadIconFont() async {

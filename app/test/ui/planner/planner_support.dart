@@ -220,5 +220,5 @@ void setFocusClock(
     final now = tester.binding.clock.now();
     return at.add(now.difference(begun ??= now));
   };
-  addTearDown(() => FocusCard.clock = DateTime.now);
+  addTearDown(() => FocusCard.clock = null);
 }
