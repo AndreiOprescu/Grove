@@ -179,16 +179,22 @@ Not verified: a real number pad, and a keyboard where `+` is not on the key of `
 
 Workflow `flutter`, 4 jobs. Each job runs `./scripts/flutter_test.sh`, `./scripts/flutter_build.sh <system>` and `./scripts/flutter_integration.sh <system>`.
 
-The last code commit is `6baeeb2`. Run 38164051282 (push), 2026-10-11: **success**.
+The last code commit is `3f9e8ae`. The head that the CI ran is `ae050b4`: it has that commit, the merge of the base at `ec73831` (`7ef1276`) and one commit of docs. Run 38180832602 (push), 2026-10-11 22:32 UTC: **success**. Run 38180834740 (pull request) for the same head: success.
 
 | Job | Result | What it shows |
 |---|---|---|
-| android (Linux) | success | 2196 tests, the build, the device test of the planner |
-| windows | success | 2195 tests and 1 skipped (a picture parked before this branch), `grove.exe` built with the new window code, 9 planner tests, the window test: `GROVE_WINDOW system=windows window=1008.0x681.0 screen=1024.0x768.0 paddingTop=0.0 dock=16.0,5.0` |
-| macos | success | 2196 tests, `Release/Grove.app` built (59.2MB), 9 planner tests, the window test: `GROVE_WINDOW system=macOS window=1100.0x674.0 screen=1024.0x768.0 paddingTop=0.0 dock=84.0,5.0` |
-| ios | success | 2196 tests, the build, the device test of the planner |
+| android (Linux) | success | 2392 tests and 1 skipped, the release build, the device test of the planner: 13 passed, 3 skipped |
+| windows | success | 2392 tests and 1 skipped, `grove.exe` built with the new "Product name", the device test of the planner: 15 passed, 1 skipped; the window test: `GROVE_WINDOW system=windows window=1008.0x681.0 screen=1024.0x768.0 paddingTop=0.0 dock=16.0,5.0` |
+| macos | success | 2393 tests, `Release/Grove.app` built (59.4MB), the device test of the planner: 15 passed, 1 skipped; the window test: `GROVE_WINDOW system=macOS window=1100.0x674.0 screen=1024.0x768.0 paddingTop=0.0 dock=84.0,5.0` |
+| ios | success | 2393 tests, the build, the device test of the planner: 13 passed, 3 skipped |
 
-Earlier runs of this branch: 38157187332 (`1c2f7c5`), 38157382838 (`f5a88fe`) and 38157913112 (`dd3157c`) were green. Run 38162697134 (`3c20f16`) and run 38163112481 (`2ac26a7`) were red in the windows job only: the window test asked for 1100 points of width on a screen of 1024 × 768, and Windows does not make a window bigger than the screen (it gave 1028 × 681). One fix round: `6baeeb2` (the window fills the free part of such a screen; the test allows it).
+The skipped test on Linux and Windows is the picture 'day spread desktop futuristic' (parked before this branch). The skipped device tests are skipped by rule (`app/integration_test/planner_test.dart`): 3 tests with a mouse and keys are not for a phone, and the pinch test is not for a computer. In each job the 13 tests of the focus timer, the new zoom tests and the 10 name tests ran, and no test failed. No fix round was needed.
+
+The CI does not run `scripts/flutter_release.sh` or `scripts/flutter_perf.sh`. Part 8 is proved on this Mac only.
+
+Know this: the run of the base at `8d7e023` (38177019248) was red in the windows job, in one test of the store ('one block per task a strip drop is one undo step that brings back the block', `app/test/state/planner_store_test.dart`). The same test passed on Windows in the run above. It looks like a test that fails now and then on Windows. It is not a part of this branch.
+
+Earlier runs of this branch: 38157187332 (`1c2f7c5`), 38157382838 (`f5a88fe`), 38157913112 (`dd3157c`), 38164051282 (`6baeeb2`) and 38179638196 (`77d4c31`, after the first merge of the base on 2026-10-12) were green. Run 38162697134 (`3c20f16`) and run 38163112481 (`2ac26a7`) were red in the windows job only: the window test asked for 1100 points of width on a screen of 1024 × 768, and Windows does not make a window bigger than the screen (it gave 1028 × 681). One fix round: `6baeeb2` (the window fills the free part of such a screen; the test allows it).
 
 The screen of the CI machines is 1024 × 768. So the CI proves the smallest size on the Mac and the small-screen case on Windows. The first size 1280 × 800 is proved on this Mac only. On Windows the first size and the smallest size on a big screen are **not verified**.
 
