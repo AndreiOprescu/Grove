@@ -1,12 +1,21 @@
 name: flutter
 
+# The 4 systems. They run after a merge, and by hand. A pull request does
+# not start them: its check is `flutter-pr.yml`, on Linux. The Mac machines
+# are few, and a pull request waited about 2 hours for one.
+# `main` is in the list for the time after the Flutter app is on `main`.
 on:
   push:
-    branches: [feat/cross-platform-flutter, 'feat/xp-*']
-    paths: ['app/**', 'scripts/flutter_*.sh', '.github/workflows/flutter.yml']
-  pull_request:
+    branches: [main, feat/cross-platform-flutter]
     paths: ['app/**', 'scripts/flutter_*.sh', '.github/workflows/flutter.yml']
   workflow_dispatch:
+
+# A new commit stops the run of the commit before it, on the same branch.
+# The name of the group has the name of the workflow: a group is for the
+# whole repository, not for one file.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 env:
   FLUTTER_VERSION: 3.47.7
@@ -44,7 +53,10 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y libgtk-3-dev libx11-dev libxi-dev
+      # The iOS job is on the same kind of Mac as the macOS job, and
+      # `flutter test` has no device: it would be the same run two times.
       - name: Test
+        if: matrix.target != 'ios'
         run: ./scripts/flutter_test.sh
       # A golden test that fails writes its pictures here. Keep them, to see
       # how this OS draws.
