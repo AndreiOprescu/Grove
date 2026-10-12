@@ -18,6 +18,36 @@ extension AppStoreMeeting on AppStore {
     return null;
   }
 
+  /// The ids of the events in [events] that have a meeting note, by the rule
+  /// of [meetingNote]. One query for all of them: the planner asks for every
+  /// block of its days.
+  Set<String> withMeetingNote(Iterable<EventItem> events) {
+    final byLink = <String, List<EventItem>>{};
+    for (final e in events) {
+      (byLink[MeetingNote.linkId(e)] ??= []).add(e);
+    }
+    if (byLink.isEmpty) return const {};
+    final notes =
+        _try(
+          () => repos.db.query(
+            'SELECT l.dst_id, n.title FROM links l '
+            'JOIN notes n ON n.id = l.src_id '
+            "WHERE l.src_type = 'note' AND l.dst_type = 'event' "
+            'AND l.dst_id IN (SELECT value FROM json_each(?))',
+            [jsonEncode(byLink.keys.toList())],
+            (r) => (link: r.text(0), title: r.text(1)),
+          ),
+        ) ??
+        const <({String link, String title})>[];
+    final out = <String>{};
+    for (final n in notes) {
+      for (final e in byLink[n.link] ?? const <EventItem>[]) {
+        if (MeetingNote.title(e) == n.title) out.add(e.id);
+      }
+    }
+    return out;
+  }
+
   /// Makes the meeting note and shows it. When it already exists, it only
   /// shows it. Null when the event is gone.
   Note? createMeetingNote(EventItem event) {

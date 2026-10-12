@@ -10,6 +10,7 @@ import '../../state/state.dart' show AppStore, AppStoreAppearance;
 import '../shell/shell_layout.dart';
 import '../tasks/task_widgets.dart' show StoreBuilder, WholeCenter;
 import '../theme/grove_theme.dart';
+import '../theme/growing_plant.dart' show GrowingPlant;
 import '../theme/panel.dart';
 import '../theme/sway_clock.dart';
 import '../theme/theme_math.dart';
@@ -132,13 +133,21 @@ class GardenView extends StatelessWidget {
       builder: (context, growth, _) {
         // The bounce at the end must not leave the range of the picture.
         final shown = max(0.0, min(Garden.maxGrowth, growth));
-        return SwayClock(
-          on: motionOn,
-          builder: (context, seconds) => Transform.rotate(
-            angle: motionOn ? sway(growth: shown, at: seconds) * pi / 180 : 0,
-            // The foot of the plant: 0.88 of the way down.
-            alignment: const Alignment(0, 0.76),
-            child: GardenDrawing(growth: shown),
+        // The two boundaries: a sway draws only the plant again, not the
+        // page around it.
+        return RepaintBoundary(
+          child: SwayClock(
+            on: motionOn,
+            framesPerSecond: SwayClock.framesFor(
+              reach: plantHeight * 0.88,
+              degreesPerSecond: GrowingPlant.swaySpeed,
+            ),
+            builder: (context, seconds) => Transform.rotate(
+              angle: motionOn ? sway(growth: shown, at: seconds) * pi / 180 : 0,
+              // The foot of the plant: 0.88 of the way down.
+              alignment: const Alignment(0, 0.76),
+              child: RepaintBoundary(child: GardenDrawing(growth: shown)),
+            ),
           ),
         );
       },

@@ -15,7 +15,7 @@ It calls `scripts/flutter_build.sh` (the build was a release build before; that 
 
 | System | Command | File made | Size | Signed with | Checked here |
 |---|---|---|---|---|---|
-| macOS | `./scripts/flutter_release.sh macos` | `app/build/dist/grove-macos.zip` (inside: `grove.app`) | 23 801 741 bytes (the app: 55 MB, Intel + Apple chips) | "ad hoc" by Xcode: no name, no team | Built. Unzipped: `codesign --verify --deep --strict` is fine. Started once, see below |
+| macOS | `./scripts/flutter_release.sh macos` | `app/build/dist/grove-macos.zip` (inside: `Grove.app`; it was `grove.app` until 2026-10-12, see finding 4 in 2.4) | 23 801 741 bytes (the app: 55 MB, Intel + Apple chips) | "ad hoc" by Xcode: no name, no team | Built. Unzipped: `codesign --verify --deep --strict` is fine. Started once, see below |
 | Android | `./scripts/flutter_release.sh android` | `app/build/dist/grove-android.apk` | 68 761 062 bytes | the debug key of the Android tools on this Mac (`CN=Android Debug`) | Built. `apksigner verify --print-certs` shows the debug key. Package `local.grove.grove`, version 1.0.0 (1), 3 chip types. Not installed on a phone |
 | Android | (same command) | `app/build/dist/grove-android.aab` | 65 875 713 bytes | the same debug key | Built. Not sent to a store |
 | iOS | `./scripts/flutter_release.sh ios` | `app/build/dist/grove-ios-unsigned.zip` (inside: `Runner.app`) | 10 635 189 bytes (the app: 24.8 MB) | nothing (`--no-codesign`); `codesign -dv` says "not signed at all" | Built. It cannot be put on a phone |
@@ -23,7 +23,7 @@ It calls `scripts/flutter_build.sh` (the build was a release build before; that 
 
 ### What I started and saw (macOS)
 
-- Command: `app/build/macos/Build/Products/Release/grove.app/Contents/MacOS/grove`, once, for about 40 seconds. Then I stopped it with `kill -TERM`.
+- Command: `app/build/macos/Build/Products/Release/grove.app/Contents/MacOS/grove`, once, for about 40 seconds. Then I stopped it with `kill -TERM`. (The names of that day. Since 2026-10-12 it is `Grove.app/Contents/MacOS/Grove`.)
 - The process stayed up. Its log had one line: "Using the Impeller rendering backend (MetalSDF)". No error.
 - It made a new store in the data folder of the Flutter app, which was empty before: `~/Library/Containers/local.grove.grove/Data/Library/Application Support/local.grove.grove/` now has `grove.sqlite` and `Backups/grove-2026-10-11.sqlite`. I left them there.
 - Memory after 14 seconds: 232.8 MB ("Physical footprint" of `vmmap`). CPU: 26 to 46 % of one core with nothing to do (see finding 3).
@@ -148,7 +148,7 @@ What I can say about the slow results, and what I cannot:
 1. **Tasks panel: each scroll frame costs 3 times the work of the other lists** (build 3.0 ms against 0.4 to 1.1 ms, in the runs with no gaps). `app/lib/ui/tasks/tasks_pane.dart:249-256`: a `SingleChildScrollView` with one `Column` of all rows. All 278 rows are built and laid out at once, and most likely all are painted again for each scroll step (I read the code; I did not profile it). It passes here with 278 rows. The cost grows with the number of waiting tasks, and a phone is slower. Fix for later: a lazy list (`ListView.builder` or slivers), as the Notes list has (`app/lib/ui/notes/notes_view.dart:212`).
 2. **Drag: one frame in each drag is long** (build 11.5 to 16.0 ms; build + raster 15.5 to 19.9 ms in 7 runs). It is 0 to 2 frames of about 420, so the line holds. I did not find which moment of the drag it is (the start, the change of column or the drop).
 3. **With nothing to do, the app at the front uses 26 to 46 % of one core** (4 readings of `top` and `ps` on the release app). Most likely the moving background: `app/lib/ui/theme/ambient_background.dart:106-128` draws it 30 times a second, as `PLAN.md` §6.3 says, and stops when the window is not at the front or Motion is off. No pass line. I did not measure with Motion off.
-4. **The Mac app is `grove.app`, with a small g** (`PRODUCT_NAME = grove` in `app/macos/Runner/Configs/AppInfo.xcconfig`). The Swift app is `Grove.app`. Not changed: a name is the owner's call.
+4. **The Mac app is `grove.app`, with a small g** (`PRODUCT_NAME = grove` in `app/macos/Runner/Configs/AppInfo.xcconfig`). The Swift app is `Grove.app`. Not changed: a name is the owner's call. **Changed on 2026-10-12, with the shell gaps (PR #18):** `PRODUCT_NAME = Grove`, so the build is `Grove.app` and its program is `Contents/MacOS/Grove`. `scripts/flutter_release.sh` and `scripts/flutter_perf.sh` name the new app. The zip keeps its name, `grove-macos.zip`. Proof: `docs/acceptance/F12-shell-gaps.md`.
 
 ## 3. The app id (`local.grove.app`) — not changed; Q-30 answered: not now
 
@@ -244,5 +244,5 @@ The speed check is not in this workflow.
 2. To check the workflow: after this branch is on `main`, open Actions ▸ release ▸ "Run workflow" (or `gh workflow run release.yml`), then download the 4 files of the run.
 3. For a build with sync: the 4 steps in "A build with your keys, on your Mac".
 4. On a quiet Mac, with the window left alone and nothing over it: `./scripts/flutter_perf.sh macos`. About 4 minutes. Look at the line `tasks_panel_scroll`: `fps` must be 60 or more and `late_frames` at most 1 in 100 of `frames`. That settles the Tasks panel.
-5. Look once at the Mac release app yourself: `open app/build/macos/Build/Products/Release/grove.app` after `./scripts/flutter_release.sh macos`.
-6. Decide about the findings in 2.4 (Tasks panel list, idle CPU, the name `grove.app`) and about the memory in 2.3.
+5. Look once at the Mac release app yourself: `open app/build/macos/Build/Products/Release/Grove.app` after `./scripts/flutter_release.sh macos`.
+6. Decide about the findings in 2.4 (Tasks panel list, idle CPU; the name is settled, the app is `Grove.app` now) and about the memory in 2.3.

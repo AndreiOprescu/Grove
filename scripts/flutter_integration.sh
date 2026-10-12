@@ -3,15 +3,19 @@
 # macos | ios | android | windows.
 # macos and windows run the desktop app. ios starts an iPhone simulator.
 # android makes and starts an emulator (the SDK must be in ANDROID_HOME).
+# macos and windows also run the test of the window: its size, and on the
+# Mac its hidden title bar.
 set -euo pipefail
 target="${1:-}"
 cd "$(dirname "$0")/../app"
 test_file=integration_test/planner_test.dart
+window_test_file=integration_test/window_test.dart
 flutter pub get
 
 case "$target" in
   macos|windows)
     flutter test "$test_file" -d "$target"
+    flutter test "$window_test_file" -d "$target"
     ;;
 
   ios)

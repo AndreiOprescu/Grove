@@ -1,7 +1,7 @@
 // Port of Sources/Grove/Planner/FocusCard.swift: the small timer that
 // floats at the bottom right while a focus session runs (PLAN §5.1.7).
 // The Mac app hosts the card in its root view. Here `FocusLayer` hosts it
-// over the planner, see `PlannerView`.
+// over each screen, see `StoreApp` and `RootView.contentLayer`.
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -25,9 +25,10 @@ class FocusCard extends StatefulWidget {
   /// The side of a place to click or tap, in points.
   static const target = 28.0;
 
-  /// The clock of the count down. A test sets its own.
+  /// A clock with seconds for a test of the count down. Null in the app:
+  /// the card reads the clock of the store, as `store.startFocus` does.
   @visibleForTesting
-  static DateTime Function() clock = DateTime.now;
+  static DateTime Function()? clock;
 
   final AppStore store;
   final FocusSession session;
@@ -72,11 +73,14 @@ class _FocusCardState extends State<FocusCard> {
     _tick = _end = null;
   }
 
+  /// The moment now: the clock of the store, or the clock of a test.
+  DateTime _now() => FocusCard.clock?.call() ?? widget.store.clockNow();
+
   void _arm() {
     _disarm();
     final session = widget.session;
     if (session.finished) return;
-    final left = session.end.difference(FocusCard.clock());
+    final left = session.end.difference(_now());
     // The time can be up at the start: the session ended while another
     // screen was open. The store hears it after this frame.
     _end = Timer(left.isNegative ? Duration.zero : left, _timeUp);
@@ -87,10 +91,7 @@ class _FocusCardState extends State<FocusCard> {
 
   void _second() {
     if (!mounted) return;
-    final left = FocusRules.remaining(
-      until: widget.session.end,
-      now: FocusCard.clock(),
-    );
+    final left = FocusRules.remaining(until: widget.session.end, now: _now());
     // A sleeping computer can make the timer of the end late.
     left == 0 ? _timeUp() : setState(() {});
   }
@@ -99,7 +100,7 @@ class _FocusCardState extends State<FocusCard> {
     _disarm();
     if (!mounted) return;
     // The clock of the system was set back: the end is later than planned.
-    if (widget.session.end.isAfter(FocusCard.clock())) {
+    if (widget.session.end.isAfter(_now())) {
       _arm();
       return;
     }
@@ -111,7 +112,7 @@ class _FocusCardState extends State<FocusCard> {
   Widget build(BuildContext context) {
     final theme = GroveTheme.of(context);
     final session = widget.session;
-    final now = FocusCard.clock();
+    final now = _now();
     final left = FocusRules.remaining(until: session.end, now: now);
     final corners = BorderRadius.circular(theme.radius);
     return Semantics(

@@ -33,7 +33,7 @@ case "$target" in
   macos)
     # ditto keeps the links and the rights of the files inside the app.
     rm -f "$dist/grove-macos.zip"
-    ditto -c -k --keepParent build/macos/Build/Products/Release/grove.app \
+    ditto -c -k --keepParent build/macos/Build/Products/Release/Grove.app \
       "$dist/grove-macos.zip"
     made=("$dist/grove-macos.zip")
     ;;
