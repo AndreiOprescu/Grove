@@ -1,21 +1,20 @@
 name: flutter
 
-# A branch of work (`feat/xp-*`) is checked through its pull request only.
-# With a push trigger for those branches too, each commit ran two times.
+# The 4 systems. They run after a merge, and by hand. A pull request does
+# not start them: its check is `flutter-pr.yml`, on Linux. The Mac machines
+# are few, and a pull request waited about 2 hours for one.
 # `main` is in the list for the time after the Flutter app is on `main`.
 on:
   push:
     branches: [main, feat/cross-platform-flutter]
     paths: ['app/**', 'scripts/flutter_*.sh', '.github/workflows/flutter.yml']
-  pull_request:
-    paths: ['app/**', 'scripts/flutter_*.sh', '.github/workflows/flutter.yml']
   workflow_dispatch:
 
-# A new commit stops the run of the commit before it, on the same pull
-# request or the same branch. The Mac machines are few; old runs made the
-# new ones wait.
+# A new commit stops the run of the commit before it, on the same branch.
+# The name of the group has the name of the workflow: a group is for the
+# whole repository, not for one file.
 concurrency:
-  group: flutter-${{ github.event.pull_request.number || github.ref }}
+  group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 env:

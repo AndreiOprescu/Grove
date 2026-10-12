@@ -1,0 +1,38 @@
+name: flutter-pr
+
+# The one Flutter check of a pull request: lint, format and the unit and
+# widget tests, on Linux. It uses no Mac, so it does not wait for one.
+# The 4 systems (`flutter.yml`) run after the merge, and by hand.
+on:
+  pull_request:
+    paths: ['app/**', 'scripts/flutter_*.sh', '.github/workflows/flutter-pr.yml']
+
+# A new commit stops the run of the commit before it, on the same pull
+# request. The name of the group has the name of the workflow: a group is
+# for the whole repository, not for one file.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  FLUTTER_VERSION: 3.47.7
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Flutter
+        run: |
+          git clone --depth 1 --branch "$FLUTTER_VERSION" https://github.com/flutter/flutter.git "$RUNNER_TEMP/flutter"
+          echo "$RUNNER_TEMP/flutter/bin" >> "$GITHUB_PATH"
+      - run: flutter config --no-analytics
+      # `flutter test` builds the native library of the tray (package
+      # cnativeapi) for the machine it runs on. On Linux that needs these.
+      - name: Linux headers for the tray library
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libgtk-3-dev libx11-dev libxi-dev
+      - name: Test
+        run: ./scripts/flutter_test.sh

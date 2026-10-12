@@ -2,13 +2,22 @@ name: supabase-sql
 
 # Runs the SQL of the sync on the Postgres of the runner. It uses no
 # Supabase project and no key.
+#
+# A branch of work (`feat/xp-*`) is checked through its pull request only.
+# With a push trigger for those branches too, each commit ran two times.
 on:
   push:
-    branches: [main, feat/cross-platform-flutter, 'feat/xp-*']
+    branches: [main, feat/cross-platform-flutter]
     paths: ['supabase/**', '.github/workflows/supabase.yml']
   pull_request:
     paths: ['supabase/**', '.github/workflows/supabase.yml']
   workflow_dispatch:
+
+# A new commit stops the run of the commit before it, on the same pull
+# request or the same branch.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 
 jobs:
   sql:

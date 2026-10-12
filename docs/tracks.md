@@ -67,6 +67,19 @@ file, the plan, and `docs/assumptions.md` before it starts.
 - Stop and report to the user after each milestone.
 - Each track has one draft PR into `feat/cross-platform-flutter`. Keep it
   updated. The user merges.
+- CI (owner, 2026-10-12). A pull request has 1 Flutter check: `test` of
+  `.github/workflows/flutter-pr.yml`, on Linux. `sql` runs too when a file in
+  `supabase/` changes. The 4 systems (`.github/workflows/flutter.yml`) run
+  after the merge into `feat/cross-platform-flutter`, and by hand.
+  - Before each push, run `./scripts/flutter_test.sh` on this Mac. The golden
+    pictures are compared on macOS only, so the pull request check does not
+    compare them.
+  - Each push starts the checks from zero. Do not push small commits one by
+    one to an open pull request.
+  - Do not add a `push` trigger for `feat/xp-*`, and do not add a Mac job to
+    a pull request. With them each commit ran two times and waited about
+    2 hours for a Mac.
+  - A red job of the 4 systems after a merge: fix it in a new pull request.
 
 ## Status
 
