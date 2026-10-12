@@ -1,12 +1,21 @@
 name: flutter
 
+# A branch of work (`feat/xp-*`) is checked through its pull request only.
+# With a push trigger for those branches too, each commit ran two times.
 on:
   push:
-    branches: [feat/cross-platform-flutter, 'feat/xp-*']
+    branches: [feat/cross-platform-flutter]
     paths: ['app/**', 'scripts/flutter_*.sh', '.github/workflows/flutter.yml']
   pull_request:
     paths: ['app/**', 'scripts/flutter_*.sh', '.github/workflows/flutter.yml']
   workflow_dispatch:
+
+# A new commit stops the run of the commit before it, on the same pull
+# request or the same branch. The Mac machines are few; old runs made the
+# new ones wait.
+concurrency:
+  group: flutter-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 
 env:
   FLUTTER_VERSION: 3.47.7
@@ -44,7 +53,10 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y libgtk-3-dev libx11-dev libxi-dev
+      # The iOS job is on the same kind of Mac as the macOS job, and
+      # `flutter test` has no device: it would be the same run two times.
       - name: Test
+        if: matrix.target != 'ios'
         run: ./scripts/flutter_test.sh
       # A golden test that fails writes its pictures here. Keep them, to see
       # how this OS draws.

@@ -688,7 +688,12 @@ void main() {
       await tapIn(tester, keyed('settings-export'));
       expect(files.saved, hasLength(1));
       expect(files.saved.single.name, 'grove-export-2026-10-07.json');
-      expect(files.saved.single.text, store.exportData());
+      // The two exports are made a moment apart, and each has its own
+      // time, to the second.
+      String body(String export) =>
+          export.replaceFirst(RegExp(r'"exportedAt":\s*"[^"]*"'), '');
+      expect(files.saved.single.text, contains('"exportedAt"'));
+      expect(body(files.saved.single.text), body(store.exportData()));
       expect(message(tester), 'Saved grove-export-2026-10-07.json.');
     });
 
