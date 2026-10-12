@@ -1,5 +1,7 @@
 # Grove on Windows, Android, iOS (and Mac) — plan
 
+> **Status, 2026-10-12.** F1 to F11 are built and merged in `feat/cross-platform-flutter`. F12 is in work: the feature checklist is `docs/acceptance/F12-parity.md`, the release builds are `docs/acceptance/F12-release.md`. The text below is the plan as it was written on 2026-10-09; it is not kept up to date. Two things changed since: the database uses the package `sqlite3`, not `drift`, and the login is a code from an email, not a link. How to install the app: `README.md`.
+
 ## Context
 Grove is a Mac-only app today: Swift + SwiftUI + AppKit, SQLite, local-only. About 15K lines of code and 10K lines of tests.
 The user wants the same app, with the same look and behaviour, on Windows, Android and iOS. Data must sync between devices.

@@ -12,6 +12,16 @@
       <stop offset="0" stop-color="#D9B44A" stop-opacity="0.25"/>
       <stop offset="1" stop-color="#D9B44A" stop-opacity="0"/>
     </radialGradient>
+    <linearGradient id="tileFill" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#4A7A57"/>
+      <stop offset="1" stop-color="#24402D"/>
+    </linearGradient>
+    <clipPath id="tileClip">
+      <rect x="100" y="100" width="824" height="824" rx="185"/>
+    </clipPath>
+    <filter id="tileShadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="12" stdDeviation="14" flood-color="#000000" flood-opacity="0.28"/>
+    </filter>
   </defs>
   <rect width="1200" height="400" rx="28" fill="url(#bg)"/>
   <rect width="1200" height="400" rx="28" fill="url(#glowA)"/>
@@ -47,13 +57,17 @@
     <text x="833" y="281" fill="#FFFFFF" fill-opacity="0.85" font-size="12">12:00 – 13:30</text>
   </g>
 
-  <!-- Sprout, as in the app icon -->
-  <g transform="translate(80 92)">
-    <circle cx="212" cy="-6" r="16" fill="#D9B44A" fill-opacity="0.35"/>
-    <path d="M110 216 C 108 170, 112 130, 120 96" fill="none" stroke="#5E7F4F" stroke-width="13" stroke-linecap="round"/>
-    <path d="M116 120 C 70 118, 44 92, 40 56 C 80 56, 110 78, 116 120 Z" fill="#7FA36B"/>
-    <path d="M122 100 C 132 58, 162 34, 200 32 C 200 72, 172 98, 122 100 Z" fill="#A9C79A"/>
-    <path d="M146 72 L 160 86 L 186 52" fill="none" stroke="#5E7F4F" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
+  <!-- The app icon ("Night sprout"), from the numbers of scripts/make_flutter_icons.swift -->
+  <g transform="translate(67.7 75.7) scale(0.243)">
+    <rect x="100" y="100" width="824" height="824" rx="185" fill="#24402D" filter="url(#tileShadow)"/>
+    <rect x="100" y="100" width="824" height="824" rx="185" fill="url(#tileFill)"/>
+    <g clip-path="url(#tileClip)">
+      <ellipse cx="512" cy="904" rx="330" ry="150" fill="#1B3323" fill-opacity="0.55"/>
+      <path d="M512 762 C 500 664, 530 564, 512 464" fill="none" stroke="#F6F1E6" stroke-width="34" stroke-linecap="round"/>
+      <path d="M512 572 C 387 608.1, 265.1 483.9, 262 384 C 358.9 359.3, 512 441.9, 512 572 Z" fill="#F6F1E6"/>
+      <path d="M514 476 C 505.7 330.8, 669.5 236.1, 778 262 C 780.9 373.6, 654.3 514.2, 514 476 Z" fill="#DCE8CF"/>
+      <circle cx="300" cy="224" r="34" fill="#D9B44A" fill-opacity="0.95"/>
+    </g>
   </g>
 
   <!-- Wordmark -->
