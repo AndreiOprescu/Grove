@@ -1,11 +1,13 @@
 // The subtasks of a goal, under the goal in the Goals panel. Only this app
-// has them (the Mac app has no such list).
+// has them (the Mac app has no such list). A subtask can be dragged onto a
+// block of its goal on the planner: it is then planned in that block.
 import 'package:flutter/material.dart';
 import 'package:grove/core/model/goal.dart';
 import 'package:grove/core/model/goal_subtask.dart';
 import 'package:grove/state/state.dart' hide MotionRules;
 
 import '../planner/inline_title_field.dart' show BlurAction, InlineTitleRules;
+import '../planner/payload_drag.dart';
 import '../tasks/task_widgets.dart';
 import '../theme/check_box.dart';
 import '../theme/grove_theme.dart';
@@ -16,7 +18,8 @@ const double goalSubtaskTarget = 28;
 
 /// What a closed goal shows of its subtasks: the first three that are not
 /// done, and a line that says what is not shown ("+2 more"). A click on a
-/// box ticks that subtask. A click on any other place opens the goal.
+/// box ticks that subtask. A click on any other place opens the goal. A
+/// drag of a line onto a block of the goal plans that subtask in the block.
 /// Nothing at all for a goal with no subtasks.
 class GoalSubtasksClosed extends StatelessWidget {
   const GoalSubtasksClosed({
@@ -25,6 +28,7 @@ class GoalSubtasksClosed extends StatelessWidget {
     required this.goal,
     required this.subtasks,
     required this.onOpen,
+    this.marks = const {},
   });
 
   final AppStore store;
@@ -33,6 +37,9 @@ class GoalSubtasksClosed extends StatelessWidget {
   /// All subtasks of the goal, in list order.
   final List<GoalSubtaskItem> subtasks;
   final VoidCallback onOpen;
+
+  /// The mark of the block on each planned subtask, by subtask id.
+  final Map<String, String> marks;
 
   @override
   Widget build(BuildContext context) {
@@ -55,24 +62,33 @@ class GoalSubtasksClosed extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             children: [
               for (final sub in shown)
-                SizedBox(
+                PayloadDrag(
                   key: ValueKey('goal-subtask-${sub.id}'),
-                  height: goalSubtaskTarget,
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      _CheckButton(store: store, sub: sub),
-                      Expanded(
-                        child: _Line(
-                          child: Text(
-                            sub.title,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: theme.body(12).copyWith(color: theme.ink),
+                  payload: DragPayload.goalSubtask(sub.id),
+                  label: sub.title,
+                  child: SizedBox(
+                    height: goalSubtaskTarget,
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        _CheckButton(store: store, sub: sub),
+                        Expanded(
+                          child: _Line(
+                            child: Text(
+                              sub.title,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: theme.body(12).copyWith(color: theme.ink),
+                            ),
                           ),
                         ),
-                      ),
-                    ],
+                        if (marks[sub.id] case final mark?)
+                          _Mark(
+                            key: ValueKey('goal-subtask-mark-${sub.id}'),
+                            text: mark,
+                          ),
+                      ],
+                    ),
                   ),
                 ),
               if (more != null)
@@ -109,13 +125,15 @@ class GoalSubtasksClosed extends StatelessWidget {
 
 /// What an open goal shows of its subtasks: all of them, done ones too, and
 /// a line to add one. Each subtask can be ticked, renamed and deleted. Each
-/// change saves at once and is one undo step.
+/// change saves at once and is one undo step. A subtask that is done in a
+/// block is not in the list: the block keeps it.
 class GoalSubtasksOpen extends StatefulWidget {
   const GoalSubtasksOpen({
     super.key,
     required this.store,
     required this.goal,
     required this.subtasks,
+    this.marks = const {},
   });
 
   final AppStore store;
@@ -123,6 +141,9 @@ class GoalSubtasksOpen extends StatefulWidget {
 
   /// All subtasks of the goal, in list order.
   final List<GoalSubtaskItem> subtasks;
+
+  /// The mark of the block on each planned subtask, by subtask id.
+  final Map<String, String> marks;
 
   @override
   State<GoalSubtasksOpen> createState() => _GoalSubtasksOpenState();
@@ -134,7 +155,8 @@ class _GoalSubtasksOpenState extends State<GoalSubtasksOpen> {
 
   /// The line for a new subtask has the keys at the start when the list is
   /// empty: the goal was opened to add the first one.
-  late final bool _startOnAdd = widget.subtasks.isEmpty;
+  late final bool _startOnAdd = GoalSubtaskRules.inGoal(widget.subtasks)
+      .isEmpty;
 
   @override
   void initState() {
@@ -183,11 +205,12 @@ class _GoalSubtasksOpenState extends State<GoalSubtasksOpen> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         mainAxisSize: MainAxisSize.min,
         children: [
-          for (final sub in widget.subtasks)
+          for (final sub in GoalSubtaskRules.inGoal(widget.subtasks))
             _OpenRow(
               key: ValueKey('goal-subtask-${sub.id}'),
               store: store,
               sub: sub,
+              mark: widget.marks[sub.id],
             ),
           SizedBox(
             key: ValueKey('goal-subtask-add-${widget.goal.id}'),
@@ -233,13 +256,23 @@ class _GoalSubtasksOpenState extends State<GoalSubtasksOpen> {
   }
 }
 
-/// One subtask in an open goal: check box, name, delete. The name saves on
-/// Return, when the field loses the keys and when the goal closes.
+/// One subtask in an open goal: check box, name, the mark of its block,
+/// a grip and delete. The name saves on Return, when the field loses the
+/// keys and when the goal closes. The name is a field, so the grip is the
+/// place to drag the subtask from.
 class _OpenRow extends StatefulWidget {
-  const _OpenRow({super.key, required this.store, required this.sub});
+  const _OpenRow({
+    super.key,
+    required this.store,
+    required this.sub,
+    this.mark,
+  });
 
   final AppStore store;
   final GoalSubtaskItem sub;
+
+  /// The mark of the block that the subtask is planned in, if any.
+  final String? mark;
 
   @override
   State<_OpenRow> createState() => _OpenRowState();
@@ -345,6 +378,35 @@ class _OpenRowState extends State<_OpenRow> {
               ),
             ),
           ),
+          if (widget.mark case final mark?)
+            _Mark(key: ValueKey('goal-subtask-mark-${sub.id}'), text: mark),
+          // A done subtask cannot go in a block.
+          if (!sub.isDone)
+            PayloadDrag(
+              key: ValueKey('goal-subtask-grip-${sub.id}'),
+              payload: DragPayload.goalSubtask(sub.id),
+              label: sub.title,
+              // A screen reader cannot drag. The subtask window of a block
+              // has a button for the same thing.
+              child: ExcludeSemantics(
+                child: Tooltip(
+                  message: 'Drag onto a block of this goal',
+                  child: MouseRegion(
+                    cursor: SystemMouseCursors.grab,
+                    child: SizedBox.square(
+                      dimension: goalSubtaskTarget,
+                      child: Center(
+                        child: Icon(
+                          Icons.drag_indicator,
+                          size: 14,
+                          color: theme.muted,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
           _TapBox(
             key: ValueKey('goal-subtask-delete-${sub.id}'),
             label: 'Delete subtask ${sub.title}',
@@ -378,6 +440,41 @@ class _CheckButton extends StatelessWidget {
       child: CheckBox(isOn: sub.isDone, size: 14),
     ),
   );
+}
+
+/// The mark of the block on a planned subtask: the day and the start of the
+/// block ("Tue 14:00"). The place has one width, so every mark starts on
+/// the same whole point.
+class _Mark extends StatelessWidget {
+  const _Mark({super.key, required this.text});
+
+  static const double width = 84;
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = GroveTheme.of(context);
+    return Semantics(
+      label: 'In the block of $text',
+      excludeSemantics: true,
+      child: Padding(
+        padding: const EdgeInsets.only(left: 6),
+        child: SizedBox(
+          width: width,
+          child: _Line(
+            child: Text(
+              text,
+              maxLines: 1,
+              softWrap: false,
+              overflow: TextOverflow.fade,
+              style: theme.body(11).copyWith(color: theme.muted),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 /// A small picture to click or tap, with room for a finger.
