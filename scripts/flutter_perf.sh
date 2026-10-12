@@ -49,13 +49,13 @@ build() {
   if [ "$2" = release ]; then mode_dir=Release; else mode_dir=Profile; fi
   flutter build macos "--$2" -t "$1"
   rm -rf "$3"
-  mv "build/macos/Build/Products/$mode_dir/grove.app" "$3"
+  mv "build/macos/Build/Products/$mode_dir/Grove.app" "$3"
 }
 
 if [ "$part" = all ] || [ "$part" = start ]; then
   echo "== 1. start-up and memory (release build) =="
   build tool/perf_start.dart release "$out/start.app"
-  bin="$out/start.app/Contents/MacOS/grove"
+  bin="$out/start.app/Contents/MacOS/Grove"
   GROVE_PERF=seed "$bin"
   echo "-- the first start of a day (it makes the daily backup) --"
   GROVE_PERF=start GROVE_PERF_T0="$(now)" "$bin"
@@ -86,5 +86,5 @@ fi
 if [ "$part" = all ] || [ "$part" = frames ]; then
   echo "== 2. frame times (profile build) =="
   build integration_test/perf_test.dart profile "$out/frames.app"
-  GROVE_PERF_EXIT=1 "$out/frames.app/Contents/MacOS/grove"
+  GROVE_PERF_EXIT=1 "$out/frames.app/Contents/MacOS/Grove"
 fi

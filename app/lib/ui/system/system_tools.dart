@@ -88,4 +88,20 @@ class SystemFiles extends SettingsFiles {
     final text = utf8.decode(await file.readAsBytes(), allowMalformed: true);
     return (name: file.name, text: text);
   }
+
+  /// Finder and Explorer. Swift: `NSWorkspace.shared.open(folder)`.
+  @override
+  bool get canShowFolder => switch (defaultTargetPlatform) {
+    TargetPlatform.macOS || TargetPlatform.windows => true,
+    _ => false,
+  };
+
+  @override
+  Future<bool> showFolder(String path) async {
+    try {
+      return await launchUrl(Uri.directory(path));
+    } on Object {
+      return false;
+    }
+  }
 }

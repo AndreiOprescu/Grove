@@ -1,5 +1,6 @@
 // Golden screenshots of the planner parts that came after F7: the subtasks
-// of a goal block with their window, and the focus timer.
+// of a goal block with their window, the pencil of a block with a linked
+// note, and the focus timer.
 //
 // Make the pictures again after a wanted change of the look:
 //   cd app && flutter test --update-goldens test/ui/planner
@@ -7,6 +8,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:grove/ui/planner/block_subtask_editor.dart';
 import 'package:grove/ui/planner/focus_card.dart';
+import 'package:grove/ui/planner/planner_grid.dart';
+import 'package:grove/ui/planner/planner_kind.dart';
+import 'package:grove/ui/planner/planner_view.dart';
 import 'package:grove/ui/store_app.dart';
 
 import '../tasks/tasks_support.dart' show pumpPane, textOffPixels;
@@ -44,6 +48,54 @@ void main() {
       await expectLater(
         find.byType(StoreApp),
         matchesGoldenFile('goldens/planner_subtasks_grove_light.png'),
+      );
+    });
+  });
+
+  // The linked note of a block is its meeting note (card Q-35).
+  testWidgets('blocks with a linked note have the pencil', (tester) async {
+    await withRealShadows(() async {
+      final store = plannerStore(now: 10 * 60 + 20);
+      String add(String title, int start, int length, {bool asEvent = false}) {
+        store.createFromDraft(
+          title: title,
+          day: wednesday,
+          start: start,
+          end: start + length,
+          asEvent: asEvent,
+        );
+        return blockNamed(store, title).id;
+      }
+
+      final noted = [
+        add('Team sync', 9 * 60 + 30, 45, asEvent: true),
+        add('Write report', 10 * 60 + 30, 60),
+        goalBlock(store, start: 12 * 60, length: 90),
+        add('Call Sam', 15 * 60, 15),
+      ];
+      add('Lunch', 14 * 60, 45);
+      for (final id in noted) {
+        store.createMeetingNote(store.event(id)!);
+      }
+      store
+        ..selection = {}
+        ..selectedTaskId = null
+        ..screen = Screen.planner;
+      // The planner with no shell around it: a new look of the top strip
+      // does not change this picture.
+      await pumpPane(
+        tester,
+        PlannerView(store: store, kind: PlannerKind.week),
+        size: const Size(1100, 560),
+      );
+
+      for (final id in noted) {
+        expect(find.byKey(ValueKey('block-note-$id')), findsOneWidget);
+      }
+      expect(textOffPixels(tester, within: find.byType(PlannerGrid)), isEmpty);
+      await expectLater(
+        find.byType(MaterialApp),
+        matchesGoldenFile('goldens/planner_linked_note_grove_light.png'),
       );
     });
   });

@@ -566,42 +566,40 @@ void main() {
   testWidgets('focus: "Start Focus" shows the timer; the cross stops it', (
     tester,
   ) async {
-    // The store starts a session only for a block that ends after the real
-    // "now". This day is far away, so that is always true.
-    final day = DayKey('2099-03-04');
-    final store = _store()
-      ..clockOverride = WallTime(day: day, minute: 10 * 60)
-      ..selectedDay = day;
+    // "Now" is 11:00 on Wednesday, the clock of the store. The session and
+    // the card use that clock, so the day can be over by the real clock.
+    final store = _store();
     store.createFromDraft(
       title: 'Write report',
-      day: day,
-      start: 10 * 60,
-      end: 11 * 60,
+      day: wednesday,
+      start: 11 * 60,
+      end: 12 * 60,
       asEvent: false,
     );
-    // The card counts from 10:35 on that day, with the real seconds.
-    final begun = DateTime.now();
-    FocusCard.clock = () =>
-        DateTime(2099, 3, 4, 10, 35).add(DateTime.now().difference(begun));
-    addTearDown(() => FocusCard.clock = DateTime.now);
     await _open(tester, store);
 
-    await _menu(tester, _at(tester, store, day, 10 * 60 + 30));
+    await _menu(tester, _at(tester, store, wednesday, 11 * 60 + 30));
     await tester.tap(find.text('Start Focus'));
     await tester.pumpAndSettle();
-    expect(store.focus, isNotNull);
+    expect(store.focus?.start, DateTime(2026, 10, 7, 11));
     final card = find.byType(FocusCard);
     expect(card, findsOneWidget);
     expect(
       find.descendant(of: card, matching: find.text('Write report')),
       findsOneWidget,
     );
-    // 25 minutes are left, less the seconds that the test took.
+    // One hour is left to the end of the block.
     expect(
-      find.descendant(
-        of: card,
-        matching: find.textContaining(RegExp(r'^2[45]:[0-5]\d$')),
-      ),
+      find.descendant(of: card, matching: find.text('1:00:00')),
+      findsOneWidget,
+    );
+
+    // The clock of the store moves, and the card follows at its next second.
+    store.clockOverride = WallTime(day: wednesday, minute: 11 * 60 + 45);
+    await tester.pump(const Duration(seconds: 2));
+    await tester.pumpAndSettle();
+    expect(
+      find.descendant(of: card, matching: find.text('15:00')),
       findsOneWidget,
     );
 

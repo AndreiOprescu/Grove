@@ -62,6 +62,8 @@ extension AppStorePlanner on AppStore {
           ]),
         ) ??
         const <String, List<BlockSubtaskItem>>{};
+    // The blocks with a linked note (their meeting note), in one query.
+    final noted = withMeetingNote(events.where((e) => !e.allDay));
     for (final e in events) {
       if (e.allDay) continue;
       final tid = e.taskId;
@@ -98,6 +100,7 @@ extension AppStorePlanner on AppStore {
           isDone: e.goalId != null ? e.doneAt != null : (task?.isDone ?? false),
           color: taskColor ?? e.color,
           isRecurring: e.seriesId != null,
+          hasNote: noted.contains(e.id),
           priority: task?.priority ?? 0,
           goalId: e.goalId,
           subtasks: rows,

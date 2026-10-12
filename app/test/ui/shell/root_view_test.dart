@@ -12,6 +12,7 @@ import 'package:grove/ui/shell/screen_switch.dart';
 import 'package:grove/ui/shell/shell_model.dart';
 import 'package:grove/ui/theme/ambient_background.dart';
 import 'package:grove/ui/theme/grove_theme.dart';
+import 'package:grove/ui/theme/theme_math.dart';
 import 'package:grove/ui/theme/theme_spec.dart';
 
 import '../support.dart';
@@ -377,23 +378,55 @@ void main() {
         'not in front', (tester) async {
       final m = LocalShellModel();
       await pumpApp(tester, m, size: desktopSize);
-      await tester.pump(const Duration(milliseconds: 100));
-      expect(tester.binding.hasScheduledFrame, isTrue);
+      expect(await framesAsked(tester), greaterThan(0));
 
       tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
       await tester.pump();
-      await tester.pump(const Duration(milliseconds: 100));
-      expect(tester.binding.hasScheduledFrame, isFalse);
+      expect(await framesAsked(tester), 0);
 
       tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
       await tester.pump();
-      await tester.pump(const Duration(milliseconds: 100));
-      expect(tester.binding.hasScheduledFrame, isTrue);
+      expect(await framesAsked(tester), greaterThan(0));
 
       m.setMotion(false);
       await tester.pump(const Duration(seconds: 3));
       await tester.pumpAndSettle();
-      expect(tester.binding.hasScheduledFrame, isFalse);
+      expect(await framesAsked(tester), 0);
+    });
+
+    testWidgets('an idle window asks for a frame only when the circles '
+        'move, not at every refresh of the screen', (tester) async {
+      await pumpApp(tester, LocalShellModel(), size: desktopSize);
+      await tester.pump(const Duration(milliseconds: 500));
+      final theme = themeOf(tester);
+      final needs = AmbientMath.framesPerSecond(
+        strength: theme.blobOpacity,
+        background: theme.bg,
+        colors: theme.blobs,
+      );
+      // Fewer than the 30 of PLAN §6.3: the circles of Grove are soft.
+      expect(needs, inInclusiveRange(10, 25));
+      final frames = await framesAsked(tester);
+      expect(frames, inInclusiveRange(needs - 1, needs + 1));
+
+      // Pale circles: fewer frames still.
+      final m = LocalShellModel()..setTheme(ThemeId.minimal);
+      await pumpApp(tester, m, size: desktopSize);
+      await tester.pump(const Duration(seconds: 3));
+      expect(
+        await framesAsked(tester),
+        inInclusiveRange(
+          AmbientMath.fewestFrames - 1,
+          AmbientMath.fewestFrames + 1,
+        ),
+      );
+    });
+
+    testWidgets('an idle window with motion off asks for no frame', (
+      tester,
+    ) async {
+      await pumpApp(tester, still(), size: desktopSize);
+      expect(await framesAsked(tester), 0);
     });
 
     testWidgets('the device setting "reduce motion" stops the blobs', (
@@ -406,7 +439,7 @@ void main() {
       );
       await pumpApp(tester, LocalShellModel(), size: desktopSize);
       await tester.pump(const Duration(seconds: 1));
-      expect(tester.binding.hasScheduledFrame, isFalse);
+      expect(await framesAsked(tester), 0);
     });
   });
 

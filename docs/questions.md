@@ -161,12 +161,26 @@ B) Yes — a large photo with no see-through parts is stored as JPEG, about 0.3 
 If no answer: A stays. It is built. A PNG or JPEG of at most 1600 pixels on its long side is kept as it is, so only large pictures and other kinds (GIF, WebP, BMP) grow.
 Answer (owner, 2026-10-11): A. PNG stays. No new package. It is what is built.
 
-## Q-35 · OPEN · ASK · blocks the pencil on a block and the menu line "Open / create linked note" · 2026-10-11
+## Q-35 · ANSWERED A · ASK · blocks the pencil on a block and the menu line "Open / create linked note" · 2026-10-11
 What is the "linked note" of a block in the planner? The plan wants a pencil on a block that has one (§5.1.2) and a menu line "Open / create linked note" (§5.1.4). The Mac app has neither.
 A) The meeting note of the block — the menu line opens or makes the same note as "Create meeting note" in the card of an event, and the pencil shows when that note is there.   ← my pick: the store call is there already (`createMeetingNote`), so a block has one kind of note.
 B) Leave both out, as in the Mac app — nothing to build; the plan keeps two lines that no app does.
 If no answer: nothing changes. The menu has no such line. A block can draw the pencil (`block_view.dart`), but the store gives the flag to no block.
 For A, not tried yet: `createMeetingNote` with a task block and with a goal block. They are events in the store, so it should work; the title of the note would be the title of the block.
+Answer (owner, 2026-10-12): A. The linked note is the meeting note of the block.
+Built on 2026-10-12 for the three kinds of block (event, task block, goal block). The proof is in `docs/acceptance/F12-planner-notes.md`.
+
+## Q-36 · OPEN · DEFAULT · blocks nothing (the pencil and the menu line work today) · 2026-10-12
+When you rename a block or move it to another day, should it keep its linked note? Today Grove finds the meeting note by its title, "name — day", in the planner and in the card of an event.
+A) Keep the rule of today — after a rename or a move to another day the block has no pencil, and the menu line makes a new note. The old note stays in Notes with its old title. Nothing to build.   ← my pick: it is the rule the card of an event has now, and each day of a repeating event needs the day in the title to have its own note.
+B) Find the note by its link only — a block keeps its pencil and its note after a rename or a move. This needs a new rule for a repeating event (all its days share one link), and the card of an event changes too.
+If no answer: A stays. A test holds the rule (`app/test/state/block_note_store_test.dart`, "a new name or a new day").
+
+## Q-37 · OPEN · DEFAULT · blocks nothing (the now line works today) · 2026-10-12
+Should the now line of the planner keep its slow pulse? The plan asks for it (§6.3: the line fades from 1 to 0.45 and back in 3.2 seconds). With "Motion on" the pulse is the only thing that makes an idle planner draw.
+A) Keep the pulse, at 20 steps a second — with "Motion on" an idle planner draws 20 small frames a second at most (before: one for each refresh of the screen, 60 or 120). With "Motion off" it draws none. The processor use is not measured yet.   ← my pick: it is what the plan says, and a step changes only the line, not the planner.
+B) No pulse — the line stands still, and an idle planner draws nothing, with motion on too. The plan loses the line of §6.3.
+If no answer: A stays. It is built. The measure of the processor use is a request in `docs/tracks.md` ("Requests, with the planner notes").
 
 ## Q-26 · ANSWERED B · DEFAULT · blocks F12 (release builds) · 2026-10-11
 Which id does the Flutter app have? `PLAN.md` §0 says `local.grove.app`. The Flutter app has `local.grove.grove`.
@@ -201,3 +215,10 @@ A) None now — cost 0. The Mac app, the Windows folder and the Android APK work
 B) The Apple Developer Program first, 99 USD a year — a Mac app that opens with no warning on any Mac, and the iPhone app on your phone. Windows (a code signing certificate, paid; I do not know a sure price) and the Play Store (25 USD, one time) stay for later.
 If no answer: A stays. No key, certificate or account was made. What each system needs is in `docs/acceptance/F12-release.md`, part "Signing".
 Answer (owner, 2026-10-11): A. No signing now. No key, certificate or account is made.
+
+## Q-40 · ANSWERED B · DEFAULT · blocks nothing (one text in the details of `grove.exe`) · 2026-10-11
+On Windows, may the "Product name" of the program change from "grove" to "Grove"? The data folder gets its name from this text: `%APPDATA%\local.grove\grove`.
+A) Keep "grove" — the data folder stays the same for sure; the window, the taskbar and Task Manager already say "Grove", only the "Details" tab of the file says "grove".   ← my pick: the brief says not to change a name that makes the data folder.
+B) Change it to "Grove" — the "Details" tab says "Grove" too; on a normal Windows disk the folder is the same one (big and small letters are equal there), on a disk set to tell them apart the app would start with an empty folder.
+If no answer: A stays. The file name `grove.exe` stays too.
+Answer (owner, 2026-10-12): B. The Windows "Product name" becomes "Grove".
