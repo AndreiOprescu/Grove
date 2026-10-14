@@ -74,6 +74,7 @@ class _GoalsPaneState extends State<GoalsPane> {
       final week = GoalRules.week(day, sundayFirst: sundayFirst);
       final goals = _store.goals();
       final subtasks = _store.goalSubtasksOf([for (final g in goals) g.id]);
+      final marks = _store.goalSubtaskMarks(subtasks.values.expand((s) => s));
       return Panel(
         child: Padding(
           padding: const EdgeInsets.all(12),
@@ -117,6 +118,7 @@ class _GoalsPaneState extends State<GoalsPane> {
                                     sundayFirst: sundayFirst,
                                   ),
                                   subtasks: subtasks[goal.id] ?? const [],
+                                  subtaskMarks: marks,
                                   isOpen: _openGoal == goal.id,
                                   isEditing: _openGoal == goal.id && _editing,
                                   onToggle: () => _toggle(goal.id),

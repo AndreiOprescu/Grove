@@ -60,19 +60,27 @@ AppStore _scene({ThemeId theme = ThemeId.grove, bool dark = false}) {
   block('gym-1', 'gym', -2, 10 * 60, 60);
   block('gym-2', 'gym', -1, 11 * 60, 60);
   block('gym-3', 'gym', 2, 10 * 60, 60);
-  void subtask(String goal, int at, String title, {bool done = false}) =>
-      store.repos.goalSubtasks.save(
-        GoalSubtaskItem(
-          id: '$goal-s$at',
-          goalId: goal,
-          title: title,
-          sort: at + 0.0,
-          doneAt: done ? '2026-10-06T12:00:00' : null,
-          createdAt: '2026-10-05T09:00:00',
-        ),
-      );
+  void subtask(
+    String goal,
+    int at,
+    String title, {
+    bool done = false,
+    String? block,
+  }) => store.repos.goalSubtasks.save(
+    GoalSubtaskItem(
+      id: '$goal-s$at',
+      goalId: goal,
+      title: title,
+      sort: at + 0.0,
+      doneAt: done ? '2026-10-06T12:00:00' : null,
+      createdAt: '2026-10-05T09:00:00',
+      eventId: block,
+    ),
+  );
   subtask('read', 1, 'Chapter 3', done: true);
-  subtask('read', 2, 'Chapter 4');
+  // Planned in the block of today: the goal shows the mark of the block,
+  // and the block shows the subtask.
+  subtask('read', 2, 'Chapter 4', block: 'read-2');
   subtask('read', 3, 'Notes for the book club on Thursday evening');
   subtask('read', 4, 'Return the library books');
   subtask('read', 5, 'Pick the next book');

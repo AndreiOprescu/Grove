@@ -347,6 +347,19 @@ class EventRepo {
 
   EventItem? get(String id) => _where('WHERE id = ?', [id]).firstOrNull;
 
+  /// Many events in one query, by id. An id with no event has no entry. The
+  /// ids go in as one JSON list, so the SQL text is the same for any number.
+  Map<String, EventItem> byIds(Iterable<String> ids) {
+    final list = ids.toList();
+    if (list.isEmpty) return const {};
+    return {
+      for (final e in _where('WHERE id IN (SELECT value FROM json_each(?))', [
+        jsonEncode(list),
+      ]))
+        e.id: e,
+    };
+  }
+
   /// Time blocks that belong to a task, earliest first.
   List<EventItem> blocksForTask(String taskId) =>
       _where('WHERE task_id = ? ORDER BY start', [taskId]);
@@ -612,6 +625,7 @@ class GoalSubtaskRepo {
     'sort',
     'created_at',
     'updated_at',
+    'event_id',
   ];
   static final _select = 'SELECT ${_cols.join(',')} FROM goal_subtasks';
   static const _order = 'ORDER BY sort, created_at, rowid';
@@ -625,10 +639,11 @@ class GoalSubtaskRepo {
     sort: r.asDouble(4),
     createdAt: r.text(5),
     updatedAt: r.text(6),
+    eventId: r.optText(7),
   );
 
-  /// Insert or update. Refreshes `updatedAt`. Throws when the goal does not
-  /// exist (foreign key).
+  /// Insert or update. Refreshes `updatedAt`. Throws when the goal or the
+  /// block does not exist (foreign key).
   void save(GoalSubtaskItem sub) {
     final s = sub.copyWith(updatedAt: Stamp.now());
     db.execute(_upsert, [
@@ -639,6 +654,7 @@ class GoalSubtaskRepo {
       s.sort,
       s.createdAt,
       s.updatedAt,
+      s.eventId,
     ]);
   }
 
@@ -663,6 +679,24 @@ class GoalSubtaskRepo {
     );
     for (final s in rows) {
       (out[s.goalId] ??= []).add(s);
+    }
+    return out;
+  }
+
+  /// The subtasks that are planned in these blocks, in one query, by event
+  /// id. Each list is in the order of the goal's list. A block with none has
+  /// no entry.
+  Map<String, List<GoalSubtaskItem>> forEvents(Iterable<String> eventIds) {
+    final ids = eventIds.toList();
+    final out = <String, List<GoalSubtaskItem>>{};
+    if (ids.isEmpty) return out;
+    final rows = db.query(
+      '$_select WHERE event_id IN (SELECT value FROM json_each(?)) $_order',
+      [jsonEncode(ids)],
+      _map,
+    );
+    for (final s in rows) {
+      (out[s.eventId!] ??= []).add(s);
     }
     return out;
   }
