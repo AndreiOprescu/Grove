@@ -152,6 +152,8 @@ What I can say about the slow results, and what I cannot:
 
 ## 3. The app id (`local.grove.app`) — not changed; Q-30 answered: not now
 
+> **Note (2026-10-12):** the owner retired the Swift app on 2026-10-12. The id is changed to `local.grove.app` in the branch `feat/xp-retire-swift` (step 4 of the list "On the day the Swift app is retired" below). Steps 1, 2, 3, 5 and 6 are the owner's. They are listed in `docs/acceptance/retire-swift.md`. The text below is from 2026-10-11 and is not changed.
+
 **Answer of the owner (2026-10-11, Q-30: B):** the id stays `local.grove.grove` while the owner uses the Swift Mac app. It changes to `local.grove.app` on the day the owner retires the Swift app. No code was changed.
 
 The owner answered Q-26: the Flutter app must have the id `local.grove.app`. Before the change I checked if the Flutter app could then touch a file of the Swift Mac app. Result: the database is safe; two other things are shared. So I did not change the id.

@@ -216,6 +216,17 @@ cd Grove
 
 You need a Mac with macOS 12 or newer and [Xcode](https://apps.apple.com/app/xcode/id497799835).
 
+One command builds Grove, puts it in `~/Applications`, adds a **Grove** icon to your
+Desktop and opens it:
+
+```bash
+./scripts/flutter_install.sh
+```
+
+The first build takes a few minutes.
+
+Or do the steps by hand:
+
 ```bash
 # 1. Build
 ./scripts/flutter_build.sh macos
@@ -226,8 +237,6 @@ ditto app/build/macos/Build/Products/Release/Grove.app /Applications/Grove.app
 # 3. Open it
 open /Applications/Grove.app
 ```
-
-The first build takes a few minutes.
 
 ### Windows
 
@@ -302,11 +311,17 @@ git pull
 
 Then build and install again, the same way. Your data stays where it is.
 
+One exception: a build from before 2026-10-12 had another app id. On a Mac, a newer build
+starts with an empty data folder. On a phone, the newer build is a second app beside the old
+one. Before you update such a build, use **Settings ▸ Data ▸ Export JSON…** in the old app.
+After the update, use **Import JSON…** in the new one. The steps are in
+[`docs/acceptance/retire-swift.md`](docs/acceptance/retire-swift.md).
+
 ### Where your data is
 
 | System | Place |
 |---|---|
-| macOS | `~/Library/Containers/local.grove.grove/Data/Library/Application Support/local.grove.grove/` |
+| macOS | `~/Library/Containers/local.grove.app/Data/Library/Application Support/local.grove.app/` |
 | Windows | `%APPDATA%\local.grove\Grove` |
 | Android, iOS | Inside the app. It goes away when you remove the app. |
 
@@ -315,9 +330,10 @@ On a Mac and on Windows, **Settings ▸ Data ▸ Show data folder** opens the pl
 
 ### Uninstall
 
-Quit Grove and delete the app (`/Applications/Grove.app`, or your Windows folder, or the app
-on your phone). On a Mac and on Windows your data stays in the folder above. Delete that
-folder only if you want to erase everything.
+Quit Grove and delete the app (`/Applications/Grove.app` or `~/Applications/Grove.app` and
+the **Grove** icon on the Desktop, or your Windows folder, or the app on your phone). On a
+Mac and on Windows your data stays in the folder above. Delete that folder only if you want
+to erase everything.
 
 ### Sync between your devices (optional)
 
@@ -364,19 +380,6 @@ just runs. If you **download** a build that another computer made:
 - **Windows** shows "Windows protected your PC". Click **More info ▸ Run anyway**.
 - **Android** installs it by hand only. See the warning above.
 - **iOS** cannot install it at all without your own signature.
-
-### The first Grove (Swift, macOS only)
-
-Grove started as a native Mac app in Swift. Its code is still here, in `Sources/` and
-`Tests/`. It needs macOS 26 or newer and Apple's Command Line Tools:
-
-```bash
-./scripts/install.sh
-```
-
-That builds `~/Applications/Grove.app` and adds a **Grove** icon to your Desktop. It keeps
-its data in `~/Library/Application Support/Grove/`. The two apps do **not** share data.
-New work goes into the Flutter app.
 
 ---
 
@@ -460,9 +463,8 @@ app/                 the Flutter app (all four systems)
 └─ macos/ windows/ android/ ios/    the native shells
 supabase/            the SQL for your sync project
 scripts/             flutter_build.sh · flutter_test.sh · flutter_release.sh ·
-                     make_flutter_icons.swift
+                     flutter_install.sh · make_flutter_icons.swift
 docs/                plan, decisions (ADR), assumptions, acceptance proof
-Sources/ Tests/      the first Grove (Swift, macOS only)
 ```
 
 </details>

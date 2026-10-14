@@ -17,4 +17,5 @@ Plan and milestones: `../docs/cross-platform-plan.md`. Decision: `../docs/adr/00
 - Tests (format check, analyzer, tests): `./scripts/flutter_test.sh`
 - Build: `./scripts/flutter_build.sh macos|ios|android|appbundle|windows`
 - Release files in `app/build/dist/`: `./scripts/flutter_release.sh macos|windows|android|ios`
+- Install on this Mac (`~/Applications/Grove.app` and an icon on the Desktop): `./scripts/flutter_install.sh`
 - App icons, only when the logo changes: `swift scripts/make_flutter_icons.swift`
