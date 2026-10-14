@@ -65,6 +65,7 @@ part 'store_day_markers.dart';
 part 'store_editor.dart';
 part 'store_events.dart';
 part 'store_focus.dart';
+part 'store_goal_panel.dart';
 part 'store_goal_subtasks.dart';
 part 'store_goals.dart';
 part 'store_meeting.dart';
@@ -141,6 +142,7 @@ class AppStore extends ChangeNotifier {
         openFromNotification(day: day, ref: ref);
     this.notifier.onFocusDone = focusDoneFromNotification;
     _welcomeVisible = FirstRun.welcomeVisible(repos);
+    _adoptBlockSubtasks();
     _startSync();
   }
 
@@ -302,6 +304,27 @@ class AppStore extends ChangeNotifier {
   String? get selectedTaskId => _selectedTaskId;
   set selectedTaskId(String? v) {
     _selectedTaskId = v;
+    // One panel at the right at a time.
+    if (v != null) _selectedGoalBlockId = null;
+    _changed();
+  }
+
+  /// The goal block (an event id) shown in the goal panel, or null. Set
+  /// through `openGoalPanel` (see `store_goal_panel.dart`).
+  String? _selectedGoalBlockId;
+  String? get selectedGoalBlockId => _selectedGoalBlockId;
+  set selectedGoalBlockId(String? v) {
+    _selectedGoalBlockId = v;
+    if (v != null) _selectedTaskId = null;
+    _changed();
+  }
+
+  /// The goal whose editor the Goals panel opens next ("Edit goal" in the
+  /// goal panel). The Goals panel sets it back to null.
+  String? _goalToEdit;
+  String? get goalToEdit => _goalToEdit;
+  set goalToEdit(String? v) {
+    _goalToEdit = v;
     _changed();
   }
 
@@ -480,6 +503,8 @@ class AppStore extends ChangeNotifier {
     _redoStack.clear();
     _selection = {};
     _selectedTaskId = null;
+    _selectedGoalBlockId = null;
+    _goalToEdit = null;
     _selectedNoteId = null;
     _noteFilter = NoteFilter.all;
     _noteQuery = '';
@@ -489,6 +514,7 @@ class AppStore extends ChangeNotifier {
     _overloadWarning = null;
     _lingering = {};
     stopFocus();
+    _adoptBlockSubtasks();
     _welcomeVisible = FirstRun.welcomeVisible(repos);
     _bump();
     scheduleReminderRefresh();

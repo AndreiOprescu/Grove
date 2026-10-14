@@ -1,7 +1,7 @@
 // Port of Sources/Grove/Layouts/DaySpreadView.swift: the home screen
 // (PLAN §8, layout B). A header with the date, then three columns: the
 // tasks, the timeline of the day, the note of the day. The panel of the
-// chosen task takes the place of the note. The timeline is the main column:
+// chosen task or goal block takes the place of the note. The timeline is the main column:
 // it takes the width the other two leave. A switch in the header shows
 // tomorrow in place of today, to plan the next day.
 import 'dart:async';
@@ -15,7 +15,6 @@ import '../planner/planner_kind.dart';
 import '../planner/planner_view.dart';
 import '../shell/shell_layout.dart';
 import '../tasks/store_panes.dart';
-import '../tasks/task_inspector.dart';
 import '../tasks/task_widgets.dart';
 import '../tasks/tasks_pane.dart';
 import '../theme/grove_theme.dart';
@@ -151,10 +150,7 @@ class _DaySpreadViewState extends State<DaySpreadView> {
   );
 
   Widget _columns(double width, Widget timeline, DayKey day) {
-    final taskId = _store.selectedTaskId;
-    final inspector = taskId == null
-        ? null
-        : TaskInspector(store: _store, taskId: taskId);
+    final inspector = selectedPanel(_store);
     // An open left panel stands in the place of the task list.
     final paneOpen = _store.leftPane != null;
     final double tasks;
@@ -185,7 +181,7 @@ class _DaySpreadViewState extends State<DaySpreadView> {
         Expanded(
           key: const ValueKey('spread-timeline'),
           // With no room for a third column, the panel of the chosen task
-          // covers the timeline. The timeline stays in the tree.
+          // or goal block covers the timeline. The timeline stays in the tree.
           child: note > 0
               ? timeline
               : Stack(

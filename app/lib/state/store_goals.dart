@@ -159,16 +159,7 @@ extension AppStoreGoals on AppStore {
   }) {
     final g = goal(goalId);
     if (g == null) return;
-    final len = min(PlannerMath.dayEnd, PlannerMath.blockLength(length));
-    final s = PlannerMath.clampMove(start: start, length: len);
-    final e = EventItem(
-      title: g.title,
-      start: WallTime(day: day, minute: s),
-      end: WallTime(day: day, minute: s + len),
-      kind: EventKind.block,
-      color: GoalRules.blockColor(g),
-      goalId: g.id,
-    );
+    final e = _newGoalBlock(g, day: day, start: start, length: length);
     final m = Mutation('Schedule Goal')..events.add((before: null, after: e));
     if (commit(m)) selection = {e.id};
   }

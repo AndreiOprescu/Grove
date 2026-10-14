@@ -1,8 +1,9 @@
 // What the shell shows for the store: the left panels of Tasks and Goals,
-// and the panel of the chosen task. `StoreApp` plugs these in.
+// and the panel of the chosen task or goal block. `StoreApp` plugs these in.
 import 'package:flutter/material.dart';
 import 'package:grove/state/state.dart' hide MotionRules;
 
+import '../goals/goal_panel.dart';
 import '../goals/goals_pane.dart';
 import '../shell/shell_layout.dart';
 import 'task_inspector.dart';
@@ -23,11 +24,27 @@ Widget? storePane(BuildContext context, AppStore store, LeftPane pane) =>
       LeftPane.notes => null,
     };
 
+/// The panel at the right: the panel of the chosen task, or the goal
+/// panel of the chosen goal block. null when nothing is chosen.
+Widget? selectedPanel(AppStore store) {
+  final taskId = store.selectedTaskId;
+  if (taskId != null) return TaskInspector(store: store, taskId: taskId);
+  final blockId = store.selectedGoalBlockId;
+  if (blockId != null) {
+    return GoalPanel(
+      key: ValueKey('goal-panel-$blockId'),
+      store: store,
+      blockId: blockId,
+    );
+  }
+  return null;
+}
+
 bool _isPhone(BuildContext context) =>
     ShellRules.layoutFor(MediaQuery.sizeOf(context).width) == ShellLayout.phone;
 
 /// On a phone an open panel fills the screen. So the panel of the chosen
-/// task takes its place there.
+/// task or goal block takes its place there.
 class _PaneOrInspector extends StatelessWidget {
   const _PaneOrInspector({required this.store, required this.child});
 
@@ -38,9 +55,8 @@ class _PaneOrInspector extends StatelessWidget {
   Widget build(BuildContext context) => StoreBuilder(
     store: store,
     builder: (context) {
-      final id = _isPhone(context) ? store.selectedTaskId : null;
       return _Covered(
-        cover: id == null ? null : TaskInspector(store: store, taskId: id),
+        cover: _isPhone(context) ? selectedPanel(store) : null,
         child: child,
       );
     },
@@ -68,7 +84,8 @@ class _Covered extends StatelessWidget {
   );
 }
 
-/// Shows a screen with the panel of the chosen task. In a desktop window
+/// Shows a screen with the panel of the chosen task or goal block. In a
+/// desktop window
 /// the panel is at the right of the screen. On a phone it takes the place
 /// of the screen. The screen stays in the tree in each case, so it keeps
 /// its state and the keyboard focus.
@@ -91,11 +108,8 @@ class _InspectorHostState extends State<InspectorHost> {
   Widget build(BuildContext context) => StoreBuilder(
     store: widget.store,
     builder: (context) {
-      final id = widget.store.selectedTaskId;
       final screen = KeyedSubtree(key: _screen, child: widget.child);
-      final inspector = id == null
-          ? null
-          : TaskInspector(store: widget.store, taskId: id);
+      final inspector = selectedPanel(widget.store);
       if (_isPhone(context)) {
         return _Covered(
           cover: inspector == null

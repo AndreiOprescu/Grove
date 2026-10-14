@@ -465,6 +465,12 @@ extension AppStoreSync on AppStore {
       for (final id in _selection)
         if (_try(() => repos.tasks.get(id)) != null) id,
     };
+    // Another device can still add block subtasks to a goal block.
+    _adoptBlockSubtasks();
+    final block = _selectedGoalBlockId;
+    if (block != null && event(block)?.goalId == null) {
+      _selectedGoalBlockId = null;
+    }
     _welcomeVisible = _try(() => FirstRun.welcomeVisible(repos)) ?? false;
     _revision += 1;
     _changed();

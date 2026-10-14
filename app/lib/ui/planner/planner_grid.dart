@@ -789,6 +789,7 @@ class PlannerGridState extends State<PlannerGrid> {
   bool _accepts(String raw) =>
       DragPayload.noteId(raw) != null ||
       DragPayload.goalId(raw) != null ||
+      DragPayload.goalSubtaskId(raw) != null ||
       raw.startsWith(DragPayload.taskPrefix);
 
   void _drop(String raw, DayKey day, Offset global) {
@@ -802,6 +803,8 @@ class PlannerGridState extends State<PlannerGrid> {
       _store.addNoteToPlanner(noteId, on: day, at: minute);
     } else if (DragPayload.goalId(raw) != null) {
       _store.dropGoalOnPlanner(raw: raw, day: day, minute: minute);
+    } else if (DragPayload.goalSubtaskId(raw) != null) {
+      _store.dropGoalSubtaskOnPlanner(raw: raw, day: day, minute: minute);
     } else if (raw.startsWith(DragPayload.taskPrefix)) {
       _store.schedule(
         taskId: raw.substring(DragPayload.taskPrefix.length),
@@ -1083,12 +1086,16 @@ class PlannerGridState extends State<PlannerGrid> {
           () => store.toggleGoalBlockDone(eventId: block.id),
         ),
       // A task block has the subtasks of its task: the task panel edits
-      // them. A plain block has the line only while it still has subtasks.
+      // them. A goal block has the subtasks of its goal: the goal panel
+      // shows them. A plain block has the line only while it still has
+      // subtasks.
       if (!block.isTaskBlock &&
           (block.isGoalBlock || block.subtasks.isNotEmpty))
         _item(
           block.subtasks.isEmpty ? 'Add Subtasks…' : 'Subtasks…',
-          () => store.openBlockSubtasks(block.id),
+          () => block.isGoalBlock
+              ? store.openGoalPanel(block.id)
+              : store.openBlockSubtasks(block.id),
         ),
       if (taskId != null) ...[
         _item(
@@ -1468,21 +1475,28 @@ class PlannerGridState extends State<PlannerGrid> {
       top: geo.y(shown.start),
       width: width,
       height: height,
-      child: block.isGoalBlock ? _subtaskDrop(block, shownView) : shownView,
+      child: _subtaskDrop(block, shownView),
     );
   }
 
   /// A subtask of a goal, dragged from the Goals panel, can go in a block
   /// of that goal. The block has a frame while such a subtask is over it.
-  /// The drop area is on the block itself: a block lies over its day, so
-  /// the drop area of the day does not get the pointer there.
+  /// Each block takes the drop, so a drop on a block of another goal or a
+  /// task block says why it does not go there. The drop area is on the
+  /// block itself: a block lies over its day, so the drop area of the day
+  /// does not get the pointer there.
   Widget _subtaskDrop(PlannerBlock block, Widget child) => DragTarget<String>(
     onWillAcceptWithDetails: (details) =>
-        _store.canDropGoalSubtask(raw: details.data, blockId: block.id),
+        DragPayload.goalSubtaskId(details.data) != null,
     onAcceptWithDetails: (details) =>
         _store.dropGoalSubtaskOnBlock(raw: details.data, blockId: block.id),
     builder: (context, candidates, _) {
       final theme = GroveTheme.of(context);
+      final fits = candidates.any(
+        (raw) =>
+            raw != null &&
+            _store.canDropGoalSubtask(raw: raw, blockId: block.id),
+      );
       // The block stays the first child, so it keeps its state when the
       // frame comes and goes.
       return Stack(
@@ -1491,7 +1505,7 @@ class PlannerGridState extends State<PlannerGrid> {
         clipBehavior: Clip.none,
         children: [
           child,
-          if (candidates.isNotEmpty)
+          if (fits)
             IgnorePointer(
               key: ValueKey('block-drop-${block.id}'),
               child: DecoratedBox(

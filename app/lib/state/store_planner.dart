@@ -128,8 +128,9 @@ extension AppStorePlanner on AppStore {
   }
 
   /// A click on a block. A click on a task block also opens that task in the
-  /// panel at the right. With [extend] the click adds or removes a block and
-  /// leaves the panel alone.
+  /// panel at the right, and a click on a goal block opens the goal panel.
+  /// With [extend] the click adds or removes a block and leaves the panel
+  /// alone.
   void selectBlock(PlannerBlock block, {required bool extend}) {
     if (extend) {
       final next = {..._selection};
@@ -141,6 +142,8 @@ extension AppStorePlanner on AppStore {
     final taskId = block.taskId;
     if (taskId != null) {
       selectedTaskId = taskId;
+    } else if (block.isGoalBlock) {
+      openGoalPanel(block.id);
     } else if (block.kind == EventKind.event) {
       final e = event(block.id);
       if (e != null) editEvent(e);

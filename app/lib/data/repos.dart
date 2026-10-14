@@ -606,6 +606,17 @@ class BlockSubtaskRepo {
     return out;
   }
 
+  /// The subtasks of blocks that have a goal. Goal blocks hold goal
+  /// subtasks now (ADR 0002), so the store moves these. In the order of the
+  /// blocks, then in list order.
+  List<BlockSubtaskItem> onGoalBlocks() => db.query(
+    'SELECT ${_cols.map((c) => 'b.$c').join(',')} FROM block_subtasks b '
+    'JOIN events e ON e.id = b.event_id WHERE e.goal_id IS NOT NULL '
+    'ORDER BY e.start, e.id, b.sort, b.created_at, b.rowid',
+    const [],
+    _map,
+  );
+
   void delete(String id) =>
       db.execute('DELETE FROM block_subtasks WHERE id = ?', [id]);
 }
