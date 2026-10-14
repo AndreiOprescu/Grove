@@ -10,7 +10,8 @@ import 'package:grove/ui/goals/goal_row.dart';
 import 'package:grove/ui/goals/goals_pane.dart';
 import 'package:grove/ui/theme/check_box.dart';
 
-import '../planner/planner_support.dart' show plannerStore, pumpPlanner;
+import '../planner/planner_support.dart'
+    show blockFinder, goalBlock, plannerStore, pointAt, pumpPlanner;
 import '../tasks/tasks_support.dart';
 
 Finder byKey(String key) => find.byKey(ValueKey(key));
@@ -34,6 +35,15 @@ Finder subCheck(GoalSubtaskItem sub) => byKey('goal-subtask-check-${sub.id}');
 Finder subName(GoalSubtaskItem sub) => byKey('goal-subtask-name-${sub.id}');
 Finder subDelete(GoalSubtaskItem sub) => byKey('goal-subtask-delete-${sub.id}');
 
+/// The mark of the block on a subtask that is planned in a block.
+Finder subMark(GoalSubtaskItem sub) => byKey('goal-subtask-mark-${sub.id}');
+
+/// The place to drag a subtask of an open goal.
+Finder subGrip(GoalSubtaskItem sub) => byKey('goal-subtask-grip-${sub.id}');
+
+/// The frame on a block that can take the dragged subtask.
+Finder dropFrame(String blockId) => byKey('block-drop-$blockId');
+
 final anySubRow = find.byWidgetPredicate((w) {
   final key = w.key;
   return key is ValueKey<String> &&
@@ -41,6 +51,8 @@ final anySubRow = find.byWidgetPredicate((w) {
       !key.value.startsWith('goal-subtask-check-') &&
       !key.value.startsWith('goal-subtask-name-') &&
       !key.value.startsWith('goal-subtask-delete-') &&
+      !key.value.startsWith('goal-subtask-mark-') &&
+      !key.value.startsWith('goal-subtask-grip-') &&
       !key.value.startsWith('goal-subtask-add-');
 });
 
@@ -508,6 +520,300 @@ void main() {
       expect(tester.takeException(), isNull);
     });
   }
+
+  group('a subtask in a block of the goal', () {
+    late AppStore store;
+    late GoalItem goal;
+    late String blockId;
+
+    /// The subtask "Chapter `n`" as the database has it now.
+    GoalSubtaskItem chapter(int n) =>
+        store.goalSubtasks(goal.id).firstWhere((s) => s.title == 'Chapter $n');
+
+    Finder inBlock(String id, String text) =>
+        find.descendant(of: blockFinder(id), matching: find.text(text));
+
+    /// The whole app with the Goals panel next to the planner. "Read" has
+    /// the subtasks "Chapter 1" and "Chapter 2", and one block on Wednesday
+    /// from 11:00 to 12:30. "Now" is Wednesday at 10:00.
+    Future<void> withBlock(
+      WidgetTester tester, {
+      void Function()? before,
+    }) async {
+      store = plannerStore()..leftPane = LeftPane.goals;
+      blockId = goalBlock(store);
+      goal = store.goals().single;
+      store
+        ..addGoalSubtask(to: goal.id, title: 'Chapter 1')
+        ..addGoalSubtask(to: goal.id, title: 'Chapter 2');
+      before?.call();
+      await pumpPlanner(tester, store, size: const Size(1100, 620));
+    }
+
+    testWidgets('a drag onto a block of the goal plans it there: the block '
+        'shows it, and the goal shows it with the mark of the block', (
+      tester,
+    ) async {
+      await withBlock(tester);
+      expect(subMark(chapter(1)), findsNothing);
+      expect(inBlock(blockId, 'Chapter 1'), findsNothing);
+
+      await dragOnto(tester, subRow(chapter(1)), blockFinder(blockId));
+
+      expect(chapter(1).eventId, blockId);
+      expect(chapter(2).eventId, isNull);
+      expect(store.undoName, 'Plan Subtask');
+      expect(inBlock(blockId, 'Chapter 1'), findsOneWidget);
+      expect(subRow(chapter(1)), findsOneWidget);
+      expect(
+        find.descendant(
+          of: subMark(chapter(1)),
+          matching: find.text('Today 11:00'),
+        ),
+        findsOneWidget,
+      );
+      expect(subMark(chapter(2)), findsNothing);
+
+      store.undo();
+      await tester.pumpAndSettle();
+      expect(chapter(1).eventId, isNull);
+      expect(inBlock(blockId, 'Chapter 1'), findsNothing);
+      expect(subMark(chapter(1)), findsNothing);
+      await endToast(tester);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('a drop on a second block of the goal moves it there', (
+      tester,
+    ) async {
+      late String second;
+      await withBlock(
+        tester,
+        before: () => second = goalBlock(store, start: 14 * 60, length: 60),
+      );
+
+      await dragOnto(tester, subRow(chapter(1)), blockFinder(blockId));
+      await dragOnto(tester, subRow(chapter(1)), blockFinder(second));
+
+      expect(chapter(1).eventId, second);
+      expect(inBlock(blockId, 'Chapter 1'), findsNothing);
+      expect(inBlock(second, 'Chapter 1'), findsOneWidget);
+      expect(
+        find.descendant(
+          of: subMark(chapter(1)),
+          matching: find.text('Today 14:00'),
+        ),
+        findsOneWidget,
+      );
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('a drop on a block of another goal, on a task block or on an '
+        'empty place does nothing', (tester) async {
+      late String other;
+      late String task;
+      await withBlock(
+        tester,
+        before: () {
+          final gym = store.addGoal(title: 'Gym')!;
+          store
+            ..scheduleGoal(
+              goalId: gym.id,
+              day: wednesday,
+              start: 14 * 60,
+              length: 60,
+            )
+            ..createFromDraft(
+              title: 'Pay the bill',
+              day: wednesday,
+              start: 16 * 60,
+              end: 17 * 60,
+              asEvent: false,
+            );
+          final blocks = store.blocks(DayRange.single(wednesday));
+          other = blocks.firstWhere((b) => b.title == 'Gym').id;
+          task = blocks.firstWhere((b) => b.title == 'Pay the bill').id;
+        },
+      );
+      final count = store.blocks(DayRange.single(wednesday)).length;
+      final undo = store.undoName;
+
+      await dragOnto(tester, subRow(chapter(1)), blockFinder(other));
+      await dragOnto(tester, subRow(chapter(1)), blockFinder(task));
+      final column = byKey('day-column-${wednesday.string}');
+      await dragOnto(
+        tester,
+        subRow(chapter(1)),
+        column,
+        toOffset:
+            pointAt(tester, wednesday, 13 * 60) - tester.getCenter(column),
+      );
+
+      expect(chapter(1).eventId, isNull);
+      expect(store.blocks(DayRange.single(wednesday)), hasLength(count));
+      expect(store.undoName, undo);
+      expect(inBlock(other, 'Chapter 1'), findsNothing);
+      expect(inBlock(task, 'Chapter 1'), findsNothing);
+      expect(subMark(chapter(1)), findsNothing);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('only a block that can take the subtask shows a frame while '
+        'the subtask is over it', (tester) async {
+      late String other;
+      await withBlock(
+        tester,
+        before: () {
+          final gym = store.addGoal(title: 'Gym')!;
+          store.scheduleGoal(
+            goalId: gym.id,
+            day: wednesday,
+            start: 14 * 60,
+            length: 60,
+          );
+          other = store
+              .blocks(DayRange.single(wednesday))
+              .firstWhere((b) => b.title == 'Gym')
+              .id;
+        },
+      );
+      expect(dropFrame(blockId), findsNothing);
+
+      final from = tester.getCenter(subRow(chapter(1)));
+      final gesture = await tester.startGesture(
+        from,
+        kind: PointerDeviceKind.mouse,
+      );
+      await tester.pump();
+      Future<void> moveTo(Offset to) async {
+        for (var i = 1; i <= 4; i++) {
+          await gesture.moveTo(Offset.lerp(from, to, i / 4)!);
+          await tester.pump(const Duration(milliseconds: 16));
+        }
+      }
+
+      await moveTo(tester.getCenter(blockFinder(blockId)));
+      expect(dropFrame(blockId), findsOneWidget);
+      expect(dropFrame(other), findsNothing);
+
+      await moveTo(tester.getCenter(blockFinder(other)));
+      expect(dropFrame(blockId), findsNothing);
+      expect(dropFrame(other), findsNothing);
+
+      await gesture.up();
+      await tester.pumpAndSettle();
+      expect(chapter(1).eventId, isNull);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('a tick takes a planned subtask out of the goal: it is not '
+        'in the lines, not in the open goal and not in the count. The block '
+        'keeps it', (tester) async {
+      await withBlock(
+        tester,
+        before: () => store.assignGoalSubtask(chapter(1).id, to: blockId),
+      );
+      expect(subRow(chapter(1)), findsOneWidget);
+
+      await tapOn(tester, subCheck(chapter(1)));
+
+      expect(chapter(1).isDone, isTrue);
+      expect(chapter(1).eventId, blockId);
+      expect(subRow(chapter(1)), findsNothing);
+      // Not "1 done": the goal does not count it.
+      expect(moreLine(goal), findsNothing);
+      expect(inBlock(blockId, 'Chapter 1'), findsOneWidget);
+
+      await tapOn(tester, goalRow(goal));
+      expect(subRow(chapter(1)), findsNothing);
+      expect(subRow(chapter(2)), findsOneWidget);
+
+      // Open again (as a tick in the window of the block does): the goal
+      // shows it again, with its mark.
+      store.toggleGoalSubtask(chapter(1).id);
+      await tester.pumpAndSettle();
+      expect(subRow(chapter(1)), findsOneWidget);
+      expect(subMark(chapter(1)), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('a deleted block gives the subtask back to the goal with no '
+        'mark, and Undo puts it in the block again', (tester) async {
+      await withBlock(
+        tester,
+        before: () => store.assignGoalSubtask(chapter(1).id, to: blockId),
+      );
+      expect(subMark(chapter(1)), findsOneWidget);
+
+      store.deleteBlocks([blockId], name: 'Delete Goal Block');
+      await tester.pumpAndSettle();
+      expect(chapter(1).eventId, isNull);
+      expect(subRow(chapter(1)), findsOneWidget);
+      expect(subMark(chapter(1)), findsNothing);
+
+      store.undo();
+      await tester.pumpAndSettle();
+      expect(chapter(1).eventId, blockId);
+      expect(subMark(chapter(1)), findsOneWidget);
+      expect(inBlock(blockId, 'Chapter 1'), findsOneWidget);
+      await endToast(tester);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('in the open goal an open subtask has a grip, and a drag of '
+        'the grip plans the subtask', (tester) async {
+      await withBlock(
+        tester,
+        before: () => store.toggleGoalSubtask(chapter(2).id),
+      );
+      await tapOn(tester, goalRow(goal));
+
+      expect(subGrip(chapter(1)), findsOneWidget);
+      // A done subtask cannot go in a block.
+      expect(subRow(chapter(2)), findsOneWidget);
+      expect(subGrip(chapter(2)), findsNothing);
+      final grip = tester.getSize(subGrip(chapter(1)));
+      expect(grip.shortestSide, greaterThanOrEqualTo(28));
+
+      await dragOnto(tester, subGrip(chapter(1)), blockFinder(blockId));
+
+      expect(chapter(1).eventId, blockId);
+      expect(subMark(chapter(1)), findsOneWidget);
+      // The name is still a field, and the bin is still there.
+      expect(subName(chapter(1)), findsOneWidget);
+      expect(subDelete(chapter(1)), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('a click on a line that can be dragged still opens the goal, '
+        'and a click on its box still ticks it', (tester) async {
+      await withBlock(tester);
+
+      await tapOn(tester, subCheck(chapter(1)));
+      expect(chapter(1).isDone, isTrue);
+      expect(addField(goal), findsNothing);
+
+      await tester.tapAt(
+        tester.getCenter(subRow(chapter(2))),
+        kind: PointerDeviceKind.mouse,
+      );
+      await tester.pumpAndSettle();
+      expect(addField(goal), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('the mark does not push the name off its pixels', (
+      tester,
+    ) async {
+      await withBlock(
+        tester,
+        before: () => store.assignGoalSubtask(chapter(1).id, to: blockId),
+      );
+      expect(textOffPixels(tester), isEmpty);
+      await tapOn(tester, goalRow(goal));
+      expect(textOffPixels(tester), isEmpty);
+    });
+  });
 
   testWidgets('the texts of the subtasks sit on whole pixels', (tester) async {
     await withGoals(tester, subtasks: 5);

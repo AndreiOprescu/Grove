@@ -62,6 +62,15 @@ extension AppStorePlanner on AppStore {
           ]),
         ) ??
         const <String, List<BlockSubtaskItem>>{};
+    // Subtasks of a goal that are planned in a block of the goal.
+    final goalSubs =
+        _try(
+          () => repos.goalSubtasks.forEvents([
+            for (final e in events)
+              if (e.goalId != null && !e.allDay) e.id,
+          ]),
+        ) ??
+        const <String, List<GoalSubtaskItem>>{};
     // The blocks with a linked note (their meeting note), in one query.
     final noted = withMeetingNote(events.where((e) => !e.allDay));
     for (final e in events) {
@@ -80,6 +89,14 @@ extension AppStorePlanner on AppStore {
               ],
             )
           : [
+              // The ones from the goal first, in the order of the goal.
+              for (final s in goalSubs[e.id] ?? const <GoalSubtaskItem>[])
+                BlockSubtask(
+                  id: s.id,
+                  title: s.title,
+                  isDone: s.isDone,
+                  fromGoal: true,
+                ),
               for (final s in blockSubs[e.id] ?? const <BlockSubtaskItem>[])
                 BlockSubtask(id: s.id, title: s.title, isDone: s.isDone),
             ];

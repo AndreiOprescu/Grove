@@ -14,6 +14,9 @@ import 'helpers.dart';
 // Subtasks of a goal (table `goal_subtasks`, shared migration 8). The list
 // belongs to the goal, so every block of the goal has the same one. It is
 // another list than the subtasks of one block (`block_subtasks`).
+//
+// A subtask of a goal can be planned in one block of the goal (column
+// `event_id`, shared migration 9). It stays one row of the goal.
 
 // 2026-10-05 is a Monday.
 const monday = DayKey('2026-10-05');
@@ -52,12 +55,14 @@ GoalSubtaskItem sub(
   String title, {
   double sort = 0,
   String? doneAt,
+  String? eventId,
 }) => GoalSubtaskItem(
   id: id,
   goalId: goal,
   title: title,
   sort: sort,
   doneAt: doneAt,
+  eventId: eventId,
 );
 
 List<String> ids(Iterable<GoalSubtaskItem> subs) => [
@@ -84,6 +89,18 @@ void main() {
       expect(s.copyWith(), s);
       expect(s.copyWith().hashCode, s.hashCode);
       expect(done, isNot(s));
+    });
+
+    test('a new subtask is in no block, and copyWith can set and clear the '
+        'block', () {
+      final s = GoalSubtaskItem(goalId: 'G1', title: 'Chapter 3');
+      expect(s.eventId, isNull);
+      final planned = s.copyWith(eventId: 'E1');
+      expect(planned.eventId, 'E1');
+      expect(planned.copyWith(title: 'Other').eventId, 'E1');
+      expect(planned.copyWith(eventId: null).eventId, isNull);
+      expect(planned, isNot(s));
+      expect(planned.copyWith(eventId: null), s);
     });
   });
 
@@ -183,6 +200,53 @@ void main() {
       expect(ids(r.goalSubtasks.forGoal('G1')), ['S1']);
     });
 
+    test('a subtask can be planned in one block of the goal', () {
+      final r = twoGoals();
+      r.goalSubtasks.save(sub('S1', 'G1', 'Chapter 3', eventId: 'E1'));
+      expect(r.goalSubtasks.get('S1')!.eventId, 'E1');
+      // It is still one row of the goal.
+      expect(ids(r.goalSubtasks.forGoal('G1')), ['S1']);
+      expect(r.goalSubtasks.forGoal('G1').single.eventId, 'E1');
+      r.goalSubtasks.save(r.goalSubtasks.get('S1')!.copyWith(eventId: 'E2'));
+      expect(r.goalSubtasks.get('S1')!.eventId, 'E2');
+      r.goalSubtasks.save(r.goalSubtasks.get('S1')!.copyWith(eventId: null));
+      expect(r.goalSubtasks.get('S1')!.eventId, isNull);
+    });
+
+    test('the planned subtasks of many blocks in one query, in list order', () {
+      final r = twoGoals();
+      r.goalSubtasks.save(sub('S2', 'G1', 'Second', sort: 2, eventId: 'E1'));
+      r.goalSubtasks.save(sub('S1', 'G1', 'First', sort: 1, eventId: 'E1'));
+      r.goalSubtasks.save(sub('S3', 'G1', 'Third', sort: 3, eventId: 'E2'));
+      r.goalSubtasks.save(sub('S4', 'G1', 'Free', sort: 4));
+      final all = r.goalSubtasks.forEvents(['E1', 'E2', 'nope']);
+      expect(all.keys.toSet(), {'E1', 'E2'});
+      expect(ids(all['E1']!), ['S1', 'S2']);
+      expect(ids(all['E2']!), ['S3']);
+      expect(r.goalSubtasks.forEvents(const []), isEmpty);
+    });
+
+    test('a planned subtask needs its block', () {
+      final r = twoGoals();
+      expect(
+        () => r.goalSubtasks.save(sub('S1', 'G1', 'A', eventId: 'nope')),
+        throwsA(isA<SqliteException>()),
+      );
+    });
+
+    test('a deleted block gives its planned subtask back to the goal', () {
+      final r = twoGoals();
+      r.goalSubtasks.save(
+        sub('S1', 'G1', 'A', eventId: 'E1', doneAt: '2026-10-05T11:00:00'),
+      );
+      r.goalSubtasks.save(sub('S2', 'G1', 'B', sort: 1, eventId: 'E2'));
+      r.events.delete('E1');
+      final back = r.goalSubtasks.get('S1')!;
+      expect(back.eventId, isNull);
+      expect(back.isDone, isTrue);
+      expect(r.goalSubtasks.get('S2')!.eventId, 'E2');
+    });
+
     test('the subtasks of one block are another list', () {
       final r = twoGoals();
       r.goalSubtasks.save(sub('S1', 'G1', 'Of the goal'));
@@ -224,8 +288,37 @@ void main() {
       );
       expect(names, contains('goal_subtasks'));
       expect(names, contains('goal_subtasks_goal'));
-      expect(Migrations.all.length, 8);
-      expect(db.userVersion, 8);
+      expect(names, contains('goal_subtasks_event'));
+      expect(Migrations.all.length, 9);
+      expect(db.userVersion, 9);
+    });
+
+    test('upgrading a version 8 database keeps its subtasks, in no block', () {
+      final dir = tempDir('grove-m9-');
+      final path = oldDatabase(
+        dir,
+        8,
+        'INSERT INTO goals (id, title, target_min, kind, target_count, '
+        "created_at, updated_at) VALUES ('g1', 'Read', 360, 'hours', 0, "
+        "'2026-10-01T09:00:00', '2026-10-01T09:00:00');"
+        'INSERT INTO events (id, title, start, end, kind, goal_id, '
+        "created_at, updated_at) VALUES ('e1', 'Read', '2026-10-01T09:00', "
+        "'2026-10-01T10:00', 'block', 'g1', "
+        "'2026-10-01T09:00:00', '2026-10-01T09:00:00');"
+        'INSERT INTO goal_subtasks (id, goal_id, title, done_at, sort, '
+        "created_at, updated_at) VALUES ('s1', 'g1', 'Chapter 3', "
+        "'2026-10-01T10:00:00', 1, '2026-10-01T09:00:00', "
+        "'2026-10-01T09:00:00');",
+      );
+      final r = Repos(Database.open(path));
+      expect(r.db.userVersion, Migrations.all.length);
+      final s = r.goalSubtasks.get('s1')!;
+      expect(s.title, 'Chapter 3');
+      expect(s.doneAt, '2026-10-01T10:00:00');
+      expect(s.eventId, isNull);
+      r.goalSubtasks.save(s.copyWith(eventId: 'e1'));
+      expect(ids(r.goalSubtasks.forEvents(['e1'])['e1']!), ['s1']);
+      r.db.close();
     });
 
     test('upgrading a version 7 database keeps its data', () {
@@ -276,16 +369,29 @@ void main() {
       expect(b.goalSubtasks.forGoal('G2'), isEmpty);
     });
 
-    test('the table comes right after the goals in the file order', () {
-      final at = DataExport.tables.indexOf('goal_subtasks');
-      expect(at, DataExport.tables.indexOf('goals') + 1);
+    test('the block of a subtask comes back from an export file', () {
+      final a = twoGoals();
+      a.goalSubtasks.save(sub('S1', 'G1', 'A', sort: 1, eventId: 'E2'));
+      a.goalSubtasks.save(sub('S2', 'G1', 'B', sort: 2));
+      final b = makeRepos();
+      DataExport.importData(DataExport.export(a.db), b);
+      expect(b.goalSubtasks.get('S1')!.eventId, 'E2');
+      expect(b.goalSubtasks.get('S2')!.eventId, isNull);
+      expect(ids(b.goalSubtasks.forEvents(['E2'])['E2']!), ['S1']);
     });
 
-    test('the file says schema 8 and has the data columns only', () {
+    test('the table comes after the goals and after the blocks in the file '
+        'order: it points at both', () {
+      final at = DataExport.tables.indexOf('goal_subtasks');
+      expect(at, greaterThan(DataExport.tables.indexOf('goals')));
+      expect(at, greaterThan(DataExport.tables.indexOf('events')));
+    });
+
+    test('the file says schema 9 and has the data columns only', () {
       final a = twoGoals();
       a.goalSubtasks.save(sub('S1', 'G1', 'A', sort: 1));
       final obj = jsonDecode(DataExport.export(a.db)) as Map<String, Object?>;
-      expect(obj['schema'], 8);
+      expect(obj['schema'], 9);
       final rows = (obj['tables'] as Map)['goal_subtasks'] as List;
       expect((rows.single as Map).keys.toSet(), {
         'id',
@@ -295,7 +401,42 @@ void main() {
         'sort',
         'created_at',
         'updated_at',
+        'event_id',
       });
+    });
+
+    test('an export file of schema 8 (no block column) still imports, and '
+        'its subtasks are in no block', () {
+      final a = twoGoals();
+      a.goalSubtasks.save(
+        sub('S1', 'G1', 'A', sort: 1, doneAt: '2026-10-05T11:00:00'),
+      );
+      final obj = jsonDecode(DataExport.export(a.db)) as Map<String, Object?>;
+      for (final row in (obj['tables'] as Map)['goal_subtasks'] as List) {
+        (row as Map).remove('event_id');
+      }
+      obj['schema'] = 8;
+      final b = makeRepos();
+      DataExport.importData(jsonEncode(obj), b);
+      final back = b.goalSubtasks.get('S1')!;
+      expect(back.title, 'A');
+      expect(back.isDone, isTrue);
+      expect(back.eventId, isNull);
+    });
+
+    test('a file with a subtask in a block that is not in the file is '
+        'refused, and nothing changes', () {
+      final a = twoGoals();
+      a.goalSubtasks.save(sub('S1', 'G1', 'A', eventId: 'E1'));
+      final obj = jsonDecode(DataExport.export(a.db)) as Map<String, Object?>;
+      ((obj['tables'] as Map)['events'] as List).clear();
+      final b = makeRepos();
+      b.goals.upsert(GoalItem(id: 'OLD', title: 'Old goal'));
+      expect(
+        () => DataExport.importData(jsonEncode(obj), b),
+        throwsA(anything),
+      );
+      expect(b.goals.get('OLD'), isNotNull);
     });
 
     for (final version in [7, 6]) {
@@ -321,7 +462,7 @@ void main() {
     test('a file from a newer Grove is refused', () {
       final a = twoGoals();
       final obj = jsonDecode(DataExport.export(a.db)) as Map<String, Object?>;
-      obj['schema'] = 9;
+      obj['schema'] = 10;
       final b = makeRepos();
       b.goals.upsert(GoalItem(id: 'OLD', title: 'Old goal'));
       expect(

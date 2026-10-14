@@ -44,12 +44,13 @@ void main() {
       }
     });
 
-    test('there are eight migrations: the seven of the Mac app, and one of '
+    test('there are nine migrations: the seven of the Mac app, and two of '
         'this app only', () {
       // The export file carries this number. The Mac app refuses a higher
       // one, so it does not read a file of this app (migration 8, the
-      // subtasks of a goal, is not in the Mac app).
-      expect(Migrations.all.length, 8);
+      // subtasks of a goal, and migration 9, the block of such a subtask,
+      // are not in the Mac app).
+      expect(Migrations.all.length, 9);
     });
 
     test('migrations are idempotent', () {

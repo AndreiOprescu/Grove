@@ -8,11 +8,28 @@ import 'support.dart';
 // The subtasks of a goal (table `goal_subtasks`, shared migration 8) sync
 // like every other row: the outbox sees them, a second device gets them, and
 // they go when their goal goes.
+//
+// A subtask can be planned in a block of its goal (column `event_id`, shared
+// migration 9). The plan syncs too. When the block goes, the subtask stays,
+// in no block.
 
 GoalItem goal(Repos r, {String? id, String title = 'Read'}) {
   final g = GoalItem(id: id, title: title);
   r.goals.upsert(g);
   return g;
+}
+
+/// A block of the goal, on Monday 2026-10-05.
+EventItem block(Repos r, GoalItem g, {int hour = 10}) {
+  final e = EventItem(
+    title: g.title,
+    start: at('2026-10-05T${hour.toString().padLeft(2, '0')}:00'),
+    end: at('2026-10-05T${(hour + 1).toString().padLeft(2, '0')}:00'),
+    kind: EventKind.block,
+    goalId: g.id,
+  );
+  r.events.save(e);
+  return e;
 }
 
 List<String> titles(Device d, String goalId) => [
@@ -29,7 +46,11 @@ void randomOp(Device d, Random rnd) {
   final g = pick(goals);
   final subs = [for (final g in goals) ...r.goalSubtasks.forGoal(g.id)];
   final sub = pick(subs);
-  switch (rnd.nextInt(8)) {
+  final blocks = [
+    for (final e in r.events.all())
+      if (e.goalId != null) e,
+  ];
+  switch (rnd.nextInt(11)) {
     case 0:
       goal(r, title: 'G${rnd.nextInt(1000)}');
     case 1 || 2 || 3:
@@ -56,6 +77,22 @@ void randomOp(Device d, Random rnd) {
       if (sub != null) r.goalSubtasks.delete(sub.id);
     case 7:
       if (g != null && rnd.nextBool()) r.goals.delete(g.id);
+    case 8:
+      if (g != null) block(r, g, hour: 6 + rnd.nextInt(12));
+    case 9:
+      // Plans the subtask in a block of its goal, or takes it out.
+      if (sub != null) {
+        final mine = [
+          for (final e in blocks)
+            if (e.goalId == sub.goalId) e,
+        ];
+        r.goalSubtasks.save(
+          sub.copyWith(eventId: sub.isPlanned ? null : pick(mine)?.id),
+        );
+      }
+    case 10:
+      final e = pick(blocks);
+      if (e != null) r.events.delete(e.id);
   }
 }
 
@@ -78,9 +115,12 @@ void main() {
   }
 
   group('The schema', () {
-    test('the table is synced and exported, right after the goals', () {
+    test('the table is synced and exported, after the goals and after the '
+        'blocks', () {
       const tables = SyncMigrations.syncedTables;
-      expect(tables.indexOf('goal_subtasks'), tables.indexOf('goals') + 1);
+      final at = tables.indexOf('goal_subtasks');
+      expect(at, greaterThan(tables.indexOf('goals')));
+      expect(at, greaterThan(tables.indexOf('events')));
       expect(DataExport.tables, tables);
     });
 
@@ -100,14 +140,76 @@ void main() {
         'sort',
         'created_at',
         'updated_at',
+        'event_id',
       ]);
     });
 
-    test('the engine knows that a subtask goes with its goal', () {
-      final fk = SyncTable.read(a.db, 'goal_subtasks').foreignKeys.values;
-      expect(fk.single.column, 'goal_id');
-      expect(fk.single.parent, 'goals');
-      expect(fk.single.setsNull, isFalse);
+    test('the engine knows that a subtask goes with its goal, and that it '
+        'stays when its block goes', () {
+      final fks = SyncTable.read(a.db, 'goal_subtasks').foreignKeys.values;
+      expect(fks.length, 2);
+      final toGoal = fks.singleWhere((fk) => fk.column == 'goal_id');
+      expect(toGoal.parent, 'goals');
+      expect(toGoal.setsNull, isFalse);
+      final toBlock = fks.singleWhere((fk) => fk.column == 'event_id');
+      expect(toBlock.parent, 'events');
+      expect(toBlock.setsNull, isTrue);
+    });
+
+    test('a database with the sync on (shared schema 8) gets the column, '
+        'and the plan of a subtask is a waiting change', () {
+      final dir = tempDir('grove-m9-sync-');
+      final path = join(dir, 'o.sqlite');
+      var db = Database.open(path);
+      final g = goal(Repos(db));
+      final s = GoalSubtaskItem(goalId: g.id, title: 'Chapter 3');
+      Repos(db).goalSubtasks.save(s);
+      final e = block(Repos(db), g);
+      // Take the database back to shared schema 8: no column, and the
+      // update trigger and the saved trigger list of that schema. The sync
+      // columns stay.
+      const watch = ' OR OLD.event_id IS NOT NEW.event_id';
+      final trigger = db.queryOne(
+        "SELECT sql FROM sqlite_master WHERE name = 'sync_goal_subtasks_update'",
+        const [],
+        (r) => r.text(0),
+      )!;
+      expect(trigger, contains(watch));
+      db.executeScript('''
+        DROP TRIGGER sync_goal_subtasks_update;
+        DROP INDEX goal_subtasks_event;
+        ALTER TABLE goal_subtasks DROP COLUMN event_id;
+        ${trigger.replaceAll(watch, '')};
+        PRAGMA user_version = 8;
+        UPDATE sync_meta SET value = replace(value, ',event_id', '')
+          WHERE key = 'triggers';
+      ''');
+      db.execute('DELETE FROM outbox');
+      db.close();
+
+      db = Database.open(path);
+      expect(db.userVersion, Migrations.all.length);
+      expect(columns(db, 'goal_subtasks'), contains('event_id'));
+      // The data columns are the same as on a new database, in the same
+      // order: the sync columns are not in the list.
+      expect(
+        SyncTable.read(db, 'goal_subtasks').columns,
+        SyncTable.read(a.db, 'goal_subtasks').columns,
+      );
+      expect(Repos(db).goalSubtasks.get(s.id)?.eventId, isNull);
+      expect(Outbox(db).count, 0);
+      // A change of the new column only. The triggers were made again, so
+      // they see it.
+      db.execute('UPDATE goal_subtasks SET event_id = ? WHERE id = ?', [
+        e.id,
+        s.id,
+      ]);
+      final entry = Outbox(db).entries().single;
+      expect(
+        (entry.table, entry.key, entry.deleted),
+        ('goal_subtasks', s.id, false),
+      );
+      db.close();
     });
 
     test('a database of an older build of this app gets the table, the '
@@ -199,6 +301,177 @@ void main() {
       a.repos.goals.delete(g.id);
       expect(a.waiting, unorderedEquals(['goals gone', 'goal_subtasks gone']));
       expect(a.outbox.entry('goal_subtasks', s.id)?.deleted, isTrue);
+    });
+
+    test('a deleted block writes down its planned subtask as a saved row, '
+        'in no block', () {
+      final g = goal(a.repos);
+      final e = block(a.repos, g);
+      final s = GoalSubtaskItem(goalId: g.id, title: 'One', eventId: e.id);
+      a.repos.goalSubtasks.save(s);
+      a.clearOutbox();
+      a.repos.events.delete(e.id);
+      expect(
+        a.waiting,
+        unorderedEquals(['events gone', 'goal_subtasks saved']),
+      );
+      expect(a.repos.goalSubtasks.get(s.id)?.eventId, isNull);
+    });
+  });
+
+  group('A subtask planned in a block, on two devices', () {
+    /// A goal, a block of it and a subtask in the block, on both devices.
+    Future<(GoalItem, EventItem, GoalSubtaskItem)> plannedOnBoth() async {
+      final g = await shared();
+      final e = block(a.repos, g);
+      final s = GoalSubtaskItem(goalId: g.id, title: 'One', eventId: e.id);
+      a.repos.goalSubtasks.save(s);
+      await settle([a, b]);
+      return (g, e, s);
+    }
+
+    test('the plan goes to the other device', () async {
+      final (_, e, s) = await plannedOnBoth();
+      expect(b.repos.goalSubtasks.get(s.id)?.eventId, e.id);
+      expect(b.repos.goalSubtasks.forEvents([e.id])[e.id]?.single.id, s.id);
+      expect(b.outbox.count, 0);
+      expectSame([a, b]);
+    });
+
+    test('a goal, a block and a planned subtask made offline arrive '
+        'together', () async {
+      final g = goal(a.repos);
+      final e = block(a.repos, g);
+      final s = GoalSubtaskItem(goalId: g.id, title: 'One', eventId: e.id);
+      a.repos.goalSubtasks.save(s);
+      final report = await a.sync();
+      expect(report.skipped, isEmpty);
+      final pulled = await b.sync();
+      expect(pulled.skipped, isEmpty);
+      expect(b.repos.goalSubtasks.get(s.id)?.eventId, e.id);
+      expect(b.outbox.count, 0);
+    });
+
+    test('a push that stops half way does not lose the plan: the block '
+        'goes to the remote before the subtask', () async {
+      final g = goal(a.repos);
+      final e = block(a.repos, g);
+      final s = GoalSubtaskItem(goalId: g.id, title: 'One', eventId: e.id);
+      a.repos.goalSubtasks.save(s);
+      // The remote keeps two rows, then the push stops.
+      remote.failPushAfter = 2;
+      await expectLater(a.sync(), throwsA(isA<RemoteUnavailable>()));
+      expect(remoteRows(remote, 'goals'), ['${g.id} saved']);
+      expect(remoteRows(remote, 'events'), ['${e.id} saved']);
+      expect(remoteRows(remote, 'goal_subtasks'), isEmpty);
+
+      // The other device pulls now. It has nothing to repair.
+      await b.sync();
+      expect(b.repos.events.get(e.id), isNotNull);
+      expect(b.outbox.count, 0);
+
+      await settle([a, b]);
+      expect(a.repos.goalSubtasks.get(s.id)?.eventId, e.id);
+      expect(b.repos.goalSubtasks.get(s.id)?.eventId, e.id);
+      expectSame([a, b]);
+    });
+
+    test('a subtask taken out of its block is out on the other device '
+        'too', () async {
+      final (_, e, s) = await plannedOnBoth();
+      b.later();
+      b.repos.goalSubtasks.save(
+        b.repos.goalSubtasks.get(s.id)!.copyWith(eventId: null),
+      );
+      await settle([b, a]);
+      expect(a.repos.goalSubtasks.get(s.id)?.eventId, isNull);
+      expect(a.repos.events.get(e.id), isNotNull);
+      expectSame([a, b]);
+    });
+
+    test('a subtask moved to another block is moved on the other device '
+        'too', () async {
+      final (g, _, s) = await plannedOnBoth();
+      a.later();
+      final other = block(a.repos, g, hour: 14);
+      a.repos.goalSubtasks.save(s.copyWith(eventId: other.id));
+      await settle([a, b]);
+      expect(b.repos.goalSubtasks.get(s.id)?.eventId, other.id);
+      expectSame([a, b]);
+    });
+
+    test('a deleted block gives the subtask back to the goal, on the '
+        'other device and on the remote', () async {
+      final (g, e, s) = await plannedOnBoth();
+      a.later();
+      a.repos.events.delete(e.id);
+      await settle([a, b]);
+
+      expect(b.repos.events.get(e.id), isNull);
+      expect(titles(b, g.id), ['One']);
+      expect(b.repos.goalSubtasks.get(s.id)?.eventId, isNull);
+      expect(remoteRows(remote, 'goal_subtasks'), ['${s.id} saved']);
+      final row = remote.rows.singleWhere((c) => c.table == 'goal_subtasks');
+      expect(row.data['event_id'], isNull);
+      expect(remoteRows(remote, 'events'), ['${e.id} gone']);
+      expectSame([a, b]);
+    });
+
+    test('one device deletes a block, the other plans a subtask in it: the '
+        'subtask stays, in no block', () async {
+      final g = await shared();
+      final e = block(a.repos, g);
+      final s = GoalSubtaskItem(goalId: g.id, title: 'One');
+      a.repos.goalSubtasks.save(s);
+      await settle([a, b]);
+
+      a.later();
+      a.repos.events.delete(e.id);
+      b.later();
+      b.repos.goalSubtasks.save(s.copyWith(eventId: e.id));
+      await settle([b, a]);
+      await settle([a, b]);
+
+      for (final d in [a, b]) {
+        expect(d.repos.events.get(e.id), isNull);
+        expect(d.repos.goalSubtasks.get(s.id)?.title, 'One');
+        expect(d.repos.goalSubtasks.get(s.id)?.eventId, isNull);
+      }
+      expectSame([a, b]);
+    });
+
+    test('one device ticks a planned subtask, the other deletes its block: '
+        'the later change stays, and no device points at a missing '
+        'block', () async {
+      final (_, e, s) = await plannedOnBoth();
+      a.later();
+      a.repos.goalSubtasks.save(s.copyWith(doneAt: '2026-10-05T11:00:00'));
+      b.later();
+      b.repos.events.delete(e.id);
+      await settle([a, b]);
+      await settle([b, a]);
+
+      for (final d in [a, b]) {
+        expect(d.repos.events.get(e.id), isNull);
+        expect(d.repos.goalSubtasks.get(s.id)?.eventId, isNull);
+      }
+      expectSame([a, b]);
+    });
+
+    test('a deleted goal takes its planned subtask; the block stays as the '
+        'schema says', () async {
+      final (g, e, s) = await plannedOnBoth();
+      b.later();
+      b.repos.goals.delete(g.id);
+      await settle([b, a]);
+
+      expect(a.repos.goalSubtasks.get(s.id), isNull);
+      expect(remoteRows(remote, 'goal_subtasks'), ['${s.id} gone']);
+      expect(
+        a.repos.events.get(e.id)?.goalId,
+        b.repos.events.get(e.id)?.goalId,
+      );
+      expectSame([a, b]);
     });
   });
 

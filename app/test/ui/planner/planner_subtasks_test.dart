@@ -5,6 +5,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:grove/core/model/goal_subtask.dart';
 import 'package:grove/ui/planner/block_subtask_editor.dart';
 
 import 'planner_support.dart';
@@ -387,6 +388,276 @@ void main() {
       expect(box.left, greaterThanOrEqualTo(0));
       expect(box.right, lessThanOrEqualTo(phoneSize.width));
       expect(box.bottom, lessThanOrEqualTo(phoneSize.height));
+      expect(tester.takeException(), isNull);
+    });
+  });
+
+  group('subtasks of the goal in the window of a block', () {
+    late AppStore store;
+    late GoalItem goal;
+    late String id;
+
+    /// The subtask of the goal with this name, as the database has it now.
+    GoalSubtaskItem sub(String title) =>
+        store.goalSubtasks(goal.id).firstWhere((s) => s.title == title);
+
+    Finder free(String title) =>
+        find.byKey(ValueKey('block-goal-subtask-free-${sub(title).id}'));
+
+    double top(WidgetTester tester, String label) =>
+        tester.getTopLeft(find.bySemanticsLabel(label)).dy;
+
+    /// "Read" has a block on Wednesday at 11:00 and the subtasks
+    /// "Chapter 1" and "Chapter 2". `planned` are in the block already.
+    Future<void> open(
+      WidgetTester tester, {
+      List<String> planned = const [],
+      List<String> own = const [],
+      void Function()? before,
+      Size size = desktopSize,
+    }) async {
+      store = plannerStore();
+      id = goalBlock(store);
+      goal = store.goals().single;
+      store
+        ..addGoalSubtask(to: goal.id, title: 'Chapter 1')
+        ..addGoalSubtask(to: goal.id, title: 'Chapter 2');
+      for (final name in planned) {
+        store.assignGoalSubtask(sub(name).id, to: id);
+      }
+      for (final name in own) {
+        store.addBlockSubtask(to: id, title: name);
+      }
+      before?.call();
+      await pumpPlanner(tester, store, size: size);
+      store.openBlockSubtasks(id);
+      await tester.pumpAndSettle();
+      expect(editor, findsOneWidget);
+    }
+
+    testWidgets('a planned subtask of the goal shows in the block, and the '
+        'menu of the block says "Subtasks…"', (tester) async {
+      store = plannerStore();
+      id = goalBlock(store);
+      goal = store.goals().single;
+      store.addGoalSubtask(to: goal.id, title: 'Chapter 1');
+      store.assignGoalSubtask(sub('Chapter 1').id, to: id);
+      await pumpPlanner(tester, store);
+
+      expect(
+        find.descendant(of: blockFinder(id), matching: find.text('Chapter 1')),
+        findsOneWidget,
+      );
+      await openMenuAt(tester, 11 * 60 + 30);
+      expect(find.text('Subtasks…'), findsOneWidget);
+      expect(find.text('Add Subtasks…'), findsNothing);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('shows the subtasks of the goal first, then the ones of the '
+        'block, and counts both', (tester) async {
+      await open(tester, planned: ['Chapter 2'], own: ['Own one']);
+      store.toggleBlockSubtask(store.blockSubtasks(id).single.id);
+      await tester.pumpAndSettle();
+
+      expect(find.text('Subtasks  1/2'), findsOneWidget);
+      expect(
+        top(tester, 'Mark Chapter 2 as done'),
+        lessThan(top(tester, 'Mark Own one as not done')),
+      );
+      expect(
+        find.text(
+          'The ones with an arrow are from the goal. Only this block has '
+          'the others.',
+        ),
+        findsOneWidget,
+      );
+      // Only a subtask of the goal can go back to the goal.
+      expect(
+        find.bySemanticsLabel('Put Chapter 2 back in the goal'),
+        findsOneWidget,
+      );
+      expect(
+        find.bySemanticsLabel('Put Own one back in the goal'),
+        findsNothing,
+      );
+      // The field for a new one does not take the keys: the list has rows.
+      expect(tester.widget<TextField>(addField).focusNode!.hasFocus, isFalse);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('a tick ticks the subtask of the goal, and a second tick '
+        'opens it again', (tester) async {
+      await open(tester, planned: ['Chapter 1']);
+
+      await tester.tap(find.bySemanticsLabel('Mark Chapter 1 as done'));
+      await tester.pumpAndSettle();
+      expect(sub('Chapter 1').isDone, isTrue);
+      expect(sub('Chapter 1').eventId, id);
+      expect(store.undoName, 'Complete Subtask');
+      expect(find.text('Subtasks  1/1'), findsOneWidget);
+      // The block itself is not done, and it has no subtask of its own.
+      expect(store.blocks(DayRange.single(wednesday)).single.isDone, isFalse);
+      expect(store.blockSubtasks(id), isEmpty);
+
+      await tester.tap(find.bySemanticsLabel('Mark Chapter 1 as not done'));
+      await tester.pumpAndSettle();
+      expect(sub('Chapter 1').isDone, isFalse);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('a new name with Return is the name of the subtask of the '
+        'goal', (tester) async {
+      await open(tester, planned: ['Chapter 1']);
+      final field = find.byKey(
+        ValueKey('block-goal-subtask-name-${sub('Chapter 1').id}'),
+      );
+
+      await tester.enterText(field, 'Chapter one');
+      await tester.testTextInput.receiveAction(TextInputAction.done);
+      await tester.pumpAndSettle();
+
+      expect(store.goalSubtasks(goal.id).first.title, 'Chapter one');
+      expect(store.undoName, 'Rename Subtask');
+      expect(store.blockSubtasks(id), isEmpty);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('the arrow puts the subtask back in the goal: the block no '
+        'longer has it, and "From the goal" has it', (tester) async {
+      await open(tester, planned: ['Chapter 1', 'Chapter 2']);
+      expect(find.text('From the goal'), findsNothing);
+
+      await tester.tap(find.bySemanticsLabel('Put Chapter 1 back in the goal'));
+      await tester.pumpAndSettle();
+
+      expect(sub('Chapter 1').eventId, isNull);
+      expect(sub('Chapter 2').eventId, id);
+      expect(store.undoName, 'Unplan Subtask');
+      expect(find.bySemanticsLabel('Mark Chapter 1 as done'), findsNothing);
+      expect(find.text('From the goal'), findsOneWidget);
+      expect(free('Chapter 1'), findsOneWidget);
+      expect(find.text('Subtasks  0/1'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('the bin deletes the subtask from the goal too', (
+      tester,
+    ) async {
+      await open(tester, planned: ['Chapter 1']);
+
+      await tester.tap(find.bySemanticsLabel('Delete subtask Chapter 1'));
+      await tester.pumpAndSettle();
+
+      expect(
+        [for (final s in store.goalSubtasks(goal.id)) s.title],
+        ['Chapter 2'],
+      );
+      expect(store.undoName, 'Delete Subtask');
+      expect(find.bySemanticsLabel('Mark Chapter 1 as done'), findsNothing);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('"From the goal" has the open subtasks of the goal that are '
+        'in no block, and a click puts one in this block', (tester) async {
+      await open(
+        tester,
+        before: () {
+          // "Chapter 3" is done. "Chapter 4" is in another block.
+          store
+            ..addGoalSubtask(to: goal.id, title: 'Chapter 3')
+            ..addGoalSubtask(to: goal.id, title: 'Chapter 4');
+          store.toggleGoalSubtask(sub('Chapter 3').id);
+          final other = goalBlock(store, start: 14 * 60, length: 60);
+          store.assignGoalSubtask(sub('Chapter 4').id, to: other);
+        },
+      );
+
+      expect(find.text('From the goal'), findsOneWidget);
+      expect(free('Chapter 1'), findsOneWidget);
+      expect(free('Chapter 2'), findsOneWidget);
+      expect(free('Chapter 3'), findsNothing);
+      expect(free('Chapter 4'), findsNothing);
+      expect(
+        find.text(
+          'Only this block has these. Other blocks of the goal keep their '
+          'own.',
+        ),
+        findsOneWidget,
+      );
+
+      await tester.tap(free('Chapter 2'));
+      await tester.pumpAndSettle();
+
+      expect(sub('Chapter 2').eventId, id);
+      expect(sub('Chapter 1').eventId, isNull);
+      expect(store.undoName, 'Plan Subtask');
+      expect(free('Chapter 2'), findsNothing);
+      expect(free('Chapter 1'), findsOneWidget);
+      expect(find.bySemanticsLabel('Mark Chapter 2 as done'), findsOneWidget);
+      expect(find.text('Subtasks  0/1'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('a block with its own subtasks only, of a goal with no free '
+        'subtask, has no "From the goal" part', (tester) async {
+      await open(
+        tester,
+        own: ['Own one'],
+        before: () {
+          store
+            ..toggleGoalSubtask(sub('Chapter 1').id)
+            ..toggleGoalSubtask(sub('Chapter 2').id);
+        },
+      );
+      expect(find.text('From the goal'), findsNothing);
+      expect(find.text('Subtasks  0/1'), findsOneWidget);
+    });
+
+    testWidgets('on a phone: one tap on a line of "From the goal" puts the '
+        'subtask in the block, and the places to tap fit a finger', (
+      tester,
+    ) async {
+      final handle = tester.ensureSemantics();
+      await open(tester, planned: ['Chapter 1'], size: phoneSize);
+
+      final box = tester.getRect(editor);
+      expect(box.left, greaterThanOrEqualTo(0));
+      expect(box.right, lessThanOrEqualTo(phoneSize.width));
+      expect(box.bottom, lessThanOrEqualTo(phoneSize.height));
+      for (final f in [
+        find.bySemanticsLabel('Put Chapter 1 back in the goal'),
+        find.bySemanticsLabel('Delete subtask Chapter 1'),
+        find.bySemanticsLabel('Put Chapter 2 in this block'),
+      ]) {
+        expect(f, findsOneWidget);
+        expect(tester.getSize(f).shortestSide, greaterThanOrEqualTo(28));
+      }
+
+      await tester.tap(free('Chapter 2'));
+      await tester.pumpAndSettle();
+
+      expect(sub('Chapter 2').eventId, id);
+      expect(find.text('From the goal'), findsNothing);
+      expect(find.text('Subtasks  0/2'), findsOneWidget);
+      // Goal order in the window: "Chapter 1" is over "Chapter 2".
+      expect(
+        top(tester, 'Mark Chapter 1 as done'),
+        lessThan(top(tester, 'Mark Chapter 2 as done')),
+      );
+      handle.dispose();
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('the window stays when the last subtask of the goal goes '
+        'back to the goal', (tester) async {
+      await open(tester, planned: ['Chapter 1']);
+
+      await tester.tap(find.bySemanticsLabel('Put Chapter 1 back in the goal'));
+      await tester.pumpAndSettle();
+
+      expect(editor, findsOneWidget);
+      expect(find.text('Subtasks'), findsOneWidget);
       expect(tester.takeException(), isNull);
     });
   });
