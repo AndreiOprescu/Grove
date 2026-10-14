@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:grove/core/model/goal_subtask.dart';
+import 'package:grove/ui/goals/goal_panel.dart';
 import 'package:grove/ui/planner/block_subtask_editor.dart';
 
 import 'planner_support.dart';
@@ -104,14 +105,16 @@ void main() {
       await tester.tap(find.text('Add Subtasks…'));
       await tester.pumpAndSettle();
 
-      expect(store.editingBlockSubtasks, id);
-      expect(editor, findsOneWidget);
+      // A goal block shows its subtasks in the goal panel (ADR 0002).
+      expect(store.selectedGoalBlockId, id);
+      expect(find.byType(GoalPanel), findsOneWidget);
+      expect(editor, findsNothing);
     });
 
     testWidgets('a goal block with subtasks has "Subtasks…"', (tester) async {
       final store = plannerStore();
       final id = goalBlock(store);
-      store.addBlockSubtask(to: id, title: 'Chapter 3');
+      store.addGoalSubtaskToBlock(id, title: 'Chapter 3');
       await pumpPlanner(tester, store);
 
       await openMenuAt(tester, 11 * 60 + 30);
@@ -119,8 +122,9 @@ void main() {
       await tester.tap(find.text('Subtasks…'));
       await tester.pumpAndSettle();
 
-      expect(store.editingBlockSubtasks, id);
-      expect(editor, findsOneWidget);
+      expect(store.selectedGoalBlockId, id);
+      expect(find.byType(GoalPanel), findsOneWidget);
+      expect(editor, findsNothing);
     });
 
     testWidgets('a task block and a plain event have no such line', (

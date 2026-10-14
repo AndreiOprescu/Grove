@@ -608,8 +608,8 @@ void main() {
       expect(tester.takeException(), isNull);
     });
 
-    testWidgets('a drop on a block of another goal, on a task block or on an '
-        'empty place does nothing', (tester) async {
+    testWidgets('a drop on a block of another goal or on a task block does '
+        'nothing and says why', (tester) async {
       late String other;
       late String task;
       await withBlock(
@@ -626,8 +626,8 @@ void main() {
             ..createFromDraft(
               title: 'Pay the bill',
               day: wednesday,
-              start: 16 * 60,
-              end: 17 * 60,
+              start: 15 * 60,
+              end: 16 * 60,
               asEvent: false,
             );
           final blocks = store.blocks(DayRange.single(wednesday));
@@ -637,17 +637,14 @@ void main() {
       );
       final count = store.blocks(DayRange.single(wednesday)).length;
       final undo = store.undoName;
+      const why = 'Chapter 1 can go only in a block of Read.';
 
       await dragOnto(tester, subRow(chapter(1)), blockFinder(other));
+      expect(store.toast, why);
+      await endToast(tester);
       await dragOnto(tester, subRow(chapter(1)), blockFinder(task));
-      final column = byKey('day-column-${wednesday.string}');
-      await dragOnto(
-        tester,
-        subRow(chapter(1)),
-        column,
-        toOffset:
-            pointAt(tester, wednesday, 13 * 60) - tester.getCenter(column),
-      );
+      expect(store.toast, why);
+      await endToast(tester);
 
       expect(chapter(1).eventId, isNull);
       expect(store.blocks(DayRange.single(wednesday)), hasLength(count));
@@ -655,6 +652,38 @@ void main() {
       expect(inBlock(other, 'Chapter 1'), findsNothing);
       expect(inBlock(task, 'Chapter 1'), findsNothing);
       expect(subMark(chapter(1)), findsNothing);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('a drop on empty time makes a block of the goal, one hour '
+        'long, that holds the subtask', (tester) async {
+      await withBlock(tester);
+      final count = store.blocks(DayRange.single(wednesday)).length;
+
+      final column = byKey('day-column-${wednesday.string}');
+      await dragOnto(
+        tester,
+        subRow(chapter(1)),
+        column,
+        toOffset:
+            pointAt(tester, wednesday, 14 * 60) - tester.getCenter(column),
+      );
+
+      final blocks = store.blocks(DayRange.single(wednesday));
+      expect(blocks, hasLength(count + 1));
+      final made = blocks.firstWhere((b) => b.id == chapter(1).eventId);
+      expect(made.goalId, goal.id);
+      expect(store.event(made.id)!.start.minute, 14 * 60);
+      expect(store.event(made.id)!.end.minute, 15 * 60);
+      expect(store.undoName, 'Plan Subtask');
+      expect(store.selection, {made.id});
+      expect(inBlock(made.id, 'Chapter 1'), findsOneWidget);
+
+      store.undo();
+      await tester.pumpAndSettle();
+      expect(chapter(1).eventId, isNull);
+      expect(store.blocks(DayRange.single(wednesday)), hasLength(count));
+      await endToast(tester);
       expect(tester.takeException(), isNull);
     });
 
@@ -703,6 +732,7 @@ void main() {
       await gesture.up();
       await tester.pumpAndSettle();
       expect(chapter(1).eventId, isNull);
+      await endToast(tester);
       expect(tester.takeException(), isNull);
     });
 

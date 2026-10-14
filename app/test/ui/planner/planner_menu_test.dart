@@ -421,13 +421,14 @@ void main() {
       final store = plannerStore();
       final id = goalBlock(store);
       await pumpPlanner(tester, store);
-      final at = pointAt(tester, wednesday, 11 * 60 + 30);
 
-      await mouseTap(tester, at);
-      await mouseTap(tester, at);
+      await mouseTap(tester, pointAt(tester, wednesday, 11 * 60 + 30));
+      // The goal panel opens at the first click, so the block moves.
+      await mouseTap(tester, tester.getCenter(blockFinder(id)));
       await tester.pumpAndSettle();
 
       expect(store.selection, {id});
+      expect(store.selectedGoalBlockId, id);
       expect(find.byType(InlineTitleField), findsOneWidget);
     });
 

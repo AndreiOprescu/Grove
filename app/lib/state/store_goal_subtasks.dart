@@ -66,7 +66,7 @@ extension AppStoreGoalSubtasks on AppStore {
   /// The subtasks that this block can take from its goal: the open ones
   /// that are in no block. Empty for a block with no goal.
   List<GoalSubtaskItem> freeGoalSubtasks(String eventId) {
-    final goalId = _try(() => repos.events.get(eventId))?.goalId;
+    final goalId = event(eventId)?.goalId;
     if (goalId == null) return const [];
     return [
       for (final s in goalSubtasks(goalId))
@@ -79,19 +79,24 @@ extension AppStoreGoalSubtasks on AppStore {
   GoalSubtaskItem? _plannable(String id, String blockId) {
     final sub = _try(() => repos.goalSubtasks.get(id));
     if (sub == null || sub.isDone || sub.eventId == blockId) return null;
-    final block = _try(() => repos.events.get(blockId));
+    final block = event(blockId);
     return block != null && block.goalId == sub.goalId ? sub : null;
   }
 
   /// Plans an open subtask in a block of its goal. A subtask is in one block
-  /// at most, so this takes it out of the block it was in. False when
-  /// nothing changed. One undo step.
+  /// at most, so this takes it out of the block it was in. A day of a
+  /// repeating block becomes its own block first. False when nothing
+  /// changed. One undo step.
   bool assignGoalSubtask(String id, {required String to}) {
     final old = _plannable(id, to);
     if (old == null) return false;
-    final m = Mutation('Plan Subtask')
-      ..goalSubtasks.add((before: old, after: old.copyWith(eventId: to)));
-    return commit(m);
+    final block = _ownBlock(to, name: 'Plan Subtask');
+    if (block == null) return false;
+    final m = block.mutation
+      ..goalSubtasks.add((before: old, after: old.copyWith(eventId: block.id)));
+    if (!commit(m)) return false;
+    _followBlock(from: to, to: block.id);
+    return true;
   }
 
   /// Takes a subtask out of its block. It stays in the goal, open or done
@@ -112,10 +117,18 @@ extension AppStoreGoalSubtasks on AppStore {
   }
 
   /// A subtask of a goal dragged onto a block. False when the text is not
-  /// such a subtask, or the block is not a block of its goal.
+  /// such a subtask, or the block is not a block of its goal. A block of
+  /// another goal or a task block says so in a short message.
   bool dropGoalSubtaskOnBlock({required String raw, required String blockId}) {
     final id = DragPayload.goalSubtaskId(raw);
-    return id != null && assignGoalSubtask(id, to: blockId);
+    if (id == null) return false;
+    if (assignGoalSubtask(id, to: blockId)) return true;
+    final sub = _try(() => repos.goalSubtasks.get(id));
+    final g = sub == null ? null : goal(sub.goalId);
+    if (sub != null && g != null && event(blockId)?.goalId != sub.goalId) {
+      showToast('${sub.title} can go only in a block of ${g.title}.');
+    }
+    return false;
   }
 
   /// The mark of the block on each planned subtask, by subtask id: the day

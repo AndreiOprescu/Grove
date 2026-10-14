@@ -119,13 +119,15 @@ class _StoreAppState extends State<StoreApp> {
         const SingleActivator(LogicalKeyboardKey.keyY, control: true):
             store.redo,
       // Escape closes the command palette, and then the panel of the chosen
-      // task, from any place. A field or a screen that uses Escape itself
+      // task or goal block, from any place. A field or a screen that uses Escape itself
       // takes the key first.
       const SingleActivator(LogicalKeyboardKey.escape): () {
         if (store.paletteOpen) {
           store.paletteOpen = false;
         } else if (store.selectedTaskId != null) {
           store.selectedTaskId = null;
+        } else if (store.selectedGoalBlockId != null) {
+          store.closeGoalPanel();
         }
       },
     };

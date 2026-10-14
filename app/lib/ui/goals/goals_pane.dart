@@ -1,5 +1,6 @@
 // Port of Sources/Grove/Goals/GoalsPane.swift.
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart';
 import 'package:grove/core/model/goal.dart';
 import 'package:grove/state/state.dart' hide MotionRules;
 
@@ -33,6 +34,42 @@ class _GoalsPaneState extends State<GoalsPane> {
   bool _editing = false;
 
   AppStore get _store => widget.store;
+
+  @override
+  void initState() {
+    super.initState();
+    _store.addListener(_storeChanged);
+    _takeGoalToEdit();
+  }
+
+  @override
+  void dispose() {
+    _store.removeListener(_storeChanged);
+    super.dispose();
+  }
+
+  void _storeChanged() {
+    if (!mounted || _store.goalToEdit == null) return;
+    // A change can come in the middle of a frame. The work waits for its end.
+    if (SchedulerBinding.instance.schedulerPhase ==
+        SchedulerPhase.persistentCallbacks) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _storeChanged());
+      return;
+    }
+    setState(_takeGoalToEdit);
+  }
+
+  /// "Edit goal" in the goal panel: the goal opens with its editor. The
+  /// store forgets the request after this frame.
+  void _takeGoalToEdit() {
+    final id = _store.goalToEdit;
+    if (id == null) return;
+    _openGoal = id;
+    _editing = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (_store.goalToEdit == id) _store.goalToEdit = null;
+    });
+  }
 
   /// Opens the goal, or closes it when it is the open one. Opening one
   /// closes the other.
