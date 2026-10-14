@@ -28,6 +28,7 @@ class GoalRow extends StatelessWidget {
     required this.isOpen,
     required this.onToggle,
     this.subtasks = const [],
+    this.subtaskMarks = const {},
     this.isEditing = false,
     VoidCallback? onEdit,
   }) : onEdit = onEdit ?? onToggle;
@@ -39,6 +40,10 @@ class GoalRow extends StatelessWidget {
   /// The subtasks of the goal, in list order. Every block of the goal has
   /// this one list.
   final List<GoalSubtaskItem> subtasks;
+
+  /// The mark of the block on each subtask that is planned in a block, by
+  /// subtask id ("Tue 14:00").
+  final Map<String, String> subtaskMarks;
   final bool isOpen;
 
   /// The editor of the goal (name, kind, target, colour) shows in the open
@@ -227,6 +232,7 @@ class GoalRow extends StatelessWidget {
                 store: store,
                 goal: goal,
                 subtasks: subtasks,
+                marks: subtaskMarks,
                 onOpen: onToggle,
               ),
             if (isOpen) ...[
@@ -235,6 +241,7 @@ class GoalRow extends StatelessWidget {
                 store: store,
                 goal: goal,
                 subtasks: subtasks,
+                marks: subtaskMarks,
               ),
               _editLine(theme),
             ],

@@ -1,5 +1,11 @@
 # Grove — build plan (native macOS To-Do + Day Planner + Calendar + Notes)
 
+> **Note (2026-10-12):** this file is the spec of what Grove does. It was written for the
+> first (Swift) app. §2, §3, §11, §12, §13 and §14 say how that app was built, and so do
+> the lines of §1.1 that name `scripts/install.sh` and `scripts/test.sh`. They are
+> history: the Swift app is no longer in the repo. The Flutter app is in `app/`. See
+> `docs/cross-platform-plan.md`.
+
 > **For the builder (Sonnet 5.5):** read this whole file once before you write code.
 > Build in the milestone order of §13. After each milestone, run the verify step and
 > commit. Do not skip the tests for the Day Planner math — it is the most important feature.

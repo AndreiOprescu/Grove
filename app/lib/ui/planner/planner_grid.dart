@@ -1454,6 +1454,9 @@ class PlannerGridState extends State<PlannerGrid> {
         if (!_twoFingers) unawaited(_openMenu(block, at));
       },
     );
+    final shownView = _grow.contains(block.id)
+        ? _GrowIn(key: ValueKey('grow-${block.id}'), child: view)
+        : view;
     return AnimatedPositioned(
       key: ValueKey('block-${block.id}'),
       // A block under the pointer, or under a pinch, must not lag behind.
@@ -1465,11 +1468,46 @@ class PlannerGridState extends State<PlannerGrid> {
       top: geo.y(shown.start),
       width: width,
       height: height,
-      child: _grow.contains(block.id)
-          ? _GrowIn(key: ValueKey('grow-${block.id}'), child: view)
-          : view,
+      child: block.isGoalBlock ? _subtaskDrop(block, shownView) : shownView,
     );
   }
+
+  /// A subtask of a goal, dragged from the Goals panel, can go in a block
+  /// of that goal. The block has a frame while such a subtask is over it.
+  /// The drop area is on the block itself: a block lies over its day, so
+  /// the drop area of the day does not get the pointer there.
+  Widget _subtaskDrop(PlannerBlock block, Widget child) => DragTarget<String>(
+    onWillAcceptWithDetails: (details) =>
+        _store.canDropGoalSubtask(raw: details.data, blockId: block.id),
+    onAcceptWithDetails: (details) =>
+        _store.dropGoalSubtaskOnBlock(raw: details.data, blockId: block.id),
+    builder: (context, candidates, _) {
+      final theme = GroveTheme.of(context);
+      // The block stays the first child, so it keeps its state when the
+      // frame comes and goes.
+      return Stack(
+        fit: StackFit.expand,
+        // A block draws its shadow out of its box.
+        clipBehavior: Clip.none,
+        children: [
+          child,
+          if (candidates.isNotEmpty)
+            IgnorePointer(
+              key: ValueKey('block-drop-${block.id}'),
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  color: theme.accent.withValues(alpha: 0.14),
+                  borderRadius: BorderRadius.circular(
+                    min(8.0, theme.radius / 2),
+                  ),
+                  border: Border.all(color: theme.accent, width: 2),
+                ),
+              ),
+            ),
+        ],
+      );
+    },
+  );
 
   Widget? _createRect(GroveTheme theme, PlannerGeometry geo) {
     final c = _create;

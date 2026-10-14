@@ -188,6 +188,7 @@ A) Keep `local.grove.grove` — the Mac app and the Flutter app are two apps, ea
 B) Use `local.grove.app` — one id, as the plan says. On a Mac the Flutter app then takes the place of the Swift app.
 If no answer: A stays. It is what is built.
 Answer (owner, 2026-10-11): B. The id will be `local.grove.app`, but not now. See Q-30: the id stays `local.grove.grove` while the owner uses the Swift Mac app.
+Done on 2026-10-12 in the branch `feat/xp-retire-swift`: the owner retired the Swift app, the id is `local.grove.app`. Proof: `docs/acceptance/retire-swift.md`.
 
 ## Q-30 · ANSWERED B · ASK · blocks the change of the app id to `local.grove.app` (your answer to Q-26) · 2026-10-11
 With the id `local.grove.app` the Flutter app cannot reach the database of the Mac app, but on your Mac the two apps then share the settings file of macOS and the reminders. May the id change?
@@ -195,6 +196,7 @@ A) Yes, after you copy one file — you run `cp ~/Library/Preferences/local.grov
 B) Not now — the id stays `local.grove.grove` until you stop using the Mac app. The two apps share nothing.
 If no answer: the id stays `local.grove.grove`. Nothing was changed. What was checked is in `docs/acceptance/F12-release.md`, part "The app id".
 Answer (owner, 2026-10-11): B. Not now. The id stays `local.grove.grove` while the owner uses the Swift Mac app. It changes to `local.grove.app` on the day the owner retires the Swift app. No code was changed.
+Done on 2026-10-12 in the branch `feat/xp-retire-swift`: the owner retired the Swift app, the id is `local.grove.app`. Proof: `docs/acceptance/retire-swift.md`.
 
 ## Q-22 · OPEN · ASK · blocks nothing now (Import works, signed out) · 2026-10-11
 A device that synced with an account: sign out, import, sign in again with the same account. Today the rows of the file then take the place of the rows of the account, on each device, and Grove asks nothing. Must Grove ask first?

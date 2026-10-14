@@ -39,6 +39,7 @@ import 'rules/day_range.dart';
 import 'rules/day_rules.dart';
 import 'rules/drag_payload.dart';
 import 'rules/goal_rules.dart';
+import 'rules/goal_subtask_rules.dart';
 import 'rules/inspector_options.dart';
 import 'rules/left_pane.dart';
 import 'rules/meeting_note.dart';
@@ -503,6 +504,7 @@ class AppStore extends ChangeNotifier {
     if (m.isEmpty) return false;
     _addSubtasksOfDeletedBlocks(m);
     _addSubtasksOfDeletedGoals(m);
+    _unplanSubtasksOfDeletedBlocks(m);
     final days = _plannedDays(m);
     final before = {for (final d in days) d: plannedMinutes(d)};
     if (!_apply(m, forward: true)) return false;
@@ -552,6 +554,28 @@ class AppStore extends ChangeNotifier {
     for (final id in deleted) {
       for (final sub in subs[id] ?? const <GoalSubtaskItem>[]) {
         if (listed.add(sub.id)) m.goalSubtasks.add((before: sub, after: null));
+      }
+    }
+  }
+
+  /// Deleting a block gives the subtasks of the goal that are planned in it
+  /// back to the goal (the database empties the pointer). This puts them in
+  /// the change, so undo puts them in the block again, and the sync sends
+  /// the change.
+  void _unplanSubtasksOfDeletedBlocks(Mutation m) {
+    final deleted = [
+      for (final e in m.events)
+        if (e.after == null) ?e.before?.id,
+    ];
+    if (deleted.isEmpty) return;
+    final subs = _try(() => repos.goalSubtasks.forEvents(deleted));
+    if (subs == null || subs.isEmpty) return;
+    final listed = {for (final c in m.goalSubtasks) ?(c.before ?? c.after)?.id};
+    for (final id in deleted) {
+      for (final sub in subs[id] ?? const <GoalSubtaskItem>[]) {
+        if (listed.add(sub.id)) {
+          m.goalSubtasks.add((before: sub, after: sub.copyWith(eventId: null)));
+        }
       }
     }
   }

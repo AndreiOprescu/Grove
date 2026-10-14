@@ -1,11 +1,14 @@
 // Port of Sources/Grove/Planner/BlockSubtaskEditor.swift: the subtasks of
 // one goal block. The Mac app shows them in a popover on the block. Here
 // they are in a small window, so the same view fits a phone.
+//
+// Only this app: the window also has the subtasks of the goal that are
+// planned in this block, and it can take more of them from the goal.
 import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
-import 'package:grove/core/model/block_subtask.dart';
+import 'package:grove/core/model/goal_subtask.dart';
 import 'package:grove/state/state.dart' hide MotionRules;
 
 import '../theme/check_box.dart';
@@ -24,9 +27,9 @@ Future<void> showBlockSubtaskEditor(
   builder: (context) => BlockSubtaskEditor(store: store, eventId: eventId),
 );
 
-/// The subtasks of one goal block: tick, rename, delete, add. Only this
-/// block has them, not the other blocks of the goal. Each change saves at
-/// once and is one undo step.
+/// The subtasks of one goal block: tick, rename, delete, add. First the
+/// subtasks of the goal that are planned in this block, then the ones that
+/// only this block has. Each change saves at once and is one undo step.
 class BlockSubtaskEditor extends StatefulWidget {
   const BlockSubtaskEditor({
     super.key,
@@ -47,7 +50,9 @@ class _BlockSubtaskEditorState extends State<BlockSubtaskEditor> {
 
   /// The field for a new subtask has the keys at the start when the list
   /// is empty.
-  late final bool _startOnAdd = _store.blockSubtasks(widget.eventId).isEmpty;
+  late final bool _startOnAdd =
+      _store.blockSubtasks(widget.eventId).isEmpty &&
+      _store.plannedGoalSubtasks(widget.eventId).isEmpty;
   bool _closed = false;
 
   AppStore get _store => widget.store;
@@ -93,6 +98,21 @@ class _BlockSubtaskEditorState extends State<BlockSubtaskEditor> {
     route.isCurrent ? navigator.pop() : navigator.removeRoute(route);
   }
 
+  /// The name that the database has for a subtask of this block now, or
+  /// null when the subtask is gone.
+  String? _savedOwn(String id) => _store
+      .blockSubtasks(widget.eventId)
+      .where((s) => s.id == id)
+      .firstOrNull
+      ?.title;
+
+  /// The same for a subtask of the goal that is planned in this block.
+  String? _savedPlanned(String id) => _store
+      .plannedGoalSubtasks(widget.eventId)
+      .where((s) => s.id == id)
+      .firstOrNull
+      ?.title;
+
   void _add(String text) {
     if (_store.addBlockSubtask(to: widget.eventId, title: text) != null) {
       _newText.clear();
@@ -104,7 +124,12 @@ class _BlockSubtaskEditorState extends State<BlockSubtaskEditor> {
   Widget build(BuildContext context) {
     final theme = GroveTheme.of(context);
     final subs = _store.blockSubtasks(widget.eventId);
-    final done = subs.where((s) => s.isDone).length;
+    final planned = _store.plannedGoalSubtasks(widget.eventId);
+    final free = _store.freeGoalSubtasks(widget.eventId);
+    final count = subs.length + planned.length;
+    final done =
+        subs.where((s) => s.isDone).length +
+        planned.where((s) => s.isDone).length;
     final small = theme.body(11).copyWith(color: theme.muted);
     final field = theme.body(13).copyWith(color: theme.ink);
     return PlannerSheet(
@@ -113,12 +138,15 @@ class _BlockSubtaskEditorState extends State<BlockSubtaskEditor> {
       children: [
         ThemedHeading(_store.event(widget.eventId)?.title ?? 'Goal block', 15),
         Text(
-          subs.isEmpty ? 'Subtasks' : 'Subtasks  $done/${subs.length}',
+          count == 0 ? 'Subtasks' : 'Subtasks  $done/$count',
           style: small.copyWith(fontWeight: FontWeight.w600),
         ),
         Text(
-          'Only this block has these. Other blocks of the goal keep their '
-          'own.',
+          planned.isEmpty
+              ? 'Only this block has these. Other blocks of the goal keep '
+                    'their own.'
+              : 'The ones with an arrow are from the goal. Only this block '
+                    'has the others.',
           style: small,
         ),
         // The rows are as high as a finger needs, so they sit close.
@@ -127,8 +155,29 @@ class _BlockSubtaskEditorState extends State<BlockSubtaskEditor> {
           mainAxisSize: MainAxisSize.min,
           spacing: 2,
           children: [
+            for (final sub in planned)
+              _SubtaskRow(
+                key: ValueKey(sub.id),
+                nameKey: ValueKey('block-goal-subtask-name-${sub.id}'),
+                title: sub.title,
+                isDone: sub.isDone,
+                saved: () => _savedPlanned(sub.id),
+                onToggle: () => _store.toggleGoalSubtask(sub.id),
+                onRename: (name) => _store.renameGoalSubtask(sub.id, to: name),
+                onDelete: () => _store.deleteGoalSubtask(sub.id),
+                onBack: () => _store.unassignGoalSubtask(sub.id),
+              ),
             for (final sub in subs)
-              _SubtaskRow(key: ValueKey(sub.id), store: _store, sub: sub),
+              _SubtaskRow(
+                key: ValueKey(sub.id),
+                nameKey: ValueKey('block-subtask-name-${sub.id}'),
+                title: sub.title,
+                isDone: sub.isDone,
+                saved: () => _savedOwn(sub.id),
+                onToggle: () => _store.toggleBlockSubtask(sub.id),
+                onRename: (name) => _store.renameBlockSubtask(sub.id, to: name),
+                onDelete: () => _store.deleteBlockSubtask(sub.id),
+              ),
             Row(
               spacing: 8,
               children: [
@@ -160,6 +209,26 @@ class _BlockSubtaskEditorState extends State<BlockSubtaskEditor> {
             ),
           ],
         ),
+        if (free.isNotEmpty) ...[
+          Text(
+            'From the goal',
+            style: small.copyWith(fontWeight: FontWeight.w600),
+          ),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            mainAxisSize: MainAxisSize.min,
+            spacing: 2,
+            children: [
+              for (final sub in free)
+                _FreeRow(
+                  key: ValueKey('block-goal-subtask-free-${sub.id}'),
+                  sub: sub,
+                  onTap: () =>
+                      _store.assignGoalSubtask(sub.id, to: widget.eventId),
+                ),
+            ],
+          ),
+        ],
         Align(
           alignment: Alignment.centerRight,
           child: DialogButton(label: 'Done', primary: true, onTap: _close),
@@ -170,22 +239,44 @@ class _BlockSubtaskEditorState extends State<BlockSubtaskEditor> {
 }
 
 /// One subtask in the window: check box, name, delete. The name saves on
-/// Return and when the field loses the keys.
+/// Return and when the field loses the keys. A subtask of the goal also has
+/// an arrow that takes it out of the block.
 class _SubtaskRow extends StatefulWidget {
-  const _SubtaskRow({super.key, required this.store, required this.sub});
+  const _SubtaskRow({
+    super.key,
+    required this.nameKey,
+    required this.title,
+    required this.isDone,
+    required this.saved,
+    required this.onToggle,
+    required this.onRename,
+    required this.onDelete,
+    this.onBack,
+  });
 
   /// The side of a place to click or tap, in points.
   static const target = 28.0;
 
-  final AppStore store;
-  final BlockSubtaskItem sub;
+  final Key nameKey;
+  final String title;
+  final bool isDone;
+
+  /// The name that the database has now, or null when the subtask is gone.
+  final String? Function() saved;
+  final VoidCallback onToggle;
+  final ValueChanged<String> onRename;
+  final VoidCallback onDelete;
+
+  /// Takes a subtask of the goal out of this block. Null for a subtask
+  /// that only this block has.
+  final VoidCallback? onBack;
 
   @override
   State<_SubtaskRow> createState() => _SubtaskRowState();
 }
 
 class _SubtaskRowState extends State<_SubtaskRow> {
-  late final _text = TextEditingController(text: widget.sub.title);
+  late final _text = TextEditingController(text: widget.title);
   final _focus = FocusNode(debugLabel: 'block subtask name');
 
   @override
@@ -198,8 +289,8 @@ class _SubtaskRowState extends State<_SubtaskRow> {
   void didUpdateWidget(_SubtaskRow oldWidget) {
     super.didUpdateWidget(oldWidget);
     // Undo, or a change from another device, while the field is not in use.
-    if (oldWidget.sub.title != widget.sub.title && !_focus.hasFocus) {
-      _show(widget.sub.title);
+    if (oldWidget.title != widget.title && !_focus.hasFocus) {
+      _show(widget.title);
     }
   }
 
@@ -207,11 +298,10 @@ class _SubtaskRowState extends State<_SubtaskRow> {
   void dispose() {
     // The window can close with a new name still in the field. The store
     // tells its listeners, so the save waits for the end of this frame.
-    final store = widget.store;
-    final id = widget.sub.id;
+    final rename = widget.onRename;
     final text = _text.text;
-    if (SubtaskRules.renamed(text, from: widget.sub.title) != null) {
-      scheduleMicrotask(() => store.renameBlockSubtask(id, to: text));
+    if (SubtaskRules.renamed(text, from: widget.title) != null) {
+      scheduleMicrotask(() => rename(text));
     }
     _focus.removeListener(_focusChanged);
     _focus.dispose();
@@ -232,44 +322,41 @@ class _SubtaskRowState extends State<_SubtaskRow> {
   }
 
   void _commit() {
-    final current = widget.store
-        .blockSubtasks(widget.sub.eventId)
-        .where((s) => s.id == widget.sub.id)
-        .firstOrNull;
+    final current = widget.saved();
     if (current == null) return;
-    final name = SubtaskRules.renamed(_text.text, from: current.title);
+    final name = SubtaskRules.renamed(_text.text, from: current);
     if (name != null) {
       _show(name);
-      widget.store.renameBlockSubtask(current.id, to: name);
+      widget.onRename(name);
     } else {
       // Empty or not changed: show what is saved.
-      _show(current.title);
+      _show(current);
     }
   }
 
   @override
   Widget build(BuildContext context) {
     final theme = GroveTheme.of(context);
-    final sub = widget.sub;
+    final title = widget.title;
+    final isDone = widget.isDone;
+    final onBack = widget.onBack;
     final style = theme
         .body(13)
         .copyWith(
-          color: sub.isDone ? theme.muted : theme.ink,
-          decoration: sub.isDone ? TextDecoration.lineThrough : null,
+          color: isDone ? theme.muted : theme.ink,
+          decoration: isDone ? TextDecoration.lineThrough : null,
         );
     return Row(
       spacing: 8,
       children: [
         _RowButton(
-          label: sub.isDone
-              ? 'Mark ${sub.title} as not done'
-              : 'Mark ${sub.title} as done',
-          onTap: () => widget.store.toggleBlockSubtask(sub.id),
-          child: CheckBox(isOn: sub.isDone, size: 14),
+          label: isDone ? 'Mark $title as not done' : 'Mark $title as done',
+          onTap: widget.onToggle,
+          child: CheckBox(isOn: isDone, size: 14),
         ),
         Expanded(
           child: TextField(
-            key: ValueKey('block-subtask-name-${sub.id}'),
+            key: widget.nameKey,
             controller: _text,
             focusNode: _focus,
             maxLines: 1,
@@ -284,13 +371,70 @@ class _SubtaskRowState extends State<_SubtaskRow> {
             onSubmitted: (_) => _commit(),
           ),
         ),
+        if (onBack != null)
+          _RowButton(
+            label: 'Put $title back in the goal',
+            tooltip: 'Back to the goal, out of this block',
+            onTap: onBack,
+            child: Icon(Icons.reply, size: 16, color: theme.muted),
+          ),
         _RowButton(
-          label: 'Delete subtask ${sub.title}',
-          tooltip: 'Delete this subtask',
-          onTap: () => widget.store.deleteBlockSubtask(sub.id),
+          label: 'Delete subtask $title',
+          tooltip: onBack == null
+              ? 'Delete this subtask'
+              : 'Delete this subtask from the goal too',
+          onTap: widget.onDelete,
           child: Icon(Icons.delete_outline, size: 16, color: theme.muted),
         ),
       ],
+    );
+  }
+}
+
+/// One open subtask of the goal that is in no block. A click or a tap puts
+/// it in this block.
+class _FreeRow extends StatelessWidget {
+  const _FreeRow({super.key, required this.sub, required this.onTap});
+
+  final GoalSubtaskItem sub;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = GroveTheme.of(context);
+    return Semantics(
+      container: true,
+      excludeSemantics: true,
+      button: true,
+      label: 'Put ${sub.title} in this block',
+      onTap: onTap,
+      child: MouseRegion(
+        cursor: SystemMouseCursors.click,
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: onTap,
+          child: SizedBox(
+            height: _SubtaskRow.target,
+            child: Row(
+              spacing: 8,
+              children: [
+                SizedBox.square(
+                  dimension: _SubtaskRow.target,
+                  child: Icon(Icons.add, size: 16, color: theme.muted),
+                ),
+                Expanded(
+                  child: Text(
+                    sub.title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.body(13).copyWith(color: theme.ink),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
     );
   }
 }

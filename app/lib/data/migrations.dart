@@ -162,6 +162,12 @@ abstract final class Migrations {
     );
     CREATE INDEX goal_subtasks_goal ON goal_subtasks(goal_id);
     ''',
+    // 9 — a subtask of a goal can be planned in one block of the goal. It stays a row of the goal.
+    // A deleted block gives it back: the pointer becomes empty. Not in the Mac app.
+    '''
+    ALTER TABLE goal_subtasks ADD COLUMN event_id TEXT REFERENCES events(id) ON DELETE SET NULL;
+    CREATE INDEX goal_subtasks_event ON goal_subtasks(event_id);
+    ''',
   ];
 
   static void run(Database db) {
@@ -180,14 +186,16 @@ abstract final class Migrations {
 /// `user_version`.
 abstract final class SyncMigrations {
   /// The tables the sync columns go on. The same list as `DataExport.tables`.
+  /// A table comes after the tables it points at: the sync sends them in
+  /// this order. `goal_subtasks` points at `goals` and at `events`.
   static const syncedTables = [
     'lists',
     'notes',
     'goals',
-    'goal_subtasks',
     'tasks',
     'events',
     'block_subtasks',
+    'goal_subtasks',
     'event_exdates',
     'links',
     'tags',

@@ -8,7 +8,7 @@
 PRODUCT_NAME = Grove
 
 // The application's bundle identifier
-PRODUCT_BUNDLE_IDENTIFIER = local.grove.grove
+PRODUCT_BUNDLE_IDENTIFIER = local.grove.app
 
 // The copyright displayed in application information
 PRODUCT_COPYRIGHT = Copyright © 2026 local.grove. All rights reserved.
