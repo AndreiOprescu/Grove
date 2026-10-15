@@ -1,6 +1,7 @@
 import '../model/day_key.dart';
 import '../planner/planner_math.dart';
 import 'markdown_edit.dart';
+import 'markdown_plain.dart';
 import 'note_parser.dart';
 import 'quick_add_parser.dart';
 
@@ -126,10 +127,15 @@ class AtDatePlan {
     this.startMinute,
     this.durationMin,
     this.taskId,
-  });
+    String? plainTitle,
+  }) : plainTitle = plainTitle ?? title;
 
   /// The words of the line with the token, the list marker and the hidden task mark taken out.
+  /// Format marks stay: the line is written back to the note with this title.
   final String title;
+
+  /// [title] without the marks of formats, for the planner and the task list.
+  final String plainTitle;
   final DayKey day;
 
   /// Minute of the day. Null when the token named a day and no time.
@@ -157,6 +163,7 @@ class AtDatePlan {
   bool operator ==(Object other) =>
       other is AtDatePlan &&
       other.title == title &&
+      other.plainTitle == plainTitle &&
       other.day == day &&
       other.startMinute == startMinute &&
       other.durationMin == durationMin &&
@@ -165,8 +172,16 @@ class AtDatePlan {
       other.head == head;
 
   @override
-  int get hashCode =>
-      Object.hash(title, day, startMinute, durationMin, isTask, taskId, head);
+  int get hashCode => Object.hash(
+    title,
+    plainTitle,
+    day,
+    startMinute,
+    durationMin,
+    isTask,
+    taskId,
+    head,
+  );
 }
 
 abstract final class AtDatePlanner {
@@ -210,8 +225,12 @@ abstract final class AtDatePlanner {
     final taskId = isTask
         ? NoteParser.checkboxes(line).firstOrNull?.taskId
         : null;
+    final plain = _trimSpaces(
+      MarkdownPlain.text(words).replaceAll(_manySpaces, ' '),
+    );
     return AtDatePlan(
       title: words,
+      plainTitle: plain.isEmpty ? words : plain,
       day: hit.day ?? noteDay ?? now,
       startMinute: hit.startMinute,
       durationMin: hit.durationMin,

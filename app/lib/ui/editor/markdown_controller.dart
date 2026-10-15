@@ -10,6 +10,7 @@ import 'package:grove/core/parsing/reference_parser.dart';
 import 'package:grove/state/state.dart' hide MotionRules;
 
 import '../theme/grove_theme.dart';
+import '../theme/named_colors.dart';
 import '../theme/theme_math.dart';
 
 /// What a key shortcut or a button asks the editor to do to the text.
@@ -443,7 +444,8 @@ class MarkdownController extends TextEditingController {
       if (type != SpanType.checkbox &&
           type != SpanType.mention &&
           type != SpanType.image &&
-          type != SpanType.link) {
+          type != SpanType.link &&
+          type != SpanType.linkWords) {
         continue;
       }
       if (span.range.location <= offset && offset < span.range.end) {
@@ -805,6 +807,30 @@ class MarkdownController extends TextEditingController {
                 letterSpacing: 0,
               ),
         );
+      case SpanType.strike:
+        return (
+          text: piece,
+          style: style.copyWith(
+            decoration: _decorated(style, TextDecoration.lineThrough),
+          ),
+        );
+      case SpanType.underline:
+        return (
+          text: piece,
+          style: style.copyWith(
+            decoration: _decorated(style, TextDecoration.underline),
+          ),
+        );
+      case SpanType.highlight:
+        final paint =
+            TaskPalette.color(kind.color?.name ?? 'yellow') ?? t.accent;
+        return (
+          text: piece,
+          style: style.copyWith(backgroundColor: paint.withValues(alpha: 0.3)),
+        );
+      case SpanType.emptyPair:
+        return (text: piece, style: style);
+      case SpanType.divider:
       case SpanType.syntax:
         return (
           text: piece,
@@ -863,6 +889,7 @@ class MarkdownController extends TextEditingController {
           ),
         );
       case SpanType.link:
+      case SpanType.linkWords:
         return (
           text: piece,
           style: style.copyWith(
@@ -872,5 +899,12 @@ class MarkdownController extends TextEditingController {
           ),
         );
     }
+  }
+
+  /// Adds a line to the lines a piece already has, so strike and underline can show together.
+  static TextDecoration _decorated(TextStyle style, TextDecoration line) {
+    final had = style.decoration;
+    if (had == null || had == TextDecoration.none) return line;
+    return TextDecoration.combine([had, line]);
   }
 }

@@ -42,6 +42,19 @@ void main() {
       );
     });
 
+    test('a box with formats makes a task with plain words', () {
+      final s = makeStore();
+      final n = s.newNote(
+        title: 'Trip',
+        body: '- [ ] **Buy** ==sun==cream #trip',
+      );
+      expect(s.syncNoteTasks(n.id), 1);
+      final t = s.repos.tasks.inbox().first;
+      expect(t.title, 'Buy suncream');
+      // The line keeps its marks.
+      expect(boxes(s, n.id).first.text, startsWith('**Buy** ==sun==cream'));
+    });
+
     test('a second sync makes nothing new', () {
       final s = makeStore();
       final n = s.newNote(title: 'Trip', body: '- [ ] Buy sunscreen');
@@ -231,6 +244,13 @@ void main() {
       expect(s.undoName, 'New Task from Note');
       s.undo();
       expect(s.task(id), isNull);
+    });
+
+    test('make task takes the words without marks', () {
+      final s = makeStore();
+      final n = s.newNote(title: 'Trip', body: '**Call** Sam');
+      final id = s.makeTask(from: '**Call** <u>Sam</u>', inNote: n.id)!;
+      expect(s.task(id)?.title, 'Call Sam');
     });
 
     test('make task in a daily note lands on that day', () {

@@ -122,6 +122,16 @@ void main() {
       expect(p.title, 'Write report');
     });
 
+    test('the planner title has no marks, the title keeps them', () {
+      final p = plan('- [ ] **Write** ~~the~~ report @tomorrow 9am')!;
+      expect(p.title, '**Write** ~~the~~ report');
+      expect(p.plainTitle, 'Write the report');
+      expect(
+        plan('Call [Sam](https://a.b) @tomorrow 3pm')!.plainTitle,
+        'Call Sam',
+      );
+    });
+
     test('a ticked box is refused', () {
       expect(plan('- [x] Write report @tomorrow 9am'), isNull);
     });

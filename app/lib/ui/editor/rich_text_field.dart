@@ -313,6 +313,7 @@ class RichTextFieldState extends State<RichTextField> {
         case SpanType.image:
           c.previewImage.value = span.kind.id;
         case SpanType.link:
+        case SpanType.linkWords:
           _linkClicked(span.kind.url ?? '', event.timeStamp);
         default:
           break;
