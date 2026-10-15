@@ -9,6 +9,7 @@ import 'package:grove/core/planner/planner_math.dart';
 import 'package:grove/state/state.dart' hide MotionRules;
 
 import '../editor/rich_text_field.dart';
+import '../persona/reward_editor.dart';
 import '../theme/check_box.dart';
 import '../theme/grove_theme.dart';
 import '../theme/panel.dart';
@@ -729,6 +730,7 @@ class _TaskInspectorState extends State<TaskInspector> {
             ]),
             _plan(theme, task),
             _details(theme, task, lists),
+            RewardEditor.task(store: _store, ownerId: task.id),
             _tags(theme, task),
             _subtasks(theme, task),
             ?links,

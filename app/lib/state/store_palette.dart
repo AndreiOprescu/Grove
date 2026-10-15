@@ -245,6 +245,8 @@ extension AppStorePalette on AppStore {
         screen = Screen.notes;
       case PaletteCommandId.showGarden:
         screen = Screen.garden;
+      case PaletteCommandId.showPersona:
+        screen = Screen.persona;
       case PaletteCommandId.toggleTheme:
         nextTheme();
       case PaletteCommandId.toggleMotion:

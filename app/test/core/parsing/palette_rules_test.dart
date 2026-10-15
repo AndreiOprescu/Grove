@@ -89,6 +89,7 @@ void main() {
       expect(shortcuts[PaletteCommandId.showCalendar], '⌘3');
       expect(shortcuts[PaletteCommandId.showNotes], '⌘4');
       expect(shortcuts[PaletteCommandId.showGarden], '⌘5');
+      expect(shortcuts[PaletteCommandId.showPersona], '⌘6');
     });
 
     test('the calendar command is found by month', () {

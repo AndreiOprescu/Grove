@@ -14,6 +14,7 @@ IconData screenIcon(Screen screen) => switch (screen) {
   Screen.calendar => Icons.calendar_month_outlined,
   Screen.notes => Icons.sticky_note_2_outlined,
   Screen.garden => Icons.eco_outlined,
+  Screen.persona => Icons.person_outline,
 };
 
 /// The screens of the window, in the strip at the top of a desktop window.
@@ -24,9 +25,42 @@ class ScreenSwitch extends StatelessWidget {
   final ShellModel model;
   final bool showLabels;
 
+  /// The width of the switch with a word beside each picture. The words
+  /// are measured in the bold style, the widest one.
+  static double labelledWidth(GroveTheme theme, TextScaler scaler) {
+    var width = 2.0 * 2 + 2 * 1 + 2.0 * (Screen.values.length - 1);
+    for (final screen in Screen.values) {
+      final text = TextPainter(
+        text: TextSpan(
+          text: screen.title,
+          style: theme.body(12, weight: FontWeight.w600).copyWith(height: 1.2),
+        ),
+        textDirection: TextDirection.ltr,
+        textScaler: scaler,
+      )..layout();
+      width += 12 + 14 + 6 + text.width.ceilToDouble() + 12;
+      text.dispose();
+    }
+    return width;
+  }
+
   @override
   Widget build(BuildContext context) {
+    if (!showLabels) return _switch(context, labels: false);
+    return LayoutBuilder(
+      builder: (context, box) {
+        final need = labelledWidth(
+          GroveTheme.of(context),
+          MediaQuery.textScalerOf(context),
+        );
+        return _switch(context, labels: need <= box.maxWidth);
+      },
+    );
+  }
+
+  Widget _switch(BuildContext context, {required bool labels}) {
     final theme = GroveTheme.of(context);
+    final showLabels = labels;
     return PillGroup(
       children: [
         for (final screen in Screen.values)

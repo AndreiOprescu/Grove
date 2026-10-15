@@ -17,6 +17,8 @@ import 'editor/editor_tools.dart';
 import 'garden/garden_view.dart';
 import 'notes/notes_pane.dart';
 import 'notes/notes_view.dart';
+import 'persona/level_up_layer.dart';
+import 'persona/persona_view.dart';
 import 'planner/focus_card.dart';
 import 'planner/planner_kind.dart';
 import 'planner/planner_view.dart';
@@ -167,6 +169,7 @@ class _StoreAppState extends State<StoreApp> {
         child: NotesView(store: store),
       ),
       Screen.garden => GardenView(store: store),
+      Screen.persona => PersonaView(store: store),
     };
   }
 
@@ -198,8 +201,11 @@ class _StoreAppState extends State<StoreApp> {
     ),
     // The timer of a focus session floats over each screen (PLAN §5.1.7;
     // Swift: the overlay of `RootView`).
-    contentLayer: (context, content) =>
-        FocusLayer(store: widget.store, child: content),
+    // So does the pop-up of a new level.
+    contentLayer: (context, content) => FocusLayer(
+      store: widget.store,
+      child: LevelUpLayer(store: widget.store, child: content),
+    ),
     // The question of the first login and an error message open over each
     // screen. So does the command palette.
     homeBuilder: (context, home) => FirstSyncGate(
