@@ -4,12 +4,14 @@
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 
+import '../shell/panel_lift.dart';
 import '../theme/grove_theme.dart';
 import 'block_view.dart' show mouseKinds, touchKinds;
 
 /// Makes `child` draggable. A mouse drags at once. A finger presses and
-/// holds first, so a swipe still scrolls.
-class PayloadDrag extends StatelessWidget {
+/// holds first, so a swipe still scrolls. In a left panel of a phone the
+/// drag takes the panel away (`PanelLift`).
+class PayloadDrag extends StatefulWidget {
   const PayloadDrag({
     super.key,
     required this.payload,
@@ -25,18 +27,53 @@ class PayloadDrag extends StatelessWidget {
   final Widget child;
 
   @override
+  State<PayloadDrag> createState() => _PayloadDragState();
+}
+
+class _PayloadDragState extends State<PayloadDrag> {
+  /// The lift that the drag going on now started.
+  PanelLift? _lift;
+
+  void _started() {
+    _lift = PanelLiftScope.maybeOf(context)?..start();
+  }
+
+  void _ended(DraggableDetails details) {
+    final lift = _lift;
+    _lift = null;
+    lift?.end(accepted: details.wasAccepted);
+  }
+
+  @override
+  void dispose() {
+    // A row that goes away during its drag gets no end: the panel comes
+    // back after this frame.
+    final lift = _lift;
+    if (lift != null) {
+      WidgetsBinding.instance.addPostFrameCallback(
+        (_) => lift.end(accepted: false),
+      );
+    }
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     final theme = GroveTheme.of(context);
-    final feedback = _Feedback(theme: theme, label: label);
+    final feedback = _Feedback(theme: theme, label: widget.label);
     return _KindDraggable(
       touch: false,
-      data: payload,
+      data: widget.payload,
       feedback: feedback,
+      onStarted: _started,
+      onEnded: _ended,
       child: _KindDraggable(
         touch: true,
-        data: payload,
+        data: widget.payload,
         feedback: feedback,
-        child: child,
+        onStarted: _started,
+        onEnded: _ended,
+        child: widget.child,
       ),
     );
   }
@@ -48,7 +85,14 @@ class _KindDraggable extends Draggable<String> {
     required String super.data,
     required super.feedback,
     required super.child,
-  }) : super(dragAnchorStrategy: pointerDragAnchorStrategy, rootOverlay: true);
+    required VoidCallback onStarted,
+    required DragEndCallback onEnded,
+  }) : super(
+         dragAnchorStrategy: pointerDragAnchorStrategy,
+         rootOverlay: true,
+         onDragStarted: onStarted,
+         onDragEnd: onEnded,
+       );
 
   final bool touch;
 

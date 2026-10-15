@@ -10,6 +10,7 @@ import '../theme/grove_theme.dart';
 import '../theme/panel.dart';
 import 'appearance_button.dart';
 import 'left_dock.dart';
+import 'panel_lift.dart';
 import 'screen_switch.dart';
 import 'shell_layout.dart';
 import 'shell_model.dart';
@@ -230,15 +231,23 @@ class RootView extends StatelessWidget {
           bottom: false,
           child: _content(
             context,
-            pane == null
-                ? _screen(context)
-                : Padding(
-                    padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
-                    child: SizedBox.expand(
-                      key: ValueKey('pane-${pane.name}'),
-                      child: _pane(context, pane),
+            PhonePaneHost(
+              screen: _screen(context),
+              pane: pane == null
+                  ? null
+                  : Padding(
+                      padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+                      child: SizedBox.expand(
+                        key: ValueKey('pane-${pane.name}'),
+                        child: _pane(context, pane),
+                      ),
                     ),
-                  ),
+              // The drop landed: the screen stays in view.
+              onDropped: () {
+                final open = model.leftPane;
+                if (open != null) model.toggleLeftPane(open);
+              },
+            ),
           ),
         ),
       ),
