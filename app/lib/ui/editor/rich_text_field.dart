@@ -10,10 +10,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:grove/core/model/link.dart';
+import 'package:grove/core/parsing/markdown_edit.dart' show PrefixKind;
 import 'package:grove/core/parsing/markdown_spans.dart';
 import 'package:grove/state/state.dart' hide MotionRules;
 
 import '../theme/grove_theme.dart';
+import '../theme/named_colors.dart';
 import 'editor_tools.dart';
 import 'markdown_controller.dart';
 
@@ -646,13 +648,82 @@ class _PlannerButton extends StatelessWidget {
   );
 }
 
-/// The row of buttons above an editor: bold, italic, code, lists, heading,
-/// quote, mention, image.
+/// One tool of the row above an editor: its icon and name, how wide it is,
+/// what it does, and whether the caret is in its format.
+class ToolSpec {
+  const ToolSpec({
+    required this.id,
+    required this.icon,
+    required this.label,
+    this.tip,
+    this.width = EditorToolbar.buttonWidth,
+    this.action,
+    this.active,
+    this.enabled = true,
+    this.button,
+    this.rows,
+  });
+
+  final String id;
+  final IconData icon;
+
+  /// The plain name: what a screen reader says, and the row in "…".
+  final String label;
+
+  /// The tooltip. The label when null.
+  final String? tip;
+
+  /// The width of the tool in the row.
+  final double width;
+  final VoidCallback? action;
+
+  /// True when the caret is in the format of the tool, false when not. Null
+  /// for a tool that is not a switch.
+  final bool? active;
+  final bool enabled;
+
+  /// Builds a tool that is more than one plain button (Text size,
+  /// Highlight). The context is the one of the tool.
+  final WidgetBuilder? button;
+
+  /// The rows of the tool in the "…" menu. One row with its icon and label
+  /// when null.
+  final List<ToolRow>? rows;
+}
+
+/// One row of a menu of the toolbar.
+class ToolRow {
+  const ToolRow({
+    required this.label,
+    required this.action,
+    this.icon,
+    this.swatch,
+    this.checked = false,
+    this.enabled = true,
+  });
+
+  final String label;
+  final VoidCallback action;
+  final IconData? icon;
+
+  /// A dot of this colour in place of the icon.
+  final Color? swatch;
+
+  /// The row has a tick: its format is on.
+  final bool checked;
+  final bool enabled;
+}
+
+/// The row of tools above an editor. When the box is wide enough every tool
+/// shows, in groups. Else a short row of the most used tools shows, and a
+/// "…" button holds the others. The tools of the format at the caret light
+/// up.
 class EditorToolbar extends StatelessWidget {
   const EditorToolbar({
     super.key,
     required this.controller,
     this.onImage,
+    this.onLink,
     this.before,
   });
 
@@ -661,78 +732,510 @@ class EditorToolbar extends StatelessWidget {
   /// Null when the app cannot pick a picture. The button is then not there.
   final VoidCallback? onImage;
 
+  /// Makes a link of the selection. Null: the Link tool is not there.
+  final VoidCallback? onLink;
+
   /// Runs before each button, to give the text the keyboard.
   final VoidCallback? before;
 
+  static const buttonWidth = 26.0;
+  static const _gap = 2.0;
+
+  /// The line between two groups, with room on each side.
+  static const _separatorWidth = 7.0;
+  static const _textSizeWidth = 60.0;
+  static const _arrowWidth = 14.0;
+
+  /// The colour the Highlight button gives: the last one picked from its
+  /// menu. It is the same in every box and lasts while the app runs.
+  static var lastHighlight = HighlightColor.yellow;
+
+  /// The short row, in order, for a box too narrow for every tool.
+  static const priority = [
+    'undo',
+    'textSize',
+    'bold',
+    'italic',
+    'underline',
+    'highlight',
+    'bullet',
+    'checklist',
+    'link',
+  ];
+
+  static const _sizes = [
+    'Normal text',
+    'Big heading',
+    'Medium heading',
+    'Small heading',
+  ];
+  static const _shortSizes = ['Normal', 'Big', 'Medium', 'Small'];
+
+  static String _colourName(HighlightColor c) =>
+      c.name[0].toUpperCase() + c.name.substring(1);
+
+  static Color _swatch(HighlightColor c, GroveTheme theme) =>
+      TaskPalette.color(c.name) ?? theme.accent;
+
+  /// Runs a tool: the text gets the keyboard first.
+  void _run(VoidCallback action) {
+    before?.call();
+    action();
+  }
+
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) => ListenableBuilder(
+    listenable: Listenable.merge([controller, controller.undoState]),
+    builder: (context, _) =>
+        LayoutBuilder(builder: (context, box) => _row(context, box.maxWidth)),
+  );
+
+  Widget _row(BuildContext context, double room) {
     final theme = GroveTheme.of(context);
+    final groups = _groups(theme, controller.activeAt());
+    final all = [for (final g in groups) ...g];
+    double width(List<double> parts) => parts.isEmpty
+        ? 0
+        : parts.reduce((a, b) => a + b) + _gap * (parts.length - 1);
+    final filled = [
+      for (final g in groups)
+        if (g.isNotEmpty) g,
+    ];
+    final wide = width([
+      for (var i = 0; i < filled.length; i++) ...[
+        if (i > 0) _separatorWidth,
+        for (final t in filled[i]) t.width,
+      ],
+    ]);
+    if (wide <= room) {
+      return Row(
+        mainAxisSize: MainAxisSize.min,
+        spacing: _gap,
+        children: [
+          for (var i = 0; i < filled.length; i++) ...[
+            if (i > 0) _separator(theme),
+            for (final t in filled[i]) _tool(theme, t),
+          ],
+        ],
+      );
+    }
+    final shown = <ToolSpec>[];
+    for (final id in priority) {
+      final t = all.where((t) => t.id == id).firstOrNull;
+      if (t == null) continue;
+      final next = [for (final s in shown) s.width, t.width, buttonWidth];
+      if (width(next) > room) break;
+      shown.add(t);
+    }
+    final rest = [
+      for (final t in all)
+        if (!shown.contains(t)) t,
+    ];
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      spacing: _gap,
+      children: [
+        for (final t in shown) _tool(theme, t),
+        Builder(
+          builder: (context) => _ToolButton(
+            theme: theme,
+            icon: Icons.more_horiz,
+            label: 'More',
+            tip: 'More tools',
+            onTap: () => _menu(context, [
+              for (final t in rest)
+                ...t.rows ??
+                    [
+                      ToolRow(
+                        label: t.label,
+                        icon: t.icon,
+                        checked: t.active ?? false,
+                        enabled: t.enabled,
+                        action: t.action ?? () {},
+                      ),
+                    ],
+            ]),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _separator(GroveTheme theme) => Padding(
+    padding: const EdgeInsets.symmetric(horizontal: 3),
+    child: SizedBox(width: 1, height: 14, child: ColoredBox(color: theme.line)),
+  );
+
+  Widget _tool(GroveTheme theme, ToolSpec t) {
+    final button = t.button;
+    if (button != null) {
+      return SizedBox(
+        width: t.width,
+        child: Builder(builder: button),
+      );
+    }
+    return _ToolButton(
+      theme: theme,
+      icon: t.icon,
+      label: t.label,
+      tip: t.tip ?? t.label,
+      width: t.width,
+      active: t.active,
+      enabled: t.enabled,
+      onTap: () => _run(t.action ?? () {}),
+    );
+  }
+
+  /// Every tool, in the groups of the wide row.
+  List<List<ToolSpec>> _groups(GroveTheme theme, ActiveFormats on) {
     final apple =
         defaultTargetPlatform == TargetPlatform.macOS ||
         defaultTargetPlatform == TargetPlatform.iOS;
     final mod = apple ? '⌘' : 'Ctrl+';
-    Widget button(
+    final c = controller;
+    final undo = c.undoState.value;
+    ToolSpec inline(
+      String id,
       IconData icon,
-      String name,
-      VoidCallback action, {
-      String? tip,
-    }) => _ToolButton(
-      theme: theme,
+      String label,
+      InlineFormat f, {
+      String? key,
+    }) => ToolSpec(
+      id: id,
       icon: icon,
-      label: name,
-      tip: tip ?? name,
-      onTap: () {
-        before?.call();
-        action();
-      },
+      label: label,
+      tip: key == null ? label : '$label  $mod$key',
+      active: on.has(f),
+      action: () => c.toggleInline(f),
     );
-    Widget format(IconData icon, String name, EditorFormat f, {String? key}) =>
-        button(
-          icon,
-          name,
-          () => controller.format(f),
-          tip: key == null ? name : '$name  $mod$key',
-        );
-    final divider = Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 3),
-      child: SizedBox(
-        width: 1,
-        height: 14,
-        child: ColoredBox(color: theme.line),
+    ToolSpec line(
+      String id,
+      IconData icon,
+      String label,
+      EditorFormat f,
+      PrefixKind kind,
+    ) => ToolSpec(
+      id: id,
+      icon: icon,
+      label: label,
+      active: on.line == kind,
+      action: () => c.format(f),
+    );
+    final sizeRows = [
+      for (var level = 0; level < _sizes.length; level++)
+        ToolRow(
+          label: _sizes[level],
+          icon: Icons.format_size,
+          checked: on.heading == level,
+          action: () => c.setHeading(level),
+        ),
+    ];
+    final highlighted = on.has(InlineFormat.highlight);
+    final colourRows = [
+      for (final colour in HighlightColor.values)
+        ToolRow(
+          label: _colourName(colour),
+          swatch: _swatch(colour, theme),
+          checked: highlighted && on.highlight == colour,
+          action: () {
+            lastHighlight = colour;
+            // Words already in this colour stay as they are.
+            if (highlighted && on.highlight == colour) return;
+            c.toggleInline(InlineFormat.highlight, color: colour);
+          },
+        ),
+      ToolRow(
+        label: 'No highlight',
+        icon: Icons.format_color_reset,
+        enabled: highlighted,
+        action: () {
+          if (!highlighted) return;
+          c.toggleInline(
+            InlineFormat.highlight,
+            color: on.highlight ?? HighlightColor.yellow,
+          );
+        },
       ),
+    ];
+    void highlight() =>
+        c.toggleInline(InlineFormat.highlight, color: lastHighlight);
+    return [
+      [
+        ToolSpec(
+          id: 'undo',
+          icon: Icons.undo,
+          label: 'Undo',
+          tip: 'Undo  ${mod}Z',
+          enabled: undo.canUndo,
+          action: c.undo,
+        ),
+        ToolSpec(
+          id: 'redo',
+          icon: Icons.redo,
+          label: 'Redo',
+          tip: apple ? 'Redo  ⇧⌘Z' : 'Redo  Ctrl+Y',
+          enabled: undo.canRedo,
+          action: c.redo,
+        ),
+      ],
+      [
+        ToolSpec(
+          id: 'textSize',
+          icon: Icons.format_size,
+          label: 'Text size',
+          width: _textSizeWidth,
+          rows: sizeRows,
+          button: (context) => _ToolButton(
+            theme: theme,
+            icon: Icons.format_size,
+            label: 'Text size',
+            tip: 'Text size',
+            value: _sizes[on.heading],
+            width: _textSizeWidth,
+            onTap: () => _menu(context, sizeRows),
+            content: (color) => Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Flexible(
+                  child: Text(
+                    _shortSizes[on.heading],
+                    maxLines: 1,
+                    overflow: TextOverflow.clip,
+                    style: theme
+                        .body(11, weight: FontWeight.w600)
+                        .copyWith(color: color),
+                  ),
+                ),
+                Icon(Icons.arrow_drop_down, size: 14, color: color),
+              ],
+            ),
+          ),
+        ),
+      ],
+      [
+        inline('bold', Icons.format_bold, 'Bold', InlineFormat.bold, key: 'B'),
+        inline(
+          'italic',
+          Icons.format_italic,
+          'Italic',
+          InlineFormat.italic,
+          key: 'I',
+        ),
+        inline(
+          'underline',
+          Icons.format_underlined,
+          'Underline',
+          InlineFormat.underline,
+        ),
+        inline(
+          'strike',
+          Icons.format_strikethrough,
+          'Strike',
+          InlineFormat.strike,
+        ),
+        ToolSpec(
+          id: 'highlight',
+          icon: Icons.border_color,
+          label: 'Highlight',
+          width: buttonWidth + _arrowWidth,
+          active: highlighted,
+          action: highlight,
+          rows: [
+            ToolRow(
+              label: 'Highlight',
+              icon: Icons.border_color,
+              checked: highlighted,
+              action: highlight,
+            ),
+            ...colourRows,
+          ],
+          button: (context) => Row(
+            children: [
+              _ToolButton(
+                theme: theme,
+                icon: Icons.border_color,
+                label: 'Highlight',
+                tip: 'Highlight',
+                active: highlighted,
+                onTap: () => _run(highlight),
+                content: (color) => Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  spacing: 1,
+                  children: [
+                    Icon(Icons.border_color, size: 13, color: color),
+                    SizedBox(
+                      width: 13,
+                      height: 3,
+                      child: ColoredBox(color: _swatch(lastHighlight, theme)),
+                    ),
+                  ],
+                ),
+              ),
+              _ToolButton(
+                theme: theme,
+                icon: Icons.arrow_drop_down,
+                label: 'Highlight colour',
+                tip: 'Highlight colour',
+                width: _arrowWidth,
+                onTap: () => _menu(context, colourRows),
+              ),
+            ],
+          ),
+        ),
+        inline('code', Icons.code, 'Code', InlineFormat.code, key: 'E'),
+      ],
+      [
+        line(
+          'bullet',
+          Icons.format_list_bulleted,
+          'Bullet list',
+          EditorFormat.bullet,
+          PrefixKind.bullet,
+        ),
+        line(
+          'numbered',
+          Icons.format_list_numbered,
+          'Numbered list',
+          EditorFormat.numbered,
+          PrefixKind.numbered,
+        ),
+        line(
+          'checklist',
+          Icons.checklist,
+          'Checklist',
+          EditorFormat.checklist,
+          PrefixKind.checklist,
+        ),
+        line(
+          'quote',
+          Icons.format_quote,
+          'Quote',
+          EditorFormat.quote,
+          PrefixKind.quote,
+        ),
+        ToolSpec(
+          id: 'indentIn',
+          icon: Icons.format_indent_increase,
+          label: 'Indent in',
+          tip: 'Indent in  Tab',
+          action: () => c.indent(),
+        ),
+        ToolSpec(
+          id: 'indentOut',
+          icon: Icons.format_indent_decrease,
+          label: 'Indent out',
+          tip: apple ? 'Indent out  ⇧Tab' : 'Indent out  Shift+Tab',
+          action: () => c.indent(outdent: true),
+        ),
+      ],
+      [
+        if (onLink case final link?)
+          ToolSpec(
+            id: 'link',
+            icon: Icons.link,
+            label: 'Link',
+            tip: 'Link  ${mod}K',
+            active: on.link,
+            action: link,
+          ),
+        ToolSpec(
+          id: 'mention',
+          icon: Icons.alternate_email,
+          label: 'Mention',
+          tip: 'Mention a task, event or note',
+          action: c.startMention,
+        ),
+        if (onImage case final image?)
+          ToolSpec(
+            id: 'image',
+            icon: Icons.image_outlined,
+            label: 'Add an image',
+            action: image,
+          ),
+        ToolSpec(
+          id: 'divider',
+          icon: Icons.horizontal_rule,
+          label: 'Divider',
+          action: c.insertDivider,
+        ),
+        ToolSpec(
+          id: 'clear',
+          icon: Icons.format_clear,
+          label: 'Clear format',
+          action: c.clearFormat,
+        ),
+      ],
+    ];
+  }
+
+  /// Opens a menu under the tool of `context`. The text keeps the keyboard
+  /// while it is open, so its owner does not save and load it again, and the
+  /// selection is put back before a row runs.
+  void _menu(BuildContext context, List<ToolRow> rows) {
+    final theme = GroveTheme.of(context);
+    final button = context.findRenderObject()! as RenderBox;
+    final overlay =
+        Overlay.of(context).context.findRenderObject()! as RenderBox;
+    final below = Rect.fromPoints(
+      button.localToGlobal(button.size.bottomLeft(Offset.zero)),
+      button.localToGlobal(button.size.bottomRight(const Offset(0, 4))),
     );
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      child: Row(
-        spacing: 2,
-        children: [
-          format(Icons.format_bold, 'Bold', EditorFormat.bold, key: 'B'),
-          format(Icons.format_italic, 'Italic', EditorFormat.italic, key: 'I'),
-          format(Icons.code, 'Code', EditorFormat.code, key: 'E'),
-          divider,
-          format(
-            Icons.format_list_bulleted,
-            'Bullet list',
-            EditorFormat.bullet,
-          ),
-          format(
-            Icons.format_list_numbered,
-            'Numbered list',
-            EditorFormat.numbered,
-          ),
-          format(Icons.checklist, 'Checklist', EditorFormat.checklist),
-          divider,
-          format(Icons.format_size, 'Heading', EditorFormat.heading),
-          format(Icons.format_quote, 'Quote', EditorFormat.quote),
-          divider,
-          button(
-            Icons.alternate_email,
-            'Mention',
-            controller.startMention,
-            tip: 'Mention a task, event or note  [[',
-          ),
-          if (onImage != null)
-            button(Icons.image_outlined, 'Add an image', onImage!),
+    final saved = controller.selection;
+    void run(ToolRow row) => _run(() {
+      final c = controller;
+      if (saved.isValid && saved.end <= c.text.length && c.selection != saved) {
+        c.selection = saved;
+      }
+      row.action();
+    });
+    unawaited(
+      showMenu<void>(
+        context: context,
+        position: RelativeRect.fromRect(below, Offset.zero & overlay.size),
+        requestFocus: false,
+        items: [
+          for (final row in rows)
+            PopupMenuItem<void>(
+              height: 34,
+              padding: EdgeInsets.zero,
+              enabled: row.enabled,
+              onTap: () => run(row),
+              // A click on a row is a click in the text: it keeps the
+              // keyboard.
+              child: TextFieldTapRegion(
+                child: SizedBox(
+                  width: double.infinity,
+                  height: 34,
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                    child: Row(
+                      spacing: 10,
+                      children: [
+                        SizedBox(
+                          width: 16,
+                          child: row.checked
+                              ? Icon(Icons.check, size: 16, color: theme.accent)
+                              : null,
+                        ),
+                        if (row.swatch case final swatch?)
+                          SizedBox.square(
+                            dimension: 16,
+                            child: DecoratedBox(
+                              decoration: BoxDecoration(
+                                color: swatch,
+                                shape: BoxShape.circle,
+                              ),
+                            ),
+                          )
+                        else
+                          Icon(row.icon, size: 16, color: theme.muted),
+                        Text(row.label),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
         ],
       ),
     );
@@ -746,6 +1249,11 @@ class _ToolButton extends StatelessWidget {
     required this.label,
     required this.tip,
     required this.onTap,
+    this.width = EditorToolbar.buttonWidth,
+    this.active,
+    this.enabled = true,
+    this.value,
+    this.content,
   });
 
   final GroveTheme theme;
@@ -753,31 +1261,63 @@ class _ToolButton extends StatelessWidget {
   final String label;
   final String tip;
   final VoidCallback onTap;
+  final double width;
+
+  /// On or off, for a tool that is a switch. Null for the others.
+  final bool? active;
+
+  /// A grey tool does nothing.
+  final bool enabled;
+
+  /// What a screen reader says after the label, like the size of the text.
+  final String? value;
+
+  /// What the button shows in the colour given, in place of its icon.
+  final Widget Function(Color color)? content;
 
   @override
-  Widget build(BuildContext context) => Tooltip(
-    message: tip,
-    excludeFromSemantics: true,
-    child: Semantics(
-      container: true,
-      button: true,
-      label: label,
-      onTap: onTap,
-      excludeSemantics: true,
-      child: MouseRegion(
-        cursor: SystemMouseCursors.click,
-        child: GestureDetector(
-          behavior: HitTestBehavior.opaque,
-          onTap: onTap,
-          child: SizedBox(
-            width: 26,
-            height: 24,
-            child: Icon(icon, size: 15, color: theme.muted),
+  Widget build(BuildContext context) {
+    final on = active ?? false;
+    final color = !enabled
+        ? theme.muted.withValues(alpha: 0.35)
+        : on
+        ? theme.accent
+        : theme.muted;
+    final tap = enabled ? onTap : null;
+    return Tooltip(
+      message: tip,
+      excludeFromSemantics: true,
+      child: Semantics(
+        container: true,
+        button: true,
+        label: label,
+        value: value,
+        toggled: active,
+        enabled: enabled,
+        onTap: tap,
+        excludeSemantics: true,
+        child: MouseRegion(
+          cursor: enabled ? SystemMouseCursors.click : MouseCursor.defer,
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: tap,
+            child: SizedBox(
+              width: width,
+              height: 24,
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  color: on ? theme.accent.withValues(alpha: 0.16) : null,
+                  borderRadius: BorderRadius.circular(5),
+                ),
+                child:
+                    content?.call(color) ?? Icon(icon, size: 15, color: color),
+              ),
+            ),
           ),
         ),
       ),
-    ),
-  );
+    );
+  }
 }
 
 /// Small pictures of the images in a text. The text itself shows only the

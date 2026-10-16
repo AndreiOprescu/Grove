@@ -100,6 +100,23 @@ Future<void> _openEvent(WidgetTester tester, AppStore store) async {
   await tester.pumpAndSettle();
 }
 
+/// Taps "Add an image" in the row of the text, or in its "…" menu when the
+/// box is too narrow for every tool.
+Future<void> _tapAddImage(WidgetTester tester) async {
+  if (_addImage.evaluate().isEmpty) {
+    final more = find.byTooltip('More tools');
+    await tester.ensureVisible(more);
+    await tester.pumpAndSettle();
+    await tester.tap(more);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Add an image').last);
+    return;
+  }
+  await tester.ensureVisible(_addImage);
+  await tester.pumpAndSettle();
+  await tester.tap(_addImage);
+}
+
 final _markup = RegExp(r'!\[door\]\(grove-image:([0-9A-Fa-f-]+)\)');
 
 void main() {
@@ -119,9 +136,7 @@ void main() {
         },
       );
       expect(_addImage, findsOneWidget);
-      await tester.ensureVisible(_addImage);
-      await tester.pumpAndSettle();
-      await tester.tap(_addImage);
+      await _tapAddImage(tester);
       await tester.pump();
       await tester.pump();
       expect(asked, 1);
@@ -142,10 +157,7 @@ void main() {
       // The planner has no text with buttons.
       expect(_addImage, findsNothing);
       await _openEvent(tester, store);
-      expect(_addImage, findsOneWidget);
-      await tester.ensureVisible(_addImage);
-      await tester.pumpAndSettle();
-      await tester.tap(_addImage);
+      await _tapAddImage(tester);
       await tester.pump();
       await tester.pump();
       final match = _markup.firstMatch(_shown(tester, 'event-notes'));
@@ -162,9 +174,7 @@ void main() {
         size: phoneSize,
         pickImages: () async => [door],
       );
-      await tester.ensureVisible(_addImage);
-      await tester.pumpAndSettle();
-      await tester.tap(_addImage);
+      await _tapAddImage(tester);
       await tester.pump();
       await tester.pump();
       expect(_markup.hasMatch(_shown(tester, 'note-text')), isTrue);
@@ -181,9 +191,7 @@ void main() {
         () => pickedImage('list.txt', Uint8List.fromList([1, 2, 3])),
       ))!;
       await _pump(tester, store, pickImages: () async => [bad]);
-      await tester.ensureVisible(_addImage);
-      await tester.pumpAndSettle();
-      await tester.tap(_addImage);
+      await _tapAddImage(tester);
       await tester.pump();
       await tester.pump();
       expect(_shown(tester, 'note-text'), 'see');

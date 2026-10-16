@@ -177,6 +177,21 @@ Future<void> click(WidgetTester tester, Finder target) async {
   await tester.pump();
 }
 
+/// Uses a tool of the row above the text, or of its "…" menu when the row
+/// has no room for it.
+Future<void> useTool(WidgetTester tester, String label) async {
+  final button = find.bySemanticsLabel(label);
+  if (button.evaluate().isNotEmpty) {
+    await tester.tap(button);
+    await tester.pump();
+    return;
+  }
+  await tester.tap(find.bySemanticsLabel('More'));
+  await tester.pumpAndSettle();
+  await tester.tap(find.text(label).last);
+  await tester.pumpAndSettle();
+}
+
 /// Eight tasks for the `[[` list: a list 248 points high.
 EditorServices eightTasks(Rig rig) => EditorServices(
   suggest: (_) => [
@@ -517,8 +532,7 @@ void main() {
       Future<void> press(String label, String expected) async {
         rig.controller.load('word');
         await caret(tester, rig, 0, 4);
-        await tester.tap(find.bySemanticsLabel(label));
-        await tester.pump();
+        await useTool(tester, label);
         expect(rig.controller.text, expected, reason: label);
       }
 
@@ -526,7 +540,6 @@ void main() {
       await press('Code', '`word`');
       await press('Bullet list', '- word');
       await press('Numbered list', '1. word');
-      await press('Heading', '## word');
       await press('Quote', '> word');
     });
 
@@ -806,7 +819,7 @@ void main() {
         },
       );
       await caret(tester, rig, 3);
-      await tester.tap(find.bySemanticsLabel('Add an image'));
+      await useTool(tester, 'Add an image');
       await tester.pump();
       await tester.pump();
       expect(asked, 1);
@@ -826,7 +839,7 @@ void main() {
           child: child,
         ),
       );
-      await tester.tap(find.bySemanticsLabel('Add an image'));
+      await useTool(tester, 'Add an image');
       await tester.pump();
       await tester.pump();
       expect(rig.text, contains('![gate](grove-image:$id)'));
@@ -839,7 +852,7 @@ void main() {
         services: keeps,
         pickImages: () async => const [],
       );
-      await tester.tap(find.bySemanticsLabel('Add an image'));
+      await useTool(tester, 'Add an image');
       await tester.pump();
       await tester.pump();
       expect(rig.text, 'see');
@@ -853,7 +866,7 @@ void main() {
         services: keeps,
         pickImages: () async => const [(name: 'notes', image: null)],
       );
-      await tester.tap(find.bySemanticsLabel('Add an image'));
+      await useTool(tester, 'Add an image');
       await tester.pump();
       await tester.pump();
       expect(rig.text, 'see');
@@ -867,7 +880,7 @@ void main() {
         services: keeps,
         pickImages: () async => throw StateError('no window'),
       );
-      await tester.tap(find.bySemanticsLabel('Add an image'));
+      await useTool(tester, 'Add an image');
       await tester.pump();
       await tester.pump();
       expect(rig.text, 'see');
@@ -1001,7 +1014,7 @@ void main() {
     ) async {
       final rig = await makeRig(tester, 'a ');
       await caret(tester, rig, 2);
-      await tester.tap(find.bySemanticsLabel('Mention'));
+      await useTool(tester, 'Mention');
       await tester.pump();
       expect(rig.text, 'a [[');
       expect(rig.controller.mentions.value, isNotNull);

@@ -31,6 +31,34 @@ enum EditorFormat {
 /// null when the data is not a picture Grove can read.
 typedef PickedImage = ({String name, ImageToStore? image});
 
+/// The formats at the selection, so the buttons of the toolbar can light up.
+class ActiveFormats {
+  const ActiveFormats({
+    this.inline = const {},
+    this.heading = 0,
+    this.highlight,
+    this.line,
+    this.link = false,
+  });
+
+  /// Bold, italic, underline, strike, highlight and code.
+  final Set<InlineFormat> inline;
+
+  /// 1 Big, 2 Medium, 3 Small (a `####` line is Small too); 0 for normal text.
+  final int heading;
+
+  /// The colour of the highlight, when [inline] has one.
+  final HighlightColor? highlight;
+
+  /// The list or quote of the line. Null for a plain line or a heading.
+  final PrefixKind? line;
+
+  /// The selection is in the words of a link.
+  final bool link;
+
+  bool has(InlineFormat format) => inline.contains(format);
+}
+
 /// The open `[[` list: the rows, and the row that Return takes.
 class MentionList {
   const MentionList({
@@ -1021,6 +1049,71 @@ class MarkdownController extends TextEditingController {
       notifyListeners();
     }
   }
+
+  /// The formats at the selection. A caret at either edge of a format is in
+  /// it; a selection is in a format when all of it is in one span of it.
+  /// The line of the start of the selection gives the size and the list.
+  ActiveFormats activeAt() {
+    final sel = _selection;
+    bool inside(Utf16Range r) => sel.length == 0
+        ? r.location <= sel.location && sel.location <= r.end
+        : r.location <= sel.location && sel.end <= r.end;
+    final inline = <InlineFormat>{};
+    HighlightColor? color;
+    var link = false;
+    for (final s in _spans) {
+      final r = s.range;
+      final kind = s.kind;
+      final format = switch (kind.type) {
+        SpanType.bold => InlineFormat.bold,
+        SpanType.italic => InlineFormat.italic,
+        SpanType.underline => InlineFormat.underline,
+        SpanType.strike => InlineFormat.strike,
+        SpanType.highlight => InlineFormat.highlight,
+        SpanType.code => InlineFormat.code,
+        // An empty pair counts only with the caret between its marks.
+        SpanType.emptyPair
+            when sel.length == 0 &&
+                r.location < sel.location &&
+                sel.location < r.end =>
+          kind.format,
+        _ => null,
+      };
+      if (kind.type == SpanType.linkWords && inside(r)) link = true;
+      if (format == null) continue;
+      if (kind.type != SpanType.emptyPair && !inside(r)) continue;
+      inline.add(format);
+      if (format == InlineFormat.highlight) {
+        color = kind.color ?? HighlightColor.yellow;
+      }
+    }
+    final start = sel.location.clamp(0, text.length);
+    final lineStart = start == 0 ? 0 : text.lastIndexOf('\n', start - 1) + 1;
+    final lineEnd = text.indexOf('\n', start);
+    final prefix = MarkdownEdit.prefix(
+      text.substring(lineStart, lineEnd < 0 ? text.length : lineEnd),
+    );
+    final heading = prefix?.kind == PrefixKind.heading;
+    return ActiveFormats(
+      inline: inline,
+      heading: heading ? prefix!.level.clamp(1, 3) : 0,
+      highlight: color,
+      line: heading ? null : prefix?.kind,
+      link: link,
+    );
+  }
+
+  /// Makes the lines of the selection a heading of `level` (1 Big, 2
+  /// Medium, 3 Small), or normal text for 0.
+  void setHeading(int level) =>
+      apply(MarkdownEdit.setHeading(level, text, _selection));
+
+  /// Puts a divider line at the selection.
+  void insertDivider() => apply(MarkdownEdit.insertDivider(text, _selection));
+
+  /// Takes every format off the selection (a caret: off its line). Lists
+  /// keep their marks.
+  void clearFormat() => apply(MarkdownEdit.clearInline(text, _selection));
 
   /// Types `[[` so the list of items opens.
   void startMention() {
