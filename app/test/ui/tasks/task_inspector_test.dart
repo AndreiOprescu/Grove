@@ -199,8 +199,18 @@ void main() {
         find.text('The longer description. Type [[ to mention a task.'),
         findsOneWidget,
       );
-      // The panel alone has no window to pick a picture: no button.
+      // The panel alone has no window to pick a picture: no button, in the
+      // row or in its "…" menu.
       expect(find.bySemanticsLabel('Add an image'), findsNothing);
+      await tester.tap(
+        find.descendant(
+          of: byKey('inspector-notes'),
+          matching: find.byTooltip('More tools'),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('Divider'), findsOneWidget);
+      expect(find.text('Add an image'), findsNothing);
       expect(tester.takeException(), isNull);
     });
 
@@ -214,13 +224,15 @@ void main() {
         EditorTools(pickImages: () async => const [], child: host(store)),
         size: inspectorSize,
       );
-      expect(
+      // The panel is narrow: the tool is in the "…" menu of the row.
+      await tester.tap(
         find.descendant(
           of: byKey('inspector-notes'),
-          matching: find.bySemanticsLabel('Add an image'),
+          matching: find.byTooltip('More tools'),
         ),
-        findsOneWidget,
       );
+      await tester.pumpAndSettle();
+      expect(find.text('Add an image'), findsOneWidget);
       expect(tester.takeException(), isNull);
     });
 

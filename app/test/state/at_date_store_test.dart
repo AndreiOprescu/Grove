@@ -61,6 +61,32 @@ void main() {
     });
   });
 
+  group('formats', () {
+    test('an event gets the words without marks', () {
+      final s = makeStore();
+      final n = s.newNote(title: 'Ideas');
+      final line = s.addToPlanner(
+        line: 'Call **Sam** ~~now~~ @tomorrow 3pm',
+        inNote: n.id,
+      );
+      final e = on(s, tomorrow).first;
+      expect(e.title, 'Call Sam now');
+      expect(line, startsWith('[[Call Sam now|'));
+    });
+
+    test('a task gets the words without marks and the line keeps them', () {
+      final s = makeStore();
+      final n = s.newNote(title: 'Ideas');
+      final line = s.addToPlanner(
+        line: '- [ ] Write ==report== @tomorrow 9am',
+        inNote: n.id,
+      );
+      final t = s.repos.tasks.all().first;
+      expect(t.title, 'Write report');
+      expect(line, startsWith('- [ ] Write ==report== · '));
+    });
+  });
+
   group('a check box', () {
     test('an open box makes a task with a half hour block', () {
       final s = makeStore();

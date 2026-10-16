@@ -130,5 +130,14 @@ void main() {
         'call Dentist and Plain front door done',
       );
     });
+
+    test('search text drops format marks', () {
+      expect(
+        ReferenceParser.searchText(
+          '## Plan\n**bold** ~~old~~ ==hi== [docs](https://a.b) #tag',
+        ),
+        'Plan\nbold old hi docs #tag',
+      );
+    });
   });
 }

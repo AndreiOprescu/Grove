@@ -1,7 +1,6 @@
 import '../../core/model/day_key.dart';
 import '../../core/model/note.dart';
-import '../../core/parsing/note_parser.dart';
-import '../../core/parsing/reference_parser.dart';
+import '../../core/parsing/markdown_plain.dart';
 import 'text.dart';
 
 /// Which notes the list shows.
@@ -133,10 +132,8 @@ abstract final class NotesRules {
   static String preview(String body, {int limit = 90}) {
     for (final raw in body.split('\n')) {
       if (raw.isEmpty || raw.startsWith('#')) continue;
-      var line = raw.replaceAll(_imageRegex, '');
-      line = line.replaceFirst(_prefixRegex, '');
-      line = ReferenceParser.searchText(NoteParser.withoutMarkers(line));
-      line = trimSpaces(line.replaceAll('**', '').replaceAll('`', ''));
+      var line = MarkdownPlain.text(raw.replaceAll(_imageRegex, ''));
+      line = trimSpaces(line.replaceFirst(_prefixRegex, ''));
       if (line.isEmpty) continue;
       return line.runes.length > limit
           ? '${trimSpaces(prefixRunes(line, limit))}…'

@@ -50,7 +50,7 @@ extension AppStoreNoteTasks on AppStore {
       // keep the token in its title.
       if (AtDateParser.find(box.text) != null) continue;
       final q = quickAddChange(
-        box.text,
+        MarkdownPlain.text(box.text),
         placement: placementFor(old),
         notes: originOf(old),
       );
@@ -79,7 +79,7 @@ extension AppStoreNoteTasks on AppStore {
     final source = note(inNote);
     if (source == null) return null;
     final made = quickAddChange(
-      from,
+      MarkdownPlain.text(from),
       placement: placementFor(source),
       notes: originOf(source),
     );

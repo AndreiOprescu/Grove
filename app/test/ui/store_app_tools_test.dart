@@ -100,6 +100,23 @@ Future<void> _openEvent(WidgetTester tester, AppStore store) async {
   await tester.pumpAndSettle();
 }
 
+/// Taps "Add an image" in the row of the text, or in its "…" menu when the
+/// box is too narrow for every tool.
+Future<void> _tapAddImage(WidgetTester tester) async {
+  if (_addImage.evaluate().isEmpty) {
+    final more = find.byTooltip('More tools');
+    await tester.ensureVisible(more);
+    await tester.pumpAndSettle();
+    await tester.tap(more);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Add an image').last);
+    return;
+  }
+  await tester.ensureVisible(_addImage);
+  await tester.pumpAndSettle();
+  await tester.tap(_addImage);
+}
+
 final _markup = RegExp(r'!\[door\]\(grove-image:([0-9A-Fa-f-]+)\)');
 
 void main() {
@@ -119,9 +136,7 @@ void main() {
         },
       );
       expect(_addImage, findsOneWidget);
-      await tester.ensureVisible(_addImage);
-      await tester.pumpAndSettle();
-      await tester.tap(_addImage);
+      await _tapAddImage(tester);
       await tester.pump();
       await tester.pump();
       expect(asked, 1);
@@ -139,13 +154,11 @@ void main() {
       final store = _eventStore();
       final door = await _door(tester);
       await _pump(tester, store, pickImages: () async => [door]);
-      // The planner has no text with buttons.
+      // The planner has no text with buttons, and so no "…" menu.
       expect(_addImage, findsNothing);
+      expect(find.byTooltip('More tools'), findsNothing);
       await _openEvent(tester, store);
-      expect(_addImage, findsOneWidget);
-      await tester.ensureVisible(_addImage);
-      await tester.pumpAndSettle();
-      await tester.tap(_addImage);
+      await _tapAddImage(tester);
       await tester.pump();
       await tester.pump();
       final match = _markup.firstMatch(_shown(tester, 'event-notes'));
@@ -162,9 +175,7 @@ void main() {
         size: phoneSize,
         pickImages: () async => [door],
       );
-      await tester.ensureVisible(_addImage);
-      await tester.pumpAndSettle();
-      await tester.tap(_addImage);
+      await _tapAddImage(tester);
       await tester.pump();
       await tester.pump();
       expect(_markup.hasMatch(_shown(tester, 'note-text')), isTrue);
@@ -181,9 +192,7 @@ void main() {
         () => pickedImage('list.txt', Uint8List.fromList([1, 2, 3])),
       ))!;
       await _pump(tester, store, pickImages: () async => [bad]);
-      await tester.ensureVisible(_addImage);
-      await tester.pumpAndSettle();
-      await tester.tap(_addImage);
+      await _tapAddImage(tester);
       await tester.pump();
       await tester.pump();
       expect(_shown(tester, 'note-text'), 'see');
@@ -196,12 +205,23 @@ void main() {
       await _pump(tester, note);
       expect(_field('note-text'), findsOneWidget);
       expect(_addImage, findsNothing);
+      // A note is wide: every tool is in the row, and there is no "…".
+      expect(find.bySemanticsLabel('Divider'), findsOneWidget);
+      expect(find.byTooltip('More tools'), findsNothing);
 
       final event = _eventStore();
       await _pump(tester, event);
       await _openEvent(tester, event);
       expect(_field('event-notes'), findsOneWidget);
       expect(_addImage, findsNothing);
+      // The card is narrow: not in its "…" menu either.
+      final more = find.byTooltip('More tools');
+      await tester.ensureVisible(more);
+      await tester.pumpAndSettle();
+      await tester.tap(more);
+      await tester.pumpAndSettle();
+      expect(find.text('Divider'), findsOneWidget);
+      expect(find.text('Add an image'), findsNothing);
     });
   });
 
@@ -223,7 +243,20 @@ void main() {
       await tester.pump();
     }
 
-    testWidgets('a click opens the browser', (tester) async {
+    /// Open in the bubble under the link.
+    Future<void> tapOpen(WidgetTester tester) async {
+      await tester.tap(
+        find.descendant(
+          of: find.byKey(const ValueKey('link-bubble')),
+          matching: find.text('Open'),
+        ),
+      );
+      await tester.pump();
+    }
+
+    testWidgets('a click shows the bubble; Open opens the browser', (
+      tester,
+    ) async {
       final store = _noteStore(body);
       final links = <Uri>[];
       await _pump(
@@ -235,6 +268,8 @@ void main() {
         },
       );
       await clickLink(tester, 'note-text');
+      expect(links, isEmpty);
+      await tapOpen(tester);
       expect(links, [Uri.parse('https://grove.example/a')]);
       expect(store.toast, isNull);
       await tester.pump(NoteEditorPane.saveDelay);
@@ -245,15 +280,24 @@ void main() {
       final store = _noteStore(body);
       await _pump(tester, store, openLink: (url) async => false);
       await clickLink(tester, 'note-text');
+      await tapOpen(tester);
       await tester.pump();
       expect(store.toast, 'Grove could not open the link.');
       await endToast(tester);
     });
 
-    testWidgets('an app with no browser: a click does nothing', (tester) async {
+    testWidgets('an app with no browser: the bubble has no Open', (
+      tester,
+    ) async {
       final store = _noteStore(body);
       await _pump(tester, store);
       await clickLink(tester, 'note-text');
+      final bubble = find.byKey(const ValueKey('link-bubble'));
+      expect(bubble, findsOneWidget);
+      expect(
+        find.descendant(of: bubble, matching: find.text('Open')),
+        findsNothing,
+      );
       expect(store.toast, isNull);
       expect(tester.takeException(), isNull);
       await tester.pump(NoteEditorPane.saveDelay);

@@ -46,7 +46,11 @@ class EditorServices {
     this.notify = _ignoreMessage,
     this.makeTask,
     this.addToPlanner,
+    this.showMarks = _showMarks,
   });
+
+  /// The key of the "Show marks" switch in the prefs of this device.
+  static const showMarksKey = 'notes.showMarks';
 
   /// Items that match what was typed after `[[`.
   final List<MentionSuggestion> Function(String query) suggest;
@@ -73,6 +77,11 @@ class EditorServices {
   /// becomes. Null when it cannot go (only notes can).
   final String? Function(String line)? addToPlanner;
 
+  /// True when the text shows its marks (`**`, `## `, `---`) dim, as they
+  /// are typed. False, the default, hides them. It is read at each build
+  /// of the field.
+  final bool Function() showMarks;
+
   static List<MentionSuggestion> _noSuggestions(String _) => const [];
   static bool _alwaysLive(String _) => true;
   static String? _noTitle(String _) => null;
@@ -80,4 +89,5 @@ class EditorServices {
   static String? _noStore(ImageToStore _) => null;
   static Uint8List? _noImage(String _) => null;
   static void _ignoreMessage(String _) {}
+  static bool _showMarks() => false;
 }

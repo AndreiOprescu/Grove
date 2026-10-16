@@ -115,6 +115,162 @@ void main() {
     });
   });
 
+  group('new marks', () {
+    test('strike, underline and highlight', () {
+      expect(found('a ~~b~~ c', isKind(SpanKind.strike)), ['b']);
+      expect(found('a ~~b~~ c', isKind(SpanKind.syntax)), ['~~', '~~']);
+      expect(found('a <u>b c</u> d', isKind(SpanKind.underline)), ['b c']);
+      expect(found('a <u>b</u>', isKind(SpanKind.syntax)), ['<u>', '</u>']);
+      expect(found('a ==b== c', isKind(const SpanKind.highlight())), ['b']);
+      expect(found('a ==b== c', isKind(SpanKind.syntax)), ['==', '==']);
+    });
+
+    test('a highlight can have a colour', () {
+      for (final c in [
+        HighlightColor.green,
+        HighlightColor.blue,
+        HighlightColor.pink,
+      ]) {
+        final text = 'a =={${c.name}}b c== d';
+        expect(found(text, isKind(SpanKind.highlight(c))), ['b c']);
+        expect(found(text, isKind(SpanKind.syntax)), ['=={${c.name}}', '==']);
+      }
+      expect(found('==a===={green}b==', isKind(const SpanKind.highlight())), [
+        'a',
+      ]);
+      expect(
+        found(
+          '==a===={green}b==',
+          isKind(const SpanKind.highlight(HighlightColor.green)),
+        ),
+        ['b'],
+      );
+    });
+
+    test('== and ~~ follow the spacing rules of bold', () {
+      expect(found('a == b == c', isType(SpanType.highlight)), isEmpty);
+      expect(found('a ~~ b ~~ c', isType(SpanType.strike)), isEmpty);
+      expect(found('x ==a ==', isType(SpanType.highlight)), isEmpty);
+      expect(found('a == b', isKind(SpanKind.syntax)), isEmpty);
+      expect(found('~~a\nb~~', isType(SpanType.strike)), isEmpty);
+    });
+
+    test('formats can sit inside each other', () {
+      const text = '**a ~~b <u>c</u>~~ ==d==**';
+      expect(found(text, isKind(SpanKind.bold)), ['a ~~b <u>c</u>~~ ==d==']);
+      expect(found(text, isKind(SpanKind.strike)), ['b <u>c</u>']);
+      expect(found(text, isKind(SpanKind.underline)), ['c']);
+      expect(found(text, isKind(const SpanKind.highlight())), ['d']);
+    });
+
+    test('stars that touch are still read', () {
+      expect(found('***a*b**', isKind(SpanKind.bold)), ['a*b']);
+      expect(found('***a*b**', isKind(SpanKind.italic)), ['a']);
+      expect(found('**a***b*', isKind(SpanKind.bold)), ['a']);
+      expect(found('**a***b*', isKind(SpanKind.italic)), ['b']);
+      expect(found('*hello **world***', isKind(SpanKind.bold)), ['world']);
+      expect(found('*hello **world***', isKind(SpanKind.italic)), [
+        'hello **world',
+      ]);
+    });
+
+    test('a link with words', () {
+      const text = 'see [the docs](https://a.b/c?d=1) now';
+      expect(
+        found(text, isKind(const SpanKind.linkWords('https://a.b/c?d=1'))),
+        ['the docs'],
+      );
+      expect(found(text, isKind(SpanKind.syntax)), [
+        '[',
+        '](https://a.b/c?d=1)',
+      ]);
+      // The address is part of the mark, not a link of its own.
+      expect(found(text, isType(SpanType.link)), isEmpty);
+    });
+
+    test('words of a link can have formats', () {
+      const text = '[**big** news](https://a.b)';
+      expect(found(text, isKind(SpanKind.bold)), ['big']);
+      expect(found(text, isType(SpanType.linkWords)), ['**big** news']);
+    });
+
+    test('what is not a link with words', () {
+      const image = '![x](https://a.b/i.png)';
+      expect(found(image, isType(SpanType.linkWords)), isEmpty);
+      expect(found(image, isType(SpanType.link)), ['https://a.b/i.png']);
+      expect(
+        found('[[Page]](https://a.b)', isType(SpanType.linkWords)),
+        isEmpty,
+      );
+      expect(found('[x](mailto:a@b.c)', isType(SpanType.linkWords)), isEmpty);
+      expect(found('[x](https://a.b', isType(SpanType.linkWords)), isEmpty);
+    });
+
+    test('a line of three dashes is a divider', () {
+      expect(found('a\n---\nb', isKind(SpanKind.divider)), ['---']);
+      expect(found('--- x', isKind(SpanKind.divider)), isEmpty);
+      expect(found('----', isKind(SpanKind.divider)), isEmpty);
+      expect(found(' ---', isKind(SpanKind.divider)), isEmpty);
+      expect(found('---', isType(SpanType.listMark)), isEmpty);
+    });
+
+    test('empty pairs are empty formats', () {
+      expect(
+        found('a **** b', isKind(const SpanKind.emptyPair(InlineFormat.bold))),
+        ['****'],
+      );
+      expect(
+        found('a~~~~', isKind(const SpanKind.emptyPair(InlineFormat.strike))),
+        ['~~~~'],
+      );
+      expect(
+        found('====', isKind(const SpanKind.emptyPair(InlineFormat.highlight))),
+        ['===='],
+      );
+      expect(
+        found(
+          'x =={pink}==',
+          isKind(
+            const SpanKind.emptyPair(
+              InlineFormat.highlight,
+              HighlightColor.pink,
+            ),
+          ),
+        ),
+        ['=={pink}=='],
+      );
+      expect(
+        found(
+          '<u></u>',
+          isKind(const SpanKind.emptyPair(InlineFormat.underline)),
+        ),
+        ['<u></u>'],
+      );
+      expect(found('a **** b', isKind(SpanKind.syntax)), ['****']);
+      expect(found('a **** b', isType(SpanType.bold)), isEmpty);
+    });
+
+    test('marks inside code stay plain', () {
+      expect(found('`~~a~~ ==b== <u>c</u>`', isKind(SpanKind.syntax)), [
+        '`',
+        '`',
+      ]);
+    });
+
+    test('pairs tell where each mark of a format is', () {
+      final pairs = MarkdownSpans.pairs('***a*b**');
+      String part(Utf16Range r) => '***a*b**'.substring(r.location, r.end);
+      final italic = pairs.firstWhere((p) => p.kind == SpanKind.italic);
+      final bold = pairs.firstWhere((p) => p.kind == SpanKind.bold);
+      expect(italic.open, const Utf16Range(2, 1));
+      expect(italic.close, const Utf16Range(4, 1));
+      expect(part(italic.content), 'a');
+      expect(bold.open, const Utf16Range(0, 2));
+      expect(bold.close, const Utf16Range(6, 2));
+      expect(part(bold.content), '*a*b');
+    });
+  });
+
   group('mentions and images', () {
     test('mention with id hides the brackets and the id', () {
       const text = 'see [[Buy milk|$id]] ok';

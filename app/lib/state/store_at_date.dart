@@ -33,7 +33,7 @@ extension AppStoreAtDate on AppStore {
         defaultMinutes: AtDatePlan.eventMinutes,
       );
       final event = EventItem(
-        title: plan.title,
+        title: plan.plainTitle,
         start: WallTime(day: plan.day, minute: span?.start ?? 0),
         end: WallTime(day: plan.day, minute: span?.end ?? 0),
         allDay: span == null,
@@ -52,7 +52,7 @@ extension AppStoreAtDate on AppStore {
       );
     }
     if (!commit(change)) return null;
-    showToast('Added to the planner: ${plan.title}');
+    showToast('Added to the planner: ${plan.plainTitle}');
     return text;
   }
 
@@ -68,7 +68,7 @@ extension AppStoreAtDate on AppStore {
       change = Mutation('Add to Planner')..tasks.add((before: old, after: old));
     } else {
       final made = quickAddChange(
-        plan.title,
+        plan.plainTitle,
         placement: TaskPlacement.day(plan.day),
         notes: originOf(source),
       );
