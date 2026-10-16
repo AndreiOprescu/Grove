@@ -73,6 +73,40 @@ void fill(Device d) {
   r.tags.setTaskTags(task.id, ['chores']);
   r.tags.setNoteTags(note.id, ['garden']);
   r.settings.set('template.daily', '## Plan');
+  r.skills.save(r.skills.get('skill-mind')!.copyWith(name: 'Brain'));
+  final cooking = SkillItem(name: 'Cooking', sort: 9);
+  r.skills.save(cooking);
+  r.rewards.save(
+    RewardItem(
+      id: PersonaRules.taskRewardId(task.id, cooking.id),
+      taskId: task.id,
+      skillId: cooking.id,
+      points: 10,
+    ),
+  );
+  r.rewards.save(
+    RewardItem(
+      id: PersonaRules.goalRewardId(goal.id, 'skill-mind'),
+      goalId: goal.id,
+      skillId: 'skill-mind',
+      points: 20,
+    ),
+  );
+  r.earnings.save(
+    EarningItem(
+      id: PersonaRules.earningId(
+        EarningSource.goalBlock,
+        goalBlock.id,
+        'skill-mind',
+      ),
+      skillId: 'skill-mind',
+      points: 20,
+      source: EarningSource.goalBlock,
+      sourceId: goalBlock.id,
+      title: 'Read',
+      earnedAt: '2026-10-05T15:00:00',
+    ),
+  );
   r.attachments.add(
     mime: 'image/png',
     data: Uint8List.fromList([137, 80, 78, 71, 0, 255]),

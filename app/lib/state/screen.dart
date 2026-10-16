@@ -4,7 +4,8 @@ enum Screen {
   planner('Planner'),
   calendar('Calendar'),
   notes('Notes'),
-  garden('Garden');
+  garden('Garden'),
+  persona('Persona');
 
   const Screen(this.title);
 

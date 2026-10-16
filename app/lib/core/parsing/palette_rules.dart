@@ -13,6 +13,7 @@ enum PaletteCommandId {
   showCalendar,
   showNotes,
   showGarden,
+  showPersona,
   toggleTheme,
   toggleMotion,
 }
@@ -144,6 +145,13 @@ abstract final class PaletteRules {
       keywords: ['grow', 'tree', 'leaf'],
       shortcut: '⌘5',
       symbol: 'leaf',
+    ),
+    PaletteCommand(
+      id: PaletteCommandId.showPersona,
+      title: 'Open persona',
+      keywords: ['skills', 'level', 'points'],
+      shortcut: '⌘6',
+      symbol: 'person',
     ),
     PaletteCommand(
       id: PaletteCommandId.toggleTheme,

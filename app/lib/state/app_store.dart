@@ -24,6 +24,7 @@ import '../core/parsing/reference_parser.dart';
 import '../core/planner/planner_math.dart';
 import '../core/recurrence/recurrence_engine.dart';
 import '../core/services/focus_rules.dart';
+import '../core/services/persona.dart';
 import '../core/services/reminder_planner.dart';
 import '../data/data.dart';
 import '../sync/sync.dart';
@@ -74,6 +75,7 @@ part 'store_navigation.dart';
 part 'store_note_tasks.dart';
 part 'store_notes.dart';
 part 'store_palette.dart';
+part 'store_persona.dart';
 part 'store_planner.dart';
 part 'store_reminders.dart';
 part 'store_roll_over.dart';
@@ -233,6 +235,7 @@ class AppStore extends ChangeNotifier {
   void dispose() {
     _disposed = true;
     _toastTimer?.cancel();
+    _levelUpTimer?.cancel();
     for (final t in _lingerTimers) {
       t.cancel();
     }
@@ -291,6 +294,17 @@ class AppStore extends ChangeNotifier {
   }
 
   Timer? _toastTimer;
+
+  /// A skill that just reached a new level. The shell shows it for a few
+  /// seconds.
+  LevelUp? _levelUp;
+  LevelUp? get levelUp => _levelUp;
+  set levelUp(LevelUp? v) {
+    _levelUp = v;
+    _changed();
+  }
+
+  Timer? _levelUpTimer;
 
   String? _errorMessage;
   String? get errorMessage => _errorMessage;
@@ -531,10 +545,14 @@ class AppStore extends ChangeNotifier {
     _addSubtasksOfDeletedBlocks(m);
     _addSubtasksOfDeletedGoals(m);
     _unplanSubtasksOfDeletedBlocks(m);
+    _addRewardsOfDeletedOwners(m);
+    _addEarnings(m);
     final days = _plannedDays(m);
     final before = {for (final d in days) d: plannedMinutes(d)};
+    final pointsBefore = m.earnings.isEmpty ? null : skillPoints;
     if (!_apply(m, forward: true)) return false;
     _warnIfOverloaded(days, before);
+    if (pointsBefore != null) _announceLevelUp(pointsBefore);
     final joined = _undoStack.isEmpty ? null : _undoStack.last.merged(m);
     if (joined != null) {
       _undoStack[_undoStack.length - 1] = joined;
@@ -700,6 +718,19 @@ class AppStore extends ChangeNotifier {
           final x = target(s);
           if (x != null) repos.goalSubtasks.save(x);
         }
+        // After the tasks and goals: a reward needs its owner and its skill.
+        for (final s in m.skills) {
+          final x = target(s);
+          if (x != null) repos.skills.save(x);
+        }
+        for (final r in m.rewards) {
+          final x = target(r);
+          if (x != null) repos.rewards.save(x);
+        }
+        for (final e in m.earnings) {
+          final x = target(e);
+          if (x != null) repos.earnings.save(x);
+        }
         for (final x in forward ? m.exdates : m.exdates.reversed) {
           if (x.add == forward) {
             repos.events.addExdate(x.eventId, x.day);
@@ -714,6 +745,19 @@ class AppStore extends ChangeNotifier {
         for (final c in m.tags) {
           if (gone.contains(c.taskId)) continue;
           repos.tags.setTaskTags(c.taskId, forward ? c.after : c.before);
+        }
+        for (final e in m.earnings) {
+          final id = source(e)?.id;
+          if (target(e) == null && id != null) repos.earnings.delete(id);
+        }
+        for (final r in m.rewards) {
+          final id = source(r)?.id;
+          if (target(r) == null && id != null) repos.rewards.delete(id);
+        }
+        // Only undo of a new skill deletes one: the user hides skills.
+        for (final k in m.skills) {
+          final id = source(k)?.id;
+          if (target(k) == null && id != null) repos.skills.delete(id);
         }
         for (final b in m.blockSubtasks) {
           final id = source(b)?.id;

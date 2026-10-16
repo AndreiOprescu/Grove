@@ -282,7 +282,16 @@ class _TopStrip extends MultiChildLayoutDelegate {
     final buttons = layoutChild(_StripPart.buttons, loose);
     final buttonsLeft = size.width - right - buttons.width;
     positionChild(_StripPart.buttons, Offset(buttonsLeft, top));
-    final screens = layoutChild(_StripPart.screens, loose);
+    // The switch gets the room between the dock and the buttons. When its
+    // words do not fit there, it shows the pictures only.
+    final room = math.max(
+      0.0,
+      buttonsLeft - gap - (dockLeft + dock.width + gap),
+    );
+    final screens = layoutChild(
+      _StripPart.screens,
+      BoxConstraints(maxWidth: room, maxHeight: size.height),
+    );
     // On a whole point, also in a window of an odd width.
     var left = ((size.width - screens.width) / 2).floorToDouble();
     left = math.min(left, buttonsLeft - gap - screens.width);
