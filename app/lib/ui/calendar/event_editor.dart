@@ -578,6 +578,7 @@ class _EventEditorState extends State<EventEditor> {
       storeImage: s.storeImage,
       loadImage: s.loadImage,
       notify: s.notify,
+      showMarks: s.showMarks,
       open: (id, title) {
         if (_isDirty) {
           _store.showToast('Save the event first. Then open the link.');

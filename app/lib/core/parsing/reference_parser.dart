@@ -1,3 +1,5 @@
+import 'markdown_plain.dart';
+
 /// One `[[Title]]` or `[[Title|ID]]` found in a text.
 class Mention {
   const Mention({
@@ -27,7 +29,6 @@ abstract final class ReferenceParser {
   static final _imageRegex = RegExp(
     '!\\[([^\\]\\n]*)\\]\\(grove-image:($_uuid)\\)',
   );
-  static final _markerRegex = RegExp(r'\s?⟦t:[^⟧]*⟧');
 
   // Mentions.
 
@@ -89,14 +90,8 @@ abstract final class ReferenceParser {
 
   // Search.
 
-  /// The words of a text without ids and markup, so a search cannot hit a UUID.
-  static String searchText(String text) {
-    var out = text.replaceAllMapped(_imageRegex, (m) => m.group(1) ?? '');
-    for (final m in mentions(out).reversed) {
-      out = out.replaceRange(m.start, m.end, m.title);
-    }
-    return out.replaceAll(_markerRegex, '');
-  }
+  /// The words of a text without ids and marks, so a search cannot hit a UUID or a `**`.
+  static String searchText(String text) => MarkdownPlain.text(text);
 
   static final _space = RegExp(r'\s');
 

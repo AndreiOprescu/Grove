@@ -89,6 +89,18 @@ void main() {
     expect(NotesRules.preview('![pic](grove-image:X)\nHello'), 'Hello');
   });
 
+  test('preview drops the new marks and divider lines', () {
+    expect(
+      NotesRules.preview('---\n~~Old~~ <u>new</u> ==plan=='),
+      'Old new plan',
+    );
+    expect(
+      NotesRules.preview('> read [the docs](https://a.b) *now*'),
+      'read the docs now',
+    );
+    expect(NotesRules.preview('a == b'), 'a == b');
+  });
+
   test('preview is short', () {
     final long = 'word ' * 60;
     expect(NotesRules.preview(long).runes.length, lessThanOrEqualTo(91));

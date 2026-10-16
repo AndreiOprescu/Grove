@@ -17,6 +17,7 @@ import '../core/model/recurrence.dart';
 import '../core/model/task.dart';
 import '../core/model/task_color.dart';
 import '../core/parsing/at_date.dart';
+import '../core/parsing/markdown_plain.dart';
 import '../core/parsing/note_parser.dart';
 import '../core/parsing/palette_rules.dart';
 import '../core/parsing/quick_add_parser.dart';

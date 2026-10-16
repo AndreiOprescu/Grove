@@ -34,6 +34,20 @@ _Avoid_: Goal inspector, goal sheet
 The panel on the right that shows a task's details when the user taps that task or its block.
 _Avoid_: Task inspector
 
+### Text editor
+
+**Rich text box**:
+Any place where the user writes formatted text: a note, a task's notes or an event's notes. All of them look and work the same.
+_Avoid_: Markdown editor, note editor (when the task and event boxes are meant too)
+
+**Format**:
+A look the user gives to text: bold, italic, underline, strike, highlight, code, a heading (a text size), a list, a quote, a link, a divider. The user sets it with the toolbar, a key, or by typing or pasting marks.
+_Avoid_: Markup, styling
+
+**Mark**:
+A sign in the saved text that gives a format, such as `**` for bold or `# ` for a heading. Marks are hidden on screen; the "Show marks" setting shows them dim.
+_Avoid_: Markdown command, syntax, markup
+
 ### Persona
 
 **Persona**:
