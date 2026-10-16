@@ -794,6 +794,24 @@ class NoteRepo {
   Note? daily(DayKey day) =>
       _where("WHERE kind = 'daily' AND date = ?", [day.string]).firstOrNull;
 
+  /// How many daily notes have each mood, from [from] to [to] (both
+  /// included). A mood with no days has no entry.
+  Map<int, int> moodCounts({DayKey? from, DayKey? to}) {
+    final where = [
+      "kind = 'daily'",
+      'mood IS NOT NULL',
+      if (from != null) 'date >= ?',
+      if (to != null) 'date <= ?',
+    ];
+    final rows = db.query(
+      'SELECT mood, COUNT(*) FROM notes WHERE ${where.join(' AND ')} '
+      'GROUP BY mood',
+      [?from?.string, ?to?.string],
+      (r) => (r.asInt(0), r.asInt(1)),
+    );
+    return {for (final (mood, n) in rows) mood: n};
+  }
+
   Note? weekly(DayKey monday) =>
       _where("WHERE kind = 'weekly' AND date = ?", [monday.string]).firstOrNull;
 

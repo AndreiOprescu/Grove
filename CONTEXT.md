@@ -72,3 +72,7 @@ _Avoid_: Bounty, prize
 **Earning**:
 One log line of skill points paid to a skill when a task or a goal block is ticked done. Un-ticking takes it away. A later change to the reward does not change it.
 _Avoid_: Gain, transaction
+
+**Your days**:
+The 3 bars on the Persona screen that count the good, okay and rough days of this month or of all time. They come from the mood of each daily note.
+_Avoid_: Mood stats, day score

@@ -171,4 +171,91 @@ void main() {
     );
     expect(find.byKey(const ValueKey('level-up')), findsNothing);
   });
+
+  group('Your days', () {
+    Finder days(String text) => find.descendant(
+      of: find.byKey(const ValueKey('persona-days')),
+      matching: find.text(text),
+    );
+
+    Finder inDays(Key key) => find.descendant(
+      of: find.byKey(const ValueKey('persona-days')),
+      matching: find.byKey(key),
+    );
+
+    double fill(WidgetTester t, String name) =>
+        t.getSize(find.byKey(ValueKey('days-$name-fill'))).width /
+        t.getSize(find.byKey(ValueKey('days-$name-bar'))).width;
+
+    testWidgets('3 bars count the good, okay and rough days of this month', (
+      tester,
+    ) async {
+      final store = personaStore();
+      store
+        ..setMood(store.dailyNote(d('2026-10-01')).id, Mood.sun)
+        ..setMood(store.dailyNote(d('2026-10-02')).id, Mood.sun)
+        ..setMood(store.dailyNote(d('2026-10-03')).id, Mood.rain)
+        ..setMood(store.dailyNote(d('2026-09-30')).id, Mood.cloud);
+      await pumpPlanner(tester, store, size: const Size(1100, 1400));
+      expect(tester.takeException(), isNull);
+      expect(days('Your days'), findsOneWidget);
+      expect(days('Good'), findsOneWidget);
+      expect(days('Okay'), findsOneWidget);
+      expect(days('Rough'), findsOneWidget);
+      expect(find.byKey(const ValueKey('days-good-count')), findsOneWidget);
+      expect(
+        tester.widget<Text>(find.byKey(const ValueKey('days-good-count'))).data,
+        '2',
+      );
+      expect(fill(tester, 'good'), closeTo(1, 0.02));
+      expect(fill(tester, 'rough'), closeTo(0.5, 0.02));
+      expect(fill(tester, 'okay'), 0);
+
+      await tester.tap(days('All time'));
+      await tester.pumpAndSettle();
+      expect(store.daySpan, DaySpan.all);
+      expect(
+        tester.widget<Text>(find.byKey(const ValueKey('days-okay-count'))).data,
+        '1',
+      );
+    });
+
+    testWidgets('no marked days shows a hint', (tester) async {
+      final store = personaStore();
+      await pumpPlanner(tester, store, size: const Size(1100, 1400));
+      expect(
+        days('No days marked yet. Pick one below or in a daily note.'),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets("a mood picked here is today's mood", (tester) async {
+      final store = personaStore();
+      await pumpPlanner(tester, store, size: const Size(1100, 1400));
+      await tester.tap(inDays(const ValueKey('mood-sun')));
+      await tester.pumpAndSettle();
+      expect(store.todayMood, Mood.sun);
+      expect(
+        tester.widget<Text>(find.byKey(const ValueKey('days-good-count'))).data,
+        '1',
+      );
+    });
+
+    testWidgets('wide: the days are beside the person; narrow: below it', (
+      tester,
+    ) async {
+      final store = personaStore();
+      await pumpPlanner(tester, store, size: const Size(1280, 1400));
+      var hero = tester.getRect(find.byKey(const ValueKey('persona-hero')));
+      var card = tester.getRect(find.byKey(const ValueKey('persona-days')));
+      expect(card.left, greaterThan(hero.right));
+      expect(card.top, closeTo(hero.top, 1));
+
+      await pumpPlanner(tester, store, size: const Size(420, 1800));
+      expect(tester.takeException(), isNull);
+      hero = tester.getRect(find.byKey(const ValueKey('persona-hero')));
+      card = tester.getRect(find.byKey(const ValueKey('persona-days')));
+      expect(card.top, greaterThan(hero.bottom));
+    });
+  });
 }

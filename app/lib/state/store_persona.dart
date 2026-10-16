@@ -25,6 +25,37 @@ extension AppStorePersona on AppStore {
     );
   }
 
+  // The days
+
+  /// The key of the span of the day bars in the settings of this device.
+  static const daySpanKey = 'persona.daySpan';
+
+  /// How many good, okay and rough days are in [span], from the moods of
+  /// the daily notes.
+  DayCounts dayCounts(DaySpan span) {
+    final range = span.range(clockToday);
+    final counts = _try(
+      () => repos.notes.moodCounts(from: range?.first, to: range?.last),
+    );
+    return counts == null ? DayCounts.empty : DayCounts.from(counts);
+  }
+
+  /// Which days the bars count. This month at first.
+  DaySpan get daySpan => DaySpan.fromName(prefs.getString(daySpanKey));
+
+  void setDaySpan(DaySpan span) {
+    if (span == daySpan) return;
+    prefs.set(daySpanKey, span.name);
+    _changed();
+  }
+
+  /// The mood of today's daily note.
+  Mood? get todayMood => Mood.fromValue(existingDailyNote(clockToday)?.mood);
+
+  /// Sets the mood of today. The same mood again clears it. Today's note is
+  /// made when there is none.
+  void setTodayMood(Mood mood) => setMood(dailyNote(clockToday).id, mood);
+
   /// All skills, hidden ones too, in list order.
   List<SkillItem> get skills => _try(() => repos.skills.all()) ?? const [];
 
