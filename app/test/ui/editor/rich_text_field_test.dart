@@ -192,6 +192,46 @@ Future<void> useTool(WidgetTester tester, String label) async {
   await tester.pumpAndSettle();
 }
 
+/// The bubble under a link that was clicked.
+final linkBubble = find.byKey(const ValueKey('link-bubble'));
+
+/// A button of the bubble.
+Finder bubbleButton(String label) =>
+    find.descendant(of: linkBubble, matching: find.text(label));
+
+/// The window that makes or changes a link.
+final linkDialog = find.byKey(const ValueKey('link-dialog'));
+
+/// A field of the link window: `link-words` or `link-address`.
+Finder linkField(String key) => find.byKey(ValueKey(key));
+
+String fieldText(WidgetTester tester, String key) =>
+    tester.widget<TextField>(linkField(key)).controller!.text;
+
+/// Save of the link window. One frame first, so that Save is on after
+/// [WidgetTester.enterText].
+Future<void> tapSave(WidgetTester tester) async {
+  await tester.pump();
+  await tester.tap(
+    find.descendant(of: linkDialog, matching: find.text('Save')),
+  );
+  await tester.pumpAndSettle();
+}
+
+/// Command-K on a Mac, Ctrl-K elsewhere.
+Future<void> linkKey(WidgetTester tester) async {
+  final apple =
+      defaultTargetPlatform == TargetPlatform.macOS ||
+      defaultTargetPlatform == TargetPlatform.iOS;
+  final command = apple
+      ? LogicalKeyboardKey.metaLeft
+      : LogicalKeyboardKey.controlLeft;
+  await tester.sendKeyDownEvent(command);
+  await tester.sendKeyEvent(LogicalKeyboardKey.keyK);
+  await tester.sendKeyUpEvent(command);
+  await tester.pumpAndSettle();
+}
+
 /// Eight tasks for the `[[` list: a list 248 points high.
 EditorServices eightTasks(Rig rig) => EditorServices(
   suggest: (_) => [
@@ -568,6 +608,11 @@ void main() {
     ) async {
       await makeRig(tester, '');
       expect(find.bySemanticsLabel('Add an image'), findsNothing);
+      // Not in the "…" menu either.
+      await tester.tap(find.bySemanticsLabel('More'));
+      await tester.pumpAndSettle();
+      expect(find.text('Divider'), findsOneWidget);
+      expect(find.text('Add an image'), findsNothing);
     });
   });
 
@@ -636,6 +681,7 @@ void main() {
   group('web links', () {
     const text = 'see https://grove.example/a now';
     final address = Uri.parse('https://grove.example/a');
+    const named = 'see [Grove](https://grove.example/a) now';
 
     /// The middle of the letters `from` to `to` of the text.
     Offset place(WidgetTester tester, int from, int to) {
@@ -667,40 +713,73 @@ void main() {
       return works;
     };
 
-    testWidgets('a click on a web link opens it in the browser', (
+    /// A click on the link, then Open in its bubble.
+    Future<void> openAt(WidgetTester tester, Offset where) async {
+      await clickAt(tester, where);
+      await tester.tap(bubbleButton('Open'));
+      await tester.pump();
+    }
+
+    testWidgets('a click on a web link shows a bubble and opens nothing yet', (
       tester,
     ) async {
       late Rig rig;
       rig = await makeRig(tester, text, openLink: browser(() => rig));
+      expect(linkBubble, findsNothing);
       await clickAt(tester, place(tester, 4, 27));
+      expect(linkBubble, findsOneWidget);
+      expect(rig.links, isEmpty);
+      // The address with no `https://`; a bare address has no Remove.
+      expect(
+        find.descendant(of: linkBubble, matching: find.text('grove.example/a')),
+        findsOneWidget,
+      );
+      expect(bubbleButton('Open'), findsOneWidget);
+      expect(bubbleButton('Edit'), findsOneWidget);
+      expect(bubbleButton('Remove'), findsNothing);
+      // The text did not change, and keeps the keyboard.
+      expect(rig.text, text);
+      expect(rig.focus.hasFocus, isTrue);
+    });
+
+    testWidgets('Open in the bubble opens the browser and closes the bubble', (
+      tester,
+    ) async {
+      late Rig rig;
+      rig = await makeRig(tester, text, openLink: browser(() => rig));
+      await openAt(tester, place(tester, 4, 27));
       expect(rig.links, [address]);
       expect(rig.told, isEmpty);
-      // The text did not change.
+      expect(linkBubble, findsNothing);
       expect(rig.text, text);
     });
 
-    testWidgets('a tap of a finger opens it too', (tester) async {
+    testWidgets('a tap of a finger shows the bubble too', (tester) async {
       late Rig rig;
       rig = await makeRig(tester, text, openLink: browser(() => rig));
       await tester.tapAt(place(tester, 4, 27));
       await tester.pump();
+      expect(linkBubble, findsOneWidget);
+      await tester.tap(bubbleButton('Open'));
+      await tester.pump();
       expect(rig.links, [address]);
     });
 
-    testWidgets('a click on plain words opens nothing', (tester) async {
+    testWidgets('a click on plain words shows no bubble', (tester) async {
       late Rig rig;
       rig = await makeRig(tester, text, openLink: browser(() => rig));
       await clickAt(tester, place(tester, 0, 3));
       await clickAt(tester, place(tester, 28, 31));
+      expect(linkBubble, findsNothing);
       expect(rig.links, isEmpty);
     });
 
-    testWidgets('with no browser a click on a web link does nothing', (
-      tester,
-    ) async {
+    testWidgets('with no browser the bubble has no Open', (tester) async {
       final rig = await makeRig(tester, text);
       await clickAt(tester, place(tester, 4, 27));
-      expect(rig.links, isEmpty);
+      expect(linkBubble, findsOneWidget);
+      expect(bubbleButton('Open'), findsNothing);
+      expect(bubbleButton('Edit'), findsOneWidget);
       expect(rig.told, isEmpty);
       expect(tester.takeException(), isNull);
     });
@@ -715,25 +794,21 @@ void main() {
         around: (child) =>
             EditorTools(openLink: browser(() => rig), child: child),
       );
-      await clickAt(tester, place(tester, 4, 27));
+      await openAt(tester, place(tester, 4, 27));
       expect(rig.links, [address]);
     });
 
-    testWidgets('the second click of a double click does not open it again', (
-      tester,
-    ) async {
+    testWidgets('a double click on a link opens nothing', (tester) async {
       late Rig rig;
       rig = await makeRig(tester, text, openLink: browser(() => rig));
       final where = place(tester, 4, 27);
       await clickAt(tester, where, at: const Duration(seconds: 5));
       await clickAt(tester, where, at: const Duration(milliseconds: 5150));
-      expect(rig.links, [address]);
-      // A click some time later opens it again.
-      await clickAt(tester, where, at: const Duration(seconds: 7));
-      expect(rig.links, [address, address]);
+      expect(rig.links, isEmpty);
+      expect(tester.takeException(), isNull);
     });
 
-    testWidgets('a drag over a web link opens nothing', (tester) async {
+    testWidgets('a drag over a web link shows no bubble', (tester) async {
       late Rig rig;
       rig = await makeRig(tester, text, openLink: browser(() => rig));
       final gesture = await tester.startGesture(
@@ -745,6 +820,7 @@ void main() {
       await tester.pump();
       await gesture.up();
       await tester.pump();
+      expect(linkBubble, findsNothing);
       expect(rig.links, isEmpty);
     });
 
@@ -757,7 +833,7 @@ void main() {
         text,
         openLink: browser(() => rig, works: false),
       );
-      await clickAt(tester, place(tester, 4, 27));
+      await openAt(tester, place(tester, 4, 27));
       await tester.pump();
       expect(rig.links, [address]);
       expect(rig.told, ['Grove could not open the link.']);
@@ -771,7 +847,7 @@ void main() {
         text,
         openLink: (url) async => throw StateError('no browser'),
       );
-      await clickAt(tester, place(tester, 4, 27));
+      await openAt(tester, place(tester, 4, 27));
       await tester.pump();
       expect(rig.told, ['Grove could not open the link.']);
       expect(tester.takeException(), isNull);
@@ -786,8 +862,264 @@ void main() {
         'see https://grove.example/a.',
         openLink: browser(() => rig),
       );
-      await clickAt(tester, place(tester, 4, 27));
+      await openAt(tester, place(tester, 4, 27));
       expect(rig.links, [address]);
+    });
+
+    testWidgets('a link with its own words: Open, Edit and Remove', (
+      tester,
+    ) async {
+      late Rig rig;
+      rig = await makeRig(tester, named, openLink: browser(() => rig));
+      await clickAt(tester, place(tester, 5, 10));
+      expect(linkBubble, findsOneWidget);
+      expect(
+        find.descendant(of: linkBubble, matching: find.text('grove.example/a')),
+        findsOneWidget,
+      );
+      expect(bubbleButton('Open'), findsOneWidget);
+      expect(bubbleButton('Edit'), findsOneWidget);
+      expect(bubbleButton('Remove'), findsOneWidget);
+      await tester.tap(bubbleButton('Open'));
+      await tester.pump();
+      expect(rig.links, [address]);
+      expect(rig.text, named);
+    });
+
+    testWidgets('Remove keeps the words as plain text', (tester) async {
+      late Rig rig;
+      rig = await makeRig(tester, named, openLink: browser(() => rig));
+      await clickAt(tester, place(tester, 5, 10));
+      await tester.tap(bubbleButton('Remove'));
+      await tester.pump();
+      expect(rig.text, 'see Grove now');
+      expect(linkBubble, findsNothing);
+      expect(rig.links, isEmpty);
+      expect(rig.focus.hasFocus, isTrue);
+      // One step of the undo of the box.
+      await undoKey(tester);
+      expect(rig.text, named);
+    });
+
+    testWidgets('Edit opens the link window with the link filled in', (
+      tester,
+    ) async {
+      late Rig rig;
+      rig = await makeRig(tester, named, openLink: browser(() => rig));
+      await clickAt(tester, place(tester, 5, 10));
+      await tester.tap(bubbleButton('Edit'));
+      await tester.pumpAndSettle();
+      expect(linkBubble, findsNothing);
+      expect(linkDialog, findsOneWidget);
+      expect(fieldText(tester, 'link-words'), 'Grove');
+      expect(fieldText(tester, 'link-address'), 'https://grove.example/a');
+      await tester.enterText(linkField('link-address'), 'grove.example/b');
+      await tapSave(tester);
+      expect(rig.text, 'see [Grove](https://grove.example/b) now');
+      expect(rig.links, isEmpty);
+    });
+
+    testWidgets('Edit of a bare address can give it words', (tester) async {
+      late Rig rig;
+      rig = await makeRig(tester, text, openLink: browser(() => rig));
+      await clickAt(tester, place(tester, 4, 27));
+      await tester.tap(bubbleButton('Edit'));
+      await tester.pumpAndSettle();
+      expect(fieldText(tester, 'link-words'), '');
+      expect(fieldText(tester, 'link-address'), 'https://grove.example/a');
+      await tester.enterText(linkField('link-words'), 'Grove');
+      await tapSave(tester);
+      expect(rig.text, named);
+    });
+
+    testWidgets('Escape closes the bubble', (tester) async {
+      late Rig rig;
+      rig = await makeRig(tester, named, openLink: browser(() => rig));
+      await clickAt(tester, place(tester, 5, 10));
+      expect(linkBubble, findsOneWidget);
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      await tester.pump();
+      expect(linkBubble, findsNothing);
+      expect(rig.focus.hasFocus, isTrue);
+      expect(rig.text, named);
+    });
+
+    testWidgets('a click somewhere else closes the bubble', (tester) async {
+      late Rig rig;
+      rig = await makeRig(tester, named, openLink: browser(() => rig));
+      await clickAt(tester, place(tester, 5, 10));
+      expect(linkBubble, findsOneWidget);
+      // On plain words of the text.
+      await clickAt(tester, place(tester, 0, 3));
+      expect(linkBubble, findsNothing);
+      await clickAt(tester, place(tester, 5, 10));
+      expect(linkBubble, findsOneWidget);
+      // Out of the box.
+      await clickAt(tester, const Offset(450, 380));
+      expect(linkBubble, findsNothing);
+      expect(rig.links, isEmpty);
+    });
+
+    testWidgets('typing closes the bubble', (tester) async {
+      late Rig rig;
+      rig = await makeRig(tester, named, openLink: browser(() => rig));
+      await clickAt(tester, place(tester, 5, 10));
+      expect(linkBubble, findsOneWidget);
+      await type(tester, rig, 'x');
+      expect(linkBubble, findsNothing);
+    });
+
+    testWidgets('a letter typed right after a link is plain text', (
+      tester,
+    ) async {
+      const linked = 'see [Grove](https://grove.example/a)';
+      final rig = await makeRig(tester, linked);
+      await caret(tester, rig, linked.length);
+      await type(tester, rig, 's');
+      expect(rig.text, '${linked}s');
+      expect(rig.controller.activeAt().link, isFalse);
+    });
+  });
+
+  group('the link window', () {
+    testWidgets('the key opens it with the selected words; Save is off until '
+        'the address is a web address', (tester) async {
+      final rig = await makeRig(tester, 'see Grove now');
+      await caret(tester, rig, 4, 9);
+      await linkKey(tester);
+      expect(linkDialog, findsOneWidget);
+      expect(fieldText(tester, 'link-words'), 'Grove');
+      expect(fieldText(tester, 'link-address'), '');
+      // No address: Save does nothing.
+      await tapSave(tester);
+      expect(linkDialog, findsOneWidget);
+      // Only http and https (Q-16).
+      for (final bad in [
+        'ftp://grove.example',
+        'javascript:alert(1)',
+        'grove',
+      ]) {
+        await tester.enterText(linkField('link-address'), bad);
+        await tester.pump();
+        await tapSave(tester);
+        expect(linkDialog, findsOneWidget, reason: bad);
+      }
+      // A bare host gets https://.
+      await tester.enterText(linkField('link-address'), 'grove.example');
+      await tapSave(tester);
+      expect(linkDialog, findsNothing);
+      expect(rig.text, 'see [Grove](https://grove.example) now');
+      // The box has the keyboard again, with the caret after the link.
+      expect(rig.focus.hasFocus, isTrue);
+      expect(
+        rig.controller.selection,
+        const TextSelection.collapsed(offset: 34),
+      );
+    });
+
+    testWidgets('Command-K on a Mac', (tester) async {
+      final rig = await makeRig(tester, 'see Grove now');
+      await caret(tester, rig, 4, 9);
+      await linkKey(tester);
+      expect(linkDialog, findsOneWidget);
+      await tester.enterText(
+        linkField('link-address'),
+        'https://grove.example',
+      );
+      await tapSave(tester);
+      expect(rig.text, 'see [Grove](https://grove.example) now');
+    }, variant: TargetPlatformVariant.only(TargetPlatform.macOS));
+
+    testWidgets('the Link tool opens it too', (tester) async {
+      final rig = await makeRig(tester, 'see Grove now');
+      await caret(tester, rig, 4, 9);
+      await useTool(tester, 'Link');
+      await tester.pumpAndSettle();
+      expect(linkDialog, findsOneWidget);
+      expect(fieldText(tester, 'link-words'), 'Grove');
+      await tester.enterText(linkField('link-address'), 'grove.example');
+      // Return in a field saves.
+      await tester.testTextInput.receiveAction(TextInputAction.done);
+      await tester.pumpAndSettle();
+      expect(linkDialog, findsNothing);
+      expect(rig.text, 'see [Grove](https://grove.example) now');
+    });
+
+    testWidgets('Cancel changes nothing and puts the selection back', (
+      tester,
+    ) async {
+      final rig = await makeRig(tester, 'see Grove now');
+      await caret(tester, rig, 4, 9);
+      await linkKey(tester);
+      await tester.enterText(linkField('link-address'), 'grove.example');
+      await tester.tap(
+        find.descendant(of: linkDialog, matching: find.text('Cancel')),
+      );
+      await tester.pumpAndSettle();
+      expect(linkDialog, findsNothing);
+      expect(rig.text, 'see Grove now');
+      expect(rig.focus.hasFocus, isTrue);
+      expect(
+        rig.controller.selection,
+        const TextSelection(baseOffset: 4, extentOffset: 9),
+      );
+    });
+
+    testWidgets('no words and no selection: the address is the words', (
+      tester,
+    ) async {
+      final rig = await makeRig(tester, 'see ');
+      await caret(tester, rig, 4);
+      await linkKey(tester);
+      expect(fieldText(tester, 'link-words'), '');
+      await tester.enterText(linkField('link-address'), 'grove.example');
+      await tapSave(tester);
+      expect(rig.text, 'see [https://grove.example](https://grove.example)');
+    });
+
+    testWidgets('own words in place of the selected ones', (tester) async {
+      final rig = await makeRig(tester, 'see Grove now');
+      await caret(tester, rig, 4, 9);
+      await linkKey(tester);
+      await tester.enterText(linkField('link-words'), 'the home page');
+      await tester.enterText(linkField('link-address'), 'grove.example');
+      await tapSave(tester);
+      expect(rig.text, 'see [the home page](https://grove.example) now');
+    });
+
+    testWidgets('in a link it changes the address and keeps the format of '
+        'the words', (tester) async {
+      const text = 'see [**Gro**ve](https://grove.example/a) now';
+      final rig = await makeRig(tester, text);
+      await caret(tester, rig, 12);
+      await linkKey(tester);
+      expect(fieldText(tester, 'link-words'), 'Grove');
+      expect(fieldText(tester, 'link-address'), 'https://grove.example/a');
+      await tester.enterText(linkField('link-address'), 'grove.example/b');
+      await tapSave(tester);
+      expect(rig.text, 'see [**Gro**ve](https://grove.example/b) now');
+    });
+
+    testWidgets('in a link new words take the place of the old', (
+      tester,
+    ) async {
+      const text = 'see [Grove](https://grove.example/a) now';
+      final rig = await makeRig(tester, text);
+      await caret(tester, rig, 7);
+      await linkKey(tester);
+      await tester.enterText(linkField('link-words'), 'Home');
+      await tapSave(tester);
+      expect(rig.text, 'see [Home](https://grove.example/a) now');
+    });
+
+    testWidgets('a new link is one step of undo', (tester) async {
+      final rig = await makeRig(tester, 'see Grove now');
+      await caret(tester, rig, 4, 9);
+      await linkKey(tester);
+      await tester.enterText(linkField('link-address'), 'grove.example');
+      await tapSave(tester);
+      await undoKey(tester);
+      expect(rig.text, 'see Grove now');
     });
   });
 

@@ -469,6 +469,82 @@ void main() {
     });
   });
 
+  group('Command-K and Command-Z in a text box', () {
+    /// The text of the open note.
+    final noteBox = find.descendant(
+      of: keyed('note-text'),
+      matching: find.byType(EditableText),
+    );
+    final linkDialog = keyed('link-dialog');
+
+    /// Makes a note and puts the cursor in its text.
+    Future<void> intoNewNote(
+      WidgetTester tester,
+      LogicalKeyboardKey modifier,
+    ) async {
+      await press(tester, [modifier, alt], LogicalKeyboardKey.keyN);
+      await tester.tap(noteBox);
+      await tester.pumpAndSettle();
+    }
+
+    Future<void> cancelLink(WidgetTester tester) async {
+      await tester.tap(
+        find.descendant(of: linkDialog, matching: find.text('Cancel')),
+      );
+      await tester.pumpAndSettle();
+    }
+
+    for (final mac in [false, true]) {
+      final system = mac ? 'on a Mac' : 'off a Mac';
+      testWidgets('$system the key opens the palette out of a text box, and '
+          'the link window in one', (tester) async {
+        Future<void> body() async {
+          final key = mac ? command : ctrl;
+          final store = plannerStore();
+          await pumpApp(tester, store);
+          await press(tester, [key], LogicalKeyboardKey.keyK);
+          expect(store.paletteOpen, isTrue);
+          expect(linkDialog, findsNothing);
+          store.paletteOpen = false;
+          await tester.pumpAndSettle();
+
+          await intoNewNote(tester, key);
+          await press(tester, [key], LogicalKeyboardKey.keyK);
+          expect(linkDialog, findsOneWidget);
+          expect(store.paletteOpen, isFalse);
+          await cancelLink(tester);
+          expect(linkDialog, findsNothing);
+          expect(store.paletteOpen, isFalse);
+          await tester.pumpWidget(const SizedBox());
+        }
+
+        mac ? await onMac(body) : await body();
+      });
+    }
+
+    // The menu bar of a Mac gets a key only when Flutter leaves it (the
+    // engine sends Command keys to Flutter first), so the box comes first.
+    testWidgets('on a Mac Command-Z in a text box takes back its typing, '
+        'not the step of the store', (tester) async {
+      await onMac(() async {
+        final store = plannerStore();
+        await pumpApp(tester, store);
+        await intoNewNote(tester, command);
+        final notes = store.notes().length;
+        final undoName = store.undoName;
+        await tester.enterText(noteBox, 'fern');
+        await tester.pump();
+        String typed() => tester.widget<EditableText>(noteBox).controller.text;
+        expect(typed(), 'fern');
+        await press(tester, [command], LogicalKeyboardKey.keyZ);
+        expect(typed(), '');
+        expect(store.notes().length, notes);
+        expect(store.undoName, undoName);
+        await tester.pumpWidget(const SizedBox());
+      });
+    });
+  });
+
   group('the menu bar', () {
     testWidgets('a Mac gets the menus of the Mac app', (tester) async {
       await onMac(() async {

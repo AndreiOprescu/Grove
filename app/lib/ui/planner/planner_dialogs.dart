@@ -18,28 +18,33 @@ class DialogButton extends StatelessWidget {
   });
 
   final String label;
-  final VoidCallback onTap;
+
+  /// Null: the button is off. It is grey and does nothing.
+  final VoidCallback? onTap;
   final bool primary;
 
   @override
   Widget build(BuildContext context) {
     final theme = GroveTheme.of(context);
+    final on = onTap != null;
+    final filled = primary && on;
     return Semantics(
       container: true,
       excludeSemantics: true,
       button: true,
+      enabled: on,
       label: label,
       onTap: onTap,
       child: MouseRegion(
-        cursor: SystemMouseCursors.click,
+        cursor: on ? SystemMouseCursors.click : MouseCursor.defer,
         child: GestureDetector(
           behavior: HitTestBehavior.opaque,
           onTap: onTap,
           child: DecoratedBox(
             decoration: BoxDecoration(
-              color: primary ? theme.accent : theme.surface2,
+              color: filled ? theme.accent : theme.surface2,
               borderRadius: BorderRadius.circular(7),
-              border: Border.all(color: primary ? theme.accent : theme.line),
+              border: Border.all(color: filled ? theme.accent : theme.line),
             ),
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
@@ -48,7 +53,13 @@ class DialogButton extends StatelessWidget {
                 maxLines: 1,
                 style: theme
                     .body(13, weight: FontWeight.w600)
-                    .copyWith(color: primary ? theme.bg : theme.ink),
+                    .copyWith(
+                      color: filled
+                          ? theme.bg
+                          : on
+                          ? theme.ink
+                          : theme.muted,
+                    ),
               ),
             ),
           ),
@@ -102,7 +113,8 @@ class PlannerSheet extends StatelessWidget {
   }
 }
 
-Widget _buttons(List<Widget> buttons) => Wrap(
+/// The buttons at the foot of a planner window, on the right.
+Widget dialogButtons(List<Widget> buttons) => Wrap(
   alignment: WrapAlignment.end,
   spacing: 8,
   runSpacing: 8,
@@ -120,7 +132,7 @@ Future<void> showBusyDay(BuildContext context, String message) =>
           children: [
             const ThemedHeading('Busy day', 18),
             Text(message, style: theme.body(13).copyWith(color: theme.ink)),
-            _buttons([
+            dialogButtons([
               DialogButton(
                 label: 'OK',
                 primary: true,
@@ -148,7 +160,7 @@ Future<RecurringScope?> showRecurringQuestion(
           'Change this day only, or every day of the event?',
           style: theme.body(13).copyWith(color: theme.muted),
         ),
-        _buttons([
+        dialogButtons([
           DialogButton(
             label: 'Cancel',
             onTap: () => Navigator.of(context).pop(),
@@ -201,7 +213,7 @@ Future<bool> showPlanSheet(BuildContext context, List<PlanStep> plan) async {
                 ),
               ],
             ),
-          _buttons([
+          dialogButtons([
             DialogButton(
               label: 'Cancel',
               onTap: () => Navigator.of(context).pop(false),

@@ -41,8 +41,8 @@ Future<Box> pumpBox(
       child: SizedBox(
         width: width,
         child: link
-            // The link tool comes with the link dialog of the box (a later
-            // step); here the row is built with a hook of its own.
+            // The row alone, with a Link tool that only counts its taps
+            // (the box itself opens the link window).
             ? TextFieldTapRegion(
                 child: Column(
                   children: [
@@ -148,11 +148,12 @@ void main() {
       expect(shows('Highlight colour'), isTrue);
     });
 
-    testWidgets('780 with no link and no picker: those two are not there', (
+    testWidgets('780 with no picker: no image tool, and Link is there', (
       tester,
     ) async {
       await pumpBox(tester, 'word');
-      expect(shows('Link'), isFalse);
+      // Every rich text box can make a link.
+      expect(shows('Link'), isTrue);
       expect(shows('Add an image'), isFalse);
       expect(shows('Clear format'), isTrue);
       expect(shows('More'), isFalse);

@@ -10,13 +10,15 @@ import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:grove/core/model/link.dart';
-import 'package:grove/core/parsing/markdown_edit.dart' show PrefixKind;
+import 'package:grove/core/parsing/markdown_edit.dart'
+    show MarkdownEdit, PrefixKind, TextEdit;
 import 'package:grove/core/parsing/markdown_spans.dart';
 import 'package:grove/state/state.dart' hide MotionRules;
 
 import '../theme/grove_theme.dart';
 import '../theme/named_colors.dart';
 import 'editor_tools.dart';
+import 'link_dialog.dart';
 import 'markdown_controller.dart';
 
 class RichTextField extends StatefulWidget {
@@ -81,6 +83,7 @@ class RichTextFieldState extends State<RichTextField> {
   FocusNode? _ownFocus;
   final _link = LayerLink();
   final _portal = OverlayPortalController();
+  final _bubblePortal = OverlayPortalController();
   final _fieldKey = GlobalKey();
 
   /// The text the owner of the field knows.
@@ -92,10 +95,8 @@ class RichTextFieldState extends State<RichTextField> {
   Offset? _downAt;
   TextSelection? _selectionAtDown;
 
-  /// The link of the last click that went to the browser, and the time of
-  /// that click. The second click of a double click opens nothing.
-  String? _lastLink;
-  Duration? _lastLinkAt;
+  /// The link whose bubble is open, and the text it was found in.
+  _LinkSpot? _bubble;
 
   ImagePicker? get _pickImages =>
       widget.pickImages ?? EditorTools.maybeOf(context)?.pickImages;
@@ -160,6 +161,7 @@ class RichTextFieldState extends State<RichTextField> {
 
   void _changed() {
     if (_loading || !mounted) return;
+    _checkBubble();
     final text = controller.text;
     if (text != _reported) {
       _reported = text;
@@ -171,6 +173,7 @@ class RichTextFieldState extends State<RichTextField> {
 
   void _focusChanged() {
     final has = _focus.hasFocus;
+    if (!has) _closeBubble();
     if (controller.focused == has) return;
     controller.setFocused(has);
     widget.onFocusChange?.call(has);
@@ -200,6 +203,10 @@ class RichTextFieldState extends State<RichTextField> {
         defaultTargetPlatform == TargetPlatform.iOS;
     final command = apple ? keys.isMetaPressed : keys.isControlPressed;
     final shift = keys.isShiftPressed;
+    if (_bubble != null && key == LogicalKeyboardKey.escape) {
+      _closeBubble();
+      return KeyEventResult.handled;
+    }
     if (c.mentions.value != null) {
       if (key == LogicalKeyboardKey.arrowDown) {
         c.moveList(1);
@@ -234,6 +241,10 @@ class RichTextFieldState extends State<RichTextField> {
     if (z || redo) {
       if (!(redo ? c.canRedo : c.canUndo)) return KeyEventResult.ignored;
       redo ? c.redo() : c.undo();
+      return KeyEventResult.handled;
+    }
+    if (key == LogicalKeyboardKey.keyK && !shift) {
+      unawaited(_editLink());
       return KeyEventResult.handled;
     }
     if (shift) {
@@ -326,29 +337,21 @@ class RichTextFieldState extends State<RichTextField> {
           c.previewImage.value = span.kind.id;
         case SpanType.link:
         case SpanType.linkWords:
-          _linkClicked(span.kind.url ?? '', event.timeStamp);
+          _showBubble(span);
         default:
           break;
       }
     });
   }
 
-  /// A click or a tap on a web link opens the browser. The Mac app wants
-  /// Command with the click; a phone has no such key, so here a plain click
-  /// does it (Q-16 of `docs/questions.md`).
-  void _linkClicked(String text, Duration at) {
+  // Links
+
+  /// Opens a web address in the browser. Only `http` and `https`; with no
+  /// browser, or any other link, it does nothing.
+  void _open(String text) {
     final open = _openLink;
-    // Only `http` and `https`. Any other link does nothing.
     final url = webLink(text);
     if (open == null || url == null) return;
-    final last = _lastLinkAt;
-    if (_lastLink == text &&
-        last != null &&
-        (at - last).abs() < kDoubleTapTimeout) {
-      return;
-    }
-    _lastLink = text;
-    _lastLinkAt = at;
     final services = controller.services;
     void failed() => services.notify('Grove could not open the link.');
     unawaited(
@@ -356,6 +359,197 @@ class RichTextFieldState extends State<RichTextField> {
         if (!opened) failed();
       }, onError: (Object _) => failed()),
     );
+  }
+
+  /// The link at a span the user clicked: the whole `[words](address)` for
+  /// a link with words, the address itself for a bare one.
+  _LinkSpot? _spotOf(MarkdownSpan span) {
+    final text = controller.text;
+    final url = span.kind.url ?? '';
+    if (span.kind.type == SpanType.link) {
+      return _LinkSpot(text, span.range, url, words: '', bare: true);
+    }
+    final pair = MarkdownEdit.linkAt(text, span.range.location);
+    if (pair == null) return null;
+    return _LinkSpot(
+      text,
+      pair.whole,
+      url,
+      words: _plainWords(pair.content),
+      bare: false,
+      content: pair.content,
+    );
+  }
+
+  /// The link at the selection: the one it is in, a bare address it is in,
+  /// or null.
+  _LinkSpot? _spotAt(TextSelection sel) {
+    final c = controller;
+    final from = sel.start, to = sel.end;
+    final pair = MarkdownEdit.linkAt(c.text, from);
+    if (pair != null && to <= pair.content.end) {
+      return _LinkSpot(
+        c.text,
+        pair.whole,
+        pair.kind.url ?? '',
+        words: _plainWords(pair.content),
+        bare: false,
+        content: pair.content,
+      );
+    }
+    for (final span in c.spans) {
+      if (span.kind.type != SpanType.link) continue;
+      final r = span.range;
+      if (r.location <= from && to <= r.end) {
+        return _LinkSpot(c.text, r, span.kind.url ?? '', words: '', bare: true);
+      }
+    }
+    return null;
+  }
+
+  /// The words of a part of the text with no marks, on one line.
+  String _plainWords(Utf16Range range) {
+    final c = controller;
+    final hidden = <int>{
+      for (final s in c.spans)
+        if (s.kind.type == SpanType.syntax)
+          for (var i = s.range.location; i < s.range.end; i++) i,
+    };
+    final out = StringBuffer();
+    for (var i = range.location; i < range.end && i < c.text.length; i++) {
+      if (!hidden.contains(i)) out.write(c.text[i]);
+    }
+    return _oneLine(out.toString());
+  }
+
+  /// Newlines and brackets become spaces, runs of spaces one, ends trimmed:
+  /// the words of a link are on one line.
+  static String _oneLine(String s) =>
+      s.replaceAll(RegExp(r'[\s\[\]]+'), ' ').trim();
+
+  void _showBubble(MarkdownSpan span) {
+    final spot = _spotOf(span);
+    if (spot == null) return;
+    setState(() => _bubble = spot);
+    _bubblePortal.show();
+  }
+
+  void _closeBubble() {
+    if (_bubble == null) return;
+    _bubble = null;
+    if (_bubblePortal.isShowing) _bubblePortal.hide();
+    if (mounted) setState(() {});
+  }
+
+  /// The bubble goes when the text changes or the caret leaves its link.
+  void _checkBubble() {
+    final spot = _bubble;
+    if (spot == null) return;
+    final c = controller;
+    final sel = c.selection;
+    final r = spot.range;
+    if (c.text != spot.text ||
+        !sel.isValid ||
+        sel.start < r.location ||
+        sel.end > r.end) {
+      _closeBubble();
+    }
+  }
+
+  /// The first line of the link of the bubble, and where the field is in
+  /// the window.
+  ({Rect line, Offset origin})? _bubblePlace() {
+    final editable = _editable;
+    final box = _fieldKey.currentContext?.findRenderObject();
+    final spot = _bubble;
+    if (editable == null || box is! RenderBox || spot == null) return null;
+    final at = spot.content ?? spot.range;
+    final boxes = editable.getBoxesForSelection(
+      TextSelection(baseOffset: at.location, extentOffset: at.end),
+    );
+    if (boxes.isEmpty) return null;
+    final rect = boxes.first.toRect();
+    final from = editable.localToGlobal(rect.topLeft, ancestor: box);
+    return (line: from & rect.size, origin: box.localToGlobal(Offset.zero));
+  }
+
+  /// Opens the link window for the selection, or for `spot` (Edit of the
+  /// bubble). Save puts in the link; Cancel puts the selection back.
+  Future<void> _editLink([_LinkSpot? spot]) async {
+    final c = controller;
+    var saved = c.selection;
+    if (!saved.isValid || saved.end > c.text.length) {
+      saved = TextSelection.collapsed(offset: c.text.length);
+    }
+    final before = c.text;
+    final target = spot ?? _spotAt(saved);
+    final words =
+        target?.words ??
+        _plainWords(Utf16Range(saved.start, saved.end - saved.start));
+    _closeBubble();
+    final input = await showLinkDialog(
+      context,
+      words: words,
+      address: target?.address ?? '',
+    );
+    if (!mounted) return;
+    _focus.requestFocus();
+    if (c.text != before) {
+      // The owner changed the text while the window was open (it saves when
+      // the box loses the keyboard). The places are gone: no change.
+      return;
+    }
+    c.selection = saved;
+    if (input == null) return;
+    c.apply(_linkEdit(before, saved, target, words, input));
+  }
+
+  /// The change Save of the link window makes.
+  TextEdit? _linkEdit(
+    String text,
+    TextSelection sel,
+    _LinkSpot? target,
+    String oldWords,
+    LinkInput input,
+  ) {
+    final address = linkTarget(input.address);
+    if (address == null) return null;
+    final words = _oneLine(input.words);
+    TextEdit replace(Utf16Range range, String shown) {
+      final link = '[${shown.isEmpty ? address : shown}]($address)';
+      return TextEdit(
+        range: range,
+        replacement: link,
+        selection: Utf16Range(range.location + link.length, 0),
+      );
+    }
+
+    final range = Utf16Range(sel.start, sel.end - sel.start);
+    if (target == null) {
+      // Same words as selected: the words keep their formats.
+      if (range.length > 0 && words == oldWords) {
+        return MarkdownEdit.setLink(address, text, range);
+      }
+      return replace(range, words);
+    }
+    if (target.bare) {
+      if (words.isEmpty) {
+        return TextEdit(
+          range: target.range,
+          replacement: address,
+          selection: Utf16Range(target.range.location + address.length, 0),
+        );
+      }
+      return replace(target.range, words);
+    }
+    if (words == oldWords) {
+      return MarkdownEdit.setLink(
+        address,
+        text,
+        Utf16Range(target.content!.location, 0),
+      );
+    }
+    return replace(target.range, words);
   }
 
   /// Makes a mention where a task or a note is dropped.
@@ -410,6 +604,7 @@ class RichTextFieldState extends State<RichTextField> {
           EditorToolbar(
             controller: c,
             onImage: _pickImages == null ? null : _addImage,
+            onLink: () => unawaited(_editLink()),
             before: _focus.requestFocus,
           ),
           if (ids.isNotEmpty)
@@ -422,14 +617,54 @@ class RichTextFieldState extends State<RichTextField> {
               theme: theme,
               caret: _listPlace,
             ),
-            child: CompositedTransformTarget(
-              link: _link,
-              child: _field(theme, look),
+            child: OverlayPortal(
+              controller: _bubblePortal,
+              overlayChildBuilder: (context) => _BubbleLayer(
+                link: _link,
+                theme: theme,
+                repaint: c,
+                caret: _bubblePlace,
+                bubble: _bubbleOf(),
+              ),
+              child: CompositedTransformTarget(
+                link: _link,
+                child: _field(theme, look),
+              ),
             ),
           ),
           if (canPlan) _PlannerButton(theme: theme, onTap: c.addToPlanner),
         ],
       ),
+    );
+  }
+
+  /// The bubble of the open link, with its buttons. Null when it is shut.
+  Widget? _bubbleOf() {
+    final spot = _bubble;
+    if (spot == null) return null;
+    final canOpen = _openLink != null && webLink(spot.address) != null;
+    return LinkBubble(
+      theme: GroveTheme.of(context),
+      address: spot.address,
+      onClose: _closeBubble,
+      onOpen: canOpen
+          ? () {
+              _closeBubble();
+              _open(spot.address);
+            }
+          : null,
+      onEdit: () => unawaited(_editLink(spot)),
+      onRemove: spot.bare
+          ? null
+          : () {
+              _closeBubble();
+              controller.apply(
+                MarkdownEdit.removeLink(
+                  controller.text,
+                  Utf16Range(spot.content!.location, 0),
+                ),
+              );
+            },
     );
   }
 
@@ -1516,6 +1751,66 @@ class _MentionLayer extends StatelessWidget {
       ),
     );
   }
+}
+
+/// The bubble of a link, under the first line of the link.
+class _BubbleLayer extends StatelessWidget {
+  const _BubbleLayer({
+    required this.link,
+    required this.theme,
+    required this.repaint,
+    required this.caret,
+    required this.bubble,
+  });
+
+  final LayerLink link;
+  final GroveTheme theme;
+  final Listenable repaint;
+  final ({Rect line, Offset origin})? Function() caret;
+  final Widget? bubble;
+
+  @override
+  Widget build(BuildContext context) {
+    final bubble = this.bubble;
+    if (bubble == null) return const SizedBox();
+    final media = MediaQuery.of(context);
+    final keyboard = media.viewInsets.bottom;
+    final safe = media.padding.copyWith(
+      bottom: keyboard > media.padding.bottom ? keyboard : media.padding.bottom,
+    );
+    return CompositedTransformFollower(
+      link: link,
+      showWhenUnlinked: false,
+      child: UnderCaret(
+        caret: caret,
+        repaint: repaint,
+        safe: safe,
+        child: bubble,
+      ),
+    );
+  }
+}
+
+/// A link of the text: where it is, its address and the words that show.
+/// `range` is the whole `[words](address)`, or the bare address; `content`
+/// is the place of the words (null for a bare address). `text` is the text
+/// it was found in.
+class _LinkSpot {
+  const _LinkSpot(
+    this.text,
+    this.range,
+    this.address, {
+    required this.words,
+    required this.bare,
+    this.content,
+  });
+
+  final String text;
+  final Utf16Range range;
+  final String address;
+  final String words;
+  final bool bare;
+  final Utf16Range? content;
 }
 
 /// Puts the list under the line of the `[[`. It reads the place when it
