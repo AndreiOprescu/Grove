@@ -344,10 +344,19 @@ class DoneLog extends StatelessWidget {
 /// Three icons: rough, okay, good. A second click on the same icon clears
 /// it (PLAN §5.5 item 12).
 class MoodPicker extends StatelessWidget {
-  const MoodPicker({super.key, required this.store, required this.note});
+  /// The mood of a daily note.
+  MoodPicker({super.key, required AppStore store, required Note note})
+    : selected = Mood.fromValue(note.mood),
+      onPick = ((m) => store.setMood(note.id, m));
 
-  final AppStore store;
-  final Note note;
+  const MoodPicker.of({
+    super.key,
+    required this.selected,
+    required this.onPick,
+  });
+
+  final Mood? selected;
+  final ValueChanged<Mood> onPick;
 
   @override
   Widget build(BuildContext context) {
@@ -369,14 +378,14 @@ class MoodPicker extends StatelessWidget {
   }
 
   Widget _button(GroveTheme theme, Mood m) {
-    final on = note.mood == m.value;
+    final on = selected == m;
     final tint = moodTint(m);
     return NoteTap(
       key: ValueKey('mood-${m.name}'),
       label: m.label,
       selected: on,
       tip: on ? '${m.label}. Click again to clear it.' : m.label,
-      onTap: () => store.setMood(note.id, m),
+      onTap: () => onPick(m),
       child: DecoratedBox(
         decoration: ShapeDecoration(
           color: on ? tint.withValues(alpha: 0.16) : null,

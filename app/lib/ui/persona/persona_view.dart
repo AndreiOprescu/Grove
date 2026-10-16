@@ -1,6 +1,7 @@
-// The Persona screen: a drawn person who stands for the user, a bar for
-// each skill, and the newest points. The skills grow when tasks and goal
-// blocks with a reward are ticked done (CONTEXT.md, "Persona").
+// The Persona screen: a drawn person who stands for the user, the good,
+// okay and rough days, a bar for each skill, and the newest points. The
+// skills grow when tasks and goal blocks with a reward are ticked done
+// (CONTEXT.md, "Persona").
 import 'dart:math';
 
 import 'package:flutter/material.dart';
@@ -12,6 +13,7 @@ import '../shell/shell_layout.dart';
 import '../tasks/task_widgets.dart';
 import '../theme/grove_theme.dart';
 import '../theme/panel.dart';
+import 'day_bars.dart';
 import 'persona_painter.dart';
 import 'skill_bar.dart';
 
@@ -25,6 +27,12 @@ class PersonaView extends StatefulWidget {
 
   /// The height of the person.
   static const drawingHeight = 300.0;
+
+  /// From this width on, the person has a column of its own.
+  static const twoColumns = 760.0;
+
+  /// The width of the person's column.
+  static const heroWidth = 340.0;
 
   /// The lines of the newest points.
   static const recentCount = 12;
@@ -100,8 +108,13 @@ class _PersonaViewState extends State<PersonaView> {
                 spacing: 18,
                 children: [
                   _header(context, phone),
-                  _hero(context, points),
-                  _skills(context, points),
+                  LayoutBuilder(
+                    builder: (context, box) => _top(
+                      context,
+                      points,
+                      wide: box.maxWidth >= PersonaView.twoColumns,
+                    ),
+                  ),
                   _recent(context),
                 ],
               ),
@@ -122,6 +135,37 @@ class _PersonaViewState extends State<PersonaView> {
         Text(
           'Your skills grow each time you finish a task or a goal block.',
           style: theme.body(12).copyWith(color: theme.muted),
+        ),
+      ],
+    );
+  }
+
+  /// Wide: the person on the left, the days and the skills on the right.
+  /// Narrow: one column.
+  Widget _top(
+    BuildContext context,
+    Map<String, int> points, {
+    required bool wide,
+  }) {
+    final days = DayBars(store: _store);
+    if (!wide) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        spacing: 18,
+        children: [_hero(context, points), days, _skills(context, points)],
+      );
+    }
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      spacing: 18,
+      children: [
+        SizedBox(width: PersonaView.heroWidth, child: _hero(context, points)),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            spacing: 18,
+            children: [days, _skills(context, points)],
+          ),
         ),
       ],
     );

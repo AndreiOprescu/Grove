@@ -265,4 +265,45 @@ void main() {
       expect(s.personaLevel.level, 2);
     });
   });
+
+  group('Days', () {
+    const now = WallTime(day: DayKey('2026-10-16'), minute: 600);
+
+    test('the bars count the moods of the daily notes in the span', () {
+      final s = makeStore(clock: now);
+      s.setMood(s.dailyNote(d('2026-10-01')).id, Mood.sun);
+      s.setMood(s.dailyNote(d('2026-10-02')).id, Mood.sun);
+      s.setMood(s.dailyNote(d('2026-10-03')).id, Mood.rain);
+      s.setMood(s.dailyNote(d('2026-09-30')).id, Mood.cloud);
+      final month = s.dayCounts(DaySpan.month);
+      expect(month.of(Mood.sun), 2);
+      expect(month.of(Mood.cloud), 0);
+      expect(month.of(Mood.rain), 1);
+      expect(s.dayCounts(DaySpan.all).of(Mood.cloud), 1);
+      expect(s.dayCounts(DaySpan.all).total, 4);
+    });
+
+    test("today's mood is set from the Persona screen; undo works", () {
+      final s = makeStore(clock: now);
+      expect(s.todayMood, isNull);
+      expect(s.existingDailyNote(now.day), isNull);
+      s.setTodayMood(Mood.sun);
+      expect(s.todayMood, Mood.sun);
+      expect(s.existingDailyNote(now.day)?.mood, 3);
+      expect(s.dayCounts(DaySpan.month).of(Mood.sun), 1);
+      s.setTodayMood(Mood.sun);
+      expect(s.todayMood, isNull);
+      s.undo();
+      expect(s.todayMood, Mood.sun);
+    });
+
+    test('the span is this month first, and it is kept', () {
+      final prefs = MemoryPrefs();
+      final s = makeStore(clock: now, prefs: prefs);
+      expect(s.daySpan, DaySpan.month);
+      s.setDaySpan(DaySpan.all);
+      expect(s.daySpan, DaySpan.all);
+      expect(makeStore(prefs: prefs).daySpan, DaySpan.all);
+    });
+  });
 }
