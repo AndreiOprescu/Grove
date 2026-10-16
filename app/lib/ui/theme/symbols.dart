@@ -19,6 +19,7 @@ const Map<String, IconData> _icons = {
   'wand.and.stars': Icons.auto_fix_high_outlined,
   'calendar.day.timeline.left': Icons.view_timeline_outlined,
   'leaf': Icons.eco_outlined,
+  'person': Icons.person_outline,
   'paintpalette': Icons.palette_outlined,
   'wind': Icons.air,
   'circle': Icons.circle_outlined,

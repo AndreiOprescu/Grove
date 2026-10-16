@@ -8,6 +8,7 @@ export 'data_export.dart';
 export 'database.dart';
 export 'first_run.dart';
 export 'migrations.dart';
+export 'persona_repo.dart';
 export 'reference_indexer.dart';
 export 'repos.dart';
 export 'roll_over.dart';

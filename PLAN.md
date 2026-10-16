@@ -754,6 +754,20 @@ A goal is a recurring item with **no date** and a **weekly target** of one of tw
   a new week starts at zero. The goal stays, so more blocks can be added in the same week.
 - Deleting a goal keeps its blocks as plain blocks. Goals are in export, import and backup.
 
+### 5.10 Persona (owner request, 2026-10-15)
+
+A 6th screen, **Persona** (⌘6), after Garden. A hand-drawn person in the garden style (the same
+drawing at every level), a name (tap to change, "You" at first) and a bar with a **level** for each
+**skill**. 8 skills at first: Strength, Mind, Social, Focus, Creativity, Health, Home, Money. The
+owner can add, rename and hide skills; never delete. Words: `CONTEXT.md` § Persona.
+- A **reward** on a task (Task panel) or a goal (Goal panel) lists skills and points (1–999).
+  A task pays its points when ticked done. A goal pays per hour of each goal block ticked done,
+  pro rata and rounded. Goal subtasks pay nothing. Un-tick takes the points back.
+- Earned points are a log (`earnings`): a later change to a reward or a deleted task does not
+  change them. The screen shows the newest points and a short pop-up at a new level.
+- Decisions: `docs/adr/0003-persona-earnings-log.md`; level curve and smaller rules:
+  `docs/assumptions.md` (2026-10-15).
+
 ---
 
 ## 6. Themes

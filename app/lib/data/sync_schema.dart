@@ -207,13 +207,19 @@ abstract final class SyncSchema {
     db.transaction(() {
       for (final name in SyncMigrations.syncedTables) {
         final keySql = _keySql(SyncTable.read(db, name), name);
+        final skip = _notSent[name];
         db.executeScript(
           'INSERT OR IGNORE INTO outbox (tbl, pk, stamp, deleted) '
-          "SELECT '$name', $keySql, 0, 0 FROM $name ORDER BY rowid",
+          "SELECT '$name', $keySql, 0, 0 FROM $name "
+          '${skip == null ? '' : 'WHERE NOT ($skip) '}ORDER BY rowid',
         );
       }
     });
   }
+
+  /// Rows that every device makes itself and that are never sent until they
+  /// change: the built-in skills (a save gives them a new `updated_at`).
+  static const _notSent = {'skills': 'builtin = 1 AND updated_at = created_at'};
 
   /// Raise this number when the trigger text changes.
   static const _triggerVersion = 1;

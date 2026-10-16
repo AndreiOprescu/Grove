@@ -219,6 +219,11 @@ List<ShellMenu> shellMenus(ShellModel model, ShellCommands commands) => [
       () => model.screen = Screen.garden,
       key: LogicalKeyboardKey.digit5,
     ),
+    ShellEntry(
+      'Persona',
+      () => model.screen = Screen.persona,
+      key: LogicalKeyboardKey.digit6,
+    ),
     const ShellDivider(),
     ShellEntry(
       'Zoom In',

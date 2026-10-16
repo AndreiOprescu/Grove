@@ -163,6 +163,9 @@ class SyncEngine {
       }
       // The deletes above are not changes for the account.
       db.execute('DELETE FROM outbox');
+      // Every device has the built-in skills; the account has only the ones
+      // that changed.
+      repos.skills.ensureBuiltins();
       outbox.cursor = 0;
       outbox.account = account;
       if (changes.isNotEmpty) {

@@ -170,6 +170,8 @@ abstract final class DataExport {
         for (final insert in inserts) {
           db.execute(insert.sql, insert.args);
         }
+        // A file from before the persona has no skills.
+        repos.skills.ensureBuiltins();
         repos.rebuildSearch();
       });
     } on sql.SqliteException catch (e) {

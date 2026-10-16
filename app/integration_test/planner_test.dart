@@ -686,6 +686,40 @@ void main() {
     expect(find.byType(TaskInspector), findsOneWidget);
   });
 
+  testWidgets('panel: a task dragged from the Tasks panel gets a block; on a '
+      'phone the panel goes away for the drag and stays closed', (
+    tester,
+  ) async {
+    final store = _store();
+    store.repos.tasks.save(
+      TaskItem(id: 'bread', title: 'Buy bread', bucket: TaskBucket.inbox),
+    );
+    store.leftPane = LeftPane.tasks;
+    await _open(tester, store);
+
+    // The title is the part of the row that drags.
+    final from = tester.getCenter(
+      find.descendant(of: _key('task-bread'), matching: find.text('Buy bread')),
+    );
+    final gesture = await tester.startGesture(from, kind: _pointer);
+    await tester.pump(Duration(milliseconds: _finger ? 600 : 16));
+    await gesture.moveTo(from + const Offset(0, 12));
+    await tester.pump(const Duration(milliseconds: 16));
+    // A phone shows the grid only now.
+    final to = _at(tester, store, wednesday, 14 * 60);
+    for (var i = 1; i <= 8; i++) {
+      await gesture.moveTo(Offset.lerp(from, to, i / 8)!);
+      await tester.pump(const Duration(milliseconds: 16));
+    }
+    await gesture.up();
+    await tester.pumpAndSettle();
+
+    final block = _named(store, 'Buy bread');
+    expect(block.taskId, 'bread');
+    expect(block.day, wednesday);
+    expect(store.leftPane, _phone(tester) ? isNull : LeftPane.tasks);
+  });
+
   testWidgets('today: the switch of the header shows only tomorrow, and a '
       'new block lands there', (tester) async {
     final store = _store()..screen = Screen.today;

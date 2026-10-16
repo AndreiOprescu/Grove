@@ -63,6 +63,7 @@ void main() {
         'Calendar',
         'Notes',
         'Garden',
+        'Persona',
       ]);
     });
 

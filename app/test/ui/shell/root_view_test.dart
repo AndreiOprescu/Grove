@@ -78,7 +78,12 @@ void main() {
       m.screen = Screen.planner;
       await tester.pumpAndSettle();
       expect(dockButton(LeftPane.tasks), findsOneWidget);
-      for (final s in [Screen.calendar, Screen.notes, Screen.garden]) {
+      for (final s in [
+        Screen.calendar,
+        Screen.notes,
+        Screen.garden,
+        Screen.persona,
+      ]) {
         m.screen = s;
         await tester.pumpAndSettle();
         expect(dockButton(LeftPane.tasks), findsNothing, reason: s.name);
@@ -229,6 +234,8 @@ void main() {
       expect(m.screen, Screen.notes);
       await press(tester, ctrl, LogicalKeyboardKey.digit5);
       expect(m.screen, Screen.garden);
+      await press(tester, ctrl, LogicalKeyboardKey.digit6);
+      expect(m.screen, Screen.persona);
       await press(tester, ctrl, LogicalKeyboardKey.keyT);
       expect(m.screen, Screen.today);
       await press(tester, ctrl, LogicalKeyboardKey.digit2);

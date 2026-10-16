@@ -2,11 +2,11 @@ import 'database.dart';
 import 'sync_schema.dart';
 
 /// Ordered schema migrations. Index N takes the database from user_version N to N+1.
-/// 1 to 7 are the Mac app's migrations, word for word. 8 is in this app only
-/// (the Mac app has no subtasks of a goal). The export file carries the
-/// number, and an app refuses a file with a higher number than its own: the
-/// Mac app does not read a file of this app. Never edit a shipped migration;
-/// append a new one.
+/// 1 to 7 are the Mac app's migrations, word for word. 8 to 10 are in this
+/// app only (the Mac app has no subtasks of a goal and no persona). The
+/// export file carries the number, and an app refuses a file with a higher
+/// number than its own: the Mac app does not read a file of this app. Never
+/// edit a shipped migration; append a new one.
 abstract final class Migrations {
   static const all = <String>[
     // 1 — initial schema
@@ -168,6 +168,47 @@ abstract final class Migrations {
     ALTER TABLE goal_subtasks ADD COLUMN event_id TEXT REFERENCES events(id) ON DELETE SET NULL;
     CREATE INDEX goal_subtasks_event ON goal_subtasks(event_id);
     ''',
+    // 10 — the persona: its skills, the rewards on tasks and goals, and the
+    // log of earned points. The 8 built-in skills have fixed ids, so two
+    // devices have the same rows. An earning points at its task or block with
+    // no foreign key: it stays when they are deleted. New tables only. Not in
+    // the Mac app.
+    '''
+    CREATE TABLE skills (
+      id TEXT PRIMARY KEY, name TEXT NOT NULL, sort REAL NOT NULL DEFAULT 0,
+      hidden INTEGER NOT NULL DEFAULT 0, builtin INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT NOT NULL, updated_at TEXT NOT NULL
+    );
+    INSERT INTO skills (id, name, sort, builtin, created_at, updated_at) VALUES
+      ('skill-strength', 'Strength', 1, 1, '2026-10-15T00:00:00', '2026-10-15T00:00:00'),
+      ('skill-mind', 'Mind', 2, 1, '2026-10-15T00:00:00', '2026-10-15T00:00:00'),
+      ('skill-social', 'Social', 3, 1, '2026-10-15T00:00:00', '2026-10-15T00:00:00'),
+      ('skill-focus', 'Focus', 4, 1, '2026-10-15T00:00:00', '2026-10-15T00:00:00'),
+      ('skill-creativity', 'Creativity', 5, 1, '2026-10-15T00:00:00', '2026-10-15T00:00:00'),
+      ('skill-health', 'Health', 6, 1, '2026-10-15T00:00:00', '2026-10-15T00:00:00'),
+      ('skill-home', 'Home', 7, 1, '2026-10-15T00:00:00', '2026-10-15T00:00:00'),
+      ('skill-money', 'Money', 8, 1, '2026-10-15T00:00:00', '2026-10-15T00:00:00');
+
+    CREATE TABLE rewards (
+      id TEXT PRIMARY KEY,
+      task_id TEXT REFERENCES tasks(id) ON DELETE CASCADE,
+      goal_id TEXT REFERENCES goals(id) ON DELETE CASCADE,
+      skill_id TEXT NOT NULL REFERENCES skills(id) ON DELETE CASCADE,
+      points INTEGER NOT NULL,
+      CHECK ((task_id IS NULL) <> (goal_id IS NULL))
+    );
+    CREATE INDEX rewards_task ON rewards(task_id);
+    CREATE INDEX rewards_goal ON rewards(goal_id);
+
+    CREATE TABLE earnings (
+      id TEXT PRIMARY KEY,
+      skill_id TEXT NOT NULL REFERENCES skills(id) ON DELETE CASCADE,
+      points INTEGER NOT NULL, source_kind TEXT NOT NULL, source_id TEXT NOT NULL,
+      title TEXT NOT NULL DEFAULT '', earned_at TEXT NOT NULL
+    );
+    CREATE INDEX earnings_source ON earnings(source_kind, source_id);
+    CREATE INDEX earnings_time ON earnings(earned_at);
+    ''',
   ];
 
   static void run(Database db) {
@@ -196,6 +237,9 @@ abstract final class SyncMigrations {
     'events',
     'block_subtasks',
     'goal_subtasks',
+    'skills',
+    'rewards',
+    'earnings',
     'event_exdates',
     'links',
     'tags',
@@ -213,6 +257,7 @@ abstract final class SyncMigrations {
     'events',
     'block_subtasks',
     'goal_subtasks',
+    'skills',
   };
 
   /// The columns each sync migration added, by table. The export leaves them out.
@@ -243,6 +288,18 @@ abstract final class SyncMigrations {
     // 4 — `goal_subtasks` (shared migration 8) joins the sync, in the same
     // way.
     (db) => SyncSchema.addTable(db, 'goal_subtasks'),
+    // 5 — the persona tables (shared migration 10) join the sync. The
+    // built-in skills stay out of the outbox: every device makes them in
+    // shared migration 10, so only a change of one is sent.
+    (db) {
+      for (final t in const ['skills', 'rewards', 'earnings']) {
+        SyncSchema.addTable(db, t);
+      }
+      db.executeScript(
+        "DELETE FROM outbox WHERE tbl = 'skills' "
+        'AND pk IN (SELECT id FROM skills WHERE builtin = 1)',
+      );
+    },
   ];
 
   static const _key = 'schema';

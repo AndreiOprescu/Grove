@@ -10,6 +10,7 @@ import '../theme/grove_theme.dart';
 import '../theme/panel.dart';
 import 'appearance_button.dart';
 import 'left_dock.dart';
+import 'panel_lift.dart';
 import 'screen_switch.dart';
 import 'shell_layout.dart';
 import 'shell_model.dart';
@@ -230,15 +231,23 @@ class RootView extends StatelessWidget {
           bottom: false,
           child: _content(
             context,
-            pane == null
-                ? _screen(context)
-                : Padding(
-                    padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
-                    child: SizedBox.expand(
-                      key: ValueKey('pane-${pane.name}'),
-                      child: _pane(context, pane),
+            PhonePaneHost(
+              screen: _screen(context),
+              pane: pane == null
+                  ? null
+                  : Padding(
+                      padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+                      child: SizedBox.expand(
+                        key: ValueKey('pane-${pane.name}'),
+                        child: _pane(context, pane),
+                      ),
                     ),
-                  ),
+              // The drop landed: the screen stays in view.
+              onDropped: () {
+                final open = model.leftPane;
+                if (open != null) model.toggleLeftPane(open);
+              },
+            ),
           ),
         ),
       ),
@@ -273,7 +282,16 @@ class _TopStrip extends MultiChildLayoutDelegate {
     final buttons = layoutChild(_StripPart.buttons, loose);
     final buttonsLeft = size.width - right - buttons.width;
     positionChild(_StripPart.buttons, Offset(buttonsLeft, top));
-    final screens = layoutChild(_StripPart.screens, loose);
+    // The switch gets the room between the dock and the buttons. When its
+    // words do not fit there, it shows the pictures only.
+    final room = math.max(
+      0.0,
+      buttonsLeft - gap - (dockLeft + dock.width + gap),
+    );
+    final screens = layoutChild(
+      _StripPart.screens,
+      BoxConstraints(maxWidth: room, maxHeight: size.height),
+    );
     // On a whole point, also in a window of an odd width.
     var left = ((size.width - screens.width) / 2).floorToDouble();
     left = math.min(left, buttonsLeft - gap - screens.width);
