@@ -121,6 +121,32 @@ class MarkdownController extends TextEditingController {
   int? _dismissedAt;
   bool _applying = false;
 
+  /// True: the marks show dim, as they are typed. False: they are hidden
+  /// and the caret steps over them. The field sets it from
+  /// [EditorServices.showMarks] at each build.
+  bool get showMarks => _showMarks;
+  set showMarks(bool value) {
+    if (value == _showMarks) return;
+    _showMarks = value;
+    _pending = null;
+    _runs = null;
+  }
+
+  bool _showMarks = true;
+
+  /// The hidden marks, merged where they touch. Cached until the text
+  /// changes.
+  List<Utf16Range>? _runs;
+
+  /// The empty pair that a format button put in at the caret, while the
+  /// caret is still inside it. `**` and ``` `` ``` do not read as a format,
+  /// so the editor keeps it here to hide it.
+  ({Utf16Range whole, int middle})? _pending;
+
+  /// The person turned a format off at the caret, so the next letter at the
+  /// end of the line must not pull the marks forward again.
+  bool _noPull = false;
+
   /// Spans of the whole text.
   List<MarkdownSpan> get spans => _spans;
 
@@ -150,10 +176,21 @@ class MarkdownController extends TextEditingController {
       return;
     }
     if (next.text == old.text) {
-      _set(_snap(old, next));
+      if (next.selection != old.selection) _noPull = false;
+      final snapped = _snap(old, next);
+      if (!_leavePair(snapped)) _set(snapped);
       return;
     }
     final change = _difference(old, next);
+    if (!_showMarks) {
+      if (_pending != null && _intoPair(old, change)) return;
+      _pending = null;
+      final rule = _hiddenRule(old, change);
+      if (rule != null) {
+        apply(rule, from: old.text);
+        return;
+      }
+    }
     // A key that would delete a hidden task mark deletes the visible
     // character next to it.
     final beside = MarkdownSpans.deletionBesideMark(
@@ -210,7 +247,10 @@ class MarkdownController extends TextEditingController {
 
   void _set(TextEditingValue next) {
     final textChanged = next.text != value.text;
-    if (textChanged) _spans = MarkdownSpans.scan(next.text);
+    if (textChanged) {
+      _spans = MarkdownSpans.scan(next.text);
+      _runs = null;
+    }
     super.value = next;
     _updateMentions();
   }
@@ -235,14 +275,334 @@ class MarkdownController extends TextEditingController {
       _spans,
       movingForward: forward,
     );
-    if (snapped.location == s.start && snapped.end == s.end) return next;
-    final reversed = s.baseOffset > s.extentOffset;
-    return next.copyWith(
-      selection: TextSelection(
-        baseOffset: reversed ? snapped.end : snapped.location,
-        extentOffset: reversed ? snapped.location : snapped.end,
+    var out = next;
+    if (snapped.location != s.start || snapped.end != s.end) {
+      final reversed = s.baseOffset > s.extentOffset;
+      out = next.copyWith(
+        selection: TextSelection(
+          baseOffset: reversed ? snapped.end : snapped.location,
+          extentOffset: reversed ? snapped.location : snapped.end,
+        ),
+      );
+    }
+    // A caret in hidden marks rests at one place, so the next letter always
+    // gets the same format.
+    final caret = out.selection;
+    if (_showMarks || !caret.isCollapsed) return out;
+    final at = canonical(caret.baseOffset);
+    if (at == caret.baseOffset) return out;
+    return out.copyWith(
+      selection: TextSelection.collapsed(offset: at, affinity: caret.affinity),
+    );
+  }
+
+  // Hidden marks
+
+  /// The marks that do not show, as ranges of the text. Empty while "Show
+  /// marks" is on. A divider hides two of its three letters; the third is
+  /// drawn as the line.
+  List<Utf16Range> get hiddenRuns => _runs ??= _hiddenRuns();
+
+  List<Utf16Range> _hiddenRuns() {
+    if (_showMarks) return const [];
+    final ranges = <Utf16Range>[
+      for (final s in _spans)
+        if (s.kind.type == SpanType.syntax ||
+            s.kind.type == SpanType.headingMark)
+          s.range
+        else if (s.kind.type == SpanType.divider)
+          Utf16Range(s.range.location, 2),
+      if (_pending case final p?) p.whole,
+    ]..sort((a, b) => a.location.compareTo(b.location));
+    final runs = <Utf16Range>[];
+    for (final r in ranges) {
+      if (runs.isNotEmpty && r.location <= runs.last.end) {
+        final last = runs.removeLast();
+        final end = r.end > last.end ? r.end : last.end;
+        runs.add(Utf16Range(last.location, end - last.location));
+      } else {
+        runs.add(r);
+      }
+    }
+    return runs;
+  }
+
+  /// How many letters that show come before `offset`. A divider counts as
+  /// one.
+  int visibleIndex(int offset) {
+    var hidden = 0;
+    for (final r in hiddenRuns) {
+      if (r.location >= offset) break;
+      hidden += (offset < r.end ? offset : r.end) - r.location;
+    }
+    return offset - hidden;
+  }
+
+  /// The one place where a caret in a run of hidden marks rests: the start
+  /// of the run, which is outside the start of a format and inside its end.
+  /// Two places differ: at the start of a heading line it rests after the
+  /// heading mark, and at the end of a link it rests outside the link. In
+  /// an empty pair it rests in the middle.
+  int canonical(int offset) {
+    for (final r in hiddenRuns) {
+      if (offset < r.location) break;
+      if (offset > r.end) continue;
+      if (_pending case final p? when p.middle == offset) return offset;
+      for (final s in _spans) {
+        if (s.range.location > r.end) break;
+        if (s.kind.type == SpanType.headingMark &&
+            s.range.location >= r.location &&
+            s.range.end <= r.end) {
+          return s.range.end;
+        }
+        if (s.kind.type == SpanType.linkWords) {
+          final close = _linkClose(s);
+          if (close != null &&
+              close.location >= r.location &&
+              close.end <= r.end) {
+            return close.end;
+          }
+        }
+      }
+      return r.location;
+    }
+    return offset;
+  }
+
+  Utf16Range? _linkClose(MarkdownSpan words) {
+    for (final m in _spans) {
+      if (m.kind.type == SpanType.syntax &&
+          m.range.location == words.range.end) {
+        return m.range;
+      }
+    }
+    return null;
+  }
+
+  /// One arrow key: the selection after a step of one letter that shows.
+  /// Hidden marks are stepped over. Without Shift (`collapse`) a selection
+  /// goes to its edge; with Shift only its extent moves.
+  TextSelection moveByCharacter(
+    TextSelection selection, {
+    required bool forward,
+    required bool collapse,
+  }) {
+    if (collapse && !selection.isCollapsed) {
+      final edge = forward ? selection.end : selection.start;
+      return TextSelection.collapsed(offset: canonical(edge));
+    }
+    final to = canonical(_step(selection.extentOffset, forward));
+    if (collapse) return TextSelection.collapsed(offset: to);
+    return TextSelection(baseOffset: selection.baseOffset, extentOffset: to);
+  }
+
+  /// The nearest place past one more (or one less) letter that shows.
+  /// `from` when there is none.
+  int _step(int from, bool forward) {
+    final text = this.text;
+    final v = visibleIndex(from);
+    bool splitsPair(int q) =>
+        q > 0 &&
+        q < text.length &&
+        (text.codeUnitAt(q - 1) & 0xFC00) == 0xD800 &&
+        (text.codeUnitAt(q) & 0xFC00) == 0xDC00;
+    if (forward) {
+      for (var q = from + 1; q <= text.length; q++) {
+        if (visibleIndex(q) > v && !splitsPair(q)) return q;
+      }
+    } else {
+      for (var q = from - 1; q >= 0; q--) {
+        if (visibleIndex(q) < v && !splitsPair(q)) return q;
+      }
+    }
+    return from;
+  }
+
+  /// Takes away the empty pair when the caret left it. True when it did.
+  bool _leavePair(TextEditingValue next) {
+    final p = _pending;
+    if (p == null) return false;
+    final s = next.selection;
+    if (s.isValid && s.isCollapsed && s.baseOffset == p.middle) return false;
+    _pending = null;
+    _runs = null;
+    final whole = p.whole;
+    int moved(int o) => o <= whole.location
+        ? o
+        : o >= whole.end
+        ? o - whole.length
+        : whole.location;
+    final text = next.text.replaceRange(whole.location, whole.end, '');
+    _set(
+      TextEditingValue(
+        text: text,
+        selection: s.isValid
+            ? TextSelection(
+                baseOffset: moved(s.baseOffset),
+                extentOffset: moved(s.extentOffset),
+              )
+            : s,
       ),
     );
+    final caret = selection;
+    if (caret.isValid && caret.isCollapsed) {
+      final at = canonical(caret.baseOffset);
+      if (at != caret.baseOffset) {
+        super.value = value.copyWith(
+          selection: TextSelection.collapsed(offset: at),
+        );
+      }
+    }
+    return true;
+  }
+
+  /// A key in the empty pair. A letter fills it; a space goes before it;
+  /// Backspace, Delete and Return take it away first. True when the key was
+  /// used here.
+  bool _intoPair(
+    TextEditingValue old,
+    ({Utf16Range range, String replacement}) change,
+  ) {
+    final p = _pending!;
+    final whole = p.whole;
+    final caret = old.selection;
+    if (!caret.isValid || !caret.isCollapsed || caret.baseOffset != p.middle) {
+      return false;
+    }
+    final r = change.range;
+    final typed = change.replacement;
+    final withoutPair = old.text.replaceRange(whole.location, whole.end, '');
+    if (typed.isEmpty && (r.end == p.middle || r.location == p.middle)) {
+      _pending = null;
+      _edit(old.text, whole, '', whole.location);
+      return true;
+    }
+    if (r.length != 0 || r.location != p.middle) return false;
+    if (typed.contains('\n')) {
+      _pending = null;
+      _edit(old.text, whole, '', whole.location);
+      value = TextEditingValue(
+        text: withoutPair.replaceRange(whole.location, whole.location, typed),
+        selection: TextSelection.collapsed(
+          offset: whole.location + typed.length,
+        ),
+      );
+      return true;
+    }
+    if (typed.trim().isEmpty) {
+      _pending = (
+        whole: Utf16Range(whole.location + typed.length, whole.length),
+        middle: p.middle + typed.length,
+      );
+      _edit(
+        old.text,
+        Utf16Range(whole.location, 0),
+        typed,
+        p.middle + typed.length,
+      );
+      return true;
+    }
+    // A letter fills the pair, which then reads as a format.
+    _pending = null;
+    _runs = null;
+    return false;
+  }
+
+  /// What a key does beside hidden marks, or null for the plain change.
+  TextEdit? _hiddenRule(
+    TextEditingValue old,
+    ({Utf16Range range, String replacement}) change,
+  ) {
+    final s = old.selection;
+    if (!s.isValid) return null;
+    final selection = Utf16Range(s.start, s.end - s.start);
+    final divider = _dividerRule(old.text, change);
+    if (divider != null) return divider;
+    if (change.replacement.isEmpty && change.range.length > 0) {
+      return MarkdownEdit.deletion(
+        old.text,
+        change.range,
+        selection: selection,
+      );
+    }
+    if (change.range.length == 0 &&
+        selection.length == 0 &&
+        selection.location == change.range.location &&
+        !change.replacement.contains('\n')) {
+      return MarkdownEdit.typed(
+        old.text,
+        selection,
+        change.replacement,
+        pull: !_noPull,
+      );
+    }
+    return null;
+  }
+
+  /// A divider is one unit. A key that takes a part of it, or the line
+  /// break beside it, takes all of it. Letters typed beside it go on a line
+  /// of their own.
+  TextEdit? _dividerRule(
+    String text,
+    ({Utf16Range range, String replacement}) change,
+  ) {
+    final r = change.range;
+    final typed = change.replacement;
+    for (final s in _spans) {
+      if (s.kind.type != SpanType.divider) continue;
+      final d = s.range;
+      if (typed.isEmpty && r.length > 0) {
+        if (r.location < d.end &&
+            d.location < r.end &&
+            (r.location > d.location || r.end < d.end)) {
+          final from = r.location < d.location ? r.location : d.location;
+          final to = r.end > d.end ? r.end : d.end;
+          return TextEdit(
+            range: Utf16Range(from, to - from),
+            replacement: '',
+            selection: Utf16Range(from, 0),
+          );
+        }
+        if (r.length == 1 && r.location == d.end && d.end < text.length) {
+          return TextEdit(
+            range: Utf16Range(d.location, d.length + 1),
+            replacement: '',
+            selection: Utf16Range(d.location, 0),
+          );
+        }
+        if (r.length == 1 && r.end == d.location && d.location > 0) {
+          return TextEdit(
+            range: Utf16Range(r.location, d.length + 1),
+            replacement: '',
+            selection: Utf16Range(r.location, 0),
+          );
+        }
+        continue;
+      }
+      if (r.length != 0 || typed.isEmpty || typed.contains('\n')) continue;
+      if (r.location == d.end) {
+        return TextEdit(
+          range: r,
+          replacement: '\n$typed',
+          selection: Utf16Range(r.location + 1 + typed.length, 0),
+        );
+      }
+      if (r.location == d.location) {
+        return TextEdit(
+          range: r,
+          replacement: '$typed\n',
+          selection: Utf16Range(r.location + typed.length, 0),
+        );
+      }
+      if (d.location < r.location && r.location < d.end) {
+        return TextEdit(
+          range: Utf16Range(d.end, 0),
+          replacement: '\n$typed',
+          selection: Utf16Range(d.end + 1 + typed.length, 0),
+        );
+      }
+    }
+    return null;
   }
 
   /// The one change that turns the text of `from` into the text of `to`:
@@ -371,11 +731,11 @@ class MarkdownController extends TextEditingController {
     final sel = _selection;
     switch (f) {
       case EditorFormat.bold:
-        apply(MarkdownEdit.toggleWrap('**', text, sel));
+        toggleInline(InlineFormat.bold);
       case EditorFormat.italic:
-        apply(MarkdownEdit.toggleWrap('*', text, sel));
+        toggleInline(InlineFormat.italic);
       case EditorFormat.code:
-        apply(MarkdownEdit.toggleWrap('`', text, sel));
+        toggleInline(InlineFormat.code);
       case EditorFormat.bullet:
         apply(MarkdownEdit.toggleLine(LineStyle.bullet, text, sel));
       case EditorFormat.numbered:
@@ -386,6 +746,41 @@ class MarkdownController extends TextEditingController {
         apply(MarkdownEdit.toggleLine(const LineStyle.heading(2), text, sel));
       case EditorFormat.quote:
         apply(MarkdownEdit.toggleLine(LineStyle.quote, text, sel));
+    }
+  }
+
+  /// Puts a format on the selection, or takes it off. At a caret it may
+  /// put in an empty pair with the caret inside, or step the caret out of
+  /// the format (see [MarkdownEdit.toggleInline]).
+  void toggleInline(
+    InlineFormat format, {
+    HighlightColor color = HighlightColor.yellow,
+  }) {
+    final sel = _selection;
+    final before = text;
+    final edit = MarkdownEdit.toggleInline(format, text, sel, color: color);
+    if (edit == null) return;
+    _pending = null;
+    apply(edit);
+    if (_showMarks || sel.length != 0) return;
+    final caret = edit.selection;
+    if (text == before) {
+      // The caret stepped out of (or into) the format.
+      _noPull = true;
+      return;
+    }
+    final put = edit.replacement;
+    if (edit.range.length == 0 &&
+        put.isNotEmpty &&
+        caret.length == 0 &&
+        caret.location > edit.range.location &&
+        caret.location < edit.range.location + put.length) {
+      _pending = (
+        whole: Utf16Range(edit.range.location, put.length),
+        middle: caret.location,
+      );
+      _runs = null;
+      notifyListeners();
     }
   }
 
@@ -674,7 +1069,7 @@ class MarkdownController extends TextEditingController {
     final look = this.style;
     final base = look?.base ?? style ?? const TextStyle();
     final text = this.text;
-    if (look == null || text.isEmpty || _spans.isEmpty) {
+    if (look == null || text.isEmpty || _spans.isEmpty && hiddenRuns.isEmpty) {
       return TextSpan(style: base, text: text);
     }
     final cuts = <int>{0, text.length};
@@ -689,25 +1084,60 @@ class MarkdownController extends TextEditingController {
           ..add(s.range.location + 2);
       }
     }
+    final runs = hiddenRuns;
+    for (final r in runs) {
+      cuts
+        ..add(r.location)
+        ..add(r.end);
+    }
     final edges = cuts.where((c) => c >= 0 && c <= text.length).toList()
       ..sort();
     final children = <InlineSpan>[];
+    var run = 0;
     for (var i = 0; i + 1 < edges.length; i++) {
       final from = edges[i];
       final to = edges[i + 1];
       if (to <= from) continue;
       var piece = text.substring(from, to);
       var pieceStyle = base;
+      MarkdownSpan? divider;
       for (final s in _spans) {
         if (s.range.location <= from && to <= s.range.end) {
+          if (s.kind.type == SpanType.divider) divider = s;
           final styled = _styled(look, s, from, piece, pieceStyle);
           piece = styled.text;
           pieceStyle = styled.style;
         }
       }
+      while (run < runs.length && runs[run].end <= from) {
+        run += 1;
+      }
+      if (run < runs.length && runs[run].location <= from) {
+        // Each piece is in a run or out of it: the runs are cuts too.
+        pieceStyle = _hiddenBeside(look, pieceStyle);
+      } else if (divider != null && !_showMarks) {
+        // The last letter of a hidden divider is the line.
+        children.add(
+          WidgetSpan(
+            alignment: PlaceholderAlignment.middle,
+            child: EditorDivider(color: look.theme.line, height: look.size),
+          ),
+        );
+        continue;
+      }
       children.add(TextSpan(text: piece, style: pieceStyle));
     }
     return TextSpan(style: base, children: children);
+  }
+
+  /// Hidden marks with the height of the line they are on, so the caret
+  /// beside them is as high as beside a letter.
+  static TextStyle _hiddenBeside(EditorStyle look, TextStyle style) {
+    final size = style.fontSize ?? look.size;
+    final line = size * (style.height ?? look.line(size) / size);
+    return EditorStyle.hidden.copyWith(
+      height: line / EditorStyle.hidden.fontSize!,
+    );
   }
 
   /// The check box is a little bigger than the letters.
@@ -744,6 +1174,15 @@ class MarkdownController extends TextEditingController {
       case SpanType.quote:
         return (text: piece, style: style.copyWith(color: t.muted));
       case SpanType.quoteMark:
+        // With hidden marks a quote shows a bar, as a bullet shows a dot.
+        if (!_showMarks &&
+            from == span.range.location &&
+            piece.startsWith('>')) {
+          return (
+            text: '▎${piece.substring(1)}',
+            style: style.copyWith(color: t.accent),
+          );
+        }
         return (text: piece, style: style.copyWith(color: t.accent));
       case SpanType.listPrefix:
         return (text: piece, style: style);
@@ -906,5 +1345,67 @@ class MarkdownController extends TextEditingController {
     final had = style.decoration;
     if (had == null || had == TextDecoration.none) return line;
     return TextDecoration.combine([had, line]);
+  }
+}
+
+/// The line a hidden `---` is drawn as: a rule of one point across the text.
+/// It is as high as the letters, so its line is as high as any other.
+class EditorDivider extends LeafRenderObjectWidget {
+  const EditorDivider({super.key, required this.color, required this.height});
+
+  final Color color;
+  final double height;
+
+  @override
+  RenderObject createRenderObject(BuildContext context) =>
+      _RenderDivider(color, height);
+
+  @override
+  void updateRenderObject(BuildContext context, RenderObject renderObject) {
+    (renderObject as _RenderDivider)
+      ..color = color
+      ..lineHeight = height;
+  }
+}
+
+class _RenderDivider extends RenderBox {
+  _RenderDivider(this._color, this._height);
+
+  /// The field lays out its text a little narrower than the room it gives
+  /// to a picture in the text, to leave room for the caret.
+  static const _inset = 4.0;
+
+  Color _color;
+  set color(Color value) {
+    if (value == _color) return;
+    _color = value;
+    markNeedsPaint();
+  }
+
+  double _height;
+  set lineHeight(double value) {
+    if (value == _height) return;
+    _height = value;
+    markNeedsLayout();
+  }
+
+  @override
+  Size computeDryLayout(covariant BoxConstraints constraints) {
+    final width = constraints.hasBoundedWidth
+        ? (constraints.maxWidth - _inset).clamp(0.0, double.infinity)
+        : 0.0;
+    return constraints.constrain(Size(width, _height));
+  }
+
+  @override
+  void performLayout() => size = computeDryLayout(constraints);
+
+  @override
+  void paint(PaintingContext context, Offset offset) {
+    final y = (offset.dy + size.height / 2).floorToDouble();
+    context.canvas.drawRect(
+      Rect.fromLTWH(offset.dx, y, size.width, 1),
+      Paint()..color = _color,
+    );
   }
 }

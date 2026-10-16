@@ -383,6 +383,7 @@ class RichTextFieldState extends State<RichTextField> {
     final c = controller;
     final look = EditorStyle(theme, size: widget.fontSize);
     c.style = look;
+    c.showMarks = c.services.showMarks();
     final ids = c.imageIds;
     final canPlan = c.plannerLine() != null;
     // A press of a mouse outside a text takes the keyboard away from it, and
@@ -474,24 +475,29 @@ class RichTextFieldState extends State<RichTextField> {
                             ),
                           ),
                         ),
-                      TextField(
-                        controller: c,
-                        focusNode: _focus,
-                        autofocus: widget.autofocus,
-                        maxLines: null,
-                        style: base,
-                        strutStyle: look.strut,
-                        cursorColor: theme.accent,
-                        keyboardType: TextInputType.multiline,
-                        textInputAction: TextInputAction.newline,
-                        textCapitalization: TextCapitalization.sentences,
-                        // A text with marks is not prose. The keyboard must not
-                        // change `[[` or `- [ ]`.
-                        autocorrect: false,
-                        smartDashesType: SmartDashesType.disabled,
-                        smartQuotesType: SmartQuotesType.disabled,
-                        contextMenuBuilder: _menu,
-                        decoration: null,
+                      Actions(
+                        actions: {
+                          ExtendSelectionByCharacterIntent: _StepOverMarks(c),
+                        },
+                        child: TextField(
+                          controller: c,
+                          focusNode: _focus,
+                          autofocus: widget.autofocus,
+                          maxLines: null,
+                          style: base,
+                          strutStyle: look.strut,
+                          cursorColor: theme.accent,
+                          keyboardType: TextInputType.multiline,
+                          textInputAction: TextInputAction.newline,
+                          textCapitalization: TextCapitalization.sentences,
+                          // A text with marks is not prose. The keyboard must not
+                          // change `[[` or `- [ ]`.
+                          autocorrect: false,
+                          smartDashesType: SmartDashesType.disabled,
+                          smartQuotesType: SmartQuotesType.disabled,
+                          contextMenuBuilder: _menu,
+                          decoration: null,
+                        ),
                       ),
                     ],
                   ),
@@ -529,6 +535,53 @@ class RichTextFieldState extends State<RichTextField> {
           ),
       ],
     );
+  }
+}
+
+/// An arrow key, with or without Shift, steps over hidden marks: one key is
+/// one letter that shows. With "Show marks" on, the field does it as always.
+/// Word and line moves need nothing here: the controller puts a caret that
+/// lands in hidden marks on its one place.
+class _StepOverMarks extends ContextAction<ExtendSelectionByCharacterIntent> {
+  _StepOverMarks(this.controller);
+
+  final MarkdownController controller;
+
+  @override
+  bool isEnabled(
+    ExtendSelectionByCharacterIntent intent, [
+    BuildContext? context,
+  ]) => callingAction?.isEnabled(intent) ?? true;
+
+  @override
+  Object? invoke(
+    ExtendSelectionByCharacterIntent intent, [
+    BuildContext? context,
+  ]) {
+    final c = controller;
+    final selection = c.selection;
+    final fallback = callingAction;
+    if (c.showMarks || !selection.isValid || c.hiddenRuns.isEmpty) {
+      return fallback is ContextAction<ExtendSelectionByCharacterIntent>
+          ? fallback.invoke(intent, context)
+          : fallback?.invoke(intent);
+    }
+    final next = c.moveByCharacter(
+      selection,
+      forward: intent.forward,
+      collapse: intent.collapseSelection,
+    );
+    // Through the field, so it shows the caret on the screen.
+    final field = context?.findAncestorStateOfType<EditableTextState>();
+    if (field != null) {
+      field.userUpdateTextEditingValue(
+        c.value.copyWith(selection: next),
+        SelectionChangedCause.keyboard,
+      );
+    } else {
+      c.selection = next;
+    }
+    return null;
   }
 }
 

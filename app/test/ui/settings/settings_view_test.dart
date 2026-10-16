@@ -359,6 +359,19 @@ void main() {
       expect(field(tester, 'settings-template-daily').controller.text, normal);
     });
 
+    testWidgets('"Show marks" is on at first and kept on this device', (
+      tester,
+    ) async {
+      final store = plannerStore();
+      await openSettings(tester, store, tab: SettingsTab.notes);
+      expect(switchOn(tester, 'settings-show-marks'), isTrue);
+      expect(store.editorServices().showMarks(), isTrue);
+      await tapIn(tester, keyed('settings-show-marks'));
+      expect(store.prefs.getBool(EditorServices.showMarksKey), isFalse);
+      expect(switchOn(tester, 'settings-show-marks'), isFalse);
+      expect(store.editorServices().showMarks(), isFalse);
+    });
+
     testWidgets('the weekly template has its own field', (tester) async {
       final store = plannerStore();
       await openSettings(tester, store, tab: SettingsTab.notes);

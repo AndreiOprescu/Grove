@@ -27,6 +27,7 @@ extension AppStoreEditor on AppStore {
         addToPlanner: noteId == null
             ? null
             : (line) => addToPlanner(line: line, inNote: noteId),
+        showMarks: () => prefs.getBool(EditorServices.showMarksKey) ?? true,
       );
 
   List<MentionSuggestion> mentionSuggestions(

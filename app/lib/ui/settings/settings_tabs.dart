@@ -398,6 +398,23 @@ class NotesSettings extends StatelessWidget {
   Widget build(BuildContext context) => Column(
     crossAxisAlignment: CrossAxisAlignment.stretch,
     children: [
+      SettingsSection(
+        title: 'Text',
+        children: [
+          SettingsSwitchRow(
+            switchKey: const ValueKey('settings-show-marks'),
+            label: 'Show marks',
+            value: store.prefs.getBool(EditorServices.showMarksKey) ?? true,
+            onChanged: (on) =>
+                saveSetting(store, EditorServices.showMarksKey, on),
+          ),
+        ],
+      ),
+      const SizedBox(height: 10),
+      const SettingsCaption(
+        'Show the marks of a format, like ** and ##, as you type them.',
+      ),
+      _gap,
       _TemplateEditor(store: store, kind: NoteKind.daily, title: 'Daily note'),
       _gap,
       _TemplateEditor(

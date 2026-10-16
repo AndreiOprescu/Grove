@@ -1,6 +1,7 @@
 // Port of Tests/GroveTests/EditorViewTests.swift: drives the real editor the
 // way the keyboard would. The text rules themselves are tested in
 // test/core/parsing.
+import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -172,6 +173,17 @@ EditorServices eightTasks(Rig rig) => EditorServices(
   ],
   title: (id) => 'Buy milk',
 );
+
+/// A field with the "Show marks" switch off: the marks are hidden.
+EditorServices hidingMarks(Rig rig) => EditorServices(showMarks: () => false);
+
+/// The caret the field draws at `offset`, in the field.
+Rect caretRect(WidgetTester tester, int offset) {
+  final state = tester.state<EditableTextState>(find.byType(EditableText));
+  return state.renderEditable.getLocalRectForCaret(
+    TextPosition(offset: offset),
+  );
+}
 
 /// The pieces of text the editor draws, with their styles.
 List<TextSpan> pieces(WidgetTester tester, Rig rig) {
@@ -1254,6 +1266,247 @@ void main() {
       final list = tester.getRect(find.byType(MentionListView));
       expect(list.right, lessThanOrEqualTo(390 - 8));
       expect(list.left, greaterThanOrEqualTo(8));
+    });
+  });
+
+  group('hidden marks', () {
+    bool hidden(TextStyle? style) =>
+        style!.fontSize == EditorStyle.hidden.fontSize &&
+        style.color == const Color(0x00000000);
+
+    testWidgets('the marks of a format are hidden', (tester) async {
+      final rig = await makeRig(
+        tester,
+        'plain **bold** `code` [a](https://x.io)',
+        services: hidingMarks,
+      );
+      final drawn = pieces(tester, rig);
+      for (final p in drawn) {
+        if (p.text == '**' || p.text == '`' || p.text == '[') {
+          expect(hidden(p.style), isTrue, reason: p.text);
+        }
+      }
+      expect(hidden(pieceWith(tester, rig, '](https://x.io)').style), isTrue);
+      expect(pieceWith(tester, rig, 'bold').style!.fontWeight, FontWeight.w700);
+      expect(hidden(pieceWith(tester, rig, 'plain ').style), isFalse);
+    });
+
+    testWidgets('the mark of a heading is hidden', (tester) async {
+      final rig = await makeRig(tester, '## Head', services: hidingMarks);
+      expect(hidden(pieceWith(tester, rig, '## ').style), isTrue);
+    });
+
+    testWidgets('a quote has a bar in the accent colour', (tester) async {
+      final rig = await makeRig(tester, '> said', services: hidingMarks);
+      final theme = GroveTheme.of(tester.element(find.byType(EditableText)));
+      final mark = pieces(tester, rig).first;
+      expect(mark.text, '▎ ');
+      expect(mark.style!.color, theme.accent);
+    });
+
+    testWidgets('each piece keeps its length', (tester) async {
+      const text = '## Head\n**b** *i* `c` [a](https://x.io)\n---\n> q';
+      final rig = await makeRig(tester, text, services: hidingMarks);
+      final span = rig.controller.buildTextSpan(
+        context: tester.element(find.byType(EditableText)),
+        withComposing: false,
+      );
+      var length = 0;
+      span.visitChildren((child) {
+        if (child is WidgetSpan) length += 1;
+        if (child is TextSpan) length += child.text?.length ?? 0;
+        return true;
+      });
+      expect(length, text.length);
+    });
+
+    testWidgets('the caret beside hidden marks is as high as beside a letter', (
+      tester,
+    ) async {
+      await makeRig(tester, '**cd** ef\nx', services: hidingMarks);
+      final letter = caretRect(tester, 8);
+      for (final at in [0, 2, 4, 6]) {
+        final rect = caretRect(tester, at);
+        expect(rect.height, closeTo(letter.height, 0.5), reason: '$at');
+        expect(rect.top, closeTo(letter.top, 0.5), reason: '$at');
+      }
+      // The line is as high as a line of plain text.
+      expect(tester.getSize(find.byType(EditableText)).height, 34);
+    });
+
+    testWidgets('the caret at the start of a heading is as high as its line', (
+      tester,
+    ) async {
+      await makeRig(tester, '## Head', services: hidingMarks);
+      final letter = caretRect(tester, 5);
+      final start = caretRect(tester, 3);
+      expect(start.height, closeTo(letter.height, 0.5));
+      expect(start.top, closeTo(letter.top, 0.5));
+    });
+
+    testWidgets('the arrow keys step over hidden marks', (tester) async {
+      final rig = await makeRig(tester, 'a**b**c', services: hidingMarks);
+      await caret(tester, rig, 1);
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
+      await tester.pump();
+      expect(
+        rig.controller.selection,
+        const TextSelection.collapsed(offset: 4),
+      );
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowLeft);
+      await tester.pump();
+      expect(rig.controller.selection.baseOffset, 1);
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.shiftLeft);
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.shiftLeft);
+      await tester.pump();
+      expect(
+        rig.controller.selection,
+        const TextSelection(baseOffset: 1, extentOffset: 4),
+      );
+    });
+
+    testWidgets('with "Show marks" on the arrow keys step on each mark', (
+      tester,
+    ) async {
+      final rig = await makeRig(tester, 'a**b**c');
+      await caret(tester, rig, 1);
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
+      await tester.pump();
+      expect(rig.controller.selection.baseOffset, 2);
+      final star = pieces(tester, rig).firstWhere((p) => p.text == '**');
+      expect(hidden(star.style), isFalse);
+    });
+
+    testWidgets('Backspace at the start of a heading takes its mark', (
+      tester,
+    ) async {
+      final rig = await makeRig(tester, 'x\n## Head', services: hidingMarks);
+      await caret(tester, rig, 5);
+      await backspace(tester, rig);
+      expect(rig.text, 'x\nHead');
+    });
+
+    testWidgets('a space at the end of bold goes after its marks', (
+      tester,
+    ) async {
+      final rig = await makeRig(tester, '**b**', services: hidingMarks);
+      await caret(tester, rig, 3);
+      await type(tester, rig, ' ');
+      expect(rig.text, '**b** ');
+    });
+
+    testWidgets('Bold at a caret, then a letter: a bold letter', (
+      tester,
+    ) async {
+      final rig = await makeRig(tester, 'a ', services: hidingMarks);
+      await caret(tester, rig, 2);
+      await tester.tap(find.bySemanticsLabel('Bold'));
+      await tester.pump();
+      await type(tester, rig, 'b');
+      expect(rig.text, 'a **b**');
+    });
+
+    testWidgets('an empty pair goes when the caret leaves it', (tester) async {
+      final rig = await makeRig(tester, 'a b', services: hidingMarks);
+      await caret(tester, rig, 2);
+      await tester.tap(find.bySemanticsLabel('Bold'));
+      await tester.pump();
+      expect(rig.text, 'a ****b');
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowLeft);
+      await tester.pump();
+      expect(rig.text, 'a b');
+      expect(rig.controller.selection.baseOffset, 1);
+    });
+
+    testWidgets('a word move that ends in hidden marks rests on the letter', (
+      tester,
+    ) async {
+      final rig = await makeRig(tester, 'one **two** x', services: hidingMarks);
+      await caret(tester, rig, 0);
+      // Alt on a Mac, Ctrl elsewhere, moves by words.
+      final apple = defaultTargetPlatform == TargetPlatform.macOS;
+      final mod = apple
+          ? LogicalKeyboardKey.altLeft
+          : LogicalKeyboardKey.controlLeft;
+      await tester.sendKeyDownEvent(mod);
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
+      await tester.sendKeyUpEvent(mod);
+      await tester.pump();
+      // Never in the middle of hidden marks.
+      final at = rig.controller.selection.baseOffset;
+      expect(at, greaterThan(3));
+      expect(rig.controller.canonical(at), at);
+    });
+  });
+
+  group('a divider', () {
+    testWidgets('is drawn as a line, one line high', (tester) async {
+      final rig = await makeRig(tester, 'a\n---\nb', services: hidingMarks);
+      final span = rig.controller.buildTextSpan(
+        context: tester.element(find.byType(EditableText)),
+        withComposing: false,
+      );
+      expect(span.children!.whereType<WidgetSpan>(), hasLength(1));
+      expect(tester.getSize(find.byType(EditableText)).height, 51);
+      final theme = GroveTheme.of(tester.element(find.byType(EditableText)));
+      final rule = find.byType(EditorDivider);
+      // As wide as the text, less the room of the caret.
+      expect(tester.getSize(rule).width, closeTo(400, 6));
+      expect(tester.widget<EditorDivider>(rule).color, theme.line);
+    });
+
+    testWidgets('Vintage: one ruled line high', (tester) async {
+      await makeRig(
+        tester,
+        'a\n---\nb',
+        themeId: ThemeId.vintage,
+        services: hidingMarks,
+      );
+      expect(tester.getSize(find.byType(EditableText)).height, 84);
+    });
+
+    testWidgets('the caret steps over it as one letter', (tester) async {
+      final rig = await makeRig(tester, 'a\n---\nb', services: hidingMarks);
+      await caret(tester, rig, 2);
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
+      await tester.pump();
+      expect(rig.controller.selection.baseOffset, 5);
+    });
+
+    testWidgets('Backspace after it takes all of it', (tester) async {
+      final rig = await makeRig(tester, 'a\n---\nb', services: hidingMarks);
+      await caret(tester, rig, 6);
+      await backspace(tester, rig);
+      expect(rig.text, 'a\nb');
+    });
+  });
+
+  group('"Show marks"', () {
+    test('is on at first: the marks show as they always did', () {
+      expect(EditorServices().showMarks(), isTrue);
+    });
+
+    testWidgets('the text changes as soon as the switch does', (tester) async {
+      var show = false;
+      final rig = await makeRig(
+        tester,
+        'plain **bold**',
+        services: (rig) => EditorServices(showMarks: () => show),
+      );
+      final theme = GroveTheme.of(tester.element(find.byType(EditableText)));
+      expect(
+        pieceWith(tester, rig, '**').style!.fontSize,
+        EditorStyle.hidden.fontSize,
+      );
+      show = true;
+      tester.element(find.byType(RichTextField)).markNeedsBuild();
+      await tester.pump();
+      expect(
+        pieceWith(tester, rig, '**').style!.color,
+        theme.muted.withValues(alpha: 0.55),
+      );
     });
   });
 
