@@ -149,6 +149,22 @@ Future<void> compose(WidgetTester tester, String text, int from, int to) async {
   await tester.pump();
 }
 
+/// Command-Z on a Mac, Ctrl-Z elsewhere; with Shift for redo.
+Future<void> undoKey(WidgetTester tester, {bool redo = false}) async {
+  final apple =
+      defaultTargetPlatform == TargetPlatform.macOS ||
+      defaultTargetPlatform == TargetPlatform.iOS;
+  final command = apple
+      ? LogicalKeyboardKey.metaLeft
+      : LogicalKeyboardKey.controlLeft;
+  await tester.sendKeyDownEvent(command);
+  if (redo) await tester.sendKeyDownEvent(LogicalKeyboardKey.shiftLeft);
+  await tester.sendKeyEvent(LogicalKeyboardKey.keyZ);
+  if (redo) await tester.sendKeyUpEvent(LogicalKeyboardKey.shiftLeft);
+  await tester.sendKeyUpEvent(command);
+  await tester.pump();
+}
+
 /// A click of a mouse, with a frame between the press and the release.
 Future<void> click(WidgetTester tester, Finder target) async {
   final gesture = await tester.startGesture(
@@ -1591,5 +1607,92 @@ void main() {
     expect(controller.text, 'two');
     // A load is not a change the user made.
     expect(changes, isEmpty);
+  });
+
+  group('undo and redo', () {
+    testWidgets('the keys take back typed words and do them again', (
+      tester,
+    ) async {
+      final rig = await makeRig(tester, 'x ');
+      await caret(tester, rig, 2);
+      for (final letter in ['h', 'i']) {
+        await type(tester, rig, letter);
+      }
+      expect(rig.text, 'x hi');
+      await undoKey(tester);
+      expect(rig.text, 'x ');
+      await undoKey(tester, redo: true);
+      expect(rig.text, 'x hi');
+      expect(
+        rig.controller.selection,
+        const TextSelection.collapsed(offset: 4),
+      );
+    }, variant: TargetPlatformVariant.desktop());
+
+    testWidgets('Ctrl-Y does again what undo took back, on Windows', (
+      tester,
+    ) async {
+      final rig = await makeRig(tester, '');
+      await caret(tester, rig, 0);
+      await type(tester, rig, 'a');
+      await undoKey(tester);
+      expect(rig.text, '');
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+      await tester.sendKeyEvent(LogicalKeyboardKey.keyY);
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
+      await tester.pump();
+      expect(rig.text, 'a');
+    }, variant: TargetPlatformVariant.only(TargetPlatform.windows));
+
+    testWidgets('a format button is taken back with the selection', (
+      tester,
+    ) async {
+      final rig = await makeRig(tester, 'word');
+      await caret(tester, rig, 0, 4);
+      await tester.tap(find.bySemanticsLabel('Italic'));
+      await tester.pump();
+      expect(rig.text, '*word*');
+      await undoKey(tester);
+      expect(rig.text, 'word');
+      expect(
+        rig.controller.selection,
+        const TextSelection(baseOffset: 0, extentOffset: 4),
+      );
+    }, variant: TargetPlatformVariant.desktop());
+
+    testWidgets('with nothing to undo in the box, the key goes to the app', (
+      tester,
+    ) async {
+      var app = 0;
+      final rig = await makeRig(
+        tester,
+        'one',
+        // The undo of the app, as `ShellKeys` has it.
+        around: (child) => Focus(
+          onKeyEvent: (node, event) {
+            if (event is! KeyDownEvent ||
+                event.logicalKey != LogicalKeyboardKey.keyZ) {
+              return KeyEventResult.ignored;
+            }
+            app += 1;
+            return KeyEventResult.handled;
+          },
+          child: child,
+        ),
+      );
+      await caret(tester, rig, 3);
+      await undoKey(tester);
+      expect(app, 1);
+      await type(tester, rig, '!');
+      await undoKey(tester);
+      expect((rig.text, app), ('one', 1));
+      // Another text from outside: the history of the box starts again.
+      await type(tester, rig, '?');
+      rig.controller.load('two');
+      await tester.pump();
+      expect(rig.controller.canUndo, isFalse);
+      await undoKey(tester);
+      expect((rig.controller.text, app), ('two', 2));
+    }, variant: TargetPlatformVariant.desktop());
   });
 }

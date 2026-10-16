@@ -2,6 +2,7 @@
 // note itself with its side card, and the notes in the left panel.
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart' hide Row;
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:grove/ui/editor/markdown_controller.dart';
 import 'package:grove/ui/notes/day_panel.dart';
@@ -447,6 +448,44 @@ void main() {
     store.renameNote(note.id, to: 'Gamma');
     await tester.pumpAndSettle();
     expect(shown(tester, 'note-title'), 'Gamma');
+  });
+
+  testWidgets('undo and redo in the text never make a task twice', (
+    tester,
+  ) async {
+    final store = notesStore();
+    final note = store.newNote(title: 'Plan');
+    await pumpPlanner(tester, store);
+    await tester.enterText(fieldOf('note-text'), '- [ ] buy');
+    await tester.pump();
+    final text =
+        tester.widget<EditableText>(fieldOf('note-text')).controller
+            as MarkdownController;
+    // The test runs as Android: Ctrl, Shift and T make a task of the line.
+    Future<void> keys(LogicalKeyboardKey key, {bool shift = false}) async {
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+      if (shift) await tester.sendKeyDownEvent(LogicalKeyboardKey.shiftLeft);
+      await tester.sendKeyEvent(key);
+      if (shift) await tester.sendKeyUpEvent(LogicalKeyboardKey.shiftLeft);
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
+      await tester.pump();
+    }
+
+    await keys(LogicalKeyboardKey.keyT, shift: true);
+    expect(titles(openTasks(store)), ['buy']);
+    final marked = text.text;
+    expect(marked, startsWith('- [ ] buy ⟦t:'));
+    // Undo takes back the typing; the mark alone is no step that shows.
+    await keys(LogicalKeyboardKey.keyZ);
+    expect(text.text, '');
+    // Redo brings the line back with its mark, not as a new box.
+    await keys(LogicalKeyboardKey.keyZ, shift: true);
+    expect(text.text, marked);
+    await leaveField(tester);
+    expect(titles(openTasks(store)), ['buy']);
+    expect(store.note(note.id)!.body, marked);
+    // The toast of the new task goes.
+    await tester.pump(const Duration(seconds: 3));
   });
 
   testWidgets('the marks are hidden at first, and show as soon as the '

@@ -77,4 +77,40 @@ void main() {
     h.clear();
     expect(h.canUndo || h.canRedo, isFalse);
   });
+
+  test('a change that only ends the last step changes that step', () {
+    final h = EditHistory();
+    h.record(snap('ab'), snap('ab****'), typing: true, at: at(0));
+    h.record(snap('ab****'), snap('ab**x**'), typing: true, at: at(100));
+    h.amendLast(snap('ab**x**'), snap('ab**xy**'));
+    expect(h.undo()?.text, 'ab');
+    expect(h.canUndo, isFalse);
+  });
+
+  test('a step that ends where it began is dropped', () {
+    final h = EditHistory();
+    h.record(snap('a'), snap('ab'), at: at(0));
+    h.record(snap('ab'), snap('ab****'), typing: true, at: at(5000));
+    h.amendLast(snap('ab****'), snap('ab'));
+    expect(h.undo()?.text, 'a');
+    expect(h.canUndo, isFalse);
+  });
+
+  test('a change that does not follow the last step is a new step', () {
+    final h = EditHistory();
+    h.record(snap('a'), snap('ab'), at: at(0));
+    h.amendLast(snap('x'), snap('xy'));
+    expect(h.undo()?.text, 'x');
+    expect(h.undo()?.text, 'a');
+  });
+
+  test('the next undo and redo can be read without taking them', () {
+    final h = EditHistory();
+    expect((h.nextUndo, h.nextRedo), (null, null));
+    h.record(snap('a'), snap('ab'), at: at(0));
+    expect(h.nextUndo?.text, 'a');
+    h.undo();
+    expect(h.nextRedo?.text, 'ab');
+    expect(h.canRedo, isTrue);
+  });
 }

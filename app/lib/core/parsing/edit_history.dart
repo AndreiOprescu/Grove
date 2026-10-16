@@ -79,6 +79,30 @@ class EditHistory {
     _broken = !typing;
   }
 
+  /// Keeps a change that only finishes the last step, such as an empty
+  /// format pair taken away again: the last step now ends at `after`, and
+  /// goes when it ends where it began. A change that does not follow the
+  /// last step is kept as a new step.
+  void amendLast(EditSnapshot before, EditSnapshot after) {
+    final last = _undo.isEmpty ? null : _undo.last;
+    if (last == null || _redo.isNotEmpty || last.after.text != before.text) {
+      record(before, after);
+      return;
+    }
+    if (last.before.text == after.text) {
+      _undo.removeLast();
+    } else {
+      last.after = after;
+    }
+    _broken = true;
+  }
+
+  /// The text an undo would go back to, without taking it.
+  EditSnapshot? get nextUndo => _undo.isEmpty ? null : _undo.last.before;
+
+  /// The text a redo would go forward to, without taking it.
+  EditSnapshot? get nextRedo => _redo.isEmpty ? null : _redo.last.after;
+
   /// The next typing starts a new step, for example after the caret moved.
   void breakGroup() => _broken = true;
 

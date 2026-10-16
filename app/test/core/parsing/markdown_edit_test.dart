@@ -886,4 +886,49 @@ void main() {
       expect(typed('a |', 'b'), isNull);
     });
   });
+
+  group('keepingTaskMarks', () {
+    const id = 'T1';
+    final mark = NoteParser.marker(id);
+
+    test('a box that lost its mark gets it back', () {
+      expect(
+        MarkdownEdit.keepingTaskMarks('a\n- [ ] buy $mark', 'a\n- [ ] buy'),
+        'a\n- [ ] buy $mark',
+      );
+      expect(
+        MarkdownEdit.keepingTaskMarks('- [x] buy $mark', '- [ ] buy'),
+        '- [ ] buy $mark',
+      );
+    });
+
+    test(
+      'a box with other words, or a line that is no box, stays as it is',
+      () {
+        expect(
+          MarkdownEdit.keepingTaskMarks('- [ ] buy milk $mark', '- [ ] buy'),
+          '- [ ] buy',
+        );
+        expect(MarkdownEdit.keepingTaskMarks('- [ ] buy $mark', 'buy'), 'buy');
+      },
+    );
+
+    test('a mark that the text still has elsewhere is not put twice', () {
+      expect(
+        MarkdownEdit.keepingTaskMarks(
+          '- [ ] buy $mark',
+          '- [ ] buy\n- [ ] buy $mark',
+        ),
+        '- [ ] buy\n- [ ] buy $mark',
+      );
+    });
+
+    test('a box that has its own mark keeps it', () {
+      final other = NoteParser.marker('T2');
+      expect(
+        MarkdownEdit.keepingTaskMarks('- [ ] buy $mark', '- [ ] buy $other'),
+        '- [ ] buy $other',
+      );
+    });
+  });
 }

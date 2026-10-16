@@ -2,7 +2,10 @@
 // What the field draws is tested in rich_text_field_test.dart.
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:grove/core/parsing/markdown_spans.dart';
+import 'package:grove/core/parsing/edit_history.dart';
+import 'package:grove/core/parsing/markdown_edit.dart';
+import 'package:grove/core/parsing/note_parser.dart';
+import 'package:grove/state/state.dart' hide MotionRules;
 import 'package:grove/ui/editor/markdown_controller.dart';
 
 MarkdownController make(String text, {bool showMarks = false}) {
@@ -34,6 +37,13 @@ void at(MarkdownController c, int offset) =>
     c.selection = TextSelection.collapsed(offset: offset);
 
 int caretOf(MarkdownController c) => c.selection.baseOffset;
+
+/// Types `typed` one letter at a time, as a person does.
+void typeEach(MarkdownController c, String typed) {
+  for (final letter in typed.split('')) {
+    type(c, letter);
+  }
+}
 
 void main() {
   group('hidden marks', () {
@@ -400,6 +410,207 @@ void main() {
       c.selection = const TextSelection(baseOffset: 7, extentOffset: 11);
       c.format(EditorFormat.bold);
       expect(c.text, 'make this loud');
+    });
+  });
+
+  group('undo and redo', () {
+    MarkdownController fresh(
+      String text, {
+      EditHistory? history,
+      EditorServices? services,
+    }) {
+      final c = MarkdownController(
+        text: text,
+        history: history,
+        services: services,
+      )..selection = TextSelection.collapsed(offset: text.length);
+      addTearDown(c.dispose);
+      return c;
+    }
+
+    test('letters typed one after another are one step', () {
+      final c = fresh('');
+      expect((c.canUndo, c.canRedo), (false, false));
+      type(c, 'a');
+      type(c, 'b');
+      type(c, 'c');
+      expect((c.canUndo, c.canRedo), (true, false));
+      c.undo();
+      expect(c.text, '');
+      expect((c.canUndo, c.canRedo), (false, true));
+      c.redo();
+      expect(c.text, 'abc');
+      expect(caretOf(c), 3);
+      expect((c.canUndo, c.canRedo), (true, false));
+    });
+
+    test('a pause in the typing starts a new step', () {
+      // Any pause at all is too long.
+      final c = fresh(
+        '',
+        history: EditHistory(typingPause: const Duration(microseconds: -1)),
+      );
+      type(c, 'a');
+      type(c, 'b');
+      c.undo();
+      expect(c.text, 'a');
+    });
+
+    test('Return and a move of the caret end a step', () {
+      final c = fresh('');
+      typeEach(c, 'ab');
+      type(c, '\n');
+      type(c, 'c');
+      at(c, 0);
+      type(c, 'x');
+      expect(c.text, 'xab\nc');
+      c.undo();
+      expect(c.text, 'ab\nc');
+      expect(caretOf(c), 0);
+      c.undo();
+      expect(c.text, 'ab\n');
+      c.undo();
+      expect(c.text, 'ab');
+      c.undo();
+      expect(c.text, '');
+      expect(c.canUndo, isFalse);
+    });
+
+    test('Backspace after typing joins the same step', () {
+      final c = fresh('');
+      typeEach(c, 'ab');
+      backspace(c);
+      type(c, 'c');
+      expect(c.text, 'ac');
+      c.undo();
+      expect(c.text, '');
+    });
+
+    test('a format button is a step of its own, with the selection back', () {
+      final c = fresh('a b');
+      c.selection = const TextSelection(baseOffset: 2, extentOffset: 3);
+      c.format(EditorFormat.bold);
+      expect(c.text, 'a **b**');
+      c.undo();
+      expect(c.text, 'a b');
+      expect(c.selection, const TextSelection(baseOffset: 2, extentOffset: 3));
+      c.redo();
+      expect(c.text, 'a **b**');
+    });
+
+    test('an edit of the text rules is one step', () {
+      final c = fresh('');
+      typeEach(c, 'ab');
+      c.apply(
+        const TextEdit(
+          range: Utf16Range(2, 0),
+          replacement: '!',
+          selection: Utf16Range(3, 0),
+        ),
+      );
+      type(c, 'c');
+      c.undo();
+      expect(c.text, 'ab!');
+      c.undo();
+      expect(c.text, 'ab');
+    });
+
+    test('Bold at a caret and the letters typed in it are one step', () {
+      final c = fresh('a ');
+      at(c, 2);
+      c.format(EditorFormat.bold);
+      type(c, 'h');
+      type(c, 'i');
+      expect(c.text, 'a **hi**');
+      c.undo();
+      expect(c.text, 'a ');
+      expect(c.canUndo, isFalse);
+    });
+
+    test('Bold at a caret, then the caret leaves: nothing to undo', () {
+      final c = fresh('ab');
+      at(c, 2);
+      c.format(EditorFormat.bold);
+      at(c, 0);
+      expect(c.text, 'ab');
+      expect(c.canUndo, isFalse);
+    });
+
+    test('a new change forgets what could be redone', () {
+      final c = fresh('');
+      type(c, 'a');
+      c.undo();
+      type(c, 'b');
+      expect(c.canRedo, isFalse);
+    });
+
+    test('a new text from outside clears the history', () {
+      final c = fresh('');
+      type(c, 'a');
+      type(c, '\n');
+      c.undo();
+      expect((c.canUndo, c.canRedo), (true, true));
+      c.load('other');
+      expect((c.canUndo, c.canRedo), (false, false));
+    });
+
+    test('a word the keyboard of a phone is still making is not a step', () {
+      final c = fresh('');
+      void compose(String text) => c.value = TextEditingValue(
+        text: text,
+        selection: TextSelection.collapsed(offset: text.length),
+        composing: TextRange(start: 0, end: text.length),
+      );
+      compose('h');
+      compose('he');
+      expect(c.canUndo, isFalse);
+      // The keyboard ends the word.
+      send(c, 'he', 2);
+      expect(c.canUndo, isTrue);
+      c.undo();
+      expect(c.text, '');
+    });
+
+    test('the listeners hear when undo and redo turn on or off', () {
+      final c = fresh('');
+      final heard = <({bool canUndo, bool canRedo})>[];
+      c.undoState.addListener(() => heard.add(c.undoState.value));
+      type(c, 'a');
+      type(c, 'b');
+      c.undo();
+      c.redo();
+      expect(heard, [
+        (canUndo: true, canRedo: false),
+        (canUndo: false, canRedo: true),
+        (canUndo: true, canRedo: false),
+      ]);
+    });
+
+    test('undo never takes the task mark off a box line', () {
+      final c = fresh('', services: EditorServices(makeTask: (words) => 'T1'));
+      type(c, '- [ ] buy');
+      c.makeTask();
+      final mark = NoteParser.marker('T1');
+      expect(c.text, '- [ ] buy $mark');
+      // The step of the mark alone changes nothing that shows, so undo
+      // takes back the typing before it.
+      c.undo();
+      expect(c.text, isNot(contains('- [ ] buy')));
+      expect(c.canUndo, isFalse);
+      // Redo puts the line back with its mark, so no second task is made.
+      c.redo();
+      expect(c.text, '- [ ] buy $mark');
+      expect(c.canRedo, isFalse);
+    });
+
+    test('undo after a word on a marked box keeps the mark', () {
+      final mark = NoteParser.marker('T1');
+      final c = fresh('- [ ] buy $mark');
+      at(c, 9);
+      type(c, 's');
+      expect(c.text, '- [ ] buys $mark');
+      c.undo();
+      expect(c.text, '- [ ] buy $mark');
     });
   });
 }

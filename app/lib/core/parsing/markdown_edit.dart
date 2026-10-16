@@ -528,6 +528,28 @@ abstract final class MarkdownEdit {
     return TaskTarget(title: title, line: line);
   }
 
+  /// The `target` text (an undo or a redo), with each task mark of `now`
+  /// that it lost put back on a box with the same words. A box line with no
+  /// mark makes a new task when the note is saved, so a task would be made
+  /// twice.
+  static String keepingTaskMarks(String now, String target) {
+    if (!now.contains('⟦t:')) return target;
+    var out = target;
+    final free = [
+      for (final box in NoteParser.checkboxes(target))
+        if (box.taskId == null) box,
+    ];
+    for (final box in NoteParser.checkboxes(now)) {
+      final id = box.taskId;
+      if (id == null || out.contains(NoteParser.marker(id))) continue;
+      final i = free.indexWhere((b) => b.text == box.text);
+      if (i < 0) continue;
+      out = NoteParser.addingMarker(out, line: free[i].line, taskId: id);
+      free.removeAt(i);
+    }
+    return out;
+  }
+
   /// Turns the line into `- [ ] words ⟦t:ID⟧`. A line that is already a check box keeps
   /// its box and indent. The caret ends at the end of the words, before the hidden mark.
   static TextEdit taskLine(

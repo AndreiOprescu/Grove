@@ -224,6 +224,16 @@ class RichTextFieldState extends State<RichTextField> {
           : KeyEventResult.ignored;
     }
     if (!command || keys.isAltPressed) return KeyEventResult.ignored;
+    // Undo and redo of the text while the box has something to take back;
+    // else the key goes on to the undo of the app.
+    final z = key == LogicalKeyboardKey.keyZ;
+    final redo =
+        (z && shift) || (!apple && !shift && key == LogicalKeyboardKey.keyY);
+    if (z || redo) {
+      if (!(redo ? c.canRedo : c.canUndo)) return KeyEventResult.ignored;
+      redo ? c.redo() : c.undo();
+      return KeyEventResult.handled;
+    }
     if (shift) {
       if (key == LogicalKeyboardKey.keyT) {
         c.makeTask();

@@ -4,8 +4,10 @@
 // `core/parsing/` (`MarkdownSpans`, `MarkdownEdit`).
 import 'package:flutter/material.dart';
 import 'package:grove/core/parsing/at_date.dart';
+import 'package:grove/core/parsing/edit_history.dart';
 import 'package:grove/core/parsing/markdown_edit.dart';
 import 'package:grove/core/parsing/markdown_spans.dart';
+import 'package:grove/core/parsing/note_parser.dart';
 import 'package:grove/core/parsing/reference_parser.dart';
 import 'package:grove/state/state.dart' hide MotionRules;
 
@@ -94,9 +96,14 @@ class EditorStyle {
 /// and image names as they should look. It keeps a mention as one unit and
 /// goes on with a list at Return.
 class MarkdownController extends TextEditingController {
-  MarkdownController({super.text, EditorServices? services})
-    : services = services ?? EditorServices() {
+  MarkdownController({
+    super.text,
+    EditorServices? services,
+    EditHistory? history,
+  }) : services = services ?? EditorServices(),
+       _history = history ?? EditHistory() {
     _spans = MarkdownSpans.scan(text);
+    _rememberMarks(text);
   }
 
   EditorServices services;
@@ -160,13 +167,189 @@ class MarkdownController extends TextEditingController {
   void dispose() {
     previewImage.dispose();
     mentions.dispose();
+    undoState.dispose();
     super.dispose();
+  }
+
+  // Undo and redo
+
+  final EditHistory _history;
+
+  /// True while a change is being kept as one step, so the changes inside
+  /// it are not kept again.
+  bool _recording = false;
+
+  /// The text before a word that the keyboard of a phone is still making.
+  EditSnapshot? _composeFrom;
+
+  /// Each task mark seen since the last [load], with its line. An undo or a
+  /// redo puts a lost mark back (see [MarkdownEdit.keepingTaskMarks]).
+  final Map<String, String> _marks = {};
+
+  /// Whether undo and redo can do something now. For the buttons.
+  final undoState = ValueNotifier<({bool canUndo, bool canRedo})>((
+    canUndo: false,
+    canRedo: false,
+  ));
+
+  bool get canUndo => _history.canUndo;
+  bool get canRedo => _history.canRedo;
+
+  /// Takes back the last change of the text in this box.
+  void undo() => _travel(back: true);
+
+  /// Does again the change that undo took back.
+  void redo() => _travel(back: false);
+
+  EditSnapshot get _snapshot => EditSnapshot(text, _selection);
+
+  void _historyChanged() =>
+      undoState.value = (canUndo: _history.canUndo, canRedo: _history.canRedo);
+
+  /// Runs `change` and keeps it as one step of the history.
+  void _recorded(void Function() change, {bool typing = false}) {
+    if (_recording) {
+      change();
+      return;
+    }
+    final before = _snapshot;
+    final pair = _pending;
+    _recording = true;
+    try {
+      change();
+    } finally {
+      _recording = false;
+    }
+    _keep(before, pair, typing: typing);
+  }
+
+  /// Keeps the change from `before` to now. `pair` is the empty pair that
+  /// was there before: when the change only took it away, the step that put
+  /// it in is changed instead, so undo does not bring back a pair that does
+  /// not show.
+  void _keep(
+    EditSnapshot before,
+    ({Utf16Range whole, int middle})? pair, {
+    bool typing = false,
+  }) {
+    final after = _snapshot;
+    if (after.text == before.text) return;
+    if (pair != null &&
+        pair.whole.end <= before.text.length &&
+        after.text ==
+            before.text.replaceRange(pair.whole.location, pair.whole.end, '')) {
+      _history.amendLast(before, after);
+    } else {
+      _history.record(before, after, typing: typing);
+    }
+    _historyChanged();
+  }
+
+  /// A letter typed, or one taken away, at a caret. Typing joins into one
+  /// step; a Return, a paste or a change of a selection is a step of its
+  /// own.
+  static bool _isTyping(TextEditingValue old, TextEditingValue next) {
+    final s = old.selection;
+    if (!s.isValid || !s.isCollapsed) return false;
+    final grew = next.text.length - old.text.length;
+    if (grew > 0) {
+      final put = next.text.substring(s.start, s.start + grew);
+      return s.start + grew <= next.text.length &&
+          put.runes.length == 1 &&
+          put != '\n' &&
+          next.text == old.text.replaceRange(s.start, s.start, put);
+    }
+    return grew < 0 && grew >= -2;
+  }
+
+  void _travel({required bool back}) {
+    _composeFrom = null;
+    while (true) {
+      final target = back ? _history.undo() : _history.redo();
+      if (target == null) break;
+      final text = _withMarks(target.text);
+      // A step that changes nothing that shows, such as a task mark that
+      // stays, is passed over.
+      if (text == this.text) continue;
+      _restore(text, text == target.text ? target.selection : null);
+      // Redo the steps that the marks already did.
+      while (!back) {
+        final next = _history.nextRedo;
+        if (next == null || _withMarks(next.text) != this.text) break;
+        _history.redo();
+      }
+      break;
+    }
+    _historyChanged();
+  }
+
+  String _withMarks(String target) => MarkdownEdit.keepingTaskMarks(
+    [text, ..._marks.values].join('\n'),
+    target,
+  );
+
+  void _restore(String text, Utf16Range? selection) {
+    _pending = null;
+    _noPull = false;
+    final at = selection ?? Utf16Range(_selection.location, 0);
+    final start = at.location.clamp(0, text.length);
+    final end = at.end.clamp(0, text.length);
+    _applying = true;
+    try {
+      _set(
+        TextEditingValue(
+          text: text,
+          selection: TextSelection(baseOffset: start, extentOffset: end),
+        ),
+      );
+    } finally {
+      _applying = false;
+    }
+  }
+
+  void _rememberMarks(String text) {
+    if (!text.contains('⟦t:')) return;
+    final lines = text.split('\n');
+    for (final box in NoteParser.checkboxes(text)) {
+      final id = box.taskId;
+      if (id != null) _marks[id] = lines[box.line];
+    }
   }
 
   // Text changes
 
   @override
   set value(TextEditingValue next) {
+    if (_applying || _recording) {
+      _change(next);
+      return;
+    }
+    // A word that the keyboard of a phone is still making is kept as one
+    // step when it is done.
+    if (next.composing.isValid) {
+      _composeFrom ??= _snapshot;
+      _change(next);
+      return;
+    }
+    final old = value;
+    final from = _composeFrom;
+    _composeFrom = null;
+    final before = from ?? _snapshot;
+    final pair = _pending;
+    _recording = true;
+    try {
+      _change(next);
+    } finally {
+      _recording = false;
+    }
+    if (from == null && next.text == old.text) {
+      // The caret moved: the next letters are a new step.
+      if (next.selection != old.selection) _history.breakGroup();
+    }
+    _keep(before, pair, typing: from != null || _isTyping(old, next));
+  }
+
+  void _change(TextEditingValue next) {
     final old = value;
     // A word that the keyboard of a phone has not done yet is left as it
     // is. The rules run again with the key that ends the word: a Return at
@@ -250,6 +433,7 @@ class MarkdownController extends TextEditingController {
     if (textChanged) {
       _spans = MarkdownSpans.scan(next.text);
       _runs = null;
+      _rememberMarks(next.text);
     }
     super.value = next;
     _updateMentions();
@@ -702,22 +886,29 @@ class MarkdownController extends TextEditingController {
     );
     final start = edit.selection.location.clamp(0, next.length);
     final end = edit.selection.end.clamp(0, next.length);
-    _applying = true;
-    try {
-      _set(
-        TextEditingValue(
-          text: next,
-          selection: TextSelection(baseOffset: start, extentOffset: end),
-        ),
-      );
-    } finally {
-      _applying = false;
-    }
+    _recorded(() {
+      _applying = true;
+      try {
+        _set(
+          TextEditingValue(
+            text: next,
+            selection: TextSelection(baseOffset: start, extentOffset: end),
+          ),
+        );
+      } finally {
+        _applying = false;
+      }
+    });
   }
 
-  /// New text from outside: another note was opened, or an undo.
+  /// New text from outside: another note was opened, or an undo of the
+  /// app. The history of the box starts again.
   void load(String text) {
     if (text == this.text) return;
+    _history.clear();
+    _marks.clear();
+    _composeFrom = null;
+    _historyChanged();
     final caret = _selection.location.clamp(0, text.length);
     _applying = true;
     try {
@@ -750,17 +941,19 @@ class MarkdownController extends TextEditingController {
     final next = MarkdownEdit.removeImage(id, text);
     if (next == text) return;
     final caret = _selection.location.clamp(0, next.length);
-    _applying = true;
-    try {
-      _set(
-        TextEditingValue(
-          text: next,
-          selection: TextSelection.collapsed(offset: caret),
-        ),
-      );
-    } finally {
-      _applying = false;
-    }
+    _recorded(() {
+      _applying = true;
+      try {
+        _set(
+          TextEditingValue(
+            text: next,
+            selection: TextSelection.collapsed(offset: caret),
+          ),
+        );
+      } finally {
+        _applying = false;
+      }
+    });
   }
 
   // Buttons and keys
@@ -799,7 +992,14 @@ class MarkdownController extends TextEditingController {
     final edit = MarkdownEdit.toggleInline(format, text, sel, color: color);
     if (edit == null) return;
     _pending = null;
-    apply(edit);
+    // An empty pair at a caret joins the letters typed into it.
+    final pair =
+        !_showMarks &&
+        sel.length == 0 &&
+        edit.range.length == 0 &&
+        edit.replacement.isNotEmpty;
+    if (pair) _history.breakGroup();
+    _recorded(() => apply(edit), typing: pair);
     if (_showMarks || sel.length != 0) return;
     final caret = edit.selection;
     if (text == before) {
