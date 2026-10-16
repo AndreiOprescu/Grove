@@ -404,7 +404,7 @@ class NotesSettings extends StatelessWidget {
           SettingsSwitchRow(
             switchKey: const ValueKey('settings-show-marks'),
             label: 'Show marks',
-            value: store.prefs.getBool(EditorServices.showMarksKey) ?? true,
+            value: store.prefs.getBool(EditorServices.showMarksKey) ?? false,
             onChanged: (on) =>
                 saveSetting(store, EditorServices.showMarksKey, on),
           ),

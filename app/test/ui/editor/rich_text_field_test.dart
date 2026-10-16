@@ -177,6 +177,9 @@ EditorServices eightTasks(Rig rig) => EditorServices(
 /// A field with the "Show marks" switch off: the marks are hidden.
 EditorServices hidingMarks(Rig rig) => EditorServices(showMarks: () => false);
 
+/// A field with the "Show marks" switch on: the marks show dim.
+EditorServices showingMarks(Rig rig) => EditorServices(showMarks: () => true);
+
 /// The caret the field draws at `offset`, in the field.
 Rect caretRect(WidgetTester tester, int offset) {
   final state = tester.state<EditableTextState>(find.byType(EditableText));
@@ -356,6 +359,7 @@ void main() {
       final rig = await makeRig(
         tester,
         'plain **bold** *slant* `code` #tag\n> said',
+        services: showingMarks,
       );
       final theme = GroveTheme.of(tester.element(find.byType(EditableText)));
       final plain = pieceWith(tester, rig, 'plain ').style!;
@@ -1369,7 +1373,7 @@ void main() {
     testWidgets('with "Show marks" on the arrow keys step on each mark', (
       tester,
     ) async {
-      final rig = await makeRig(tester, 'a**b**c');
+      final rig = await makeRig(tester, 'a**b**c', services: showingMarks);
       await caret(tester, rig, 1);
       await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
       await tester.pump();
@@ -1417,6 +1421,48 @@ void main() {
       await tester.pump();
       expect(rig.text, 'a b');
       expect(rig.controller.selection.baseOffset, 1);
+    });
+
+    testWidgets('the arrow keys never stop before a bullet, a bar or a box', (
+      tester,
+    ) async {
+      final rig = await makeRig(tester, 'x\n- one\n> q\n- [ ] t');
+      final stops = <int>[];
+      await caret(tester, rig, 0);
+      for (var i = 0; i < 9; i++) {
+        await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
+        await tester.pump();
+        stops.add(rig.controller.selection.baseOffset);
+      }
+      expect(stops, [1, 4, 5, 6, 7, 10, 11, 18, 19]);
+      stops.clear();
+      for (var i = 0; i < 9; i++) {
+        await tester.sendKeyEvent(LogicalKeyboardKey.arrowLeft);
+        await tester.pump();
+        stops.add(rig.controller.selection.baseOffset);
+      }
+      expect(stops, [18, 11, 10, 7, 6, 5, 4, 1, 0]);
+    });
+
+    testWidgets('a move to the start of a list line rests after the bullet', (
+      tester,
+    ) async {
+      final rig = await makeRig(tester, 'x\n- one');
+      await caret(tester, rig, 6);
+      // Command and Left on a Mac, Home elsewhere.
+      final apple = defaultTargetPlatform == TargetPlatform.macOS;
+      if (apple) {
+        await tester.sendKeyDownEvent(LogicalKeyboardKey.metaLeft);
+        await tester.sendKeyEvent(LogicalKeyboardKey.arrowLeft);
+        await tester.sendKeyUpEvent(LogicalKeyboardKey.metaLeft);
+      } else {
+        await tester.sendKeyEvent(LogicalKeyboardKey.home);
+      }
+      await tester.pump();
+      expect(
+        rig.controller.selection,
+        const TextSelection.collapsed(offset: 4),
+      );
     });
 
     testWidgets('a word move that ends in hidden marks rests on the letter', (
@@ -1484,8 +1530,11 @@ void main() {
   });
 
   group('"Show marks"', () {
-    test('is on at first: the marks show as they always did', () {
-      expect(EditorServices().showMarks(), isTrue);
+    test('is off at first: the marks are hidden', () {
+      expect(EditorServices().showMarks(), isFalse);
+      final controller = MarkdownController();
+      addTearDown(controller.dispose);
+      expect(controller.showMarks, isFalse);
     });
 
     testWidgets('the text changes as soon as the switch does', (tester) async {

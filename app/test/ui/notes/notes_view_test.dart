@@ -3,10 +3,12 @@
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart' hide Row;
 import 'package:flutter_test/flutter_test.dart';
+import 'package:grove/ui/editor/markdown_controller.dart';
 import 'package:grove/ui/notes/day_panel.dart';
 import 'package:grove/ui/notes/note_editor_pane.dart';
 import 'package:grove/ui/notes/notes_pane.dart';
 import 'package:grove/ui/notes/notes_view.dart';
+import 'package:grove/ui/settings/settings_tabs.dart' show saveSetting;
 
 import '../planner/planner_support.dart';
 import '../tasks/tasks_support.dart' show addTask;
@@ -445,6 +447,23 @@ void main() {
     store.renameNote(note.id, to: 'Gamma');
     await tester.pumpAndSettle();
     expect(shown(tester, 'note-title'), 'Gamma');
+  });
+
+  testWidgets('the marks are hidden at first, and show as soon as the '
+      'switch in Settings is on', (tester) async {
+    final store = notesStore();
+    store.newNote(title: 'Alpha', body: 'a **b**');
+    await pumpPlanner(tester, store);
+    MarkdownController text() =>
+        tester.widget<EditableText>(fieldOf('note-text')).controller
+            as MarkdownController;
+    expect(text().showMarks, isFalse);
+    saveSetting(store, EditorServices.showMarksKey, true);
+    await tester.pumpAndSettle();
+    expect(text().showMarks, isTrue);
+    saveSetting(store, EditorServices.showMarksKey, false);
+    await tester.pumpAndSettle();
+    expect(text().showMarks, isFalse);
   });
 
   testWidgets('a task ticked somewhere else while the caret is in the note '

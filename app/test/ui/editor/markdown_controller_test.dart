@@ -85,6 +85,51 @@ void main() {
       expect([for (var i = 0; i <= 5; i++) c.canonical(i)], [3, 3, 3, 3, 3, 3]);
     });
 
+    test('on a list, quote or check box line it rests after the line '
+        'mark', () {
+      // x \n - space o n e \n > space q \n - space [ space ] space t \n
+      // space space 1 . space n
+      final c = make('x\n- one\n> q\n- [ ] t\n  1. n');
+      expect([for (var i = 2; i <= 4; i++) c.canonical(i)], [4, 4, 4]);
+      expect([for (var i = 8; i <= 10; i++) c.canonical(i)], [10, 10, 10]);
+      expect(
+        [for (var i = 12; i <= 18; i++) c.canonical(i)],
+        [for (var i = 12; i <= 18; i++) 18],
+      );
+      expect(
+        [for (var i = 20; i <= 25; i++) c.canonical(i)],
+        [for (var i = 20; i <= 25; i++) 25],
+      );
+      // the end of the line before is its own place
+      expect(c.canonical(1), 1);
+      expect(c.canonical(7), 7);
+    });
+
+    test('a bullet with bold words: after the bullet, outside the bold', () {
+      final c = make('- **b**');
+      expect([for (var i = 0; i <= 4; i++) c.canonical(i)], [2, 2, 2, 2, 2]);
+    });
+
+    test('an empty list line: the caret rests at its end', () {
+      final c = make('a\n- ');
+      expect([c.canonical(2), c.canonical(3), c.canonical(4)], [4, 4, 4]);
+    });
+
+    test('a caret put before a bullet moves after it', () {
+      final c = make('- one');
+      at(c, 0);
+      expect(caretOf(c), 2);
+      at(c, 1);
+      expect(caretOf(c), 2);
+    });
+
+    test('with "Show marks" on the caret can rest before a bullet', () {
+      final c = make('- one', showMarks: true);
+      expect(c.canonical(0), 0);
+      at(c, 0);
+      expect(caretOf(c), 0);
+    });
+
     test('at the end of a link it rests outside the link', () {
       const text = 'see [ab](https://grove.example) c';
       final c = make(text);
@@ -149,6 +194,33 @@ void main() {
       final c = make('x\n## Head');
       expect(move(c, 5, forward: false).baseOffset, 1);
       expect(move(c, 1).baseOffset, 5);
+    });
+
+    test('a list, quote or check box line: left at the start of the words '
+        'goes to the line before, right comes back', () {
+      final c = make('x\n- one\n> q\n- [ ] t');
+      expect(move(c, 4, forward: false).baseOffset, 1);
+      expect(move(c, 1).baseOffset, 4);
+      expect(move(c, 10, forward: false).baseOffset, 7);
+      expect(move(c, 7).baseOffset, 10);
+      expect(move(c, 18, forward: false).baseOffset, 11);
+      expect(move(c, 11).baseOffset, 18);
+    });
+
+    test(
+      'the first line is a bullet: left at the start of its words stays',
+      () {
+        final c = make('- one');
+        expect(move(c, 2, forward: false).baseOffset, 2);
+        expect(move(c, 2).baseOffset, 3);
+      },
+    );
+
+    test('Shift from the start of a list line\'s words takes the line break '
+        'before, never half a mark', () {
+      final c = make('x\n- one');
+      final s = move(c, 4, forward: false, collapse: false);
+      expect(s, const TextSelection(baseOffset: 4, extentOffset: 1));
     });
 
     test('a divider is one letter', () {

@@ -538,8 +538,9 @@ class RichTextFieldState extends State<RichTextField> {
   }
 }
 
-/// An arrow key, with or without Shift, steps over hidden marks: one key is
-/// one letter that shows. With "Show marks" on, the field does it as always.
+/// An arrow key, with or without Shift, steps over hidden marks and line
+/// marks: one key is one letter that shows. With "Show marks" on, the field
+/// does it as always.
 /// Word and line moves need nothing here: the controller puts a caret that
 /// lands in hidden marks on its one place.
 class _StepOverMarks extends ContextAction<ExtendSelectionByCharacterIntent> {
@@ -561,7 +562,7 @@ class _StepOverMarks extends ContextAction<ExtendSelectionByCharacterIntent> {
     final c = controller;
     final selection = c.selection;
     final fallback = callingAction;
-    if (c.showMarks || !selection.isValid || c.hiddenRuns.isEmpty) {
+    if (!selection.isValid || !c.hasSkippedPlaces) {
       return fallback is ContextAction<ExtendSelectionByCharacterIntent>
           ? fallback.invoke(intent, context)
           : fallback?.invoke(intent);

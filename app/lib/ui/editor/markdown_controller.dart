@@ -132,7 +132,7 @@ class MarkdownController extends TextEditingController {
     _runs = null;
   }
 
-  bool _showMarks = true;
+  bool _showMarks = false;
 
   /// The hidden marks, merged where they touch. Cached until the text
   /// changes.
@@ -342,8 +342,10 @@ class MarkdownController extends TextEditingController {
   /// of the run, which is outside the start of a format and inside its end.
   /// Two places differ: at the start of a heading line it rests after the
   /// heading mark, and at the end of a link it rests outside the link. In
-  /// an empty pair it rests in the middle.
+  /// an empty pair it rests in the middle. Before or in the mark of a list,
+  /// a check box or a quote it rests after the mark.
   int canonical(int offset) {
+    if (_lineMarkAt(offset) case final mark?) offset = mark.end;
     for (final r in hiddenRuns) {
       if (offset < r.location) break;
       if (offset > r.end) continue;
@@ -369,6 +371,22 @@ class MarkdownController extends TextEditingController {
     return offset;
   }
 
+  /// The drawn mark at the start of a line (bullet, number, check box or
+  /// quote bar, with its indent and space) when `offset` is in it or just
+  /// before it. Null while "Show marks" is on: then each letter is a place.
+  Utf16Range? _lineMarkAt(int offset) {
+    if (_showMarks) return null;
+    for (final s in _spans) {
+      final type = s.kind.type;
+      if ((type == SpanType.listPrefix || type == SpanType.quoteMark) &&
+          s.range.location <= offset &&
+          offset < s.range.end) {
+        return s.range;
+      }
+    }
+    return null;
+  }
+
   Utf16Range? _linkClose(MarkdownSpan words) {
     for (final m in _spans) {
       if (m.kind.type == SpanType.syntax &&
@@ -378,6 +396,17 @@ class MarkdownController extends TextEditingController {
     }
     return null;
   }
+
+  /// True when some places of the text are no caret stops: hidden marks,
+  /// or the drawn mark at the start of a list, check box or quote line.
+  bool get hasSkippedPlaces =>
+      !_showMarks &&
+      (hiddenRuns.isNotEmpty ||
+          _spans.any(
+            (s) =>
+                s.kind.type == SpanType.listPrefix ||
+                s.kind.type == SpanType.quoteMark,
+          ));
 
   /// One arrow key: the selection after a step of one letter that shows.
   /// Hidden marks are stepped over. Without Shift (`collapse`) a selection
@@ -397,8 +426,17 @@ class MarkdownController extends TextEditingController {
   }
 
   /// The nearest place past one more (or one less) letter that shows.
-  /// `from` when there is none.
+  /// `from` when there is none. A line mark is no place: a step back from
+  /// after it goes to the end of the line before.
   int _step(int from, bool forward) {
+    final to = _letterStep(from, forward);
+    final mark = _lineMarkAt(to);
+    if (mark == null) return to;
+    if (forward) return mark.end;
+    return mark.location > 0 ? mark.location - 1 : from;
+  }
+
+  int _letterStep(int from, bool forward) {
     final text = this.text;
     final v = visibleIndex(from);
     bool splitsPair(int q) =>
