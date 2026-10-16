@@ -4,6 +4,7 @@ import '../core/model/event.dart';
 import '../core/model/goal.dart';
 import '../core/model/goal_subtask.dart';
 import '../core/model/note.dart';
+import '../core/model/persona.dart';
 import '../core/model/task.dart';
 
 /// One item before and after a change. A null `before` means "created". A
@@ -42,8 +43,19 @@ class Mutation {
   /// Tags live in their own table, so they are tracked here.
   final List<TagChange> tags = [];
 
-  /// Rows of the settings table: the wake-up and sleep lines of a day.
+  /// Rows of the settings table: the wake-up and sleep lines of a day, the
+  /// name of the persona.
   final List<SettingChange> settings = [];
+
+  /// Skills of the persona.
+  final List<Change<SkillItem>> skills = [];
+
+  /// Rewards on tasks and goals.
+  final List<Change<RewardItem>> rewards = [];
+
+  /// Lines of the log of earned points. A tick adds them, an un-tick
+  /// removes them.
+  final List<Change<EarningItem>> earnings = [];
 
   /// Typing makes many small changes. Changes with the same key, close in
   /// time, become one undo step.
@@ -59,7 +71,10 @@ class Mutation {
       goalSubtasks.isEmpty &&
       tags.isEmpty &&
       exdates.isEmpty &&
-      settings.isEmpty;
+      settings.isEmpty &&
+      skills.isEmpty &&
+      rewards.isEmpty &&
+      earnings.isEmpty;
 
   Mutation _copy() => Mutation(name, mergeKey: mergeKey, at: at)..append(this);
 
@@ -83,7 +98,13 @@ class Mutation {
         exdates.isNotEmpty ||
         next.exdates.isNotEmpty ||
         settings.isNotEmpty ||
-        next.settings.isNotEmpty) {
+        next.settings.isNotEmpty ||
+        skills.isNotEmpty ||
+        next.skills.isNotEmpty ||
+        rewards.isNotEmpty ||
+        next.rewards.isNotEmpty ||
+        earnings.isNotEmpty ||
+        next.earnings.isNotEmpty) {
       return null;
     }
     final m = _copy();
@@ -117,5 +138,8 @@ class Mutation {
     tags.addAll(other.tags);
     exdates.addAll(other.exdates);
     settings.addAll(other.settings);
+    skills.addAll(other.skills);
+    rewards.addAll(other.rewards);
+    earnings.addAll(other.earnings);
   }
 }

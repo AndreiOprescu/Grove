@@ -33,3 +33,28 @@ _Avoid_: Goal inspector, goal sheet
 **Task panel**:
 The panel on the right that shows a task's details when the user taps that task or its block.
 _Avoid_: Task inspector
+
+### Persona
+
+**Persona**:
+The drawn person on the Persona screen who stands for the user. It has a name and a level.
+_Avoid_: Avatar, character
+
+**Skill**:
+One area the persona grows in, such as Strength or Mind, with its own bar and level. A skill can be renamed or hidden, but never deleted.
+_Avoid_: Stat, attribute
+
+**Skill points**:
+The number a skill collects.
+_Avoid_: XP, experience
+
+**Level**:
+The step a skill, or the persona as a whole, has reached. Each new level needs a few more skill points than the one before.
+
+**Reward**:
+The setting on a task or a goal that says which skills get how many skill points. For a goal the points are per hour of a goal block.
+_Avoid_: Bounty, prize
+
+**Earning**:
+One log line of skill points paid to a skill when a task or a goal block is ticked done. Un-ticking takes it away. A later change to the reward does not change it.
+_Avoid_: Gain, transaction

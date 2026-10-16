@@ -267,6 +267,10 @@ void main() {
       expect(s.screen, Screen.planner);
       s.run(PaletteCommandId.showCalendar);
       expect(s.screen, Screen.calendar);
+      s.run(PaletteCommandId.showGarden);
+      expect(s.screen, Screen.garden);
+      s.run(PaletteCommandId.showPersona);
+      expect(s.screen, Screen.persona);
     });
 
     test('Go to Date keeps the palette open and asks for a day', () {

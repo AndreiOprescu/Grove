@@ -252,12 +252,15 @@ extension AppStoreTasks on AppStore {
     if (names.isNotEmpty) {
       m.tags.add((taskId: next.id, before: const [], after: names));
     }
+    _copyRewards(old, next.id, m);
 
     for (final (i, sub) in subtasks(old.id).indexed) {
+      final subId = newId();
+      _copyRewards(sub, subId, m);
       m.tasks.add((
         before: null,
         after: sub.copyWith(
-          id: newId(),
+          id: subId,
           parentId: next.id,
           status: TaskStatus.open,
           completedAt: null,

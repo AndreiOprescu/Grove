@@ -15,6 +15,7 @@ void main() {
         Screen.calendar,
         Screen.notes,
         Screen.garden,
+        Screen.persona,
       ]);
       expect(Screen.values.map((s) => s.title), [
         'Today',
@@ -22,6 +23,7 @@ void main() {
         'Calendar',
         'Notes',
         'Garden',
+        'Persona',
       ]);
     });
 

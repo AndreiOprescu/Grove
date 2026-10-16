@@ -10,6 +10,7 @@ import 'package:grove/core/model/link.dart';
 import 'package:grove/core/model/note.dart';
 import 'package:grove/core/model/recurrence.dart';
 import 'package:grove/core/model/task.dart';
+import 'package:grove/core/services/persona.dart';
 import 'package:grove/data/data.dart';
 
 import 'goal_repo_test.dart' show block, monday, sunday;
@@ -78,6 +79,21 @@ void fill(Repos r) {
     const ItemRef(ItemType.task, 'T1'),
   );
   r.settings.set('welcome.shown', '1');
+  r.skills.save(r.skills.get('skill-health')!.copyWith(hidden: true));
+  r.rewards.save(
+    RewardItem(id: 'R1', taskId: 'T1', skillId: 'skill-health', points: 5),
+  );
+  r.earnings.save(
+    EarningItem(
+      id: 'X1',
+      skillId: 'skill-health',
+      points: 5,
+      source: EarningSource.task,
+      sourceId: 'T0',
+      title: 'An old task',
+      earnedAt: '2026-10-04T18:00:00',
+    ),
+  );
   r.db.execute(
     'INSERT INTO attachments (id, mime, data, width, height, created_at) '
     'VALUES (?, ?, ?, ?, ?, ?)',
@@ -177,6 +193,12 @@ void main() {
         // The subtasks of a goal are in this app only: no Mac file has them.
         expect(a.keys, isNot(contains('goal_subtasks')));
         expect(b.remove('goal_subtasks'), isEmpty);
+        // The persona is in this app only: the built-in skills come back,
+        // with no rewards and no points.
+        expect(a.keys, isNot(contains('skills')));
+        expect(b.remove('skills'), hasLength(8));
+        expect(b.remove('rewards'), isEmpty);
+        expect(b.remove('earnings'), isEmpty);
         if (version == 6) {
           expect(a.keys, isNot(contains('block_subtasks')));
           expect(b.remove('block_subtasks'), isEmpty);

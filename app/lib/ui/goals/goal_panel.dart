@@ -8,6 +8,7 @@ import 'package:grove/core/planner/planner_math.dart';
 import 'package:grove/core/recurrence/recurrence_engine.dart';
 import 'package:grove/state/state.dart' hide MotionRules;
 
+import '../persona/reward_editor.dart';
 import '../planner/planner_dialogs.dart';
 import '../planner/subtask_lines.dart';
 import '../tasks/task_inspector.dart';
@@ -344,6 +345,11 @@ class _GoalPanelState extends State<GoalPanel> {
               _header(theme, goal),
               _time(theme, block),
               _week(theme, goal, block),
+              RewardEditor.goal(
+                store: _store,
+                ownerId: goal.id,
+                blockMinutes: block.durationMinutes,
+              ),
               _planned(theme, _id),
               ?_free(theme, _id),
               _note(theme, block),
