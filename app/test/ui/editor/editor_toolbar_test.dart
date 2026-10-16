@@ -207,6 +207,47 @@ void main() {
       expect(box.links, 1);
     });
 
+    testWidgets('500: the row fills the room, and "…" holds only the rest', (
+      tester,
+    ) async {
+      await pumpBox(tester, 'word', width: 500, link: true, image: true);
+      final row = rowOrder(tester, [...wideOrder, 'More']);
+      // More than the short row: the next tools in order fill the room.
+      expect(row, containsAll(['Redo', 'Strike', 'Code']));
+      expect(row.last, 'More');
+      expect(row.length, greaterThan(10));
+      // The tools keep the order of the wide row.
+      expect(row.sublist(0, row.length - 1), [
+        for (final l in wideOrder)
+          if (row.contains(l)) l,
+      ]);
+      expect(tester.takeException(), isNull);
+      await openMore(tester);
+      for (final l in wideOrder) {
+        final inMenu = find.text(l).evaluate().isNotEmpty;
+        expect(inMenu, !row.contains(l), reason: l);
+      }
+    });
+
+    testWidgets('"…" shows only when a tool does not fit', (tester) async {
+      var before = 0;
+      for (var width = 300.0; width <= 780; width += 20) {
+        await pumpBox(tester, 'word', width: width, link: true, image: true);
+        final row = rowOrder(tester, wideOrder);
+        final reason = 'width $width';
+        if (shows('More')) {
+          expect(row.length, lessThan(wideOrder.length), reason: reason);
+        } else {
+          expect(row, wideOrder, reason: reason);
+        }
+        // A wider box never shows fewer tools.
+        expect(row.length, greaterThanOrEqualTo(before), reason: reason);
+        before = row.length;
+        expect(tester.takeException(), isNull, reason: reason);
+      }
+      expect(shows('More'), isFalse);
+    });
+
     testWidgets('a row in "…" shows a tick when its format is on', (
       tester,
     ) async {

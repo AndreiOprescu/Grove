@@ -1005,7 +1005,8 @@ class EditorToolbar extends StatelessWidget {
   /// menu. It is the same in every box and lasts while the app runs.
   static var lastHighlight = HighlightColor.yellow;
 
-  /// The short row, in order, for a box too narrow for every tool.
+  /// The tools a box too narrow for every tool shows first. More tools
+  /// join them while there is room.
   static const priority = [
     'undo',
     'textSize',
@@ -1074,44 +1075,60 @@ class EditorToolbar extends StatelessWidget {
         ],
       );
     }
-    final shown = <ToolSpec>[];
-    for (final id in priority) {
-      final t = all.where((t) => t.id == id).firstOrNull;
-      if (t == null) continue;
-      final next = [for (final s in shown) s.width, t.width, buttonWidth];
+    // Too narrow for the group lines: the short row first, then the other
+    // tools in order, as many as fit beside "…". They show in the order of
+    // the wide row. When every tool fits, there is no "…".
+    final ranked = [
+      for (final id in priority) ...all.where((t) => t.id == id),
+      for (final t in all)
+        if (!priority.contains(t.id)) t,
+    ];
+    final picked = <ToolSpec>{};
+    for (final t in ranked) {
+      final last = picked.length + 1 == ranked.length;
+      final next = [
+        for (final s in picked) s.width,
+        t.width,
+        if (!last) buttonWidth,
+      ];
       if (width(next) > room) break;
-      shown.add(t);
+      picked.add(t);
     }
+    final shown = [
+      for (final t in all)
+        if (picked.contains(t)) t,
+    ];
     final rest = [
       for (final t in all)
-        if (!shown.contains(t)) t,
+        if (!picked.contains(t)) t,
     ];
     return Row(
       mainAxisSize: MainAxisSize.min,
       spacing: _gap,
       children: [
         for (final t in shown) _tool(theme, t),
-        Builder(
-          builder: (context) => _ToolButton(
-            theme: theme,
-            icon: Icons.more_horiz,
-            label: 'More',
-            tip: 'More tools',
-            onTap: () => _menu(context, [
-              for (final t in rest)
-                ...t.rows ??
-                    [
-                      ToolRow(
-                        label: t.label,
-                        icon: t.icon,
-                        checked: t.active ?? false,
-                        enabled: t.enabled,
-                        action: t.action ?? () {},
-                      ),
-                    ],
-            ]),
+        if (rest.isNotEmpty)
+          Builder(
+            builder: (context) => _ToolButton(
+              theme: theme,
+              icon: Icons.more_horiz,
+              label: 'More',
+              tip: 'More tools',
+              onTap: () => _menu(context, [
+                for (final t in rest)
+                  ...t.rows ??
+                      [
+                        ToolRow(
+                          label: t.label,
+                          icon: t.icon,
+                          checked: t.active ?? false,
+                          enabled: t.enabled,
+                          action: t.action ?? () {},
+                        ),
+                      ],
+              ]),
+            ),
           ),
-        ),
       ],
     );
   }
