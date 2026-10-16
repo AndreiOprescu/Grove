@@ -211,6 +211,7 @@ class _CommandPaletteState extends State<CommandPalette> {
           label: 'Close search',
           button: true,
           onTap: _close,
+          excludeSemantics: true,
           child: GestureDetector(
             key: const ValueKey('palette-scrim'),
             behavior: HitTestBehavior.opaque,
@@ -385,7 +386,15 @@ class _CommandPaletteState extends State<CommandPalette> {
       container: true,
       button: true,
       selected: isChosen,
+      // One button with the words of the row. Without the label a screen
+      // reader gets a button with no name.
+      label: [
+        item.title,
+        if (item.detail.isNotEmpty) item.detail,
+        if (key != null) KeyNames.of(key),
+      ].join('\n'),
       onTap: () => _store.runPalette(item),
+      excludeSemantics: true,
       child: MouseRegion(
         cursor: SystemMouseCursors.click,
         child: GestureDetector(

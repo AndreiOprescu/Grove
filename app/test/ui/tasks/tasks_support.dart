@@ -235,3 +235,42 @@ List<String> textOffPixels(WidgetTester tester, {Finder? within}) {
   }
   return out;
 }
+
+/// The nodes of the buttons under `root`, as a screen reader gets them.
+/// Needs `tester.ensureSemantics()`.
+List<SemanticsNode> buttonNodes(WidgetTester tester, Finder root) {
+  final buttons = find.descendant(
+    of: root,
+    matching: find.byWidgetPredicate(
+      (w) => w is Semantics && w.properties.button == true,
+    ),
+  );
+  return [
+    for (var i = 0; i < buttons.evaluate().length; i++)
+      tester.getSemantics(buttons.at(i)),
+  ];
+}
+
+/// What a screen reader says for each button under `root`.
+List<String> buttonLabels(WidgetTester tester, Finder root) => [
+  for (final node in buttonNodes(tester, root)) node.getSemanticsData().label,
+];
+
+/// The things under `root` that a screen reader can press and that have no
+/// name. The list is empty when all is well.
+List<SemanticsNode> unnamedPresses(WidgetTester tester, Finder root) {
+  final found = <SemanticsNode>[];
+  void visit(SemanticsNode node) {
+    final data = node.getSemanticsData();
+    final pressed =
+        data.flagsCollection.isButton || data.hasAction(SemanticsAction.tap);
+    if (pressed && data.label.isEmpty && data.value.isEmpty) found.add(node);
+    node.visitChildren((child) {
+      visit(child);
+      return true;
+    });
+  }
+
+  visit(tester.getSemantics(root));
+  return found;
+}

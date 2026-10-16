@@ -6,6 +6,7 @@ import 'package:grove/core/model/note.dart';
 import 'package:grove/state/state.dart' hide MotionRules;
 
 import '../shell/shell_layout.dart';
+import '../shell/top_buttons.dart' show KeyNames;
 import '../tasks/task_format.dart';
 import '../tasks/task_widgets.dart';
 import '../theme/grove_theme.dart';
@@ -78,6 +79,9 @@ class _Empty extends StatelessWidget {
 
   final AppStore store;
 
+  /// The key of "New Note" in the menus, the Mac way.
+  static const newNoteKey = '⌥⌘N';
+
   @override
   Widget build(BuildContext context) {
     final theme = GroveTheme.of(context);
@@ -93,12 +97,22 @@ class _Empty extends StatelessWidget {
               child: Icon(symbolIcon('leaf'), size: 30, color: theme.accent),
             ),
             WholeCenter(
-              child: ThemedHeading(
-                none
-                    ? 'Your thoughts grow here.'
-                    : 'Pick a note, or start a new one.',
-                20,
-              ),
+              child: none
+                  // One sentence, as in the Mac app. The hint goes under
+                  // the first words when the window is narrow.
+                  ? Wrap(
+                      alignment: WrapAlignment.center,
+                      spacing: 6,
+                      runSpacing: 2,
+                      children: [
+                        const ThemedHeading('Your thoughts grow here.', 20),
+                        ThemedHeading(
+                          '${KeyNames.of(_Empty.newNoteKey)} for a new note.',
+                          20,
+                        ),
+                      ],
+                    )
+                  : const ThemedHeading('Pick a note, or start a new one.', 20),
             ),
             WholeCenter(
               child: CardButton(

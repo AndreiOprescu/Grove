@@ -18,9 +18,9 @@ APP_NAME:         Grove
 BUNDLE_ID:        local.grove.app
 ```
 
-If more than one layout is listed, build all of them and add a layout picker in
-Settings and in the View menu (§8). If only one is listed, still keep the `AppLayout`
-enum so more can be added later.
+Only layout B is built. There is no layout picker and no `AppLayout` list in the code.
+(Corrected 2026-10-12: the Mac app had none, and the owner said the Mac app wins. A
+second layout brings the list with it.)
 
 ---
 
@@ -32,7 +32,8 @@ Four connected parts:
 
 1. **Day Planner** (most important). A vertical timeline of the day. Drag tasks and
    events onto it. Drag a block to change its time. Drag its top or bottom edge to
-   change its duration. Blocks may overlap; overlapping blocks are shown side by side.
+   change its duration. Blocks may overlap; a later block lies on top of the earlier one,
+   moved a little to the right (§5.1.3).
    It must feel effortless: smooth 60 fps dragging, snapping, live time labels, undo.
 2. **Tasks.** Tasks for a specific day, for a whole week (no day picked yet), or for
    "someday". Lists, tags, priority, subtasks, due dates, estimates, repeating tasks.
@@ -57,7 +58,7 @@ Everything is stored locally on this Mac. No accounts, no network, no third-part
       task from the task list onto the timeline.
 - [ ] Planner: move a block by dragging (snaps to a fixed 15-min grid).
 - [ ] Planner: resize from the top edge and from the bottom edge. Minimum 15 min.
-- [ ] Planner: overlapping blocks are allowed and shown side by side in columns.
+- [ ] Planner: overlapping blocks are allowed and shown in layers (§5.1.3).
 - [ ] Planner: in 3-day / week mode, drag a block to another day.
 - [ ] Planner: live label while dragging shows `11:15 – 12:45 · 1h 30m`.
 - [ ] Planner: ⌘Z / ⇧⌘Z undo and redo every planner change.
@@ -385,9 +386,12 @@ occurrence), `title`, `startMinute`, `endMinute`, `day: DayKey`, `kind` (event/b
 Blocks show: time range (small, bold), title, duration, a round checkbox if it is a task
 block (clicking it completes the task with the check-burst animation), a small ✎ icon if
 linked notes exist. Text truncates with "…". Blocks shorter than 25 min show a single line.
-Done blocks are faded with strike-through. Events are filled with their colour at 14%
-opacity and a 3pt left border; task blocks use a dashed 1pt border + 3pt solid left
-border (exactly as in `design/layouts.html`).
+Done blocks are faded with strike-through. Events are filled with their colour at 16%
+opacity and a 3pt left border; task blocks are filled at 10% and use a dashed 1pt border
++ 3pt solid left border. (Corrected 2026-10-12 to the numbers of the Mac app; this text
+said 14% before.)
+A task block with a priority that is not done has a full 3.5pt border in the colour of
+the priority in place of the dashed border. (Added 2026-10-12: the Mac app did this.)
 
 A task block with subtasks lists them under the title and short description, in panel
 order, without cancelled ones. Each row has a small mark and the title; done rows are
@@ -403,7 +407,19 @@ All-day events show in a strip above the grid.
 
 #### 5.1.3 Overlap layout (pure function in `PlannerMath`)
 
-Overlaps are always allowed. Lay out side by side:
+Overlaps are always allowed.
+
+> **Corrected 2026-10-12 (the Mac app wins).** The app does not put overlapping blocks
+> side by side. It puts them in layers: `PlannerLayers.swift` in the Mac app,
+> `app/lib/core/planner/planner_layers.dart` in the Flutter app. Overlapping blocks never
+> share the width. A block that starts later is drawn on top of the block under it and
+> is moved a little to the right, so both titles stay readable. A block that starts so
+> close to the start of the block under it that it would cover its title row ("tight")
+> moves further right. Blocks that only touch (end == start) do not overlap. The
+> function `layoutColumns` below is not in the code. The Mac app replaced it with the
+> layers on 2026-10-02. The Flutter app has `PlannerMath.layoutLayers`.
+
+The first rule (side by side), not in the code:
 
 ```swift
 public struct Span: Equatable, Sendable { public var id: String; public var start: Int; public var end: Int }
@@ -436,13 +452,17 @@ Block frame: `x = gutter + col * colWidth`, `width = colWidth - 3`, where
 `colWidth = (dayColumnWidth - gutter - 6) / columns`. Animate layout changes with
 `.spring(response: 0.28, dampingFraction: 0.86)` (instant when motion is off).
 
+> **Note 2026-10-12.** The Flutter app moves a block in 220 ms with an ease-out curve, not
+> with this spring. At this length the two look the same. With "Motion off" there is no
+> animation.
+
 #### 5.1.4 Interactions (all must work)
 
 | Action | Result |
 |---|---|
 | Drag on empty grid space | Draws a selection from press point to current point (snapped). On release: creates a new block and opens an inline title field in it. Esc cancels → nothing saved. Typing a title that matches an existing open task offers "Schedule existing task" (top suggestion). Otherwise creates a new task (bucket `day`) + block. Hold ⌘ while releasing to create a plain **event** instead of a task. |
 | Double-click empty space | New 30-min block (or task estimate) at the snapped minute, title field open. |
-| Drag a task from any task list / a sticky note onto the grid | Ghost preview follows the pointer showing the time; on drop: creates a block at the snapped minute with length `estimate_min` rounded up to 15 min (at least 15); sets task `bucket='day'`, `plan_date` = that day. |
+| Drag a task from any task list / a sticky note onto the grid | The day column under the pointer gets a tint. (Corrected 2026-10-12 to the Mac app; this text said a ghost with the time follows the pointer.) On drop: creates a block at the snapped minute with length `estimate_min` rounded up to 15 min (at least 15); sets task `bucket='day'`, `plan_date` = that day. |
 | Drag a block body | Moves it. Live label `11:15 – 12:45 · 1h 30m` floats next to the block. In multi-day mode, horizontal movement changes the day column. |
 | Drag top edge (6pt hit zone) | Changes start; end stays. Cursor `.pointerStyle(.frameResize(position: .top))`. |
 | Drag bottom edge (6pt hit zone) | Changes end; start stays. Cursor `.frameResize(position: .bottom)`. |
@@ -450,7 +470,7 @@ Block frame: `x = gutter + col * colWidth`, `width = colWidth - 3`, where
 | Min / clamp | Minimum length 15 min. Clamp inside 00:00–24:00. A block cannot cross midnight (clamp). |
 | ⇧ held on release (move or resize) | **Ripple**: blocks that start after the moved block's start and now overlap it are pushed down so they start at its end; cascade further (see `ripple`). Show a small "pushed 2 blocks" toast. |
 | Release over the sticky strip | Removes the block (task stays, planned for that day with no time, so it shows as a sticky note). |
-| Drag a block onto a day in the Week strip / Month view | Moves it to that day, same time. |
+| Drag a block onto a day in the Month view | Not built. (Corrected 2026-10-12: in the Mac app a block could not leave the grid, and there is no week strip, see §5.3. To move a block to another day, drag it across the columns of the week.) |
 | Edge auto-scroll | While dragging within 40pt of the scroll view's top/bottom, auto-scroll (use a `Timer` at 60 Hz, speed proportional to distance). |
 | Click a block | Selects it (accent outline). Shows it in the inspector (Layout A) or a popover (others). |
 | ⌘-click | Multi-select. Dragging any selected block moves all selected by the same delta. |
@@ -475,6 +495,8 @@ Implementation notes (SwiftUI):
   Plain `String` avoids having to declare a custom UTType in Info.plist. Use
   `.onDropSessionUpdated`/`dropDestination`'s `isTargeted` + a hover location to draw the
   ghost; if live location is not available, show the ghost only on drop (acceptable).
+  (Corrected 2026-10-12, the Mac app wins: no ghost was built. The day column gets a
+  tint. See the note in the text above.)
 - Haptic-like feedback: `NSHapticFeedbackManager.defaultPerformer.perform(.alignment, …)`
   each time the snapped value changes (trackpads feel it).
 
@@ -596,9 +618,12 @@ Use `.focusable()` + `.onKeyPress`.
 
 - **Month view**: 6×7 grid. Each cell: day number, up to 3 event pills, "+n", small dots
   for open tasks (count), a leaf glyph if the day has a daily note with text. Click → that
-  week in the Planner. Double-click → new all-day event. Drag tasks/blocks/notes onto a day.
-- **Week strip** (top of Layout B and the planner header): Mon–Sun with dots = number of
-  items (max 3 dots). Click switches day. ‹ › buttons. Today highlighted with accent.
+  week in the Planner. Double-click → new all-day event. Drag a task onto a day. (Corrected 2026-10-12 to the
+  Mac app: a day takes a task only, no block and no note.)
+- **Week strip**: not built. (Corrected 2026-10-12: the Mac app had none, and the owner
+  said the Mac app wins.) The day names above the columns of the Planner do its work: a
+  click selects the day, the header has ‹ › and "Today", and today has the accent colour.
+  The rule for the dots (at most 3) stays in `CalendarRules` with its tests.
 - The Calendar screen shows the month view only. The week view is the Planner screen (§5.1).
 - **Event editor** (popover): title, all-day toggle, start, end, colour, location, notes,
   repeat, linked notes, "Create meeting note" button.
@@ -618,10 +643,14 @@ Use `.focusable()` + `.onKeyPress`.
   - `- [ ] ` / `- [x] ` checkboxes rendered with a clickable ☐/☑ (click toggles text)
   - `[[Title]]` links in accent colour, clickable (`.link` attribute with URL
     `grove://note/<id>` or `grove://task/<id>` / `grove://event/<id>`; handle in
-    `textView(_:clickedOnLink:at:)`). Unresolved links are dotted-underlined; clicking one
-    creates the note.
-  - `@tomorrow 3pm`, `@fri`, `@3 oct 14:00` date tokens tinted accent2.
-  - `#tag` tinted muted.
+    `textView(_:clickedOnLink:at:)`). A link whose item was deleted is muted and
+    struck through. A click on a link with no item shows "That item is gone." and makes
+    no note. (Corrected
+    2026-10-12 to the Mac app. This text said: dotted underline, and a click makes the
+    note. `grove://` links are on the "later" list of §15.)
+  - `@tomorrow 3pm`, `@fri`, `@3 oct 14:00` date tokens in the accent colour with a
+    dotted underline. (Corrected 2026-10-12 to the Mac app; this text said accent2.)
+  - `#tag` tinted accent2. (Corrected 2026-10-12 to the Mac app; this text said muted.)
   Save 500 ms after typing stops (debounce) and on window resign.
 - **`[[` autocomplete**: when the text before the caret matches `\[\[([^\]]*)$`, show a
   small floating list (child `NSPanel` or SwiftUI overlay positioned at the caret rect
@@ -688,9 +717,14 @@ Use `.focusable()` + `.onKeyPress`.
 `MenuBarExtra` with a leaf SF Symbol (`leaf`). Content: "Now: <current block>" /
 "Next: <next block> in 25 min", today's progress bar, a quick-add field, "Open Grove".
 
+> **Corrected 2026-10-12 (card Q-7, answer A).** The Flutter app has a line "New task" in
+> the tray menu, not a text field. The line opens Grove with the cursor in the quick-add
+> field. This is true for the lines of §1.1 and §5.2 that name the menu bar also.
+
 ### 5.8 Window, commands, settings
 
-- One main `WindowGroup` (id "main"), min size 960×620, default 1280×800,
+- One main `WindowGroup` (id "main"), min size 1100×620 (corrected 2026-10-12 to the
+  Mac app; this text said 960×620), default 1280×800,
   `.windowStyle(.hiddenTitleBar)` so the ambient background reaches the top; draw content
   under the traffic lights with top padding 38.
 - Menu commands: File ▸ New Task ⌘N, New Note ⌥⌘N, New Event ⇧⌘N · View ▸ Today ⌘T,
@@ -817,6 +851,9 @@ Fonts (all ship with macOS — no files to bundle):
 ---
 
 ## 8. Layouts
+
+Only layout B is built (§0). A, C and D are ideas for later; there is no `store.layout`.
+The header of B has no week strip (§5.3).
 
 All layouts share the same component views. `RootView` switches on `store.layout`.
 Every layout must give access to: Planner, Tasks (day + week), Calendar (month), Notes,
@@ -1046,3 +1083,18 @@ iCloud sync, iPhone app, Apple Calendar / Google Calendar import (possible v2 vi
 EventKit — needs the owner's OK first), collaboration, file attachments other than
 images (images in task bodies and notes ARE in scope since 2026-10-02), global
 system-wide hotkey, App Store distribution / notarisation.
+
+### 15.1 Later (the owner, 2026-10-12)
+
+These are in the text above, but they are not built. The owner said on 2026-10-12 to do
+them later. Each one needs a yes from the owner before work starts.
+
+- `grove://` links (§5.4, §11.3). Links work inside the app; the system cannot open
+  Grove with a link.
+- An image by paste or by drop into the editor (§5.4). The button of the toolbar adds an
+  image.
+- The theme and the planner settings in the export file and in the `settings` table
+  (§5.8). They are in a file of the device, so each device keeps its own, and an import
+  does not bring them.
+- Speed limits that fail a build (§10): start under 1 second, 60 frames in a second.
+  Today a test only counts the frames at rest; the owner checks the speed by hand.

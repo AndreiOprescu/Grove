@@ -1,4 +1,7 @@
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:grove/ui/store_app.dart';
+import 'package:grove/ui/tasks/quick_add_field.dart';
 
 import 'support.dart';
 
@@ -96,6 +99,36 @@ void main() {
     expect(log, ['show']);
     expect(store.quickAddRequest, before + 1);
     expect(store.screen, Screen.today);
+  });
+
+  testWidgets('after "New task" the quick-add field has the cursor', (
+    tester,
+  ) async {
+    store = makeStore(prefs: MemoryPrefs()..set('appearance.motion', false));
+    store.screen = Screen.notes;
+    final s = service()..start();
+    tester.view.physicalSize = const Size(1200, 800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    await tester.pumpWidget(StoreApp(key: UniqueKey(), store: store));
+    await tester.pumpAndSettle();
+    expect(find.byType(QuickAddField), findsNothing);
+
+    tray.tap('New task');
+    await tester.pumpAndSettle();
+    expect(log, ['show']);
+    final field = tester.widget<EditableText>(
+      find.descendant(
+        of: find.byType(QuickAddField),
+        matching: find.byType(EditableText),
+      ),
+    );
+    expect(field.focusNode.hasPrimaryFocus, isTrue);
+    expect(FocusManager.instance.primaryFocus, field.focusNode);
+
+    // Take the tree down before the store is closed.
+    await tester.pumpWidget(const SizedBox());
+    s.dispose();
   });
 
   test('"Quit Grove" quits', () {

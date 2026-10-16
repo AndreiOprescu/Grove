@@ -1,7 +1,9 @@
 // The notes screen (milestone F9): the list, the search, the filters, the
 // note itself with its side card, and the notes in the left panel.
+import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart' hide Row;
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:grove/ui/notes/day_panel.dart';
 import 'package:grove/ui/notes/note_editor_pane.dart';
@@ -76,6 +78,72 @@ void main() {
     // the header button makes a second one
     await tapKey(tester, 'notes-new');
     expect(store.notes(), hasLength(2));
+  });
+
+  testWidgets('no notes: the screen names the key of a new note, and the key '
+      'makes one', (tester) async {
+    final store = notesStore();
+    // Wide: the letters of the test font are wider than the real ones.
+    await pumpPlanner(tester, store, size: const Size(1600, 900));
+    final words = find.text('Your thoughts grow here.');
+    final hint = find.text('Ctrl+Alt+N for a new note.');
+    expect(hint, findsOneWidget);
+    // One sentence: the hint is on the line of the first words, after them.
+    expect(tester.getCenter(hint).dy, tester.getCenter(words).dy);
+    expect(
+      tester.getTopLeft(hint).dx,
+      greaterThan(tester.getTopRight(words).dx),
+    );
+    expect(tester.getSize(hint).height, tester.getSize(words).height);
+
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.altLeft);
+    await tester.sendKeyEvent(LogicalKeyboardKey.keyN);
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.altLeft);
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
+    await tester.pumpAndSettle();
+    expect(store.notes(), hasLength(1));
+    expect(hint, findsNothing);
+  });
+
+  testWidgets('on a Mac the hint names the key ⌥⌘N', (tester) async {
+    debugDefaultTargetPlatformOverride = TargetPlatform.macOS;
+    try {
+      final store = notesStore();
+      await pumpPlanner(tester, store);
+      expect(find.text('Your thoughts grow here.'), findsOneWidget);
+      expect(find.text('⌥⌘N for a new note.'), findsOneWidget);
+      expect(find.textContaining('Ctrl+Alt+N'), findsNothing);
+      await tester.pumpWidget(const SizedBox());
+    } finally {
+      debugDefaultTargetPlatformOverride = null;
+    }
+  });
+
+  testWidgets('with notes in the list the screen does not name the key', (
+    tester,
+  ) async {
+    final store = notesStore();
+    store.newNote(title: 'Alpha');
+    store.selectedNoteId = null;
+    await pumpPlanner(tester, store);
+    expect(find.text('Pick a note, or start a new one.'), findsOneWidget);
+    expect(find.textContaining('for a new note'), findsNothing);
+  });
+
+  testWidgets('in a narrow window the hint goes under the first words', (
+    tester,
+  ) async {
+    final store = notesStore();
+    await pumpPlanner(tester, store, size: const Size(720, 700));
+    final words = find.text('Your thoughts grow here.');
+    final hint = find.text('Ctrl+Alt+N for a new note.');
+    expect(hint, findsOneWidget);
+    expect(
+      tester.getTopLeft(hint).dy,
+      greaterThanOrEqualTo(tester.getBottomLeft(words).dy),
+    );
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets('a click on a row opens that note', (tester) async {

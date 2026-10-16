@@ -5,6 +5,7 @@ import 'package:grove/ui/tasks/notice_cards.dart';
 import 'package:grove/ui/tasks/quick_add_field.dart';
 import 'package:grove/ui/tasks/task_row.dart';
 import 'package:grove/ui/tasks/task_section.dart';
+import 'package:grove/ui/tasks/task_widgets.dart';
 import 'package:grove/ui/tasks/tasks_pane.dart';
 
 import 'tasks_support.dart';
@@ -29,6 +30,18 @@ void addYesterday(AppStore store, String title, {int minute = 540}) {
       kind: EventKind.block,
       taskId: task.id,
     ),
+  );
+}
+
+/// A store on a new database: the three sample tasks and the welcome card.
+AppStore firstRunStore([FakeNotifier? notifier]) {
+  final repos = Repos(Database.inMemory());
+  FirstRun.seedIfNew(repos, today: wednesday);
+  return makeStore(
+    repos: repos,
+    notifier: notifier,
+    prefs: MemoryPrefs()..set('appearance.motion', false),
+    clock: WallTime(day: wednesday, minute: 10 * 60),
   );
 }
 
@@ -95,6 +108,55 @@ void main() {
       expect(find.text('20m'), findsOneWidget);
     });
 
+    testWidgets('a new task is kept when the person clicks away', (
+      tester,
+    ) async {
+      final store = paneStore();
+      await pumpPane(tester, today(store));
+      final field = find.descendant(
+        of: quickAdd,
+        matching: find.byType(EditableText),
+      );
+
+      // No Return: the text is typed, then a click lands next to the field.
+      await tester.tap(quickAdd);
+      await tester.pump();
+      await tester.enterText(field, 'Buy milk');
+      await tester.pump();
+      expect(store.openTasks(TaskPlacement.day(wednesday)), isEmpty);
+      await tester.tap(find.text('Tasks'), kind: PointerDeviceKind.mouse);
+      await tester.pumpAndSettle();
+
+      expect(tester.widget<EditableText>(field).focusNode.hasFocus, isFalse);
+      expect(titles(store.openTasks(TaskPlacement.day(wednesday))), [
+        'Buy milk',
+      ]);
+      expect(tester.widget<EditableText>(field).controller.text, isEmpty);
+      expect(
+        rowFinder(store.openTasks(TaskPlacement.day(wednesday)).single.id),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('a click away from an empty field adds no task', (
+      tester,
+    ) async {
+      final store = paneStore();
+      await pumpPane(tester, today(store));
+
+      await tester.tap(quickAdd);
+      await tester.pump();
+      await tester.enterText(
+        find.descendant(of: quickAdd, matching: find.byType(EditableText)),
+        '   ',
+      );
+      await tester.pump();
+      await tester.tap(find.text('Tasks'), kind: PointerDeviceKind.mouse);
+      await tester.pumpAndSettle();
+
+      expect(store.openTasks(TaskPlacement.day(wednesday)), isEmpty);
+    });
+
     testWidgets('a click on the check box marks the task as done', (
       tester,
     ) async {
@@ -155,6 +217,49 @@ void main() {
       expect(find.text('due Fri 9 Oct'), findsOneWidget);
       expect(find.text('Notes'), findsOneWidget);
       expect(find.text('#work'), findsOneWidget);
+    });
+
+    testWidgets('the chips of a row: its list, its time block and "Repeats"', (
+      tester,
+    ) async {
+      final store = paneStore();
+      store.repos.lists.save(ListItem(id: 'work', name: 'Work'));
+      final task = addTask(store, 'Write the report');
+      store.repos.tasks.save(
+        task.copyWith(
+          listId: 'work',
+          recurrence: RecurrenceRule(freq: Freq.weekly),
+        ),
+      );
+      store.repos.events.save(
+        EventItem(
+          title: 'Write the report',
+          start: WallTime(day: wednesday, minute: 14 * 60),
+          end: WallTime(day: wednesday, minute: 15 * 60 + 30),
+          kind: EventKind.block,
+          taskId: task.id,
+        ),
+      );
+      addTask(store, 'Buy milk', sort: 1);
+      await pumpPane(tester, today(store));
+
+      Finder chip(String id, String text) => find.descendant(
+        of: rowFinder(id),
+        matching: find.widgetWithText(TaskChip, text),
+      );
+      IconData? icon(String text) =>
+          tester.widget<TaskChip>(chip(task.id, text)).icon;
+      expect(icon('Work'), Icons.folder_outlined);
+      expect(icon('14:00–15:30'), Icons.schedule);
+      expect(icon('Repeats'), Icons.repeat);
+      // A plain task has none of the three.
+      expect(
+        find.descendant(
+          of: rowFinder('buy-milk'),
+          matching: find.byType(TaskChip),
+        ),
+        findsNothing,
+      );
     });
 
     testWidgets('the menu of a row moves the task', (tester) async {
@@ -352,6 +457,156 @@ void main() {
 
       expect(find.text('1 thing from yesterday'), findsNothing);
       expect(store.openTasks(TaskPlacement.day(wednesday)), isEmpty);
+    });
+
+    testWidgets('the welcome card: "Got it" closes it and keeps the samples', (
+      tester,
+    ) async {
+      final fake = FakeNotifier(status: NotifyAuthorization.notAsked);
+      final store = firstRunStore(fake);
+      await pumpPane(tester, today(store));
+      expect(find.byType(WelcomeCard), findsOneWidget);
+      expect(find.text('Welcome to Grove'), findsOneWidget);
+      expect(find.byType(TaskRow), findsNWidgets(3));
+
+      await tester.tap(find.text('Got it'));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(WelcomeCard), findsNothing);
+      expect(find.text('Welcome to Grove'), findsNothing);
+      expect(find.byType(TaskRow), findsNWidgets(3));
+      expect(store.repos.tasks.all(), hasLength(3));
+      // The card stays closed for a new store on the same data.
+      expect(FirstRun.welcomeVisible(store.repos), isFalse);
+      // Grove asks for notifications after the card, not before.
+      await tester.runAsync(() => store.welcomeAsk!);
+      expect(fake.asked, 1);
+    });
+
+    testWidgets('the welcome card: "Remove samples" closes it and deletes the '
+        'samples, and undo brings them back', (tester) async {
+      final store = firstRunStore(FakeNotifier());
+      addTask(store, 'Mine');
+      await pumpPane(tester, today(store));
+      expect(find.byType(WelcomeCard), findsOneWidget);
+      expect(find.byType(TaskRow), findsNWidgets(4));
+
+      await tester.tap(find.text('Remove samples'));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(WelcomeCard), findsNothing);
+      expect(find.byType(TaskRow), findsOneWidget);
+      expect(find.text('Mine'), findsOneWidget);
+      expect(titles(store.repos.tasks.all()), ['Mine']);
+      expect(store.undoName, 'Remove Samples');
+
+      store.undo();
+      await tester.pumpAndSettle();
+      expect(find.byType(TaskRow), findsNWidgets(4));
+      expect(find.byType(WelcomeCard), findsNothing);
+      // The message of the undo goes away after a moment.
+      await tester.pump(const Duration(seconds: 3));
+    });
+
+    testWidgets('each button of the panel has a label for a screen reader', (
+      tester,
+    ) async {
+      final handle = tester.ensureSemantics();
+      final store = firstRunStore();
+      addYesterday(store, 'Old one');
+      addTask(store, 'Plan the trip', sort: -1);
+      store.repos.tasks.save(
+        TaskItem(
+          id: 'book',
+          title: 'Book the train',
+          bucket: TaskBucket.day,
+          planDate: wednesday,
+          parentId: 'plan-the-trip',
+        ),
+      );
+      final done = addTask(store, 'Pay rent');
+      store.toggleDone(taskId: done.id);
+      await pumpPane(tester, today(store), size: const Size(320, 1400));
+      final pane = find.byType(TasksPane);
+
+      expect(
+        tester.getSemantics(checkFinder('plan-the-trip')),
+        isSemantics(
+          label: 'Mark Plan the trip as done',
+          isButton: true,
+          hasCheckedState: true,
+          isChecked: false,
+          hasTapAction: true,
+        ),
+      );
+      var labels = buttonLabels(tester, pane);
+      expect(
+        labels,
+        containsAll([
+          'Got it',
+          'Remove samples',
+          'Move to today',
+          'Leave',
+          'Mark Plan the trip as done',
+          'Show subtasks',
+          'Done · 1',
+        ]),
+      );
+      expect(labels, everyElement(isNotEmpty));
+
+      // The open parts: the subtasks and the done tasks.
+      await tester.tap(find.bySemanticsLabel('Show subtasks'));
+      await tester.tap(find.bySemanticsLabel('Done · 1'));
+      await tester.pumpAndSettle();
+      labels = buttonLabels(tester, pane);
+      expect(
+        labels,
+        containsAll([
+          'Hide subtasks',
+          'Mark Book the train as done',
+          'Mark Pay rent as not done',
+        ]),
+      );
+      expect(labels, everyElement(isNotEmpty));
+      expect(
+        tester.getSemantics(checkFinder('pay-rent')),
+        isSemantics(
+          label: 'Mark Pay rent as not done',
+          isButton: true,
+          hasCheckedState: true,
+          isChecked: true,
+        ),
+      );
+      // The field says what it is for.
+      expect(find.bySemanticsLabel('Add a task…'), findsOneWidget);
+      // Nothing that can be pressed is read with no name.
+      expect(unnamedPresses(tester, pane), isEmpty);
+      handle.dispose();
+    });
+
+    testWidgets('the buttons of the unscheduled list have labels too', (
+      tester,
+    ) async {
+      final handle = tester.ensureSemantics();
+      final store = paneStore();
+      addTask(store, 'Late one', day: wednesday.adding(days: -2));
+      addTask(store, 'Some day', bucket: TaskBucket.inbox);
+      final done = addTask(store, 'Pay rent');
+      store.toggleDone(taskId: done.id);
+      await pumpPane(tester, unscheduled(store));
+
+      final labels = buttonLabels(tester, find.byType(TasksPane));
+      expect(
+        labels,
+        containsAll([
+          'Mark Late one as done',
+          'Mark Some day as done',
+          'Done today · 1',
+        ]),
+      );
+      expect(labels, everyElement(isNotEmpty));
+      expect(unnamedPresses(tester, find.byType(TasksPane)), isEmpty);
+      handle.dispose();
     });
 
     testWidgets('a phone-wide panel has no overflow', (tester) async {

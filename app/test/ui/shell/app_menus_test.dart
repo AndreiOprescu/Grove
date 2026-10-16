@@ -8,6 +8,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:grove/ui/calendar/event_editor.dart';
 import 'package:grove/ui/shell/app_menus.dart';
 import 'package:grove/ui/shell/shell_model.dart';
+import 'package:grove/ui/tasks/quick_add_field.dart';
 import 'package:grove/ui/theme/theme_spec.dart';
 
 import '../settings/settings_support.dart';
@@ -87,6 +88,18 @@ Iterable<PlatformMenuItem> leaves(PlatformMenuItem item) sync* {
 
 PlatformMenuItem line(PlatformMenu menu, String label) =>
     leaves(menu).firstWhere((item) => item.label == label);
+
+/// The text field of the quick-add box of the task list.
+final quickAddText = find.descendant(
+  of: find.byType(QuickAddField),
+  matching: find.byType(EditableText),
+);
+
+/// True when the keys go to the quick-add field.
+bool quickAddHasCursor(WidgetTester tester) {
+  final node = tester.widget<EditableText>(quickAddText).focusNode;
+  return node.hasPrimaryFocus && FocusManager.instance.primaryFocus == node;
+}
 
 void main() {
   group('the menus', () {
@@ -193,6 +206,67 @@ void main() {
       expect(store.quickAddRequest, asked + 1);
       // The task list is on the Today screen.
       expect(store.screen, Screen.today);
+    });
+
+    testWidgets('after Ctrl and N the quick-add field has the cursor', (
+      tester,
+    ) async {
+      final store = plannerStore()..screen = Screen.notes;
+      await pumpApp(tester, store);
+      expect(find.byType(QuickAddField), findsNothing);
+      await press(tester, [ctrl], LogicalKeyboardKey.keyN);
+      expect(quickAddHasCursor(tester), isTrue);
+      // The next keys go in the field: Return makes the task.
+      await tester.enterText(quickAddText, 'Buy milk');
+      await tester.testTextInput.receiveAction(TextInputAction.done);
+      await tester.pumpAndSettle();
+      expect(titles(store.openTasks(TaskPlacement.day(wednesday))), [
+        'Buy milk',
+      ]);
+    });
+
+    testWidgets('on the Planner Ctrl and N opens the Tasks panel, and its '
+        'field has the cursor', (tester) async {
+      final store = plannerStore()..leftPane = LeftPane.notes;
+      await pumpApp(tester, store);
+      expect(find.byType(QuickAddField), findsNothing);
+      await press(tester, [ctrl], LogicalKeyboardKey.keyN);
+      expect(store.screen, Screen.planner);
+      expect(store.leftPane, LeftPane.tasks);
+      expect(quickAddHasCursor(tester), isTrue);
+    });
+
+    testWidgets('Ctrl and N a second time: the field has the cursor again', (
+      tester,
+    ) async {
+      final store = plannerStore()..screen = Screen.today;
+      await pumpApp(tester, store);
+      expect(quickAddHasCursor(tester), isFalse);
+      await press(tester, [ctrl], LogicalKeyboardKey.keyN);
+      expect(quickAddHasCursor(tester), isTrue);
+      FocusManager.instance.primaryFocus?.unfocus();
+      await tester.pumpAndSettle();
+      expect(quickAddHasCursor(tester), isFalse);
+      await press(tester, [ctrl], LogicalKeyboardKey.keyN);
+      expect(quickAddHasCursor(tester), isTrue);
+    });
+
+    testWidgets('on a Mac Command and N, and the line "New Task", put the '
+        'cursor in the quick-add field', (tester) async {
+      await onMac(() async {
+        final store = plannerStore()..screen = Screen.notes;
+        await pumpApp(tester, store);
+        await press(tester, [command], LogicalKeyboardKey.keyN);
+        expect(quickAddHasCursor(tester), isTrue);
+
+        store.screen = Screen.notes;
+        await tester.pumpAndSettle();
+        expect(find.byType(QuickAddField), findsNothing);
+        line(menuBar(tester)['File']!, 'New Task').onSelected!();
+        await tester.pumpAndSettle();
+        expect(quickAddHasCursor(tester), isTrue);
+        await tester.pumpWidget(const SizedBox());
+      });
     });
 
     testWidgets('Ctrl, Alt and N makes a note and opens it', (tester) async {

@@ -199,6 +199,7 @@ class _TasksPaneState extends State<TasksPane> {
         if (_showDone)
           TaskRows(
             tasks: done,
+            motion: _store.motionSetting,
             rowBuilder: (task) => TaskRow(
               store: _store,
               task: task,

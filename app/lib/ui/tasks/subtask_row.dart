@@ -155,7 +155,11 @@ class _SubtaskRowState extends State<SubtaskRow> {
           key: ValueKey('sub-check-${_sub.id}'),
           behavior: HitTestBehavior.opaque,
           onTap: toggle,
-          child: CheckBox(isOn: _sub.isDone, size: 14),
+          child: CheckBox(
+            isOn: _sub.isDone,
+            size: 14,
+            motion: _store.motionSetting,
+          ),
         ),
       ),
     );

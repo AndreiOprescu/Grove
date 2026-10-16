@@ -195,13 +195,18 @@ class _TaskRowState extends State<TaskRow> with AutomaticKeepAliveClientMixin {
       checked: t.isDone,
       label: label,
       onTap: toggle,
+      excludeSemantics: true,
       child: MouseRegion(
         cursor: SystemMouseCursors.click,
         child: GestureDetector(
           key: ValueKey('check-${t.id}'),
           behavior: HitTestBehavior.opaque,
           onTap: toggle,
-          child: CheckBox(isOn: t.isDone, size: size),
+          child: CheckBox(
+            isOn: t.isDone,
+            size: size,
+            motion: _store.motionSetting,
+          ),
         ),
       ),
     );

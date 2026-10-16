@@ -41,6 +41,7 @@ class BlockView extends StatelessWidget {
     required this.isSelected,
     required this.isDragging,
     required this.isRenaming,
+    this.motion = false,
     required this.onTap,
     required this.onToggleDone,
     required this.onRename,
@@ -65,6 +66,10 @@ class BlockView extends StatelessWidget {
   final bool isSelected;
   final bool isDragging;
   final bool isRenaming;
+
+  /// The Motion setting. With it the check box plays the burst of the theme
+  /// when the block is ticked (PLAN §5.1.2).
+  final bool motion;
   final VoidCallback onTap;
   final VoidCallback onToggleDone;
   final ValueChanged<String> onRename;
@@ -479,7 +484,7 @@ class BlockView extends StatelessWidget {
         key: ValueKey('check-${block.id}'),
         behavior: HitTestBehavior.opaque,
         onTap: onToggleDone,
-        child: CheckBox(isOn: block.isDone, size: size),
+        child: CheckBox(isOn: block.isDone, size: size, motion: motion),
       ),
     ),
   );

@@ -1,8 +1,10 @@
 // Port of Tests/GroveTests/EditorViewTests.swift: drives the real editor the
 // way the keyboard would. The text rules themselves are tested in
 // test/core/parsing.
+import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:grove/core/model/link.dart';
@@ -187,6 +189,37 @@ List<TextSpan> pieces(WidgetTester tester, Rig rig) {
 
 TextSpan pieceWith(WidgetTester tester, Rig rig, String text) =>
     pieces(tester, rig).firstWhere((p) => p.text == text);
+
+/// A note that makes the task `T9` and keeps the words it got.
+EditorServices Function(Rig rig) makes(List<String> made) =>
+    (rig) => EditorServices(
+      makeTask: (words) {
+        made.add(words);
+        return 'T9';
+      },
+      notify: rig.told.add,
+    );
+
+/// Shift and T with `command` held: Ctrl, or Command on a Mac.
+Future<void> pressMakeTask(
+  WidgetTester tester,
+  LogicalKeyboardKey command,
+) async {
+  await tester.sendKeyDownEvent(LogicalKeyboardKey.shiftLeft);
+  await tester.sendKeyDownEvent(command);
+  await tester.sendKeyEvent(LogicalKeyboardKey.keyT);
+  await tester.sendKeyUpEvent(command);
+  await tester.sendKeyUpEvent(LogicalKeyboardKey.shiftLeft);
+  await tester.pump();
+}
+
+/// Opens the menu of the text at the caret, as a right click or a long
+/// press does.
+Future<void> openTextMenu(WidgetTester tester) async {
+  final state = tester.state<EditableTextState>(find.byType(EditableText));
+  expect(state.showToolbar(), isTrue);
+  await tester.pumpAndSettle();
+}
 
 void main() {
   group('typing', () {
@@ -1006,6 +1039,176 @@ void main() {
       await tester.pump();
       expect(made, ['call the bank']);
       expect(rig.text, '- [ ] call the bank ⟦t:T9⟧');
+    });
+
+    testWidgets('Shift, Ctrl and T makes a task of the line', (tester) async {
+      final made = <String>[];
+      final rig = await makeRig(tester, 'call the bank', services: makes(made));
+      await caret(tester, rig, 4);
+      // The test runs as Android: the key is Ctrl.
+      await pressMakeTask(tester, LogicalKeyboardKey.controlLeft);
+      expect(made, ['call the bank']);
+      expect(rig.text, '- [ ] call the bank ⟦t:T9⟧');
+    });
+
+    testWidgets('on a Mac the key is Shift, Command and T', (tester) async {
+      debugDefaultTargetPlatformOverride = TargetPlatform.macOS;
+      try {
+        final made = <String>[];
+        final rig = await makeRig(
+          tester,
+          'call the bank',
+          services: makes(made),
+        );
+        await caret(tester, rig, 4);
+        // Ctrl is not the key of a Mac.
+        await pressMakeTask(tester, LogicalKeyboardKey.controlLeft);
+        expect(made, isEmpty);
+        await pressMakeTask(tester, LogicalKeyboardKey.metaLeft);
+        expect(made, ['call the bank']);
+        expect(rig.text, '- [ ] call the bank ⟦t:T9⟧');
+        await tester.pumpWidget(const SizedBox());
+      } finally {
+        debugDefaultTargetPlatformOverride = null;
+      }
+    });
+
+    testWidgets('the key makes a task of the selected words only', (
+      tester,
+    ) async {
+      final made = <String>[];
+      final rig = await makeRig(
+        tester,
+        'today: call the bank',
+        services: makes(made),
+      );
+      await caret(tester, rig, 7, 20);
+      await pressMakeTask(tester, LogicalKeyboardKey.controlLeft);
+      expect(made, ['call the bank']);
+    });
+
+    testWidgets('the key without Shift, or with Alt, makes no task', (
+      tester,
+    ) async {
+      final made = <String>[];
+      final rig = await makeRig(tester, 'call the bank', services: makes(made));
+      await caret(tester, rig, 4);
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+      await tester.sendKeyEvent(LogicalKeyboardKey.keyT);
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.altLeft);
+      await pressMakeTask(tester, LogicalKeyboardKey.controlLeft);
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.altLeft);
+      await tester.pump();
+      expect(made, isEmpty);
+      expect(rig.text, 'call the bank');
+    });
+
+    testWidgets('the key on a line that is a task already: Grove says so', (
+      tester,
+    ) async {
+      final made = <String>[];
+      final rig = await makeRig(
+        tester,
+        '- [ ] call the bank ⟦t:T9⟧',
+        services: (rig) => EditorServices(
+          makeTask: (words) {
+            made.add(words);
+            return 'T10';
+          },
+          notify: rig.told.add,
+        ),
+      );
+      await caret(tester, rig, 8);
+      await pressMakeTask(tester, LogicalKeyboardKey.controlLeft);
+      expect(made, isEmpty);
+      expect(rig.told, ['That line is already a task.']);
+      expect(rig.text, '- [ ] call the bank ⟦t:T9⟧');
+    });
+
+    testWidgets('the menu of the text has "Make task", and a tap makes the '
+        'task', (tester) async {
+      final made = <String>[];
+      final rig = await makeRig(tester, 'call the bank', services: makes(made));
+      await caret(tester, rig, 4);
+      expect(find.text('Make task'), findsNothing);
+      await openTextMenu(tester);
+      expect(find.text('Make task'), findsOneWidget);
+      await tester.tap(find.text('Make task'));
+      await tester.pumpAndSettle();
+      expect(made, ['call the bank']);
+      expect(rig.text, '- [ ] call the bank ⟦t:T9⟧');
+      // The menu is closed.
+      expect(find.text('Make task'), findsNothing);
+    });
+
+    testWidgets('the menu has no "Make task" on a task line, and none in a '
+        'field that is not a note', (tester) async {
+      final made = <String>[];
+      var rig = await makeRig(
+        tester,
+        '- [ ] call the bank ⟦t:T9⟧',
+        services: makes(made),
+      );
+      await caret(tester, rig, 8);
+      await openTextMenu(tester);
+      expect(find.text('Select all'), findsOneWidget);
+      expect(find.text('Make task'), findsNothing);
+      ContextMenuController.removeAny();
+
+      rig = await makeRig(tester, 'call the bank');
+      await caret(tester, rig, 4);
+      await openTextMenu(tester);
+      expect(find.text('Select all'), findsOneWidget);
+      expect(find.text('Make task'), findsNothing);
+      ContextMenuController.removeAny();
+    });
+
+    testWidgets('the mark of a task line is not shown', (tester) async {
+      final rig = await makeRig(
+        tester,
+        '- [ ] call the bank ⟦t:T9⟧\nnext',
+        services: makes([]),
+      );
+      const text = '- [ ] call the bank ⟦t:T9⟧';
+      final start = text.indexOf('⟦');
+      // The pieces of the mark have no size and no colour.
+      final marks = [
+        for (final p in pieces(tester, rig))
+          if (p.text?.contains(RegExp('[⟦⟧]|t:T9')) ?? false) p,
+      ];
+      expect(marks, isNotEmpty);
+      expect(marks.map((p) => p.text).join(), contains('⟦t:T9⟧'));
+      for (final piece in marks) {
+        expect(piece.style?.fontSize, lessThan(0.1), reason: piece.text);
+        expect(piece.style?.color?.a, 0, reason: piece.text);
+      }
+      // On the screen the mark takes no room: the line ends where its
+      // words end.
+      final editable = tester.renderObject<RenderEditable>(
+        find.byElementPredicate((e) => e.renderObject is RenderEditable),
+      );
+      Rect caretAt(int offset) =>
+          editable.getLocalRectForCaret(TextPosition(offset: offset));
+      expect(caretAt(text.length).left - caretAt(start).left, lessThan(0.5));
+      expect(caretAt(start).left - caretAt(start - 5).left, greaterThan(10));
+    });
+
+    testWidgets('the mark of a task made with the key is not shown', (
+      tester,
+    ) async {
+      final rig = await makeRig(tester, 'call the bank', services: makes([]));
+      await caret(tester, rig, 4);
+      await pressMakeTask(tester, LogicalKeyboardKey.controlLeft);
+      expect(rig.text, endsWith('⟦t:T9⟧'));
+      final shown = [
+        for (final p in pieces(tester, rig))
+          if ((p.style?.fontSize ?? 14) > 0.1) p.text,
+      ].join();
+      expect(shown, contains('call the bank'));
+      expect(shown, isNot(contains('⟦')));
+      expect(shown, isNot(contains('T9')));
+      expect(shown, isNot(contains('⟧')));
     });
 
     testWidgets('a field that is not a note cannot make a task', (

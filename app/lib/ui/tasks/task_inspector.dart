@@ -251,7 +251,11 @@ class _TaskInspectorState extends State<TaskInspector> {
                 key: const ValueKey('inspector-check'),
                 behavior: HitTestBehavior.opaque,
                 onTap: toggle,
-                child: CheckBox(isOn: task.isDone, size: 20),
+                child: CheckBox(
+                  isOn: task.isDone,
+                  size: 20,
+                  motion: _store.motionSetting,
+                ),
               ),
             ),
           ),

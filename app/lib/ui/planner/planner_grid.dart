@@ -1432,6 +1432,7 @@ class PlannerGridState extends State<PlannerGrid> {
       isSelected: _store.selection.contains(block.id),
       isDragging: isLive,
       isRenaming: _renamingId == block.id,
+      motion: _motionOn,
       onTap: () => _blockTapped(block),
       onToggleDone: () {
         if (!_twoFingers) _toggleDone(block);

@@ -12,6 +12,7 @@ import 'package:grove/ui/shell/top_buttons.dart';
 import 'package:grove/ui/theme/panel.dart';
 
 import '../settings/settings_support.dart';
+import '../tasks/tasks_support.dart' show buttonLabels;
 
 final palette = find.byType(CommandPalette);
 final field = keyed('palette-field');
@@ -322,6 +323,52 @@ void main() {
       await tester.pumpAndSettle();
       expect(store.screen, Screen.notes);
       expect(palette, findsNothing);
+    });
+
+    testWidgets('each button of the box has a label for a screen reader', (
+      tester,
+    ) async {
+      final handle = tester.ensureSemantics();
+      final store = plannerStore();
+      addTask(store, 'Buy milk');
+      store.newNote(title: 'Milk prices');
+      await pumpApp(tester, store);
+      await pressPaletteKey(tester);
+
+      // The commands, with the key of each one that has a key.
+      expect(
+        tester.getSemantics(command(PaletteCommandId.newTask)),
+        isSemantics(
+          label: 'New task\nCtrl+N',
+          isButton: true,
+          isSelected: true,
+          hasTapAction: true,
+        ),
+      );
+      expect(
+        tester.getSemantics(command(PaletteCommandId.todayNote)),
+        isSemantics(
+          label: "Today's note",
+          isButton: true,
+          isSelected: false,
+          hasTapAction: true,
+        ),
+      );
+      expect(
+        tester.getSemantics(keyed('palette-scrim')),
+        isSemantics(label: 'Close search', isButton: true, hasTapAction: true),
+      );
+      var labels = buttonLabels(tester, palette);
+      expect(labels.length, greaterThan(3));
+      expect(labels, everyElement(isNotEmpty));
+
+      // The rows of a search: a task and a note.
+      await type(tester, 'milk');
+      labels = buttonLabels(tester, palette);
+      expect(labels, contains(startsWith('Buy milk')));
+      expect(labels, contains(startsWith('Milk prices')));
+      expect(labels, everyElement(isNotEmpty));
+      handle.dispose();
     });
 
     testWidgets('Esc closes it', (tester) async {

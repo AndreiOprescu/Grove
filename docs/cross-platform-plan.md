@@ -1,6 +1,6 @@
 # Grove on Windows, Android, iOS (and Mac) — plan
 
-> **Status, 2026-10-12.** F1 to F11 are built and merged in `feat/cross-platform-flutter`. F12 is in work: the feature checklist is `docs/acceptance/F12-parity.md`, the release builds are `docs/acceptance/F12-release.md`. The text below is the plan as it was written on 2026-10-09; it is not kept up to date. Two things changed since: the database uses the package `sqlite3`, not `drift`, and the login is a code from an email, not a link. How to install the app: `README.md`.
+> **Status, 2026-10-12.** F1 to F11 are built and merged in `feat/cross-platform-flutter`. F12 closes on this day in three steps. Step 1, branch `feat/xp-f12-close`: the feature checklist `docs/acceptance/F12-parity.md` is checked again row by row, the small gaps are closed, and `PLAN.md` is corrected where the Mac app did another thing. Step 2, branch `feat/xp-retire-swift`: the Swift app goes out of the repo and the app id changes to `local.grove.app` (`docs/acceptance/retire-swift.md`). Step 3: `feat/cross-platform-flutter` is merged into `main` by the owner. The release builds are in `docs/acceptance/F12-release.md`. The text below is the plan as it was written on 2026-10-09; it is not kept up to date. Two things changed since: the database uses the package `sqlite3`, not `drift`, and the login is a code from an email, not a link. How to install the app: `README.md`.
 
 ## Context
 Grove is a Mac-only app today: Swift + SwiftUI + AppKit, SQLite, local-only. About 15K lines of code and 10K lines of tests.

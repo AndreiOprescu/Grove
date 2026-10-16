@@ -77,6 +77,8 @@ void main() {
       s.openMention(id: gone, title: 'Old thing');
       expect(s.toast, 'That item is gone.');
       expect(s.selectedTaskId, isNull);
+      // It makes no note in place of the thing that is gone.
+      expect(s.repos.notes.all(), isEmpty);
     });
 
     test('a mention without an id is found by its title', () {
