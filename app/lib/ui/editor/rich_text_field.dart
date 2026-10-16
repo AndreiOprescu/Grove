@@ -20,6 +20,7 @@ import '../theme/named_colors.dart';
 import 'editor_tools.dart';
 import 'link_dialog.dart';
 import 'markdown_controller.dart';
+import 'rich_clipboard.dart';
 
 class RichTextField extends StatefulWidget {
   const RichTextField({
@@ -725,6 +726,8 @@ class RichTextFieldState extends State<RichTextField> {
                       Actions(
                         actions: {
                           ExtendSelectionByCharacterIntent: _StepOverMarks(c),
+                          CopySelectionTextIntent: RichCopyAction(c),
+                          PasteTextIntent: RichPasteAction(c),
                         },
                         child: TextField(
                           controller: c,
@@ -758,7 +761,7 @@ class RichTextFieldState extends State<RichTextField> {
   }
 
   /// The menu of the text, with "Make task" and "Add to planner" when the
-  /// line can do it.
+  /// line can do it. Copy, Cut and Paste do what the keys do.
   Widget _menu(BuildContext context, EditableTextState state) {
     final c = controller;
     void run(VoidCallback action) {
@@ -766,10 +769,27 @@ class RichTextFieldState extends State<RichTextField> {
       action();
     }
 
+    const toolbar = SelectionChangedCause.toolbar;
     return AdaptiveTextSelectionToolbar.buttonItems(
       anchors: state.contextMenuAnchors,
       buttonItems: [
-        ...state.contextMenuButtonItems,
+        for (final item in state.contextMenuButtonItems)
+          if (item.onPressed == null)
+            item
+          else
+            switch (item.type) {
+              ContextMenuButtonType.copy => item.copyWith(
+                onPressed: () => RichClipboard.copy(state, c, toolbar),
+              ),
+              ContextMenuButtonType.cut => item.copyWith(
+                onPressed: () =>
+                    RichClipboard.copy(state, c, toolbar, cut: true),
+              ),
+              ContextMenuButtonType.paste => item.copyWith(
+                onPressed: () => RichClipboard.paste(state, c, toolbar),
+              ),
+              _ => item,
+            },
         if (c.canMakeTask)
           ContextMenuButtonItem(
             label: 'Make task',

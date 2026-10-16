@@ -929,6 +929,45 @@ class MarkdownController extends TextEditingController {
     });
   }
 
+  /// The selected words as Markdown, for a copy that keeps the format.
+  /// Without the hidden task marks.
+  String get selectedMarkdown => MarkdownSlice.of(text, _selection);
+
+  /// Puts `text` in place of the selection, as one step of the history,
+  /// with the caret after it. While the marks are hidden the selection goes
+  /// by the delete rules first, so the marks stay in pairs. A paste and a
+  /// cut (with no text) come here.
+  void replaceSelection(String text) {
+    final s = _selection;
+    var source = this.text;
+    var at = s.location;
+    if (s.length > 0) {
+      final cut =
+          (_showMarks
+              ? null
+              : MarkdownEdit.deletion(source, s, selection: s)) ??
+          TextEdit(
+            range: s,
+            replacement: '',
+            selection: Utf16Range(s.location, 0),
+          );
+      source = source.replaceRange(
+        cut.range.location,
+        cut.range.end,
+        cut.replacement,
+      );
+      at = cut.selection.location;
+    }
+    apply(
+      TextEdit(
+        range: Utf16Range(at, 0),
+        replacement: text,
+        selection: Utf16Range(at + text.length, 0),
+      ),
+      from: source,
+    );
+  }
+
   /// New text from outside: another note was opened, or an undo of the
   /// app. The history of the box starts again.
   void load(String text) {

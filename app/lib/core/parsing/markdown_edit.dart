@@ -4,6 +4,8 @@ import 'reference_parser.dart';
 
 export 'utf16_range.dart';
 
+part 'markdown_slice.dart';
+
 /// One change to a text: replace `range` with `replacement`, then select `selection`.
 /// `range` is in the old text and `selection` in the new text. Positions are UTF-16 offsets.
 class TextEdit {

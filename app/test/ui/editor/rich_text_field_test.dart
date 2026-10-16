@@ -10,6 +10,7 @@ import 'package:grove/core/model/link.dart';
 import 'package:grove/state/state.dart' hide MotionRules;
 import 'package:grove/ui/editor/editor_tools.dart';
 import 'package:grove/ui/editor/markdown_controller.dart';
+import 'package:grove/ui/editor/rich_clipboard.dart';
 import 'package:grove/ui/editor/rich_text_field.dart';
 import 'package:grove/ui/theme/grove_theme.dart';
 
@@ -250,6 +251,47 @@ EditorServices hidingMarks(Rig rig) => EditorServices(showMarks: () => false);
 
 /// A field with the "Show marks" switch on: the marks show dim.
 EditorServices showingMarks(Rig rig) => EditorServices(showMarks: () => true);
+
+/// The clipboard of the computer, as the test sees it.
+class FakeClipboard {
+  String? text;
+}
+
+/// Puts a [FakeClipboard] in place of the one of the computer.
+FakeClipboard fakeClipboard(WidgetTester tester) {
+  final board = FakeClipboard();
+  final messenger = tester.binding.defaultBinaryMessenger;
+  messenger.setMockMethodCallHandler(SystemChannels.platform, (call) async {
+    switch (call.method) {
+      case 'Clipboard.setData':
+        board.text = (call.arguments as Map)['text'] as String?;
+      case 'Clipboard.getData':
+        return board.text == null ? null : {'text': board.text};
+      case 'Clipboard.hasStrings':
+        return {'value': board.text?.isNotEmpty ?? false};
+    }
+    return null;
+  });
+  addTearDown(
+    () => messenger.setMockMethodCallHandler(SystemChannels.platform, null),
+  );
+  return board;
+}
+
+/// Command and `key` on a Mac, Ctrl and `key` elsewhere.
+Future<void> commandKey(WidgetTester tester, LogicalKeyboardKey key) async {
+  final apple =
+      defaultTargetPlatform == TargetPlatform.macOS ||
+      defaultTargetPlatform == TargetPlatform.iOS;
+  final command = apple
+      ? LogicalKeyboardKey.metaLeft
+      : LogicalKeyboardKey.controlLeft;
+  await tester.sendKeyDownEvent(command);
+  await tester.sendKeyEvent(key);
+  await tester.sendKeyUpEvent(command);
+  await tester.pump();
+  await tester.pump();
+}
 
 /// The caret the field draws at `offset`, in the field.
 Rect caretRect(WidgetTester tester, int offset) {
@@ -2039,5 +2081,143 @@ void main() {
       await undoKey(tester);
       expect((rig.controller.text, app), ('two', 2));
     }, variant: TargetPlatformVariant.desktop());
+  });
+
+  group('copy, cut and paste', () {
+    setUp(RichClipboard.forget);
+
+    testWidgets('copy gives plain words to the clipboard', (tester) async {
+      final board = fakeClipboard(tester);
+      final rig = await makeRig(tester, '**bold** words');
+      await caret(tester, rig, 0, rig.text.length);
+      await commandKey(tester, LogicalKeyboardKey.keyC);
+      expect(board.text, 'bold words');
+      expect(rig.text, '**bold** words');
+    });
+
+    testWidgets('a copy pasted in another box keeps bold', (tester) async {
+      final board = fakeClipboard(tester);
+      var rig = await makeRig(tester, 'a **bold** b');
+      await caret(tester, rig, 4, 8);
+      await commandKey(tester, LogicalKeyboardKey.keyC);
+      expect(board.text, 'bold');
+      rig = await makeRig(tester, 'x ');
+      await caret(tester, rig, 2);
+      await commandKey(tester, LogicalKeyboardKey.keyV);
+      expect(rig.text, 'x **bold**');
+      // The paste is one step.
+      await undoKey(tester);
+      expect(rig.text, 'x ');
+    }, variant: TargetPlatformVariant.all());
+
+    testWidgets('a copy of half a bold word keeps bold on that half', (
+      tester,
+    ) async {
+      final board = fakeClipboard(tester);
+      var rig = await makeRig(tester, '**bold**');
+      await caret(tester, rig, 2, 4);
+      await commandKey(tester, LogicalKeyboardKey.keyC);
+      expect(board.text, 'bo');
+      rig = await makeRig(tester, 'x ');
+      await caret(tester, rig, 2);
+      await commandKey(tester, LogicalKeyboardKey.keyV);
+      expect(rig.text, 'x **bo**');
+    });
+
+    testWidgets('other text goes in as it is, and its marks make format', (
+      tester,
+    ) async {
+      final board = fakeClipboard(tester);
+      var rig = await makeRig(tester, '**bold**');
+      await caret(tester, rig, 2, 6);
+      await commandKey(tester, LogicalKeyboardKey.keyC);
+      board.text = 'from the *web*';
+      rig = await makeRig(tester, '');
+      await commandKey(tester, LogicalKeyboardKey.keyV);
+      expect(rig.text, 'from the *web*');
+      expect(
+        pieceWith(tester, rig, '*').style!.fontSize,
+        EditorStyle.hidden.fontSize,
+      );
+    });
+
+    testWidgets('a paste over a selection keeps the marks in pairs', (
+      tester,
+    ) async {
+      final board = fakeClipboard(tester);
+      final rig = await makeRig(tester, 'a **bold** b');
+      board.text = 'X';
+      await caret(tester, rig, 6, 11);
+      await commandKey(tester, LogicalKeyboardKey.keyV);
+      // Like a typed letter, it goes on in the bold before it.
+      expect(rig.text, 'a **boX**b');
+    });
+
+    testWidgets('cut gives plain words and keeps the marks in pairs', (
+      tester,
+    ) async {
+      final board = fakeClipboard(tester);
+      final rig = await makeRig(tester, 'a **bold** b');
+      await caret(tester, rig, 6, 11);
+      await commandKey(tester, LogicalKeyboardKey.keyX);
+      expect(board.text, 'ld ');
+      expect(rig.text, 'a **bo**b');
+      await undoKey(tester);
+      expect(rig.text, 'a **bold** b');
+    });
+
+    testWidgets('Copy and Paste of the menu go the same way', (tester) async {
+      final board = fakeClipboard(tester);
+      var rig = await makeRig(tester, 'a **bold** b');
+      await caret(tester, rig, 4, 8);
+      tester.state<EditableTextState>(find.byType(EditableText)).showToolbar();
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Copy'));
+      await tester.pumpAndSettle();
+      expect(board.text, 'bold');
+      rig = await makeRig(tester, 'x ');
+      await caret(tester, rig, 2);
+      tester.state<EditableTextState>(find.byType(EditableText)).showToolbar();
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Paste'));
+      await tester.pumpAndSettle();
+      expect(rig.text, 'x **bold**');
+    });
+
+    testWidgets('Cut of the menu keeps the marks in pairs', (tester) async {
+      final board = fakeClipboard(tester);
+      final rig = await makeRig(tester, 'a **bold** b');
+      await caret(tester, rig, 6, 11);
+      tester.state<EditableTextState>(find.byType(EditableText)).showToolbar();
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Cut'));
+      await tester.pumpAndSettle();
+      expect((board.text, rig.text), ('ld ', 'a **bo**b'));
+    });
+
+    testWidgets('a pasted box line has no task of its own yet', (tester) async {
+      final board = fakeClipboard(tester);
+      var rig = await makeRig(tester, '- [ ] call the bank ⟦t:$id⟧');
+      await caret(tester, rig, 0, rig.text.length);
+      await commandKey(tester, LogicalKeyboardKey.keyC);
+      expect(board.text, '- [ ] call the bank');
+      rig = await makeRig(tester, '');
+      await commandKey(tester, LogicalKeyboardKey.keyV);
+      expect(rig.text, '- [ ] call the bank');
+    });
+
+    testWidgets('with "Show marks" on, copy takes the marks too', (
+      tester,
+    ) async {
+      final board = fakeClipboard(tester);
+      final rig = await makeRig(
+        tester,
+        '**bold** b',
+        services: (rig) => EditorServices(showMarks: () => true),
+      );
+      await caret(tester, rig, 0, rig.text.length);
+      await commandKey(tester, LogicalKeyboardKey.keyC);
+      expect(board.text, '**bold** b');
+    });
   });
 }
