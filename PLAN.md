@@ -616,19 +616,42 @@ Use `.focusable()` + `.onKeyPress`.
 
 - **Notes home**: left column list (pinned first, then by updated date), search field,
   filter chips: All · Daily · Weekly · Pinned · tags. Right: editor.
-- **Editor**: `NSViewRepresentable` around `NSTextView` (SwiftUI `TextEditor` cannot style
-  inline). Plain text storage (markdown-lite). `MarkdownStyler` restyles the visible
-  paragraph(s) on each edit via `NSTextStorageDelegate`:
-  - `# `, `## `, `### ` headings (theme head font, larger)
-  - `**bold**`, `*italic*`, `` `code` ``, `> quote`, `- ` bullets
+- **Editor**: plain text storage in Markdown. Every rich text box (a note, a task's notes,
+  an event's notes) looks and works the same. The rules for the marks are in ADR 0003
+  (`docs/adr/0003-hidden-editor-marks.md`).
+  - **Marks are hidden on screen.** The words keep their format, the marks do not show.
+    Settings → Notes → "Show marks" (off at first, kept per device) shows them dim again.
+    Marks that are typed or pasted still turn into format, then hide. The caret steps over
+    hidden marks, and a delete keeps the marks of a format in pairs.
+  - `# `, `## `, `### ` headings: Text size Big, Medium, Small (`####` and more show as Small)
+  - `**bold**`, `*italic*`, `` `code` ``, `> quote` (drawn as a bar), `- ` bullets (drawn as
+    a dot), `1. ` numbered lists
+  - New (2026-10-16): `<u>underline</u>`, `~~strike~~`, highlight `==x==` (yellow) and
+    `=={green}x==`, `=={blue}x==`, `=={pink}x==`, links with own words
+    `[words](https://url)`, and a divider: a line that is only `---`.
   - `- [ ] ` / `- [x] ` checkboxes rendered with a clickable ☐/☑ (click toggles text)
-  - `[[Title]]` links in accent colour, clickable (`.link` attribute with URL
-    `grove://note/<id>` or `grove://task/<id>` / `grove://event/<id>`; handle in
-    `textView(_:clickedOnLink:at:)`). Unresolved links are dotted-underlined; clicking one
-    creates the note.
-  - `@tomorrow 3pm`, `@fri`, `@3 oct 14:00` date tokens tinted accent2.
-  - `#tag` tinted muted.
-  Save 500 ms after typing stops (debounce) and on window resign.
+  - `[[Title]]` links to notes, tasks and events, clickable.
+  - `@tomorrow 3pm`, `@fri`, `@3 oct 14:00` date tokens and `#tag` have their own colour.
+  - **Toolbar**: Undo, Redo · Text size · Bold, Italic, Underline, Strike, Highlight, Code ·
+    Bullet list, Numbered list, Checklist, Quote, Indent in, Indent out · Link, Mention,
+    Add an image (where the box takes images), Divider, Clear format. A box too narrow for
+    all of them shows a short row (Undo · Text size · Bold · Italic · Underline · Highlight ·
+    Bullet list · Checklist · Link) and a "…" menu with the rest. A button lights up when
+    the caret is in its format. Highlight is a split button: a click gives the last colour,
+    the arrow gives 4 colours and "No highlight".
+  - ⌘K / Ctrl+K in a box makes a link; outside a box it opens the command palette. A click
+    on a web link shows a bubble (Open, Edit, Remove; a bare address: Open, Edit). Open
+    allows only http and https.
+  - Undo and redo work inside the box. Copy to another app gives plain words; a copy and
+    paste inside Grove keeps the format.
+  Save 500 ms after typing stops (debounce) and when the box loses the keyboard.
+  Swift app (history): `NSViewRepresentable` around `NSTextView` (SwiftUI `TextEditor`
+  cannot style inline). `MarkdownStyler` restyled the visible paragraph(s) on each edit via
+  `NSTextStorageDelegate`. `[[Title]]` links were a `.link`
+  attribute with URL `grove://note/<id>` or `grove://task/<id>` / `grove://event/<id>`,
+  handled in `textView(_:clickedOnLink:at:)`. Unresolved links were dotted-underlined, and
+  clicking one created the note. Date tokens were tinted accent2 and `#tag` muted. It saved
+  on window resign.
 - **`[[` autocomplete**: when the text before the caret matches `\[\[([^\]]*)$`, show a
   small floating list (child `NSPanel` or SwiftUI overlay positioned at the caret rect
   from `firstRect(forCharacterRange:)`) of matching notes, tasks and events (FTS prefix
