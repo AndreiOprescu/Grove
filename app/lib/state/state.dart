@@ -12,6 +12,7 @@ export 'rules/calendar_rules.dart';
 export 'rules/day_marker.dart';
 export 'rules/day_range.dart';
 export 'rules/day_rules.dart';
+export 'rules/deadline_rules.dart';
 export 'rules/drag_payload.dart';
 export 'rules/goal_rules.dart';
 export 'rules/goal_subtask_rules.dart';

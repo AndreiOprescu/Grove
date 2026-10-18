@@ -267,6 +267,10 @@ class _EventEditorState extends State<EventEditor> {
       recurrence: mine.recurrence != was.recurrence
           ? mine.recurrence
           : stored.recurrence,
+      isDeadline: mine.isDeadline != was.isDeadline
+          ? mine.isDeadline
+          : stored.isDeadline,
+      doneAt: mine.doneAt != was.doneAt ? mine.doneAt : stored.doneAt,
     );
     _draft = next;
     _drafts[_editing] = next;
@@ -378,7 +382,13 @@ class _EventEditorState extends State<EventEditor> {
                           onSubmitted: (_) => _save(),
                           onEscape: _store.closeEditor,
                         ),
-                        _allDay(theme),
+                        Row(
+                          spacing: 20,
+                          children: [
+                            _allDay(theme),
+                            if (_canBeDeadline) _deadline(theme),
+                          ],
+                        ),
                         _dateRow(theme, 'Starts', _draft.start, (to) {
                           _set(EventDraft.setStart(_draft, to));
                         }),
@@ -404,7 +414,7 @@ class _EventEditorState extends State<EventEditor> {
                         ),
                         _notes(theme),
                         ..._linked(theme),
-                        ..._repeat(theme, rule),
+                        if (!_draft.isDeadline) ..._repeat(theme, rule),
                         if (_isDayOfSeries)
                           Text(
                             'When you save, Grove asks if the change is for '
@@ -438,25 +448,54 @@ class _EventEditorState extends State<EventEditor> {
 
   // Rows
 
-  Widget _allDay(GroveTheme theme) {
-    void toggle() => _set(EventDraft.setAllDay(_draft, !_draft.allDay));
-    final on = _draft.allDay;
+  Widget _allDay(GroveTheme theme) => _switch(
+    theme,
+    label: 'All day',
+    key: const ValueKey('event-all-day'),
+    on: _draft.allDay,
+    onTap: () => _set(EventDraft.setAllDay(_draft, !_draft.allDay)),
+  );
+
+  /// Only a plain event that does not repeat can be a deadline: a tick is
+  /// for one event, not for each day of a series.
+  bool get _canBeDeadline =>
+      _draft.kind == EventKind.event &&
+      _draft.goalId == null &&
+      _draft.recurrence == null &&
+      !_isDayOfSeries;
+
+  Widget _deadline(GroveTheme theme) => _switch(
+    theme,
+    label: 'Deadline',
+    key: const ValueKey('event-deadline'),
+    on: _draft.isDeadline,
+    onTap: () => _set(EventDraft.setDeadline(_draft, !_draft.isDeadline)),
+  );
+
+  Widget _switch(
+    GroveTheme theme, {
+    required String label,
+    required Key key,
+    required bool on,
+    required VoidCallback onTap,
+  }) {
     return Semantics(
       container: true,
       toggled: on,
-      label: 'All day',
-      onTap: toggle,
+      label: label,
+      onTap: onTap,
       excludeSemantics: true,
       child: MouseRegion(
         cursor: SystemMouseCursors.click,
         child: GestureDetector(
-          key: const ValueKey('event-all-day'),
+          key: key,
           behavior: HitTestBehavior.opaque,
-          onTap: toggle,
+          onTap: onTap,
           child: Row(
+            mainAxisSize: MainAxisSize.min,
             spacing: 8,
             children: [
-              Text('All day', style: theme.body(12).copyWith(color: theme.ink)),
+              Text(label, style: theme.body(12).copyWith(color: theme.ink)),
               DecoratedBox(
                 decoration: BoxDecoration(
                   color: on ? theme.accent : theme.line,

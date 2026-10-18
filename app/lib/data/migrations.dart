@@ -209,6 +209,13 @@ abstract final class Migrations {
     CREATE INDEX earnings_source ON earnings(source_kind, source_id);
     CREATE INDEX earnings_time ON earnings(earned_at);
     ''',
+    // 11 — an event can be a deadline: its end is when something is due.
+    // It is ticked done with done_at, like a goal block. The column may be
+    // empty: rows on the server from before it have no value, and a pull
+    // writes them as they are. Empty reads as "not a deadline".
+    '''
+    ALTER TABLE events ADD COLUMN is_deadline INTEGER DEFAULT 0;
+    ''',
   ];
 
   static void run(Database db) {

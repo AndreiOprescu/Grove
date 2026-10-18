@@ -167,8 +167,8 @@ void main() {
       final e = block(Repos(db), g);
       // Take the database back to shared schema 8: no column, and the
       // update trigger and the saved trigger list of that schema. The sync
-      // columns stay. The persona (shared schema 10, sync schema 5) came
-      // later, so it goes.
+      // columns stay. The persona (shared schema 10, sync schema 5) and
+      // deadlines (shared schema 11) came later, so they go.
       const watch = ' OR OLD.event_id IS NOT NEW.event_id';
       final trigger = db.queryOne(
         "SELECT sql FROM sqlite_master WHERE name = 'sync_goal_subtasks_update'",
@@ -176,7 +176,17 @@ void main() {
         (r) => r.text(0),
       )!;
       expect(trigger, contains(watch));
+      const deadlineWatch = ' OR OLD.is_deadline IS NOT NEW.is_deadline';
+      final eventTrigger = db.queryOne(
+        "SELECT sql FROM sqlite_master WHERE name = 'sync_events_update'",
+        const [],
+        (r) => r.text(0),
+      )!;
+      expect(eventTrigger, contains(deadlineWatch));
       db.executeScript('''
+        DROP TRIGGER sync_events_update;
+        ALTER TABLE events DROP COLUMN is_deadline;
+        ${eventTrigger.replaceAll(deadlineWatch, '')};
         DROP TRIGGER sync_goal_subtasks_update;
         DROP INDEX goal_subtasks_event;
         ALTER TABLE goal_subtasks DROP COLUMN event_id;
@@ -187,6 +197,8 @@ void main() {
         PRAGMA user_version = 8;
         UPDATE sync_meta SET value = '4' WHERE key = 'schema';
         UPDATE sync_meta SET value = replace(value, ',event_id', '')
+          WHERE key = 'triggers';
+        UPDATE sync_meta SET value = replace(value, ',is_deadline', '')
           WHERE key = 'triggers';
       ''');
       db.execute('DELETE FROM outbox');
@@ -225,6 +237,8 @@ void main() {
       final g = goal(Repos(db));
       // Take the database back to shared schema 7 and sync schema 3.
       db.executeScript('''
+        DROP TRIGGER sync_events_update;
+        ALTER TABLE events DROP COLUMN is_deadline;
         DROP TABLE goal_subtasks;
         DROP TABLE earnings;
         DROP TABLE rewards;
