@@ -42,6 +42,7 @@ Future<void> main() async {
       files: SystemFiles(),
       pickImages: pickImageFiles,
       openLink: openInBrowser,
+      openDraft: openDraftApp,
     ),
   );
 }

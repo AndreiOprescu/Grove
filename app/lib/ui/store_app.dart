@@ -10,6 +10,7 @@ import 'package:flutter/services.dart';
 import 'package:grove/core/parsing/palette_rules.dart' show PaletteCommandId;
 import 'package:grove/state/state.dart' hide MotionRules;
 
+import 'agent/agent_dialog.dart';
 import 'app.dart';
 import 'auth/first_sync_dialog.dart';
 import 'calendar/event_editor.dart';
@@ -38,6 +39,7 @@ class StoreApp extends StatefulWidget {
     this.files,
     this.pickImages,
     this.openLink,
+    this.openDraft,
   });
 
   /// The one who made the store closes it.
@@ -55,6 +57,10 @@ class StoreApp extends StatefulWidget {
   /// Opens a web link of a note in the browser. With null a click on a web
   /// link does nothing.
   final LinkOpener? openLink;
+
+  /// Opens a draft of the agent in Mail or Messages. With null the agent
+  /// window hides "Open in Mail" and "Open in Messages".
+  final DraftOpener? openDraft;
 
   @override
   State<StoreApp> createState() => _StoreAppState();
@@ -180,10 +186,13 @@ class _StoreAppState extends State<StoreApp> {
       : storePane(context, widget.store, pane);
 
   @override
-  Widget build(BuildContext context) => EditorTools(
-    pickImages: widget.pickImages,
-    openLink: widget.openLink,
-    child: _app(context),
+  Widget build(BuildContext context) => AgentTools(
+    openDraft: widget.openDraft,
+    child: EditorTools(
+      pickImages: widget.pickImages,
+      openLink: widget.openLink,
+      child: _app(context),
+    ),
   );
 
   Widget _app(BuildContext context) => GroveApp(

@@ -9,6 +9,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:grove/ui/auth/sync_card.dart';
 import 'package:grove/ui/planner/planner_grid.dart';
 import 'package:grove/ui/planner/planner_view.dart';
+import 'package:grove/ui/settings/settings_tabs.dart';
 import 'package:grove/ui/shell/appearance_button.dart';
 import 'package:grove/ui/theme/panel.dart';
 
@@ -96,7 +97,7 @@ void main() {
       expect(settingsView, findsNothing);
     });
 
-    testWidgets('six tabs, and each one shows its part', (tester) async {
+    testWidgets('seven tabs, and each one shows its part', (tester) async {
       await openSettings(tester, plannerStore());
       expect(SettingsTab.values.map((t) => t.title), [
         'Appearance',
@@ -105,6 +106,7 @@ void main() {
         'Notifications',
         'Sync',
         'Data',
+        'Agent',
       ]);
       for (final tab in SettingsTab.values) {
         expect(tabButton(tab), findsOneWidget);
@@ -116,6 +118,7 @@ void main() {
         SettingsTab.notes: 'settings-template-daily',
         SettingsTab.notifications: 'settings-notify',
         SettingsTab.data: 'settings-data-path',
+        SettingsTab.agent: 'settings-agent',
         SettingsTab.appearance: 'settings-theme-grove',
       };
       for (final MapEntry(key: tab, value: mark) in marks.entries) {
@@ -467,6 +470,118 @@ void main() {
       await pressSettingsKey(tester);
       await showTab(tester, SettingsTab.notifications);
       expect(store.notifyStatus, NotifyAuthorization.allowed);
+    });
+  });
+
+  group('Agent', () {
+    /// A store with motion off, on a phone (no runner) or on a computer
+    /// with `runner`.
+    AppStore agentStore({
+      FakeAgentRunner? runner,
+      Map<String, Object?> prefs = const {},
+    }) {
+      final store = makeStore(
+        prefs: MemoryPrefs({'appearance.motion': false, ...prefs}),
+        clock: WallTime(day: wednesday, minute: 10 * 60),
+        agentRunner: runner,
+      );
+      store
+        ..newTimer = ManualTimers().start
+        ..screen = Screen.planner;
+      return store;
+    }
+
+    bool greyed(WidgetTester tester, String key) => tester
+        .widget<IgnorePointer>(
+          find
+              .ancestor(of: keyed(key), matching: find.byType(IgnorePointer))
+              .first,
+        )
+        .ignoring;
+
+    testWidgets('all off at first, with the safety text', (tester) async {
+      await openSettings(tester, agentStore(), tab: SettingsTab.agent);
+      for (final key in [
+        'settings-agent',
+        'settings-agent-runner',
+        'settings-agent-email',
+      ]) {
+        expect(switchOn(tester, key), isFalse, reason: key);
+      }
+      for (final text in [
+        'Use the agent',
+        'This device runs agent tasks',
+        'Let the agent read my email',
+        AgentSettings.gmailText,
+        AgentSettings.safetyText,
+        AgentSettings.needsText,
+      ]) {
+        expect(inSettings(find.text(text)), findsOneWidget, reason: text);
+      }
+    });
+
+    testWidgets('"Use the agent" is kept on this device', (tester) async {
+      final store = agentStore();
+      await openSettings(tester, store, tab: SettingsTab.agent);
+      await tapIn(tester, keyed('settings-agent'));
+      expect(store.agentEnabled, isTrue);
+      expect(store.prefs.getBool('agent.enabled'), isTrue);
+      expect(switchOn(tester, 'settings-agent'), isTrue);
+      await tapIn(tester, keyed('settings-agent'));
+      expect(store.agentEnabled, isFalse);
+    });
+
+    testWidgets('a phone: the runner and email switches are grey, with help', (
+      tester,
+    ) async {
+      final store = agentStore();
+      await openSettings(tester, store, tab: SettingsTab.agent);
+      expect(
+        tester.widget<Text>(keyed('settings-agent-help')).data,
+        SettingsRules.agentNoRunner,
+      );
+      expect(greyed(tester, 'settings-agent-runner'), isTrue);
+      expect(greyed(tester, 'settings-agent-email'), isTrue);
+      await tester.tap(keyed('settings-agent-runner'), warnIfMissed: false);
+      await tester.pumpAndSettle();
+      expect(store.agentRunnerOn, isFalse);
+    });
+
+    testWidgets('a computer with Claude Code: the runner switch, then email', (
+      tester,
+    ) async {
+      final store = agentStore(runner: FakeAgentRunner());
+      await openSettings(tester, store, tab: SettingsTab.agent);
+      expect(keyed('settings-agent-help'), findsNothing);
+      expect(greyed(tester, 'settings-agent-runner'), isFalse);
+      // Email waits for the runner switch.
+      expect(greyed(tester, 'settings-agent-email'), isTrue);
+
+      await tapIn(tester, keyed('settings-agent-runner'));
+      expect(store.agentRunnerOn, isTrue);
+      expect(store.prefs.getBool('agent.runner'), isTrue);
+      expect(greyed(tester, 'settings-agent-email'), isFalse);
+
+      await tapIn(tester, keyed('settings-agent-email'));
+      expect(store.agentEmailOn, isTrue);
+      expect(store.prefs.getBool('agent.email'), isTrue);
+    });
+
+    testWidgets('a computer with no Claude Code says so, and the switch can '
+        'look again', (tester) async {
+      final runner = FakeAgentRunner(exe: null);
+      final store = agentStore(runner: runner);
+      await openSettings(tester, store, tab: SettingsTab.agent);
+      expect(
+        tester.widget<Text>(keyed('settings-agent-help')).data,
+        SettingsRules.agentNotFound,
+      );
+      final looks = runner.locates;
+      runner.exe = '/fake/claude';
+      await tapIn(tester, keyed('settings-agent-runner'));
+      expect(runner.locates, looks + 1);
+      expect(store.canRunAgent, isTrue);
+      expect(keyed('settings-agent-help'), findsNothing);
     });
   });
 

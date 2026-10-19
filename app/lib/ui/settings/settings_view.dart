@@ -1,6 +1,6 @@
 // Port of Sources/Grove/Settings/SettingsView.swift: the Settings window.
 // A window of 600 by 540 points on a desktop, the whole screen on a phone.
-// The Mac app has five tabs. This one has "Sync" too.
+// The Mac app has five tabs. This one has "Sync" and "Agent" too.
 import 'package:flutter/material.dart';
 import 'package:grove/state/state.dart' hide MotionRules;
 
@@ -16,7 +16,8 @@ enum SettingsTab {
   notes('Notes', Icons.sticky_note_2_outlined),
   notifications('Notifications', Icons.notifications_none),
   sync('Sync', Icons.cloud_outlined),
-  data('Data', Icons.storage_outlined);
+  data('Data', Icons.storage_outlined),
+  agent('Agent', Icons.smart_toy_outlined);
 
   const SettingsTab(this.title, this.icon);
 
@@ -139,6 +140,7 @@ class _SettingsViewState extends State<SettingsView> {
                     store: store,
                     files: widget.files,
                   ),
+                  SettingsTab.agent => AgentSettings(store: store),
                 },
               ),
             ),
