@@ -17,10 +17,14 @@ Future<void> main() async {
   final dir = (await getApplicationSupportDirectory()).path;
   // Grove for Mac left the sandbox (ADR 0004). The first start copies the
   // data of the sandboxed Grove, before the database opens. The old folder
-  // stays.
+  // stays. A copy that failed is tried again on the next start.
   final home = Platform.environment['HOME'];
+  var copy = SandboxCopyResult.skipped;
   if (Platform.isMacOS && home != null && home.isNotEmpty) {
-    SandboxDataCopy.copyOnce(from: SandboxDataCopy.oldFolder(home), to: dir);
+    copy = SandboxDataCopy.copyOnce(
+      from: SandboxDataCopy.oldFolder(home),
+      to: dir,
+    );
   }
   final prefs = FilePrefs('$dir${Platform.pathSeparator}prefs.json');
   final notifier = AppServices.notifier(prefs);
@@ -34,6 +38,9 @@ Future<void> main() async {
     // Null on a phone: it makes jobs, a computer runs them.
     agentRunner: AppServices.agentRunner(),
   );
+  if (copy == SandboxCopyResult.failed && store.errorMessage == null) {
+    store.errorMessage = SandboxDataCopy.failedMessage;
+  }
   AppServices.forThisDevice(store).start();
   runApp(
     StoreApp(

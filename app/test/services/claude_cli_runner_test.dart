@@ -161,6 +161,49 @@ void main() {
       expect(out.timedOut, isFalse);
     });
 
+    test('cancel stops the processes it started too, also one that '
+        'ignores SIGTERM', () async {
+      // A shell in the place of claude: it starts a second shell that
+      // ignores SIGTERM, and that one starts sleep (which ignores it too),
+      // like claude starts its MCP servers. The second line is the pid of
+      // sleep.
+      const script =
+          '/bin/sh -c \'trap "" TERM; /bin/sleep 30 & echo \$!; wait\' & '
+          'echo \$!; wait';
+      final p = runner.start(
+        '/bin/sh',
+        const ['-c', script],
+        stdin: '',
+        timeout: const Duration(seconds: 20),
+      );
+      await Future<void>.delayed(const Duration(milliseconds: 500));
+      p.cancel();
+      final out = await p.done;
+      expect(out.cancelled, isTrue);
+      final pids = ClaudeCliRunner.parsePids(out.stdout);
+      expect(pids, hasLength(2));
+      Future<bool> alive(int pid) async =>
+          (await Process.run('/bin/kill', ['-0', '$pid'])).exitCode == 0;
+      for (
+        var i = 0;
+        i < 50 && (await Future.wait(pids.map(alive))).any((a) => a);
+        i++
+      ) {
+        await Future<void>.delayed(const Duration(milliseconds: 100));
+      }
+      for (final pid in pids) {
+        expect(await alive(pid), isFalse, reason: 'pid $pid');
+      }
+    });
+
+    test('the pids of pgrep: one a line, others left out', () {
+      expect(ClaudeCliRunner.parsePids('123\n 456 \n\nabc\n-1\n0\n'), [
+        123,
+        456,
+      ]);
+      expect(ClaudeCliRunner.parsePids(''), isEmpty);
+    });
+
     test('a program that does not exist: an output, not a throw', () async {
       final out = await runner
           .start(

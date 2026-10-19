@@ -608,6 +608,9 @@ class AgentSettings extends StatelessWidget {
   final AppStore store;
 
   static const menusText = 'Shows "Ask the agent…" in the task menus.';
+
+  /// Two runners could take the same job (docs/assumptions.md).
+  static const oneRunnerText = 'Turn this on on one computer only.';
   static const gmailText =
       'Connect Gmail first in claude.ai ▸ Settings ▸ Connectors.';
   static const safetyText =
@@ -662,6 +665,7 @@ class AgentSettings extends StatelessWidget {
                 onChanged: store.setAgentRunner,
               ),
             ),
+            const SettingsCaption(oneRunnerText),
             if (help != null)
               Text(
                 help,

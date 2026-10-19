@@ -511,6 +511,8 @@ void main() {
       for (final text in [
         'Use the agent',
         'This device runs agent tasks',
+        // One runner: two could run the same job twice.
+        'Turn this on on one computer only.',
         'Let the agent read my email',
         AgentSettings.gmailText,
         AgentSettings.safetyText,

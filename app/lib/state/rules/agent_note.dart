@@ -7,8 +7,8 @@ import '../../core/parsing/reference_parser.dart';
 /// (ADR 0004). No database and no views here.
 ///
 /// Every text of the agent goes through [AgentPolicy.safeForNote], so it
-/// cannot make a task or a link. Only the links Grove writes itself (to the
-/// task, and to the document) are real links.
+/// cannot make a task, a tag or a link. Only the links Grove writes itself
+/// (to the task, and to the document) are real links.
 abstract final class AgentNote {
   // The messages of a job.
 

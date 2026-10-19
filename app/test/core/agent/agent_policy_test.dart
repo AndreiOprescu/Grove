@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:grove/core/agent/agent_models.dart';
 import 'package:grove/core/agent/agent_policy.dart';
+import 'package:grove/core/parsing/markdown_spans.dart';
 import 'package:grove/core/parsing/note_parser.dart';
 import 'package:grove/core/parsing/reference_parser.dart';
 
@@ -15,7 +16,7 @@ const gmail = 'mcp__claude_ai_Gmail__';
 /// it first.
 String initLine({
   List<String> tools = const [],
-  List<Map<String, String>> servers = const [],
+  List<Map<String, Object?>> servers = const [],
 }) => jsonEncode({
   'type': 'system',
   'subtype': 'init',
@@ -65,6 +66,7 @@ void main() {
         servers: [
           {'name': 'claude.ai Gmail', 'status': 'connected'},
           {'name': 'claude.ai Google Drive', 'status': 'connected'},
+          {'name': 'my-files', 'status': 'failed'},
         ],
       ),
     )!;
@@ -72,6 +74,7 @@ void main() {
       email: true,
       gmailReadTools: init.gmailReadTools,
       otherConnectorTools: init.denied,
+      otherServers: init.otherServers,
     );
 
     test('always print mode, JSON with the schema, no session, no asking, '
@@ -136,6 +139,10 @@ void main() {
           '${gmail}send_message',
           '${gmail}list_labels',
           'mcp__claude_ai_Google_Drive__search_files',
+          // Every other server as a whole, also tools the probe did not
+          // list, and the servers of the person (stdio).
+          'mcp__claude_ai_Google_Drive',
+          'mcp__my-files',
         ]),
       );
       expect(valueOf(emailOn, '--setting-sources'), 'user');
@@ -155,6 +162,36 @@ void main() {
         'WebSearch,${gmail}search_threads',
       );
       expect(valueOf(args, '--disallowedTools'), '${gmail}send_message');
+    });
+
+    test('a server rule is mcp__ and the name with odd characters as _', () {
+      expect(AgentPolicy.serverRule('claude.ai Gmail'), 'mcp__claude_ai_Gmail');
+      // The Gmail tools start with the rule of the Gmail server.
+      expect(
+        AgentPolicy.gmailPrefix,
+        '${AgentPolicy.serverRule(AgentPolicy.gmailServer)}__',
+      );
+      expect(
+        AgentPolicy.serverRule('claude.ai Google Drive'),
+        'mcp__claude_ai_Google_Drive',
+      );
+      expect(AgentPolicy.serverRule('my-files_2'), 'mcp__my-files_2');
+      expect(AgentPolicy.serverRule('a/b:c(é)'), 'mcp__a_b_c___');
+    });
+
+    test('email on: the Gmail server itself is never denied (a deny beats '
+        'an allow)', () {
+      final args = AgentPolicy.args(
+        email: true,
+        gmailReadTools: ['${gmail}search_threads'],
+        otherServers: ['claude.ai Gmail', 'claude_ai_Gmail', 'Notion'],
+      );
+      final denied = valueOf(args, '--disallowedTools').split(',');
+      expect(denied, ['mcp__Notion']);
+      expect(
+        valueOf(args, '--allowedTools'),
+        'WebSearch,${gmail}search_threads',
+      );
     });
 
     test('the probe lists the tools of the person and calls no tool', () {
@@ -202,7 +239,7 @@ void main() {
       expect(init.gmailOtherTools, [
         '${gmail}create_draft',
         '${gmail}send_message',
-        // "label" is a write word. Better safe: listing labels is denied.
+        // "labels" is not a known word. Better safe: listing labels is denied.
         '${gmail}list_labels',
         '${gmail}list_drafts',
         // A read word that is not the verb does not make a tool read-only.
@@ -214,6 +251,95 @@ void main() {
       ]);
       expect(init.gmailStatus, 'connected');
       expect(init.gmailReady, isTrue);
+    });
+
+    test('a Gmail tool is read-only only when every word of its name is a '
+        'known read word, and the first one is a read verb', () {
+      for (final name in [
+        'search_threads',
+        'get_thread',
+        'getMessage',
+        'list_messages',
+        'read_message',
+        'fetch_attachment',
+        'gmail_search_messages',
+        'gmail_read_thread',
+        'get_profile',
+        'get-message-by-id',
+        'findEmailsFromQuery',
+      ]) {
+        expect(
+          AgentPolicy.isGmailReadTool('$gmail$name'),
+          isTrue,
+          reason: name,
+        );
+      }
+      for (final name in [
+        'get_and_mark_read',
+        'list_and_snooze',
+        'create_draft',
+        'send_message',
+        'list_labels',
+        'list_drafts',
+        'mark_as_read',
+        'message_get',
+        'get_message_v2',
+        'get.message',
+        'getMessageAndArchive',
+        'gmail',
+        '',
+      ]) {
+        expect(
+          AgentPolicy.isGmailReadTool('$gmail$name'),
+          isFalse,
+          reason: name,
+        );
+      }
+      // Not a Gmail tool at all.
+      expect(AgentPolicy.isGmailReadTool('mcp__other__get_thread'), isFalse);
+    });
+
+    test('a connection that is still starting: the probe is not ready', () {
+      AgentInit init(List<Map<String, Object?>> servers) =>
+          AgentPolicy.parseInit(
+            initLine(tools: ['${gmail}search_threads'], servers: servers),
+          )!;
+      final settled = init([
+        {'name': 'claude.ai Gmail', 'status': 'connected'},
+        {'name': 'claude.ai Drive', 'status': 'needs-auth'},
+        {'name': 'local', 'status': 'failed'},
+        {'name': 'off', 'status': 'disabled'},
+      ]);
+      expect(settled.ready, isTrue);
+      expect(settled.gmailReady, isTrue);
+      expect(settled.otherServers, ['claude.ai Drive', 'local', 'off']);
+      for (final odd in [
+        {'name': 'local', 'status': 'pending'},
+        {'name': 'local', 'status': 'starting'},
+        {'name': 'local'},
+        {'status': 'connected'},
+        {'name': 'claude.ai Gmail', 'status': 'pending'},
+      ]) {
+        final i = init([
+          {'name': 'claude.ai Gmail', 'status': 'connected'},
+          odd,
+        ]);
+        expect(i.ready, isFalse, reason: '$odd');
+      }
+      expect(AgentPolicy.connectionsStarting, contains('Try again'));
+    });
+
+    test('another server named like Gmail makes Gmail not ready', () {
+      final init = AgentPolicy.parseInit(
+        initLine(
+          tools: ['${gmail}search_threads'],
+          servers: [
+            {'name': 'claude.ai Gmail', 'status': 'connected'},
+            {'name': 'claude_ai_Gmail', 'status': 'connected'},
+          ],
+        ),
+      )!;
+      expect(init.gmailReady, isFalse);
     });
 
     test('built-in tools are not connector tools', () {
@@ -418,8 +544,39 @@ void main() {
     });
 
     test('plain Markdown stays as it is', () {
-      const md = '# Title\n\n- one\n- two\n\n[a link](https://x.com)';
+      const md = '# Title\n\n## Part\n\n- one\n- two\n\nC# and F# # 3';
       expect(AgentPolicy.safeForNote(md), md);
+    });
+
+    test('a #word does not become a Grove tag', () {
+      const md =
+          '#Work and #home-life, (#x) #12 #déjà_vu\n'
+          'Done.#late ##two `#code` [#in](x)';
+      final safe = AgentPolicy.safeForNote(md);
+      expect(NoteParser.tags(safe), isEmpty);
+      expect(
+        MarkdownSpans.scan(safe).where((s) => s.kind.type == SpanType.tag),
+        isEmpty,
+      );
+      // The words are still there to read.
+      expect(safe.replaceAll('\u200B', ''), contains('#Work and #home-life'));
+    });
+
+    test('links of the agent are plain text, not links', () {
+      const md =
+          'See [the site](https://evil.example/x?a=1) or '
+          'https://evil.example/y, http://a.b and HTTPS://SHOUT.example.\n'
+          '- https://example.com/plan\n'
+          '[two](http://x.y) ![pic](https://img.example/p.png)';
+      final safe = AgentPolicy.safeForNote(md);
+      final kinds = MarkdownSpans.scan(safe).map((s) => s.kind.type);
+      expect(kinds, isNot(contains(SpanType.link)));
+      expect(kinds, isNot(contains(SpanType.linkWords)));
+      // The address can still be read.
+      final plain = safe.replaceAll('\u200B', '');
+      expect(plain, contains('the site (https://evil.example/x?a=1)'));
+      expect(plain, contains('https://example.com/plan'));
+      expect(plain, contains('two (http://x.y)'));
     });
   });
 

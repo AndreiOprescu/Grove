@@ -346,6 +346,11 @@ extension AppStoreAgent on AppStore {
         final line = await runner.probeInit(exe, AgentPolicy.probeArgs());
         if (_disposed) return;
         final init = line == null ? null : AgentPolicy.parseInit(line);
+        // A connection that still starts may bring tools the probe did not
+        // see.
+        if (init != null && !init.ready) {
+          return _agentFail(job.id, AgentPolicy.connectionsStarting);
+        }
         if (init == null || !init.gmailReady) {
           return _agentFail(job.id, AgentPolicy.gmailNotReady);
         }
@@ -353,6 +358,7 @@ extension AppStoreAgent on AppStore {
           email: true,
           gmailReadTools: init.gmailReadTools,
           otherConnectorTools: init.denied,
+          otherServers: init.otherServers,
         );
       } else {
         args = AgentPolicy.args(email: false);

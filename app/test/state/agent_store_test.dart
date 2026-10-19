@@ -21,6 +21,7 @@ const plainResult = {'summary': 'Done it.'};
 
 String initLine({
   String status = 'connected',
+  String driveStatus = 'connected',
   List<String> tools = const [
     'WebSearch',
     'mcp__claude_ai_Gmail__search_threads',
@@ -33,6 +34,7 @@ String initLine({
   'tools': tools,
   'mcp_servers': [
     {'name': 'claude.ai Gmail', 'status': status},
+    {'name': 'claude.ai Drive', 'status': driveStatus},
   ],
 });
 
@@ -365,6 +367,7 @@ void main() {
           unorderedEquals([
             'mcp__claude_ai_Gmail__send_message',
             'mcp__claude_ai_Drive__list_files',
+            'mcp__claude_ai_Drive',
           ]),
         );
         expect(args, isNot(contains('WebFetch')));
@@ -392,6 +395,28 @@ void main() {
         expect(runner.calls, isEmpty);
         expect(job(s, id).status, AgentStatus.failed);
         expect(job(s, id).error, AgentPolicy.gmailNotReady);
+      },
+    );
+
+    test(
+      'a connection that is still starting: the job fails, try again',
+      () async {
+        final runner = FakeAgentRunner(
+          initLine: initLine(driveStatus: 'pending'),
+          output: answer(plainResult),
+        );
+        final s = await open(
+          runner,
+          prefs: const {'agent.runner': true, 'agent.email': true},
+        );
+        final id = s.delegateToAgent(
+          addTask(s, 'Reply to Ann').id,
+          email: true,
+        );
+        await s.agentWork;
+        expect(runner.calls, isEmpty);
+        expect(job(s, id).status, AgentStatus.failed);
+        expect(job(s, id).error, AgentPolicy.connectionsStarting);
       },
     );
 

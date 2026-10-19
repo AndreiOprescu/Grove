@@ -10,7 +10,8 @@ import '../core/agent/agent_runner.dart';
 /// - `claude` is looked for only in known places, never on the PATH.
 /// - It starts with no shell, in a new empty temp folder, which is deleted
 ///   at the end.
-/// - Cancel and the time limit stop it: SIGTERM, then SIGKILL after
+/// - Cancel and the time limit stop it and the processes it started (its
+///   MCP servers, found with `pgrep -P`): SIGTERM, then SIGKILL after
 ///   [killWait]. On Windows `taskkill /T /F` stops it and its children.
 class ClaudeCliRunner extends AgentRunner {
   ClaudeCliRunner({
@@ -144,28 +145,78 @@ class ClaudeCliRunner extends AgentRunner {
     } finally {
       final p = process;
       if (p != null) {
-        _stop(p);
+        unawaited(_stop(p));
         await p.exitCode.timeout(killWait * 2, onTimeout: () => -1);
       }
       await _delete(tmp);
     }
   }
 
-  /// Asks [p] to stop, and kills it if it is still there after [killWait].
-  Timer? _stop(Process p) {
+  /// The pids in the output of `pgrep`, one a line. Other lines are left
+  /// out.
+  static List<int> parsePids(String text) => [
+    for (final line in text.split('\n'))
+      if (int.tryParse(line.trim()) case final pid? when pid > 0) pid,
+  ];
+
+  /// Asks [p] and every process under it (the MCP servers of `claude`) to
+  /// stop, and kills those still there after [killWait]. The processes
+  /// under it are found first: once [p] ends, they have another parent.
+  Future<void> _stop(Process p) async {
     if (windows) {
-      unawaited(
-        Process.run('taskkill', [
-          '/PID',
-          '${p.pid}',
-          '/T',
-          '/F',
-        ]).then((_) {}, onError: (_) {}),
-      );
-      return null;
+      await Process.run('taskkill', [
+        '/PID',
+        '${p.pid}',
+        '/T',
+        '/F',
+      ]).then((_) {}, onError: (_) {});
+      return;
     }
+    var ended = false;
+    unawaited(p.exitCode.then((_) => ended = true, onError: (_) {}));
+    final tree = await _under(p.pid);
     p.kill(ProcessSignal.sigterm);
-    return Timer(killWait, () => p.kill(ProcessSignal.sigkill));
+    _signal(tree, ProcessSignal.sigterm);
+    await Future<void>.delayed(killWait);
+    // A process started since the first look, while [p] still ran.
+    if (!ended) {
+      for (final pid in await _under(p.pid)) {
+        if (!tree.contains(pid)) tree.add(pid);
+      }
+      p.kill(ProcessSignal.sigkill);
+    }
+    _signal(tree, ProcessSignal.sigkill);
+  }
+
+  /// Every process under [pid]: its children, theirs, and so on. `pgrep`
+  /// is a program of the system, so no shell is needed.
+  static Future<List<int>> _under(int pid) async {
+    final out = <int>[];
+    final next = [pid];
+    while (next.isNotEmpty && out.length < 200) {
+      final parent = next.removeLast();
+      try {
+        final r = await Process.run('/usr/bin/pgrep', ['-P', '$parent']);
+        for (final child in parsePids('${r.stdout}')) {
+          if (child == pid || out.contains(child)) continue;
+          out.add(child);
+          next.add(child);
+        }
+      } on Object {
+        // No pgrep: only [pid] itself is stopped.
+      }
+    }
+    return out;
+  }
+
+  static void _signal(List<int> pids, ProcessSignal signal) {
+    for (final pid in pids) {
+      try {
+        Process.killPid(pid, signal);
+      } on Object {
+        // Gone already.
+      }
+    }
   }
 
   static void _writeStdin(Process p, String text) {
@@ -202,7 +253,7 @@ class _CliProcess implements AgentProcess {
   final _done = Completer<AgentRunOutput>();
   Process? _process;
   Timer? _limit;
-  Timer? _kill;
+  bool _stopping = false;
   bool _cancelled = false;
   bool _timedOut = false;
 
@@ -222,8 +273,9 @@ class _CliProcess implements AgentProcess {
 
   void _stopNow() {
     final p = _process;
-    if (p == null) return;
-    _kill ??= runner._stop(p);
+    if (p == null || _stopping) return;
+    _stopping = true;
+    unawaited(runner._stop(p));
   }
 
   Future<void> _run() async {
@@ -273,7 +325,6 @@ class _CliProcess implements AgentProcess {
       );
     } finally {
       _limit?.cancel();
-      _kill?.cancel();
       // The folder is gone before the run counts as done.
       await ClaudeCliRunner._delete(tmp);
       _finish(result);
