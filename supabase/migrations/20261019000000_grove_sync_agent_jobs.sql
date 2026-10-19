@@ -1,7 +1,7 @@
 -- Grove: the tables of the sync, who can read them, the file store for
 -- images, and the two sync functions.
 --
--- Made from the schema of the app (number 11) by
+-- Made from the schema of the app (number 12) by
 -- app/lib/sync/supabase_sql.dart. Do not change this file by hand. When the
 -- schema of the app changes, make a new file:
 --   cd app && GROVE_WRITE_SQL=<new file name> flutter test test/sync/supabase_sql_test.dart
@@ -181,6 +181,7 @@ alter table public."events" add column if not exists "created_at" text;
 alter table public."events" add column if not exists "updated_at" text;
 alter table public."events" add column if not exists "goal_id" text;
 alter table public."events" add column if not exists "done_at" text;
+alter table public."events" add column if not exists "is_deadline" bigint;
 create index if not exists "events_user_seq" on public."events" (user_id, seq);
 alter table public."events" enable row level security;
 revoke all on public."events" from public, anon, authenticated;
@@ -554,8 +555,8 @@ begin
   if v_user is null then
     raise exception 'Not signed in.' using errcode = '28000';
   end if;
-  if p_schema is distinct from 11 then
-    raise exception 'Grove schema: the server has 11, the app has %.', p_schema
+  if p_schema is distinct from 12 then
+    raise exception 'Grove schema: the server has 12, the app has %.', p_schema
       using errcode = 'GRV01';
   end if;
   if p_changes is null or jsonb_typeof(p_changes) <> 'array' then
@@ -716,7 +717,7 @@ begin
     "seq" = excluded."seq"
   where t.stamp < excluded.stamp;
 
-  insert into public."events" as t ("user_id", "id", "title", "start", "end", "all_day", "kind", "task_id", "color", "location", "notes", "recurrence", "series_id", "original_date", "created_at", "updated_at", "goal_id", "done_at", "stamp", "deleted", "seq")
+  insert into public."events" as t ("user_id", "id", "title", "start", "end", "all_day", "kind", "task_id", "color", "location", "notes", "recurrence", "series_id", "original_date", "created_at", "updated_at", "goal_id", "done_at", "is_deadline", "stamp", "deleted", "seq")
   select v_user,
     split_part(c.item->>'key', chr(31), 1),
     r."title",
@@ -735,6 +736,7 @@ begin
     r."updated_at",
     r."goal_id",
     r."done_at",
+    r."is_deadline",
     (c.item->>'stamp')::bigint,
     coalesce((c.item->>'deleted')::boolean, false),
     v_seq + c.ord
@@ -759,6 +761,7 @@ begin
     "updated_at" = excluded."updated_at",
     "goal_id" = excluded."goal_id",
     "done_at" = excluded."done_at",
+    "is_deadline" = excluded."is_deadline",
     "stamp" = excluded."stamp",
     "deleted" = excluded."deleted",
     "seq" = excluded."seq"
@@ -1095,8 +1098,8 @@ begin
   if v_user is null then
     raise exception 'Not signed in.' using errcode = '28000';
   end if;
-  if p_schema is distinct from 11 then
-    raise exception 'Grove schema: the server has 11, the app has %.', p_schema
+  if p_schema is distinct from 12 then
+    raise exception 'Grove schema: the server has 12, the app has %.', p_schema
       using errcode = 'GRV01';
   end if;
   select max(z.seq) into v_to from (

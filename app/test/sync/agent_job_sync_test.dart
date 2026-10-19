@@ -1,10 +1,11 @@
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:sqlite3/sqlite3.dart' as raw;
 
 import 'support.dart';
 
-// The jobs of the agent (table `agent_jobs`, shared migration 11, sync
+// The jobs of the agent (table `agent_jobs`, shared migration 12, sync
 // migration 6) sync like every other row: a phone makes a job, the Mac runs
 // it, and the phone sees the result (ADR 0004).
 
@@ -84,35 +85,102 @@ void main() {
     expectSame([phone, mac]);
   });
 
-  test('a database from before the agent gets the table in the sync', () {
+  test('a database of the deadlines build (PR #37: shared schema 11 with '
+      'events.is_deadline, sync schema 5) gets the agent jobs and their '
+      'sync triggers', () {
     final dir = Directory.systemTemp.createTempSync('grove-agent-sync-');
     addTearDown(() => dir.deleteSync(recursive: true));
     final path = '${dir.path}/a.sqlite';
     var db = Database.open(path);
     Repos(db).tasks.save(TaskItem(id: 'T1', title: 'Plan'));
-    // Take the database back to shared schema 10 and sync schema 5.
+    Repos(db).events.save(
+      EventItem(
+        id: 'E1',
+        title: 'Essay due',
+        start: at('2026-10-20T15:00'),
+        end: at('2026-10-20T17:00'),
+        isDeadline: true,
+      ),
+    );
+    // Take the database back to what the deadlines build makes: shared
+    // migrations 1 to 11 and sync migrations 1 to 5. That build has no
+    // sync migration of its own, so only the agent table and its sync goes.
     db.executeScript('''
       DROP TABLE agent_jobs;
-      PRAGMA user_version = 10;
+      PRAGMA user_version = 11;
       UPDATE sync_meta SET value = '5' WHERE key = 'schema';
       DELETE FROM sync_meta WHERE key = 'triggers';
     ''');
     db.execute('DELETE FROM outbox');
+    // The same tables and data columns as shared migrations 1 to 11 run on
+    // an empty database.
+    final old = raw.sqlite3.openInMemory();
+    old.execute(Migrations.all.take(11).join(';'));
+    List<String> tablesOf(List<String> names) => [
+      for (final n in names)
+        if (n != 'outbox' && n != 'sync_meta') n,
+    ]..sort();
+    const tableSql =
+        "SELECT name FROM sqlite_master WHERE type = 'table' "
+        "AND name NOT LIKE 'sqlite_%'";
+    final oldTables = tablesOf([
+      for (final r in old.select(tableSql)) r['name'] as String,
+    ]);
+    expect(oldTables, isNot(contains('agent_jobs')));
+    expect(tablesOf(db.query(tableSql, const [], (r) => r.text(0))), oldTables);
+    for (final t in oldTables) {
+      final added = SyncMigrations.addedColumns[t] ?? const <String>{};
+      expect(
+        [
+          for (final c in db.query(
+            'PRAGMA table_info($t)',
+            const [],
+            (r) => r.text(1),
+          ))
+            if (!added.contains(c)) c,
+        ],
+        [for (final r in old.select('PRAGMA table_info($t)')) r['name']],
+        reason: t,
+      );
+    }
+    old.close();
     db.close();
 
     db = Database.open(path);
     addTearDown(db.close);
+    expect(db.userVersion, 12);
     expect(db.userVersion, Migrations.all.length);
+    expect(db.syncVersion, 6);
     expect(db.syncVersion, SyncMigrations.all.length);
     final cols = db.query(
       'PRAGMA table_info(agent_jobs)',
       const [],
       (r) => r.text(1),
     );
-    expect(cols, containsAll(['deleted', 'user_id', 'updated_at']));
+    expect(cols, containsAll(['task_id', 'deleted', 'user_id', 'updated_at']));
     expect(cols.where((c) => c == 'updated_at'), hasLength(1));
+    final triggers = db.query(
+      "SELECT name FROM sqlite_master WHERE type = 'trigger' "
+      "AND tbl_name = 'agent_jobs' ORDER BY name",
+      const [],
+      (r) => r.text(0),
+    );
+    expect(triggers, [
+      'sync_agent_jobs_delete',
+      'sync_agent_jobs_insert',
+      'sync_agent_jobs_update',
+    ]);
+    // The deadline is kept, and its column is still watched by the sync.
     final r = Repos(db);
+    expect(r.events.get('E1')!.isDeadline, isTrue);
+    expect(r.events.deadlines().map((e) => e.id), ['E1']);
+    expect(Outbox(db).count, 0);
     r.agentJobs.insert(AgentJob(id: 'J1', taskId: 'T1'));
     expect(Outbox(db).entries().map((e) => e.table), ['agent_jobs']);
+    db.execute('UPDATE events SET is_deadline = 0 WHERE id = ?', ['E1']);
+    expect(
+      Outbox(db).entries().map((e) => (e.table, e.key)),
+      containsAll([('agent_jobs', 'J1'), ('events', 'E1')]),
+    );
   });
 }
