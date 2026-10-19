@@ -61,6 +61,34 @@ abstract final class SettingsRules {
         NotifyAuthorization.denied => 'Notifications are off for Grove. Turn them on in System Settings to get reminders.',
       };
 
+  // The agent (ADR 0004)
+
+  /// Under "This device runs agent tasks" on a phone.
+  static const agentNoRunner =
+      'Only a computer with Claude Code can run agent tasks. Turn this on in '
+      'Grove on your Mac.';
+
+  /// While Grove looks for the `claude` command.
+  static const agentLooking =
+      'Grove is looking for Claude Code on this computer.';
+
+  /// When the `claude` command is not in a known place.
+  static const agentNotFound =
+      'Grove could not find Claude Code on this computer. Install it, log in '
+      'with your own Claude plan, then turn this on again.';
+
+  /// The help text under the runner switch, or null when this device can run
+  /// agent tasks.
+  static String? agentHelp({
+    required bool computer,
+    required bool looked,
+    required bool found,
+  }) {
+    if (!computer) return agentNoRunner;
+    if (found) return null;
+    return looked ? agentNotFound : agentLooking;
+  }
+
   /// The day in a backup file name: "grove-2026-10-04.sqlite" → 2026-10-04.
   static DayKey? backupDay({required String fileName}) {
     const head = 'grove-', tail = '.sqlite';

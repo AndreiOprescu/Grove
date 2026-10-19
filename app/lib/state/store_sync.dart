@@ -475,6 +475,7 @@ extension AppStoreSync on AppStore {
     _revision += 1;
     _changed();
     scheduleReminderRefresh();
+    _agentAfterPull();
   }
 
   static String _syncMessage(Object e) => switch (e) {
