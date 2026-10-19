@@ -12,9 +12,11 @@ import 'system_notifier.dart';
 import 'tray_gateway.dart';
 import 'tray_manager_gateway.dart';
 import 'tray_service.dart';
+import 'update_check.dart';
 
 /// The work that runs behind the screens from launch to quit: reminders, the
-/// daily backup, the sync, and the tray icon on a computer.
+/// daily backup, the sync, the check for a new Grove, and the tray icon on a
+/// computer.
 ///
 /// `main.dart` makes the notifier, opens the store with it, then starts this:
 ///
@@ -32,6 +34,7 @@ class AppServices {
     void Function()? quit,
   }) : _backup = BackupSchedule(store),
        _sync = SyncSchedule(store),
+       _updates = UpdateSchedule(store),
        _tray = tray == null
            ? null
            : TrayService(
@@ -74,6 +77,7 @@ class AppServices {
   final AppStore store;
   final BackupSchedule _backup;
   final SyncSchedule _sync;
+  final UpdateSchedule _updates;
   final TrayService? _tray;
   AppLifecycleListener? _lifecycle;
   bool _started = false;
@@ -92,6 +96,7 @@ class AppServices {
     if (notifier is SystemNotifier) unawaited(notifier.deliverLaunch());
     _backup.start();
     _sync.start();
+    _updates.start();
     _trayShown = _tray?.start() ?? false;
     _lifecycle = AppLifecycleListener(onResume: resumed);
   }
@@ -102,6 +107,7 @@ class AppServices {
     if (!_started) return;
     _backup.check();
     _sync.check();
+    _updates.check();
     store.scheduleReminderRefresh();
     _tray?.refresh();
   }
@@ -113,6 +119,7 @@ class AppServices {
     _lifecycle = null;
     _backup.dispose();
     _sync.dispose();
+    _updates.dispose();
     _tray?.dispose();
     _trayShown = false;
   }

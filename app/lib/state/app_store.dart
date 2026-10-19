@@ -5,6 +5,7 @@ import 'dart:math';
 
 import 'package:flutter/foundation.dart';
 
+import '../core/grove_core.dart';
 import '../core/model/block_subtask.dart';
 import '../core/model/day_key.dart';
 import '../core/model/event.dart';
@@ -27,6 +28,7 @@ import '../core/recurrence/recurrence_engine.dart';
 import '../core/services/focus_rules.dart';
 import '../core/services/persona.dart';
 import '../core/services/reminder_planner.dart';
+import '../core/update/update_rules.dart';
 import '../data/data.dart';
 import '../sync/sync.dart';
 import 'editor_services.dart';
@@ -82,6 +84,7 @@ part 'store_reminders.dart';
 part 'store_roll_over.dart';
 part 'store_sync.dart';
 part 'store_tasks.dart';
+part 'store_updates.dart';
 part 'store_welcome.dart';
 
 /// Runs a read. A read that fails gives null, so the screen shows nothing
@@ -129,6 +132,7 @@ class AppStore extends ChangeNotifier {
     Prefs? prefs,
     this.dataDir,
     this.syncBackend,
+    this.releaseSource,
     this._errorMessage,
   }) : notifier = notifier ?? NullNotifier(),
        prefs = prefs ?? MemoryPrefs() {
@@ -157,6 +161,7 @@ class AppStore extends ChangeNotifier {
     Notifier? notifier,
     Prefs? prefs,
     SyncBackend? sync,
+    ReleaseSource? releases,
   }) {
     final sep = Platform.pathSeparator;
     try {
@@ -181,12 +186,14 @@ class AppStore extends ChangeNotifier {
         prefs: prefs ?? FilePrefs('$dataDir${sep}prefs.json'),
         dataDir: dataDir,
         syncBackend: sync,
+        releaseSource: releases,
       );
     } on Exception {
       return AppStore(
         repos: Repos(Database.inMemory()),
         notifier: notifier,
         prefs: prefs,
+        releaseSource: releases,
         errorMessage:
             'Grove could not open its database. Changes will not be saved.',
       );
@@ -207,6 +214,11 @@ class AppStore extends ChangeNotifier {
   /// `store_sync.dart`.
   final SyncBackend? syncBackend;
   final _sync = _SyncState();
+
+  /// Where Grove looks for a newer version of itself. Null: no update check
+  /// (a test, or a copy that has none). See `store_updates.dart`.
+  final ReleaseSource? releaseSource;
+  final _updates = _UpdateState();
 
   /// How long a change waits before it is sent. A burst of changes is one
   /// sync.

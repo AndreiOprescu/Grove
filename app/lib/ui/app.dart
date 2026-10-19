@@ -88,6 +88,7 @@ class _GroveAppState extends State<GroveApp> {
       zoomOut: given.zoomOut,
       settings:
           given.settings ?? (widget.onSettings == null ? null : _openSettings),
+      checkForUpdates: given.checkForUpdates,
     );
   }
 

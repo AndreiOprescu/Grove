@@ -638,6 +638,8 @@ class DataSettings extends StatefulWidget {
 class _DataSettingsState extends State<DataSettings> {
   String? _message;
   bool _failed = false;
+  String? _updateMessage;
+  bool _checking = false;
   late List<BackupFile> _backups = widget.store.backupFiles();
 
   AppStore get store => widget.store;
@@ -904,8 +906,66 @@ class _DataSettingsState extends State<DataSettings> {
                 ),
           ],
         ),
+        if (store.canCheckForUpdates) ...[_gap, _updates(theme)],
       ],
     );
+  }
+
+  /// The version of this copy and the check for a newer one on GitHub.
+  Widget _updates(GroveTheme theme) {
+    final message = _updateMessage;
+    return SettingsSection(
+      title: 'Updates',
+      children: [
+        Text(
+          'Grove ${store.currentVersion}',
+          key: const ValueKey('settings-updates-version'),
+          style: theme.body(13).copyWith(color: theme.ink),
+        ),
+        SettingsSwitchRow(
+          label: 'Check for updates',
+          value: store.checksForUpdates,
+          onChanged: (on) => store.checksForUpdates = on,
+          switchKey: const ValueKey('settings-updates-switch'),
+        ),
+        Wrap(
+          children: [
+            CardButton(
+              key: const ValueKey('settings-updates-check'),
+              label: _checking ? 'Checking…' : 'Check now',
+              onTap: () => unawaited(_checkNow()),
+            ),
+          ],
+        ),
+        const SettingsCaption(
+          'Grove asks GitHub for a new version when it starts and every '
+          'few hours. A card shows when one is out.',
+        ),
+        if (message != null)
+          Semantics(
+            container: true,
+            liveRegion: true,
+            label: message,
+            excludeSemantics: true,
+            child: Text(
+              message,
+              key: const ValueKey('settings-updates-message'),
+              style: theme.body(13).copyWith(color: theme.muted),
+            ),
+          ),
+      ],
+    );
+  }
+
+  Future<void> _checkNow() async {
+    if (_checking) return;
+    setState(() => _checking = true);
+    final words = await store.checkForUpdates(manual: true);
+    if (!mounted) return;
+    setState(() {
+      _checking = false;
+      _updateMessage = words ?? _updateMessage;
+    });
   }
 }
 

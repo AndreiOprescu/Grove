@@ -2,6 +2,8 @@
 /// screens share. Import this one file.
 library;
 
+export '../core/grove_core.dart';
+export '../core/update/update_rules.dart';
 export 'app_store.dart';
 export 'editor_services.dart';
 export 'mutation.dart';

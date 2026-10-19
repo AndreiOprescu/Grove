@@ -24,6 +24,7 @@ class ShellCommands {
     this.zoomIn,
     this.zoomOut,
     this.settings,
+    this.checkForUpdates,
   });
 
   final VoidCallback? newTask;
@@ -45,6 +46,10 @@ class ShellCommands {
   final VoidCallback? zoomIn;
   final VoidCallback? zoomOut;
   final VoidCallback? settings;
+
+  /// Asks GitHub for a newer Grove. Null: this copy has no check, and the
+  /// line is not in the menu.
+  final VoidCallback? checkForUpdates;
 }
 
 /// One thing in a menu.
@@ -283,6 +288,13 @@ List<ShellMenu> shellMenus(ShellModel model, ShellCommands commands) => [
 ShellEntry settingsEntry(ShellCommands commands) =>
     ShellEntry('Settings…', commands.settings, key: LogicalKeyboardKey.comma);
 
+/// The line "Check for Updates…" of the app menu of a Mac, or null when
+/// this copy has no check.
+ShellEntry? updatesEntry(ShellCommands commands) {
+  final run = commands.checkForUpdates;
+  return run == null ? null : ShellEntry('Check for Updates…', run);
+}
+
 /// Every line with a key, in the order of the menus.
 List<ShellEntry> shellKeys(ShellModel model, ShellCommands commands) => [
   for (final menu in shellMenus(model, commands))
@@ -436,7 +448,11 @@ class _ShellMenuBarState extends State<ShellMenuBar> {
         label: 'Grove',
         menus: [
           PlatformMenuItemGroup(
-            members: [_system(PlatformProvidedMenuItemType.about)],
+            members: [
+              _system(PlatformProvidedMenuItemType.about),
+              if (updatesEntry(widget.commands) case final updates?)
+                _item('app/updates', updates),
+            ],
           ),
           PlatformMenuItemGroup(
             members: [_item('app/settings', settingsEntry(widget.commands))],
@@ -493,6 +509,7 @@ class _ShellMenuBarState extends State<ShellMenuBar> {
     final settings = settingsEntry(widget.commands);
     return [
       settings.run == null,
+      updatesEntry(widget.commands) == null,
       for (final menu in widget.menus) ...[
         menu.title,
         for (final node in menu.nodes)
@@ -529,6 +546,9 @@ class _ShellMenuBarState extends State<ShellMenuBar> {
   void _refresh() {
     void put(String path, ShellEntry entry) => _byPath[path] = entry;
     put('app/settings', settingsEntry(widget.commands));
+    if (updatesEntry(widget.commands) case final updates?) {
+      put('app/updates', updates);
+    }
     for (final menu in widget.menus) {
       for (final (i, node) in menu.nodes.indexed) {
         switch (node) {
