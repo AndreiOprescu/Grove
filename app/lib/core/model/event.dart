@@ -23,6 +23,7 @@ class EventItem {
     this.originalDate,
     this.goalId,
     this.doneAt,
+    this.isDeadline = false,
     String? createdAt,
     String? updatedAt,
   }) : id = id ?? newId(),
@@ -50,8 +51,12 @@ class EventItem {
   /// Set on a block that belongs to a goal (it has no task).
   final String? goalId;
 
-  /// When a goal block was ticked done; null = planned.
+  /// When a goal block or a deadline was ticked done; null = planned.
   final String? doneAt;
+
+  /// A deadline: the event's end is when something is due. It shows in the
+  /// Deadlines panel and can be ticked done.
+  final bool isDeadline;
   final String createdAt;
   final String updatedAt;
 
@@ -75,6 +80,7 @@ class EventItem {
     Object? originalDate = keep,
     Object? goalId = keep,
     Object? doneAt = keep,
+    bool? isDeadline,
     String? createdAt,
     String? updatedAt,
   }) => EventItem(
@@ -97,6 +103,7 @@ class EventItem {
         : originalDate as DayKey?,
     goalId: identical(goalId, keep) ? this.goalId : goalId as String?,
     doneAt: identical(doneAt, keep) ? this.doneAt : doneAt as String?,
+    isDeadline: isDeadline ?? this.isDeadline,
     createdAt: createdAt ?? this.createdAt,
     updatedAt: updatedAt ?? this.updatedAt,
   );
@@ -117,6 +124,7 @@ class EventItem {
     originalDate,
     goalId,
     doneAt,
+    isDeadline,
     createdAt,
     updatedAt,
   ];

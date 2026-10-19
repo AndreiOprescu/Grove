@@ -288,6 +288,7 @@ class EventRepo {
     'updated_at',
     'goal_id',
     'done_at',
+    'is_deadline',
   ];
   static final _select = 'SELECT ${_cols.join(',')} FROM events';
   static final _upsert = _upsertSql('events', _cols);
@@ -313,6 +314,7 @@ class EventRepo {
       updatedAt: r.text(14),
       goalId: r.optText(15),
       doneAt: r.optText(16),
+      isDeadline: r.asBool(17),
     );
   }
 
@@ -340,6 +342,7 @@ class EventRepo {
         e.updatedAt,
         e.goalId,
         e.doneAt,
+        e.isDeadline,
       ]);
       if (e.kind == EventKind.event) {
         search.upsert(ItemType.event, e.id, e.title, searchBody(e));
@@ -369,6 +372,10 @@ class EventRepo {
   /// Time blocks that belong to a goal, earliest first.
   List<EventItem> blocksForGoal(String goalId) =>
       _where('WHERE goal_id = ? ORDER BY start', [goalId]);
+
+  /// Every event marked as a deadline, earliest end first.
+  List<EventItem> deadlines() =>
+      _where('WHERE is_deadline = 1 ORDER BY end, start');
 
   /// Case-insensitive exact title match, most recently edited first.
   EventItem? byTitle(String title) => _where(

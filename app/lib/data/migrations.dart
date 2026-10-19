@@ -2,9 +2,9 @@ import 'database.dart';
 import 'sync_schema.dart';
 
 /// Ordered schema migrations. Index N takes the database from user_version N to N+1.
-/// 1 to 7 are the Mac app's migrations, word for word. 8 to 11 are in this
-/// app only (the Mac app has no subtasks of a goal, no persona and no
-/// agent). The
+/// 1 to 7 are the Mac app's migrations, word for word. 8 to 12 are in this
+/// app only (the Mac app has no subtasks of a goal, no persona, no
+/// deadlines and no agent). The
 /// export file carries the number, and an app refuses a file with a higher
 /// number than its own: the Mac app does not read a file of this app. Never
 /// edit a shipped migration; append a new one.
@@ -210,7 +210,14 @@ abstract final class Migrations {
     CREATE INDEX earnings_source ON earnings(source_kind, source_id);
     CREATE INDEX earnings_time ON earnings(earned_at);
     ''',
-    // 11 — the jobs of the agent (ADR 0004): a task given to the agent, its
+    // 11 — an event can be a deadline: its end is when something is due.
+    // It is ticked done with done_at, like a goal block. The column may be
+    // empty: rows on the server from before it have no value, and a pull
+    // writes them as they are. Empty reads as "not a deadline".
+    '''
+    ALTER TABLE events ADD COLUMN is_deadline INTEGER DEFAULT 0;
+    ''',
+    // 12 — the jobs of the agent (ADR 0004): a task given to the agent, its
     // status and its result. A job goes with its task. A deleted result
     // note empties the pointer. A new table only. Not in the Mac app.
     '''
@@ -323,7 +330,7 @@ abstract final class SyncMigrations {
         'AND pk IN (SELECT id FROM skills WHERE builtin = 1)',
       );
     },
-    // 6 — `agent_jobs` (shared migration 11) joins the sync, like
+    // 6 — `agent_jobs` (shared migration 12) joins the sync, like
     // `block_subtasks`.
     (db) => SyncSchema.addTable(db, 'agent_jobs'),
   ];

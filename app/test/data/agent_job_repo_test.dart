@@ -8,7 +8,7 @@ import 'package:grove/data/data.dart';
 
 import 'helpers.dart';
 
-// The jobs of the agent (shared migration 11, ADR 0004). A job belongs to a
+// The jobs of the agent (shared migration 12, ADR 0004). A job belongs to a
 // task and goes with it. Only one runner can take a queued job.
 
 Repos withTask() {
@@ -27,10 +27,10 @@ AgentJob job(String id, {String task = 'T1', String at = '2026-10-19T09:00'}) =>
 
 void main() {
   test(
-    'the agent jobs are migration 11, and the database is at the newest',
+    'the agent jobs are migration 12, and the database is at the newest',
     () {
       final db = makeRepos().db;
-      expect(Migrations.all[10], contains('CREATE TABLE agent_jobs'));
+      expect(Migrations.all[11], contains('CREATE TABLE agent_jobs'));
       expect(db.userVersion, Migrations.all.length);
     },
   );

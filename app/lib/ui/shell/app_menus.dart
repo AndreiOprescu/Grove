@@ -204,6 +204,7 @@ List<ShellMenu> shellMenus(ShellModel model, ShellCommands commands) => [
     ShellEntry('Tasks', model.showTasks, key: LogicalKeyboardKey.digit2),
     ShellEntry('Notes Panel', () => model.showLeftPane(LeftPane.notes)),
     ShellEntry('Goals Panel', () => model.showLeftPane(LeftPane.goals)),
+    ShellEntry('Deadlines Panel', () => model.showLeftPane(LeftPane.deadlines)),
     ShellEntry(
       'Calendar',
       () => model.screen = Screen.calendar,

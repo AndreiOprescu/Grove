@@ -1,8 +1,10 @@
-// What the shell shows for the store: the left panels of Tasks and Goals,
-// and the panel of the chosen task or goal block. `StoreApp` plugs these in.
+// What the shell shows for the store: the left panels of Tasks, Goals and
+// Deadlines, and the panel of the chosen task or goal block. `StoreApp`
+// plugs these in.
 import 'package:flutter/material.dart';
 import 'package:grove/state/state.dart' hide MotionRules;
 
+import '../deadlines/deadlines_pane.dart';
 import '../goals/goal_panel.dart';
 import '../goals/goals_pane.dart';
 import '../shell/shell_layout.dart';
@@ -20,6 +22,10 @@ Widget? storePane(BuildContext context, AppStore store, LeftPane pane) =>
       LeftPane.goals => _PaneOrInspector(
         store: store,
         child: GoalsPane(store: store),
+      ),
+      LeftPane.deadlines => _PaneOrInspector(
+        store: store,
+        child: DeadlinesPane(store: store),
       ),
       LeftPane.notes => null,
     };

@@ -81,7 +81,8 @@ class BlockView extends StatelessWidget {
 
   int get _length => end - start;
   bool get _compact => _length < 25 || size.height < 34;
-  bool get _checks => block.isTaskBlock || block.isGoalBlock;
+  bool get _checks =>
+      block.isTaskBlock || block.isGoalBlock || block.isDeadline;
   int get _subtasksDone => subtasks.where((s) => s.isDone).length;
 
   /// The tooltip: title and time, the short description of a task, or
@@ -265,6 +266,7 @@ class BlockView extends StatelessWidget {
           if (_checks && inner >= 46) _checkbox(12),
           if (block.isGoalBlock && inner >= 46)
             Icon(symbolIcon('target'), size: 10, color: tint),
+          if (block.isDeadline && inner >= 46) _deadlineIcon(tint),
           Expanded(
             child: Text(
               block.title,
@@ -314,6 +316,11 @@ class BlockView extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     spacing: 4,
                     children: [
+                      if (block.isDeadline && inner >= 46)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 2),
+                          child: _deadlineIcon(tint),
+                        ),
                       Flexible(
                         child: Text(
                           block.title,
@@ -447,6 +454,14 @@ class BlockView extends StatelessWidget {
 
   /// The small pencil after the title: a note links to this block (PLAN
   /// §5.1.2).
+  Widget _deadlineIcon(Color tint) => Icon(
+    symbolIcon('flag'),
+    key: ValueKey('block-deadline-${block.id}'),
+    size: 10,
+    color: tint,
+    semanticLabel: 'Deadline',
+  );
+
   Widget _noteIcon(Color tint) => Icon(
     symbolIcon('square.and.pencil'),
     key: ValueKey('block-note-${block.id}'),
