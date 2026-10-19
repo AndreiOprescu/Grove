@@ -2,6 +2,7 @@
 /// search, backups and the JSON export. Pure Dart, no Flutter imports.
 library;
 
+export 'agent_job_repo.dart';
 export 'attachment_repo.dart';
 export 'backup.dart';
 export 'data_export.dart';

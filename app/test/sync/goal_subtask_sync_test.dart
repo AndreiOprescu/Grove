@@ -167,8 +167,8 @@ void main() {
       final e = block(Repos(db), g);
       // Take the database back to shared schema 8: no column, and the
       // update trigger and the saved trigger list of that schema. The sync
-      // columns stay. The persona (shared schema 10, sync schema 5) came
-      // later, so it goes.
+      // columns stay. The persona (shared schema 10, sync schema 5) and the
+      // agent (shared schema 11, sync schema 6) came later, so they go.
       const watch = ' OR OLD.event_id IS NOT NEW.event_id';
       final trigger = db.queryOne(
         "SELECT sql FROM sqlite_master WHERE name = 'sync_goal_subtasks_update'",
@@ -184,6 +184,7 @@ void main() {
         DROP TABLE earnings;
         DROP TABLE rewards;
         DROP TABLE skills;
+        DROP TABLE agent_jobs;
         PRAGMA user_version = 8;
         UPDATE sync_meta SET value = '4' WHERE key = 'schema';
         UPDATE sync_meta SET value = replace(value, ',event_id', '')
@@ -223,12 +224,14 @@ void main() {
       final path = join(dir, 'o.sqlite');
       var db = Database.open(path);
       final g = goal(Repos(db));
-      // Take the database back to shared schema 7 and sync schema 3.
+      // Take the database back to shared schema 7 and sync schema 3. The
+      // persona and the agent came later, so they go too.
       db.executeScript('''
         DROP TABLE goal_subtasks;
         DROP TABLE earnings;
         DROP TABLE rewards;
         DROP TABLE skills;
+        DROP TABLE agent_jobs;
         PRAGMA user_version = 7;
         UPDATE sync_meta SET value = '3' WHERE key = 'schema';
         DELETE FROM sync_meta WHERE key = 'triggers';
@@ -239,7 +242,7 @@ void main() {
       db = Database.open(path);
       expect(db.userVersion, Migrations.all.length);
       expect(db.syncVersion, SyncMigrations.all.length);
-      expect(db.syncVersion, 5);
+      expect(db.syncVersion, 6);
       expect(columns(db, 'goal_subtasks'), containsAll(['deleted', 'user_id']));
       expect(Repos(db).goals.get(g.id)?.title, 'Read');
       expect(Outbox(db).count, 0);

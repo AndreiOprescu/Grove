@@ -107,6 +107,9 @@ void fill(Device d) {
       earnedAt: '2026-10-05T15:00:00',
     ),
   );
+  r.agentJobs.insert(
+    AgentJob(taskId: task.id, instructions: 'Find a cheap broom'),
+  );
   r.attachments.add(
     mime: 'image/png',
     data: Uint8List.fromList([137, 80, 78, 71, 0, 255]),

@@ -2,8 +2,9 @@ import 'database.dart';
 import 'sync_schema.dart';
 
 /// Ordered schema migrations. Index N takes the database from user_version N to N+1.
-/// 1 to 7 are the Mac app's migrations, word for word. 8 to 10 are in this
-/// app only (the Mac app has no subtasks of a goal and no persona). The
+/// 1 to 7 are the Mac app's migrations, word for word. 8 to 11 are in this
+/// app only (the Mac app has no subtasks of a goal, no persona and no
+/// agent). The
 /// export file carries the number, and an app refuses a file with a higher
 /// number than its own: the Mac app does not read a file of this app. Never
 /// edit a shipped migration; append a new one.
@@ -209,6 +210,25 @@ abstract final class Migrations {
     CREATE INDEX earnings_source ON earnings(source_kind, source_id);
     CREATE INDEX earnings_time ON earnings(earned_at);
     ''',
+    // 11 — the jobs of the agent (ADR 0004): a task given to the agent, its
+    // status and its result. A job goes with its task. A deleted result
+    // note empties the pointer. A new table only. Not in the Mac app.
+    '''
+    CREATE TABLE agent_jobs (
+      id TEXT PRIMARY KEY,
+      task_id TEXT NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+      instructions TEXT NOT NULL DEFAULT '',
+      email_access INTEGER NOT NULL DEFAULT 0,
+      status TEXT NOT NULL DEFAULT 'queued',
+      runner_device TEXT,
+      result_json TEXT,
+      error TEXT,
+      result_note_id TEXT REFERENCES notes(id) ON DELETE SET NULL,
+      created_at TEXT NOT NULL, updated_at TEXT NOT NULL, finished_at TEXT
+    );
+    CREATE INDEX agent_jobs_task ON agent_jobs(task_id);
+    CREATE INDEX agent_jobs_status ON agent_jobs(status);
+    ''',
   ];
 
   static void run(Database db) {
@@ -228,7 +248,8 @@ abstract final class Migrations {
 abstract final class SyncMigrations {
   /// The tables the sync columns go on. The same list as `DataExport.tables`.
   /// A table comes after the tables it points at: the sync sends them in
-  /// this order. `goal_subtasks` points at `goals` and at `events`.
+  /// this order. `goal_subtasks` points at `goals` and at `events`;
+  /// `agent_jobs` at `tasks` and at `notes`.
   static const syncedTables = [
     'lists',
     'notes',
@@ -240,6 +261,7 @@ abstract final class SyncMigrations {
     'skills',
     'rewards',
     'earnings',
+    'agent_jobs',
     'event_exdates',
     'links',
     'tags',
@@ -258,6 +280,7 @@ abstract final class SyncMigrations {
     'block_subtasks',
     'goal_subtasks',
     'skills',
+    'agent_jobs',
   };
 
   /// The columns each sync migration added, by table. The export leaves them out.
@@ -300,6 +323,9 @@ abstract final class SyncMigrations {
         'AND pk IN (SELECT id FROM skills WHERE builtin = 1)',
       );
     },
+    // 6 — `agent_jobs` (shared migration 11) joins the sync, like
+    // `block_subtasks`.
+    (db) => SyncSchema.addTable(db, 'agent_jobs'),
   ];
 
   static const _key = 'schema';

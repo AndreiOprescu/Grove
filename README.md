@@ -20,7 +20,8 @@
   <a href="#-install"><b>Install</b></a> ·
   <a href="#-what-grove-does"><b>Features</b></a> ·
   <a href="#-who-its-for"><b>Who it's for</b></a> ·
-  <a href="#-how-it-works-for-the-curious"><b>How it works</b></a>
+  <a href="#-how-it-works-for-the-curious"><b>How it works</b></a> ·
+  <a href="docs/blog/README.md"><b>Blog</b></a>
 </p>
 
 <p align="center">
@@ -148,6 +149,29 @@ It is a quiet reward for a good day.
 Each one has its own colours, fonts and shapes, in a light look and a dark look.
 Soft light drifts in the background. Motion can be turned off, and Grove follows
 the *Reduce motion* setting of your system.
+
+### Agent — hand a task off (optional) 🤖
+Right-click a task and pick **Ask the agent…**. An AI agent works on it for you:
+it can write a document, read your email (only if you allow it), and draft an email
+or a text message. The results come back as notes linked to the task, on all your devices.
+
+**It reads and drafts. It never sends.** You open a draft in Mail or Messages and press
+Send yourself. It cannot run commands or change files on your computer.
+
+You need [Claude Code](https://claude.com/claude-code) on a Mac or Windows PC, logged in
+with your own Claude plan. That computer runs the jobs. You can ask from any device,
+also your phone. The jobs wait until that computer is on and Grove is open.
+
+The agent is **off at first**. Turn it on in **Settings ▸ Agent**:
+
+| Switch | What it does |
+|---|---|
+| **Use the agent** | Shows *Ask the agent…* in the task menus. |
+| **This device runs agent tasks** | This computer runs the jobs. Needs Claude Code. |
+| **Let the agent read my email** | The agent may search and read Gmail, read-only. Connect Gmail first in claude.ai ▸ Settings ▸ Connectors. |
+
+No Claude Code? Leave it off. Nothing else in Grove changes.
+Why it works this way: [ADR 0004](docs/adr/0004-agent-delegation.md).
 
 ### Small things that feel good
 - **Command palette** (`⌘ K`) to find and do anything.
@@ -321,12 +345,15 @@ After the update, use **Import JSON…** in the new one. The steps are in
 
 | System | Place |
 |---|---|
-| macOS | `~/Library/Containers/local.grove.app/Data/Library/Application Support/local.grove.app/` |
+| macOS | `~/Library/Application Support/local.grove.app/` |
 | Windows | `%APPDATA%\local.grove\Grove` |
 | Android, iOS | Inside the app. It goes away when you remove the app. |
 
 The file is `grove.sqlite`. Grove makes a backup each day and keeps the newest 14 in `Backups`.
 On a Mac and on Windows, **Settings ▸ Data ▸ Show data folder** opens the place.
+
+Grove for Mac used to keep its data in `~/Library/Containers/local.grove.app/`. The first time
+the new version starts, it copies the data to the new place. The old folder stays as a backup.
 
 ### Uninstall
 
@@ -471,12 +498,21 @@ docs/                plan, decisions (ADR), assumptions, acceptance proof
 
 ---
 
+## 📰 What's new
+
+Each new feature gets a short post in the [Grove blog](docs/blog/README.md).
+The newest: [An agent that does tasks for you](docs/blog/2026-10-19-agent-delegation.md).
+
+---
+
 ## 🗺️ Roadmap
 
 - [x] Day Planner, tasks, calendar, notes, goals, garden
 - [x] Four themes, each in light and dark
 - [x] One app for macOS, Windows, Android and iOS with Flutter
 - [x] Optional sync between devices (built and tested)
+- [x] Optional agent that reads and drafts for you (needs Claude Code)
+- [ ] Agent documents as files (PDF, Word), not only notes
 - [ ] Prove sync against a real server
 - [ ] Try the app by hand on a Windows PC, an Android phone and an iPhone
 - [ ] Ready-made, signed downloads
