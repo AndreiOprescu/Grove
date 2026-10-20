@@ -205,6 +205,11 @@ void main() {
         } else {
           expect(a['block_subtasks'] as List, hasLength(2));
         }
+        // Deadlines are in this app only: an event from a Mac file is not
+        // one.
+        for (final e in b['events'] as List) {
+          expect((e as Map).remove('is_deadline'), 0);
+        }
         expect(b.keys.toSet(), a.keys.toSet());
         for (final name in a.keys) {
           final macRows = a[name] as List;

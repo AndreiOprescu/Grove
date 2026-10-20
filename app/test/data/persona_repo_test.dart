@@ -39,11 +39,10 @@ void main() {
       expect(r.skills.all().every((s) => s.builtin && !s.hidden), isTrue);
     });
 
-    test('there are ten migrations: the seven of the Mac app, and three of '
-        'this app only', () {
+    test('the persona is migration 10, and the database is at the newest', () {
       final db = makeRepos().db;
-      expect(Migrations.all.length, 10);
-      expect(db.userVersion, 10);
+      expect(Migrations.all[9], contains('CREATE TABLE skills'));
+      expect(db.userVersion, Migrations.all.length);
     });
 
     test('a skill can be renamed, hidden and added', () {
@@ -196,7 +195,7 @@ void main() {
         earning('t1', 'skill-strength', 10, '2026-10-15T09:00:00'),
       );
       final obj = jsonDecode(DataExport.export(r.db)) as Map<String, Object?>;
-      expect(obj['schema'], 10);
+      expect(obj['schema'], Migrations.all.length);
       final tables = obj['tables'] as Map;
       expect((tables['skills'] as List).length, 8);
       expect((tables['rewards'] as List).length, 1);

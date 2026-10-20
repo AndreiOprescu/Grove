@@ -21,6 +21,7 @@ class PlannerBlock {
     this.hasNote = false,
     this.priority = 0,
     this.goalId,
+    this.isDeadline = false,
     this.subtasks = const [],
   });
 
@@ -47,6 +48,9 @@ class PlannerBlock {
   /// [isDone] comes from the event's `doneAt`.
   final String? goalId;
 
+  /// The event is a deadline. [isDone] comes from the event's `doneAt`.
+  final bool isDeadline;
+
   /// The rows to show in the block, in list order. For a task block: the
   /// subtasks of its task, without cancelled ones. For a goal block: its own.
   final List<BlockSubtask> subtasks;
@@ -71,6 +75,7 @@ class PlannerBlock {
     hasNote,
     priority,
     goalId,
+    isDeadline,
   ];
 
   @override

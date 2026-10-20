@@ -383,4 +383,19 @@ void main() {
     expect(store.screen, Screen.planner);
     expect(store.selectedDay, d('2026-10-08'));
   });
+
+  testWidgets('a deadline has a small flag in its pill', (tester) async {
+    final store = calendarStore();
+    event(store, 'Essay', d('2026-10-09'));
+    event(store, 'Lunch', d('2026-10-09'), start: 12 * 60, end: 13 * 60);
+    final essay = eventNamed(store, 'Essay');
+    store.repos.events.save(essay.copyWith(isDeadline: true));
+    await pumpPlanner(tester, store);
+    expect(
+      find.byKey(ValueKey('month-deadline-${essay.id}#2026-10-09')),
+      findsOneWidget,
+    );
+    expect(find.bySemanticsLabel(RegExp('^Deadline: ')), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
 }
