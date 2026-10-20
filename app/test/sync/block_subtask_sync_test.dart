@@ -124,9 +124,11 @@ void main() {
       var db = Database.open(path);
       final e = goalBlock(Repos(db));
       // Take the database back to shared schema 6 and sync schema 2. The
-      // subtasks of a goal (shared schema 8) and the persona (shared schema
-      // 10) came later, so they go too.
+      // subtasks of a goal (shared schema 8), the persona (shared schema
+      // 10) and deadlines (shared schema 11) came later, so they go too.
       db.executeScript('''
+        DROP TRIGGER sync_events_update;
+        ALTER TABLE events DROP COLUMN is_deadline;
         DROP TABLE block_subtasks;
         DROP TABLE goal_subtasks;
         DROP TABLE earnings;

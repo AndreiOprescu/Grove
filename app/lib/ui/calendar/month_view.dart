@@ -354,7 +354,7 @@ class _MonthViewState extends State<MonthView> {
     return Semantics(
       container: true,
       button: true,
-      label: '$time$title',
+      label: e.isDeadline ? 'Deadline: $time$title' : '$time$title',
       onTap: open,
       excludeSemantics: true,
       child: GestureDetector(
@@ -371,6 +371,19 @@ class _MonthViewState extends State<MonthView> {
             child: Text.rich(
               TextSpan(
                 children: [
+                  if (e.isDeadline)
+                    WidgetSpan(
+                      alignment: PlaceholderAlignment.middle,
+                      child: Padding(
+                        padding: const EdgeInsets.only(right: 3),
+                        child: Icon(
+                          symbolIcon('flag'),
+                          key: ValueKey('month-deadline-$anchor'),
+                          size: 10,
+                          color: theme.ink,
+                        ),
+                      ),
+                    ),
                   if (time.isNotEmpty)
                     TextSpan(
                       text: time,

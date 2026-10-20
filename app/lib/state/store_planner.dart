@@ -114,12 +114,15 @@ extension AppStorePlanner on AppStore {
           endMinute: max(end, e.start.minute + 1),
           kind: e.kind,
           taskId: e.taskId,
-          isDone: e.goalId != null ? e.doneAt != null : (task?.isDone ?? false),
+          isDone: e.goalId != null || e.isDeadline
+              ? e.doneAt != null
+              : (task?.isDone ?? false),
           color: taskColor ?? e.color,
           isRecurring: e.seriesId != null,
           hasNote: noted.contains(e.id),
           priority: task?.priority ?? 0,
           goalId: e.goalId,
+          isDeadline: e.isDeadline,
           subtasks: rows,
         ),
       );

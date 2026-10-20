@@ -289,8 +289,7 @@ void main() {
       expect(names, contains('goal_subtasks'));
       expect(names, contains('goal_subtasks_goal'));
       expect(names, contains('goal_subtasks_event'));
-      expect(Migrations.all.length, 10);
-      expect(db.userVersion, 10);
+      expect(db.userVersion, Migrations.all.length);
     });
 
     test('upgrading a version 8 database keeps its subtasks, in no block', () {
@@ -387,11 +386,11 @@ void main() {
       expect(at, greaterThan(DataExport.tables.indexOf('events')));
     });
 
-    test('the file says schema 10 and has the data columns only', () {
+    test('the file says the schema number and has the data columns only', () {
       final a = twoGoals();
       a.goalSubtasks.save(sub('S1', 'G1', 'A', sort: 1));
       final obj = jsonDecode(DataExport.export(a.db)) as Map<String, Object?>;
-      expect(obj['schema'], 10);
+      expect(obj['schema'], Migrations.all.length);
       final rows = (obj['tables'] as Map)['goal_subtasks'] as List;
       expect((rows.single as Map).keys.toSet(), {
         'id',
@@ -462,7 +461,7 @@ void main() {
     test('a file from a newer Grove is refused', () {
       final a = twoGoals();
       final obj = jsonDecode(DataExport.export(a.db)) as Map<String, Object?>;
-      obj['schema'] = 11;
+      obj['schema'] = Migrations.all.length + 1;
       final b = makeRepos();
       b.goals.upsert(GoalItem(id: 'OLD', title: 'Old goal'));
       expect(

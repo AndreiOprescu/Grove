@@ -62,8 +62,13 @@ void main() {
   });
 
   group('the left panels', () {
-    test('three panels, in the order of the buttons', () {
-      expect(LeftPane.values.map((p) => p.name), ['notes', 'tasks', 'goals']);
+    test('four panels, in the order of the buttons', () {
+      expect(LeftPane.values.map((p) => p.name), [
+        'notes',
+        'tasks',
+        'goals',
+        'deadlines',
+      ]);
       expect(LeftPane.storageKey, 'shell.leftPane');
       expect(LeftPane.plannerWidth, 320);
     });
@@ -115,7 +120,12 @@ void main() {
     });
 
     test('every panel has a title and a tooltip that names the next click', () {
-      expect(LeftPane.values.map((p) => p.title), ['Notes', 'Tasks', 'Goals']);
+      expect(LeftPane.values.map((p) => p.title), [
+        'Notes',
+        'Tasks',
+        'Goals',
+        'Deadlines',
+      ]);
       expect(LeftPane.notes.tooltip(isOpen: false), 'Show notes');
       expect(LeftPane.notes.tooltip(isOpen: true), 'Hide notes');
     });

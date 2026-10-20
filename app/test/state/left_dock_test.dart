@@ -4,11 +4,11 @@ import 'package:flutter_test/flutter_test.dart';
 import 'support.dart';
 
 void main() {
-  group('the three left panels', () {
+  group('the four left panels', () {
     test('the names are what is saved in the setting', () {
       expect(
         [for (final p in LeftPane.values) p.name],
-        ['notes', 'tasks', 'goals'],
+        ['notes', 'tasks', 'goals', 'deadlines'],
       );
       expect(LeftPane.storageKey, 'shell.leftPane');
     });
@@ -62,11 +62,11 @@ void main() {
     test('every panel has a title, a symbol and a help text', () {
       expect(
         [for (final p in LeftPane.values) p.icon],
-        ['note.text', 'checklist', 'target'],
+        ['note.text', 'checklist', 'target', 'flag'],
       );
       expect(
         [for (final p in LeftPane.values) p.title],
-        ['Notes', 'Tasks', 'Goals'],
+        ['Notes', 'Tasks', 'Goals', 'Deadlines'],
       );
       for (final pane in LeftPane.values) {
         expect(pane.help, isNotEmpty);

@@ -11,6 +11,7 @@ const Map<String, IconData> _icons = {
   'note.text': Icons.sticky_note_2_outlined,
   'checklist': Icons.checklist,
   'target': Icons.track_changes,
+  'flag': Icons.flag_outlined,
   // command palette
   'plus.circle': Icons.add_circle_outline,
   'square.and.pencil': Icons.edit_square,

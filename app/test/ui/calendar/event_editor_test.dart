@@ -307,6 +307,32 @@ void main() {
     expect(store.event(e.id)!.allDay, isTrue);
   });
 
+  testWidgets('"Deadline" marks the event, and a deadline does not repeat', (
+    tester,
+  ) async {
+    final store = calendarStore();
+    final e = makeEvent(store, 'Essay');
+    await pumpPlanner(tester, store);
+    store.editEvent(e);
+    await tester.pumpAndSettle();
+    expect(key('event-repeat'), findsOneWidget);
+
+    await tapKey(tester, 'event-deadline');
+    expect(key('event-repeat'), findsNothing);
+    await tapKey(tester, 'event-save');
+    expect(store.event(e.id)!.isDeadline, isTrue);
+
+    store.editEvent(store.event(e.id)!);
+    await tester.pumpAndSettle();
+    await tapKey(tester, 'event-deadline');
+    expect(key('event-repeat'), findsOneWidget);
+    await pickInMenu(tester, 'event-repeat', 'Every week');
+    // A repeating event cannot be a deadline: the switch goes.
+    expect(key('event-deadline'), findsNothing);
+    await tapKey(tester, 'event-save');
+    expect(store.event(e.id)!.isDeadline, isFalse);
+  });
+
   testWidgets('an event can repeat on some weekdays, a number of times', (
     tester,
   ) async {

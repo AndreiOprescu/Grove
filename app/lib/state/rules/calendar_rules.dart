@@ -192,6 +192,10 @@ abstract final class EventDraft {
           end: WallTime(day: e.start.day, minute: 10 * 60),
         );
 
+  /// A deadline is due at its end. Turning it off takes the tick away.
+  static EventItem setDeadline(EventItem e, bool on) =>
+      e.copyWith(isDeadline: on, doneAt: on ? e.doneAt : null);
+
   /// Moves the start and keeps the length. All-day events keep their number of days.
   static EventItem setStart(EventItem e, WallTime to) {
     if (e.allDay) {

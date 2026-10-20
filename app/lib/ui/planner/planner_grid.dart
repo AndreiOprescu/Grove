@@ -388,6 +388,8 @@ class PlannerGridState extends State<PlannerGrid> {
       _store.toggleDone(taskId: taskId);
     } else if (block.isGoalBlock) {
       _store.toggleGoalBlockDone(eventId: block.id);
+    } else if (block.isDeadline) {
+      _store.toggleDeadlineDone(block.id);
     }
   }
 
