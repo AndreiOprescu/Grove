@@ -1,0 +1,215 @@
+{
+  "exportedAt" : "2026-10-10T12:21:13",
+  "format" : "grove-export",
+  "schema" : 6,
+  "tables" : {
+    "attachments" : [
+      {
+        "created_at" : "2026-10-05T08:00:00",
+        "data" : "AAEC//4=",
+        "height" : 3,
+        "id" : "A1",
+        "mime" : "image/png",
+        "width" : 4
+      }
+    ],
+    "event_exdates" : [
+      {
+        "date" : "2026-10-06",
+        "event_id" : "E1"
+      }
+    ],
+    "events" : [
+      {
+        "all_day" : 0,
+        "color" : "accent2",
+        "created_at" : "2026-10-10T12:21:13",
+        "done_at" : null,
+        "end" : "2026-10-05T10:00",
+        "goal_id" : null,
+        "id" : "E1",
+        "kind" : "event",
+        "location" : "",
+        "notes" : "",
+        "original_date" : null,
+        "recurrence" : "{\"interval\":1,\"freq\":\"daily\"}",
+        "series_id" : null,
+        "start" : "2026-10-05T09:30",
+        "task_id" : null,
+        "title" : "Stand-up",
+        "updated_at" : "2026-10-10T12:21:13"
+      },
+      {
+        "all_day" : 0,
+        "color" : "accent2",
+        "created_at" : "2026-10-10T12:21:13",
+        "done_at" : null,
+        "end" : "2026-10-05T11:20",
+        "goal_id" : null,
+        "id" : "E2",
+        "kind" : "block",
+        "location" : "",
+        "notes" : "",
+        "original_date" : null,
+        "recurrence" : null,
+        "series_id" : null,
+        "start" : "2026-10-05T11:00",
+        "task_id" : "T1",
+        "title" : "Water plants",
+        "updated_at" : "2026-10-10T12:21:13"
+      },
+      {
+        "all_day" : 0,
+        "color" : "accent2",
+        "created_at" : "2026-10-10T12:21:13",
+        "done_at" : "2026-10-05T21:30:00",
+        "end" : "2026-10-05T21:30",
+        "goal_id" : "G1",
+        "id" : "E3",
+        "kind" : "block",
+        "location" : "",
+        "notes" : "",
+        "original_date" : null,
+        "recurrence" : null,
+        "series_id" : null,
+        "start" : "2026-10-05T20:00",
+        "task_id" : null,
+        "title" : "Read",
+        "updated_at" : "2026-10-10T12:21:13"
+      }
+    ],
+    "goals" : [
+      {
+        "archived" : 0,
+        "color" : "blue",
+        "created_at" : "2026-10-10T12:21:13",
+        "id" : "G1",
+        "kind" : "hours",
+        "notes" : "Novels",
+        "sort" : 1,
+        "target_count" : 3,
+        "target_min" : 360,
+        "title" : "Read",
+        "updated_at" : "2026-10-10T12:21:13"
+      }
+    ],
+    "links" : [
+      {
+        "dst_id" : "T1",
+        "dst_type" : "task",
+        "origin" : "manual",
+        "src_id" : "N1",
+        "src_type" : "note"
+      }
+    ],
+    "lists" : [
+      {
+        "archived" : 0,
+        "color" : "accent",
+        "emoji" : "🌿",
+        "id" : "L1",
+        "name" : "Home",
+        "sort" : 0
+      }
+    ],
+    "note_tags" : [
+      {
+        "note_id" : "N1",
+        "tag_id" : "BB2DFF8E-CE04-40C4-803F-B0684265876B"
+      }
+    ],
+    "notes" : [
+      {
+        "body" : "Plant #herbs and see [[Water plants|T1]]",
+        "created_at" : "2026-10-10T12:21:13",
+        "date" : null,
+        "id" : "N1",
+        "kind" : "note",
+        "mood" : null,
+        "pinned" : 0,
+        "title" : "Garden ideas",
+        "updated_at" : "2026-10-10T12:21:13"
+      },
+      {
+        "body" : "Daily",
+        "created_at" : "2026-10-10T12:21:13",
+        "date" : "2026-10-05",
+        "id" : "N2",
+        "kind" : "daily",
+        "mood" : 3,
+        "pinned" : 0,
+        "title" : "Monday",
+        "updated_at" : "2026-10-10T12:21:13"
+      }
+    ],
+    "settings" : [
+      {
+        "key" : "welcome.shown",
+        "value" : "1"
+      }
+    ],
+    "tags" : [
+      {
+        "id" : "99CC47F3-70E4-4D7F-AE7D-C7949F478769",
+        "name" : "garden"
+      },
+      {
+        "id" : "BB2DFF8E-CE04-40C4-803F-B0684265876B",
+        "name" : "herbs"
+      }
+    ],
+    "task_tags" : [
+      {
+        "tag_id" : "99CC47F3-70E4-4D7F-AE7D-C7949F478769",
+        "task_id" : "T1"
+      }
+    ],
+    "tasks" : [
+      {
+        "bucket" : "day",
+        "color" : "",
+        "completed_at" : null,
+        "created_at" : "2026-10-10T12:21:13",
+        "due" : null,
+        "estimate_min" : 20,
+        "id" : "T1",
+        "list_id" : "L1",
+        "notes" : "Use rain water",
+        "parent_id" : null,
+        "plan_date" : "2026-10-05",
+        "plan_week" : null,
+        "priority" : 0,
+        "recurrence" : "{\"interval\":1,\"freq\":\"weekly\",\"weekdays\":[1,4]}",
+        "sort" : 0,
+        "source_note_id" : "N1",
+        "status" : "open",
+        "summary" : "every other day",
+        "title" : "Water plants",
+        "updated_at" : "2026-10-10T12:21:13"
+      },
+      {
+        "bucket" : "inbox",
+        "color" : "teal",
+        "completed_at" : null,
+        "created_at" : "2026-10-10T12:21:13",
+        "due" : null,
+        "estimate_min" : 30,
+        "id" : "T2",
+        "list_id" : null,
+        "notes" : "",
+        "parent_id" : "T1",
+        "plan_date" : null,
+        "plan_week" : null,
+        "priority" : 0,
+        "recurrence" : null,
+        "sort" : 0,
+        "source_note_id" : null,
+        "status" : "open",
+        "summary" : "",
+        "title" : "Fill the can",
+        "updated_at" : "2026-10-10T12:21:13"
+      }
+    ]
+  },
+  "version" : 1
+}

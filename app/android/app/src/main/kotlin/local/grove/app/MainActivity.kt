@@ -1,0 +1,5 @@
+package local.grove.app
+
+import io.flutter.embedding.android.FlutterActivity
+
+class MainActivity : FlutterActivity()

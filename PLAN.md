@@ -1,5 +1,11 @@
 # Grove — build plan (native macOS To-Do + Day Planner + Calendar + Notes)
 
+> **Note (2026-10-12):** this file is the spec of what Grove does. It was written for the
+> first (Swift) app. §2, §3, §11, §12, §13 and §14 say how that app was built, and so do
+> the lines of §1.1 that name `scripts/install.sh` and `scripts/test.sh`. They are
+> history: the Swift app is no longer in the repo. The Flutter app is in `app/`. See
+> `docs/cross-platform-plan.md`.
+
 > **For the builder (Sonnet 5.5):** read this whole file once before you write code.
 > Build in the milestone order of §13. After each milestone, run the verify step and
 > commit. Do not skip the tests for the Day Planner math — it is the most important feature.
@@ -610,19 +616,42 @@ Use `.focusable()` + `.onKeyPress`.
 
 - **Notes home**: left column list (pinned first, then by updated date), search field,
   filter chips: All · Daily · Weekly · Pinned · tags. Right: editor.
-- **Editor**: `NSViewRepresentable` around `NSTextView` (SwiftUI `TextEditor` cannot style
-  inline). Plain text storage (markdown-lite). `MarkdownStyler` restyles the visible
-  paragraph(s) on each edit via `NSTextStorageDelegate`:
-  - `# `, `## `, `### ` headings (theme head font, larger)
-  - `**bold**`, `*italic*`, `` `code` ``, `> quote`, `- ` bullets
+- **Editor**: plain text storage in Markdown. Every rich text box (a note, a task's notes,
+  an event's notes) looks and works the same. The rules for the marks are in ADR 0003
+  (`docs/adr/0003-hidden-editor-marks.md`).
+  - **Marks are hidden on screen.** The words keep their format, the marks do not show.
+    Settings → Notes → "Show marks" (off at first, kept per device) shows them dim again.
+    Marks that are typed or pasted still turn into format, then hide. The caret steps over
+    hidden marks, and a delete keeps the marks of a format in pairs.
+  - `# `, `## `, `### ` headings: Text size Big, Medium, Small (`####` and more show as Small)
+  - `**bold**`, `*italic*`, `` `code` ``, `> quote` (drawn as a bar), `- ` bullets (drawn as
+    a dot), `1. ` numbered lists
+  - New (2026-10-16): `<u>underline</u>`, `~~strike~~`, highlight `==x==` (yellow) and
+    `=={green}x==`, `=={blue}x==`, `=={pink}x==`, links with own words
+    `[words](https://url)`, and a divider: a line that is only `---`.
   - `- [ ] ` / `- [x] ` checkboxes rendered with a clickable ☐/☑ (click toggles text)
-  - `[[Title]]` links in accent colour, clickable (`.link` attribute with URL
-    `grove://note/<id>` or `grove://task/<id>` / `grove://event/<id>`; handle in
-    `textView(_:clickedOnLink:at:)`). Unresolved links are dotted-underlined; clicking one
-    creates the note.
-  - `@tomorrow 3pm`, `@fri`, `@3 oct 14:00` date tokens tinted accent2.
-  - `#tag` tinted muted.
-  Save 500 ms after typing stops (debounce) and on window resign.
+  - `[[Title]]` links to notes, tasks and events, clickable.
+  - `@tomorrow 3pm`, `@fri`, `@3 oct 14:00` date tokens and `#tag` have their own colour.
+  - **Toolbar**: Undo, Redo · Text size · Bold, Italic, Underline, Strike, Highlight, Code ·
+    Bullet list, Numbered list, Checklist, Quote, Indent in, Indent out · Link, Mention,
+    Add an image (where the box takes images), Divider, Clear format. A box too narrow for
+    all of them shows a short row (Undo · Text size · Bold · Italic · Underline · Highlight ·
+    Bullet list · Checklist · Link) and a "…" menu with the rest. A button lights up when
+    the caret is in its format. Highlight is a split button: a click gives the last colour,
+    the arrow gives 4 colours and "No highlight".
+  - ⌘K / Ctrl+K in a box makes a link; outside a box it opens the command palette. A click
+    on a web link shows a bubble (Open, Edit, Remove; a bare address: Open, Edit). Open
+    allows only http and https.
+  - Undo and redo work inside the box. Copy to another app gives plain words; a copy and
+    paste inside Grove keeps the format.
+  Save 500 ms after typing stops (debounce) and when the box loses the keyboard.
+  Swift app (history): `NSViewRepresentable` around `NSTextView` (SwiftUI `TextEditor`
+  cannot style inline). `MarkdownStyler` restyled the visible paragraph(s) on each edit via
+  `NSTextStorageDelegate`. `[[Title]]` links were a `.link`
+  attribute with URL `grove://note/<id>` or `grove://task/<id>` / `grove://event/<id>`,
+  handled in `textView(_:clickedOnLink:at:)`. Unresolved links were dotted-underlined, and
+  clicking one created the note. Date tokens were tinted accent2 and `#tag` muted. It saved
+  on window resign.
 - **`[[` autocomplete**: when the text before the caret matches `\[\[([^\]]*)$`, show a
   small floating list (child `NSPanel` or SwiftUI overlay positioned at the caret rect
   from `firstRect(forCharacterRange:)`) of matching notes, tasks and events (FTS prefix
@@ -724,6 +753,20 @@ A goal is a recurring item with **no date** and a **weekly target** of one of tw
   target ("7 / 5 h done"). Progress is worked out from the blocks of the planner week; it is never stored, so
   a new week starts at zero. The goal stays, so more blocks can be added in the same week.
 - Deleting a goal keeps its blocks as plain blocks. Goals are in export, import and backup.
+
+### 5.10 Persona (owner request, 2026-10-15)
+
+A 6th screen, **Persona** (⌘6), after Garden. A hand-drawn person in the garden style (the same
+drawing at every level), a name (tap to change, "You" at first) and a bar with a **level** for each
+**skill**. 8 skills at first: Strength, Mind, Social, Focus, Creativity, Health, Home, Money. The
+owner can add, rename and hide skills; never delete. Words: `CONTEXT.md` § Persona.
+- A **reward** on a task (Task panel) or a goal (Goal panel) lists skills and points (1–999).
+  A task pays its points when ticked done. A goal pays per hour of each goal block ticked done,
+  pro rata and rounded. Goal subtasks pay nothing. Un-tick takes the points back.
+- Earned points are a log (`earnings`): a later change to a reward or a deleted task does not
+  change them. The screen shows the newest points and a short pop-up at a new level.
+- Decisions: `docs/adr/0003-persona-earnings-log.md`; level curve and smaller rules:
+  `docs/assumptions.md` (2026-10-15).
 
 ---
 

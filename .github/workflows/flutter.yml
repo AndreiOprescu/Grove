@@ -1,0 +1,79 @@
+name: flutter
+
+on:
+  push:
+    branches: [feat/cross-platform-flutter, 'feat/xp-*']
+    paths: ['app/**', 'scripts/flutter_*.sh', '.github/workflows/flutter.yml']
+  pull_request:
+    paths: ['app/**', 'scripts/flutter_*.sh', '.github/workflows/flutter.yml']
+  workflow_dispatch:
+
+env:
+  FLUTTER_VERSION: 3.47.7
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: ubuntu-latest,  target: android }
+          - { os: windows-latest, target: windows }
+          - { os: macos-latest,   target: macos }
+          - { os: macos-latest,   target: ios }
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        if: matrix.target == 'android'
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Install Flutter
+        run: |
+          git clone --depth 1 --branch "$FLUTTER_VERSION" https://github.com/flutter/flutter.git "$RUNNER_TEMP/flutter"
+          echo "$RUNNER_TEMP/flutter/bin" >> "$GITHUB_PATH"
+      - run: flutter config --no-analytics
+      # `flutter test` builds the native library of the tray (package
+      # cnativeapi) for the machine it runs on. On Linux that needs these.
+      - name: Linux headers for the tray library
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libgtk-3-dev libx11-dev libxi-dev
+      - name: Test
+        run: ./scripts/flutter_test.sh
+      # A golden test that fails writes its pictures here. Keep them, to see
+      # how this OS draws.
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: golden-failures-${{ matrix.target }}
+          path: app/test/**/failures/
+          if-no-files-found: ignore
+          retention-days: 7
+      - name: Build
+        run: ./scripts/flutter_build.sh ${{ matrix.target }}
+      - uses: actions/upload-artifact@v4
+        if: matrix.target == 'windows' || matrix.target == 'android'
+        with:
+          name: grove-${{ matrix.target }}
+          path: |
+            app/build/windows/x64/runner/Release/
+            app/build/app/outputs/flutter-apk/app-release.apk
+          if-no-files-found: ignore
+      # The Android emulator needs KVM (fast virtual machines) on Linux.
+      - name: Enable KVM
+        if: matrix.target == 'android'
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      # The Day Planner on the real app: Mac, Windows, an iPhone simulator
+      # and an Android emulator.
+      - name: Integration test
+        timeout-minutes: 45
+        run: ./scripts/flutter_integration.sh ${{ matrix.target }}

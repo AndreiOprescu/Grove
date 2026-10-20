@@ -1,0 +1,16 @@
+/// Local storage for Grove: SQLite with the Mac app's schema, repositories,
+/// search, backups and the JSON export. Pure Dart, no Flutter imports.
+library;
+
+export 'attachment_repo.dart';
+export 'backup.dart';
+export 'data_export.dart';
+export 'database.dart';
+export 'first_run.dart';
+export 'migrations.dart';
+export 'persona_repo.dart';
+export 'reference_indexer.dart';
+export 'repos.dart';
+export 'roll_over.dart';
+export 'search_index.dart';
+export 'sync_schema.dart';
