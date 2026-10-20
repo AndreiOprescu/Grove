@@ -28,6 +28,7 @@ import 'shell/app_menus.dart';
 import 'shell/command_palette.dart';
 import 'shell/error_alert.dart';
 import 'shell/store_shell_model.dart';
+import 'shell/update_card.dart';
 import 'spread/day_spread_view.dart';
 import 'tasks/store_panes.dart';
 
@@ -106,6 +107,14 @@ class _StoreAppState extends State<StoreApp> {
       redoName: store.redoName,
       zoomIn: () => store.zoomPlanner(zoomStep),
       zoomOut: () => store.zoomPlanner(1 / zoomStep),
+      // The answer of a check by hand shows as a short message.
+      checkForUpdates: store.canCheckForUpdates
+          ? () => unawaited(
+              store.checkForUpdates(manual: true).then((words) {
+                if (words != null && !store.isDisposed) store.showToast(words);
+              }),
+            )
+          : null,
     );
   }
 
@@ -201,10 +210,17 @@ class _StoreAppState extends State<StoreApp> {
     ),
     // The timer of a focus session floats over each screen (PLAN §5.1.7;
     // Swift: the overlay of `RootView`).
-    // So does the pop-up of a new level.
+    // So do the pop-up of a new level and the card of a new Grove.
     contentLayer: (context, content) => FocusLayer(
       store: widget.store,
-      child: LevelUpLayer(store: widget.store, child: content),
+      child: LevelUpLayer(
+        store: widget.store,
+        child: UpdateLayer(
+          store: widget.store,
+          openLink: widget.openLink,
+          child: content,
+        ),
+      ),
     ),
     // The question of the first login and an error message open over each
     // screen. So does the command palette.

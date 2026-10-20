@@ -41,11 +41,13 @@ AppStore makeStore({
   Prefs? prefs,
   Repos? repos,
   WallTime? clock,
+  ReleaseSource? releases,
 }) {
   final s = AppStore(
     repos: repos ?? Repos(Database.inMemory()),
     notifier: notifier,
     prefs: prefs,
+    releaseSource: releases,
   );
   s.clockOverride = clock;
   addTearDown(s.dispose);
@@ -162,3 +164,28 @@ class _ManualTimer implements Timer {
   @override
   int get tick => _ticks;
 }
+
+/// A release source that gives what the test puts in it.
+class FakeReleases implements ReleaseSource {
+  FakeReleases([this.release]);
+
+  ReleaseInfo? release;
+  bool fails = false;
+  int asked = 0;
+
+  @override
+  Future<ReleaseInfo?> latest() async {
+    asked++;
+    if (fails) throw Exception('no network');
+    return release;
+  }
+}
+
+ReleaseInfo release(String version) => ReleaseInfo(
+  version: AppVersion.parse(version)!,
+  pageUrl: 'https://github.com/AndreiOprescu/Grove/releases/tag/v$version',
+  files: {
+    'grove-macos.zip':
+        'https://github.com/AndreiOprescu/Grove/releases/download/v$version/grove-macos.zip',
+  },
+);

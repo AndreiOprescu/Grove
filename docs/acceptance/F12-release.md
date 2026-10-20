@@ -229,6 +229,37 @@ Why Android was red in the first try: the device test `calendar: the card of a n
 
 The speed check is not in this workflow.
 
+## 6. A new version on GitHub — the update card
+
+Added 2026-10-19 (branch `feat/update-alert`). Each copy of Grove asks GitHub for the newest release at start, every 6 hours, when it comes back to the front, and when the person picks "Check now" (Settings ▸ Data) or "Check for Updates…" (Mac menu Grove). When the release is newer than the copy, a card shows: **Update** downloads the file for that device, **What's new** opens the release page, **Later** hides it until the next start, **Skip this version** hides it until a newer one. The person installs the file. iOS has no file: only the page.
+
+Grove reads `https://api.github.com/repos/AndreiOprescu/Grove/releases/latest`. It takes only links on `github.com/AndreiOprescu/Grove/`. A draft or a pre-release (for example `v1.1.0-beta`) shows no card.
+
+### Steps for each new version
+
+1. Raise the version in **two** places, to the same `x.y.z`:
+   - `app/pubspec.yaml`: `version: 1.0.1+2` (the number after `+` goes up by 1 each time).
+   - `app/lib/core/grove_core.dart`: `static const version = '1.0.1';`
+   A test fails when the two are not the same.
+2. Merge that change, then build from the merged code with the key file in place (section 1, "A build with your keys"):
+   - On the Mac: `./scripts/flutter_release.sh macos` and `./scripts/flutter_release.sh android`.
+   - On a Windows PC (Git Bash): `./scripts/flutter_release.sh windows`.
+3. On each computer, after its build: `./scripts/github_release.sh`.
+   - The first run makes the release `v<version>` with the files of that computer and notes from the merged pull requests.
+   - A run on the second computer adds only its own files.
+   - It stops when `pubspec.yaml` and `GroveCore.version` are not the same.
+4. Look at the release page on GitHub. It must have `grove-macos.zip`, `grove-windows.zip` and `grove-android.apk`.
+
+**Note:** the release builds hold the anon key of the Supabase project (from `app/config/supabase.json`). That key is made to be public; the row rules of the database guard the data. The URL and the key can be read out of each release file.
+
+### Proof
+
+- `test/core/update/update_rules_test.dart`: version compare, GitHub answer, links not ours, file per device, `GroveCore.version` = pubspec.
+- `test/state/update_store_test.dart`: card shows for newer only, Later, Skip, switch off, check by hand, errors.
+- `test/services/update_check_test.dart`: the real HTTP code against a local server (404, 500, broken answer, headers), and the 6-hour timer.
+- `test/ui/shell/update_card_test.dart`, `test/ui/settings/settings_view_test.dart` (group "updates"), `test/ui/shell/app_menus_test.dart`: the card, the Settings section, the Mac menu line.
+- Not verified: a real release on GitHub. There is none yet. The first one is for the owner (steps above).
+
 ## Not verified
 
 - The workflow `release` did not run on GitHub (see 1). Its upload step and the Windows copy step never ran.

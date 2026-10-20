@@ -839,4 +839,68 @@ void main() {
       expect(keyed('settings-data-message'), findsNothing);
     });
   });
+  group('updates', () {
+    AppStore updateStore(FakeReleases releases) => makeStore(
+      prefs: MemoryPrefs()..set('appearance.motion', false),
+      releases: releases,
+    );
+
+    testWidgets('a copy with no check has no Updates section', (tester) async {
+      await openSettings(tester, plannerStore(), tab: SettingsTab.data);
+      expect(keyed('settings-updates-version'), findsNothing);
+      expect(keyed('settings-updates-check'), findsNothing);
+    });
+
+    testWidgets('the section shows the version and turns the check off', (
+      tester,
+    ) async {
+      final store = updateStore(FakeReleases());
+      await openSettings(tester, store, tab: SettingsTab.data);
+      expect(
+        tester.widget<Text>(keyed('settings-updates-version')).data,
+        'Grove ${GroveCore.version}',
+      );
+      expect(store.checksForUpdates, isTrue);
+      await tapIn(tester, keyed('settings-updates-switch'));
+      expect(store.checksForUpdates, isFalse);
+      expect(store.prefs.getBool('updates.check'), isFalse);
+    });
+
+    testWidgets('Check now says when this is the newest version', (
+      tester,
+    ) async {
+      final releases = FakeReleases(release(GroveCore.version));
+      final store = updateStore(releases);
+      await openSettings(tester, store, tab: SettingsTab.data);
+      await tapIn(tester, keyed('settings-updates-check'));
+      expect(releases.asked, 1);
+      expect(
+        tester.widget<Text>(keyed('settings-updates-message')).data,
+        'Grove ${GroveCore.version} is the newest version.',
+      );
+    });
+
+    testWidgets('Check now finds a new version and the card shows', (
+      tester,
+    ) async {
+      final store = updateStore(FakeReleases(release('9.9.9')));
+      await openSettings(tester, store, tab: SettingsTab.data);
+      await tapIn(tester, keyed('settings-updates-check'));
+      expect(
+        tester.widget<Text>(keyed('settings-updates-message')).data,
+        'Grove 9.9.9 is here.',
+      );
+      expect(store.availableUpdate?.version.toString(), '9.9.9');
+    });
+
+    testWidgets('Check now with no network says so', (tester) async {
+      final store = updateStore(FakeReleases()..fails = true);
+      await openSettings(tester, store, tab: SettingsTab.data);
+      await tapIn(tester, keyed('settings-updates-check'));
+      expect(
+        tester.widget<Text>(keyed('settings-updates-message')).data,
+        'Grove could not reach GitHub. Try again later.',
+      );
+    });
+  });
 }

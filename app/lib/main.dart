@@ -24,6 +24,8 @@ Future<void> main() async {
     notifier: notifier,
     prefs: prefs,
     sync: sync,
+    // GitHub tells Grove when a newer version is out.
+    releases: GitHubReleaseSource(),
   );
   AppServices.forThisDevice(store).start();
   runApp(
