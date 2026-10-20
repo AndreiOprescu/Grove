@@ -161,9 +161,9 @@ void main() {
       });
     });
 
-    test('allows 0.2 % of the pixels, 12 of 255 per channel, 1 pixel of '
+    test('allows 0.25 % of the pixels, 12 of 255 per channel, 1 pixel of '
         'edge', () {
-      expect(TolerantGoldenComparator.pixelBudget, 0.002);
+      expect(TolerantGoldenComparator.pixelBudget, 0.0025);
       expect(TolerantGoldenComparator.channelTolerance, 12);
       expect(TolerantGoldenComparator.edgeRadius, 1);
     });
