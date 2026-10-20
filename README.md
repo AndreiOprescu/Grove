@@ -87,6 +87,7 @@ The heart of Grove. A timeline of your day, with your tasks on the side.
 ### Planner — your week at a glance
 Seven days side by side. Drag blocks between days. Zoom in and out with `⌘ =` and `⌘ −`
 (`Ctrl` in place of `⌘` on Windows).
+Right-click a day name (a long press on a phone) for the day menu: a new event, deadline or task on that day, its notes, Plan my day, and Move open tasks to another day.
 
 <p align="center">
   <img src="docs/images/planner-tab.png" alt="Grove Planner: a full week of blocks, goals and sticky notes" width="100%">
@@ -130,7 +131,7 @@ Some things have no date. You just want to do them *enough*.
 
 ### Calendar
 A month view with your events, a dot for each open task and a leaf for each day with a note.
-Click a day to jump to that week.
+Click a day to jump to that week. Double-click a day for a new event. Right-click it (a long press on a phone) for the day menu.
 
 <p align="center">
   <img src="docs/images/calendar-screen.png" alt="Grove Calendar: a month view tinted by mood" width="100%">
