@@ -12,6 +12,7 @@ import 'package:grove/core/model/event.dart';
 import 'package:grove/core/planner/planner_math.dart';
 import 'package:grove/state/state.dart' hide MotionRules;
 
+import '../calendar/day_menu.dart';
 import '../calendar/month_view.dart';
 import '../shell/shell_layout.dart';
 import '../theme/grove_theme.dart';
@@ -586,6 +587,23 @@ class _PlannerViewState extends State<PlannerView> {
     ],
   ];
 
+  /// The day menu of a day name. [at] is null for a screen reader: the menu
+  /// opens at the name.
+  void _dayMenu(BuildContext context, DayKey day, Offset? at) {
+    final box = context.findRenderObject() as RenderBox?;
+    final where = at ?? box?.localToGlobal(Offset.zero) ?? Offset.zero;
+    showDayMenu(
+      context,
+      where,
+      store: _store,
+      day: day,
+      planDay: () {
+        _store.selectedDay = day;
+        _showPlan();
+      },
+    );
+  }
+
   Widget _dayHeaders(GroveTheme theme, List<DayKey> days) {
     final today = _store.clockToday;
     return DecoratedBox(
@@ -604,10 +622,15 @@ class _PlannerViewState extends State<PlannerView> {
                   button: true,
                   label: NotesRules.longDay(day),
                   onTap: () => _store.selectedDay = day,
+                  onLongPress: () => _dayMenu(context, day, null),
                   child: GestureDetector(
                     key: ValueKey('day-header-${day.string}'),
                     behavior: HitTestBehavior.opaque,
                     onTap: () => _store.selectedDay = day,
+                    onSecondaryTapUp: (d) =>
+                        _dayMenu(context, day, d.globalPosition),
+                    onLongPressStart: (d) =>
+                        _dayMenu(context, day, d.globalPosition),
                     child: Padding(
                       padding: const EdgeInsets.symmetric(vertical: 6),
                       child: Column(
