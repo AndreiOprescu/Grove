@@ -1,10 +1,13 @@
 // Port of Sources/Grove/Tasks/TaskRow.swift.
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:grove/core/model/day_key.dart';
 import 'package:grove/core/model/task.dart';
 import 'package:grove/core/planner/planner_math.dart';
 import 'package:grove/state/state.dart' hide MotionRules;
 
+import '../agent/agent_dialog.dart';
 import '../planner/payload_drag.dart';
 import '../theme/check_box.dart';
 import '../theme/grove_theme.dart';
@@ -177,6 +180,13 @@ class _TaskRowState extends State<TaskRow> with AutomaticKeepAliveClientMixin {
       const MenuLine.divider(),
       MenuLine('Add Subtask', _openSubtaskField),
       MenuLine('Rename', _startRename),
+      if (_store.agentEnabled) ...[
+        const MenuLine.divider(),
+        MenuLine(
+          'Ask the agent…',
+          () => unawaited(showAgentDialog(context, _store, id)),
+        ),
+      ],
       const MenuLine.divider(),
       MenuLine('Delete', () => _store.deleteTask(id)),
     ]);
@@ -251,6 +261,10 @@ class _TaskRowState extends State<TaskRow> with AutomaticKeepAliveClientMixin {
         _task.bucket == TaskBucket.day && planDate != null && planDate < today;
     final due = _task.due;
     final list = widget.lists[_task.listId];
+    // A job of the agent that waits or works (ADR 0004).
+    final agent = _store.agentEnabled
+        ? _store.agentJobFor(_task.id)?.status
+        : null;
     final chips = [
       if (place != null)
         TaskChip(
@@ -290,6 +304,12 @@ class _TaskRowState extends State<TaskRow> with AutomaticKeepAliveClientMixin {
         const TaskChip('Repeats', icon: Icons.repeat),
       if (list != null) TaskChip(list.name, icon: Icons.folder_outlined),
       if (_task.notes.isNotEmpty) const TaskChip('Notes', icon: Icons.notes),
+      if (agent == AgentStatus.queued || agent == AgentStatus.running)
+        TaskChip(
+          agent == AgentStatus.queued ? 'Agent waiting' : 'Agent working',
+          icon: Icons.smart_toy_outlined,
+          tint: theme.accent,
+        ),
       for (final tag in tags) TaskChip('#$tag'),
     ];
     if (chips.isEmpty) return const SizedBox.shrink();

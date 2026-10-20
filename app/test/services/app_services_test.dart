@@ -63,6 +63,28 @@ void main() {
     });
   });
 
+  group('the agent runner of this device', () {
+    tearDown(() => debugDefaultTargetPlatformOverride = null);
+
+    test('a computer gets the claude command', () {
+      for (final platform in [
+        TargetPlatform.macOS,
+        TargetPlatform.windows,
+        TargetPlatform.linux,
+      ]) {
+        debugDefaultTargetPlatformOverride = platform;
+        expect(AppServices.agentRunner(), isA<ClaudeCliRunner>());
+      }
+    });
+
+    test('a phone gets none: it only makes jobs', () {
+      for (final platform in [TargetPlatform.android, TargetPlatform.iOS]) {
+        debugDefaultTargetPlatformOverride = platform;
+        expect(AppServices.agentRunner(), isNull);
+      }
+    });
+  });
+
   group('start', () {
     late FakeGateway gateway;
     late FakeTray tray;

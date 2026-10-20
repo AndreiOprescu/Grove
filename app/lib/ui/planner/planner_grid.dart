@@ -13,6 +13,7 @@ import 'package:grove/core/planner/planner_math.dart';
 // The store has its own `MotionRules`, for the garden.
 import 'package:grove/state/state.dart' hide MotionRules;
 
+import '../agent/agent_dialog.dart';
 import '../theme/grove_theme.dart';
 import '../theme/named_colors.dart';
 import '../theme/theme_math.dart';
@@ -1111,6 +1112,13 @@ class PlannerGridState extends State<PlannerGrid> {
             final e = store.event(block.id);
             if (e != null) store.startFocus(e);
           }),
+        if (store.agentEnabled) ...[
+          const PopupMenuDivider(),
+          _item(
+            'Ask the agent…',
+            () => unawaited(showAgentDialog(context, store, taskId)),
+          ),
+        ],
       ],
       const PopupMenuDivider(),
       if (block.isTaskBlock) ...[

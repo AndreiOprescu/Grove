@@ -5,6 +5,9 @@ import 'dart:math';
 
 import 'package:flutter/foundation.dart';
 
+import '../core/agent/agent_models.dart';
+import '../core/agent/agent_policy.dart';
+import '../core/agent/agent_runner.dart';
 import '../core/model/block_subtask.dart';
 import '../core/model/day_key.dart';
 import '../core/model/event.dart';
@@ -33,6 +36,7 @@ import 'editor_services.dart';
 import 'mutation.dart';
 import 'notifier.dart';
 import 'prefs.dart';
+import 'rules/agent_note.dart';
 import 'rules/all_tasks_rules.dart';
 import 'rules/block_subtask_row.dart';
 import 'rules/calendar_rules.dart';
@@ -58,6 +62,7 @@ import 'rules/text.dart';
 import 'screen.dart';
 import 'theme_id.dart';
 
+part 'store_agent.dart';
 part 'store_appearance.dart';
 part 'store_at_date.dart';
 part 'store_block_subtasks.dart';
@@ -131,6 +136,7 @@ class AppStore extends ChangeNotifier {
     Prefs? prefs,
     this.dataDir,
     this.syncBackend,
+    this.agentRunner,
     this._errorMessage,
   }) : notifier = notifier ?? NullNotifier(),
        prefs = prefs ?? MemoryPrefs() {
@@ -149,6 +155,7 @@ class AppStore extends ChangeNotifier {
     _welcomeVisible = FirstRun.welcomeVisible(repos);
     _adoptBlockSubtasks();
     _startSync();
+    _startAgent();
   }
 
   /// Opens the database in [dataDir] and does the launch steps: the daily
@@ -159,6 +166,7 @@ class AppStore extends ChangeNotifier {
     Notifier? notifier,
     Prefs? prefs,
     SyncBackend? sync,
+    AgentRunner? agentRunner,
   }) {
     final sep = Platform.pathSeparator;
     try {
@@ -183,6 +191,7 @@ class AppStore extends ChangeNotifier {
         prefs: prefs ?? FilePrefs('$dataDir${sep}prefs.json'),
         dataDir: dataDir,
         syncBackend: sync,
+        agentRunner: agentRunner,
       );
     } on Exception {
       return AppStore(
@@ -209,6 +218,11 @@ class AppStore extends ChangeNotifier {
   /// `store_sync.dart`.
   final SyncBackend? syncBackend;
   final _sync = _SyncState();
+
+  /// The door to the `claude` command (ADR 0004). Null on a phone: it makes
+  /// agent jobs but does not run them. See `store_agent.dart`.
+  final AgentRunner? agentRunner;
+  final _agent = _AgentState();
 
   /// How long a change waits before it is sent. A burst of changes is one
   /// sync.
@@ -245,6 +259,7 @@ class AppStore extends ChangeNotifier {
     _reminderSleep?.cancel();
     _freshSleep?.cancel();
     _stopSync();
+    _stopAgent();
     super.dispose();
   }
 

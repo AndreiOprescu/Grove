@@ -2,11 +2,15 @@
 /// screens share. Import this one file.
 library;
 
+export '../core/agent/agent_models.dart';
+export '../core/agent/agent_policy.dart';
+export '../core/agent/agent_runner.dart';
 export 'app_store.dart';
 export 'editor_services.dart';
 export 'mutation.dart';
 export 'notifier.dart';
 export 'prefs.dart';
+export 'rules/agent_note.dart';
 export 'rules/all_tasks_rules.dart';
 export 'rules/calendar_rules.dart';
 export 'rules/day_marker.dart';
