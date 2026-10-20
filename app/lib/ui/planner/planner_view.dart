@@ -26,6 +26,7 @@ import 'planner_geometry.dart';
 import 'planner_grid.dart';
 import 'planner_kind.dart';
 import 'sticky_strip.dart';
+import 'weather_label.dart';
 import 'workload.dart';
 
 class PlannerView extends StatefulWidget {
@@ -588,6 +589,9 @@ class _PlannerViewState extends State<PlannerView> {
 
   Widget _dayHeaders(GroveTheme theme, List<DayKey> days) {
     final today = _store.clockToday;
+    // Each date gets a weather line when one day of the week has weather,
+    // so the dates stay in one row.
+    final weather = days.any((d) => _store.weatherFor(d) != null);
     return DecoratedBox(
       decoration: BoxDecoration(
         border: Border(bottom: BorderSide(color: theme.line)),
@@ -635,6 +639,14 @@ class _PlannerViewState extends State<PlannerView> {
                                       : theme.ink,
                                 ),
                           ),
+                          if (weather)
+                            SizedBox(
+                              height: 15,
+                              child: FittedBox(
+                                fit: BoxFit.scaleDown,
+                                child: WeatherLabel(store: _store, day: day),
+                              ),
+                            ),
                         ],
                       ),
                     ),
