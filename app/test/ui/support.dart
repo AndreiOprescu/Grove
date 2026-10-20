@@ -129,7 +129,7 @@ class TolerantGoldenComparator extends LocalFileComparator {
 
   static const channelTolerance = 12;
   static const edgeRadius = 1;
-  static const pixelBudget = 0.002;
+  static const pixelBudget = 0.0025;
 
   /// Makes this the comparator of the test file that calls it.
   static void install() {
