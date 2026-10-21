@@ -511,8 +511,9 @@ docs/                plan, decisions (ADR), assumptions, acceptance proof
 
 ## 📰 What's new
 
-Each new feature gets a short post in the [Grove blog](docs/blog/README.md).
-The newest: [An agent that does tasks for you](docs/blog/2026-10-19-agent-delegation.md).
+Each version has one line for each feature in the [version log](CHANGELOG.md).
+Each new feature also gets a short post in the [Grove blog](docs/blog/README.md).
+The newest: [A menu for each day](docs/blog/2026-10-20-day-menu.md).
 
 ---
 
