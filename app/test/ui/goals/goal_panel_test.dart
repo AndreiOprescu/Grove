@@ -172,6 +172,8 @@ void main() {
       final store = plannerStore()..screen = Screen.today;
       final id = goalBlock(store);
       await pumpPlanner(tester, store, size: const Size(1280, 720));
+      await tester.tap(key('spread-start-note'));
+      await tester.pumpAndSettle();
       expect(find.byType(NoteEditorPane), findsOneWidget);
       final note = tester.getRect(key('spread-note'));
 

@@ -183,13 +183,15 @@ class AppStore extends ChangeNotifier {
       // anything else writes to it.
       _try(() => FirstRun.seedIfNew(repos, today: DayKey.today()));
       return AppStore(
-        repos: repos,
-        notifier: notifier,
-        prefs: prefs ?? FilePrefs('$dataDir${sep}prefs.json'),
-        dataDir: dataDir,
-        syncBackend: sync,
-        releaseSource: releases,
-      );
+          repos: repos,
+          notifier: notifier,
+          prefs: prefs ?? FilePrefs('$dataDir${sep}prefs.json'),
+          dataDir: dataDir,
+          syncBackend: sync,
+          releaseSource: releases,
+        )
+        // Day notes left empty, on this device or another one.
+        ..forgetEmptyDailyNotes();
     } on Exception {
       return AppStore(
         repos: Repos(Database.inMemory()),
@@ -447,6 +449,10 @@ class AppStore extends ChangeNotifier {
     _todayRequest = v;
     _changed();
   }
+
+  /// How many note editors show each note now. A daily note with no text
+  /// of its own is deleted when its last editor goes.
+  final _shownNotes = <String, int>{};
 
   /// The note the notes screen shows.
   String? _selectedNoteId;

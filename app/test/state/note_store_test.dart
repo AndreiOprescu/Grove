@@ -1,6 +1,7 @@
 // Port of Tests/GroveTests/NoteStoreTests.swift.
 import 'package:flutter_test/flutter_test.dart';
 
+import '../data/helpers.dart' show tempDir;
 import 'support.dart';
 
 const friday = DayKey('2026-10-02');
@@ -232,6 +233,111 @@ void main() {
       s.noteFilter = NoteFilter.pinned;
       s.openNote(n.id);
       expect(s.noteFilter, NoteFilter.all);
+    });
+  });
+
+  group('an empty daily note is not kept', () {
+    test('it goes when its last editor goes', () {
+      final s = makeStore();
+      final n = s.dailyNote(friday);
+      s.noteShown(n.id);
+      s.noteShown(n.id);
+      s.noteHidden(n.id);
+      expect(s.note(n.id), isNotNull); // one editor still shows it
+      s.selectedNoteId = n.id;
+      s.noteHidden(n.id);
+      expect(s.note(n.id), isNull);
+      expect(s.selectedNoteId, isNull);
+      expect(s.undoName, isNull); // Grove made it, so this is not an edit
+    });
+
+    test('a note with text, a mood or a pin stays', () {
+      final s = makeStore();
+      final a = s.dailyNote(friday);
+      s.setNoteBody(a.id, '${a.body}A good day');
+      final b = s.dailyNote(friday.adding(days: 1));
+      s.togglePin(b.id);
+      for (final id in [a.id, b.id]) {
+        s.noteShown(id);
+        s.noteHidden(id);
+        expect(s.note(id), isNotNull);
+      }
+    });
+
+    test('a note of the person stays, also with no text', () {
+      final s = makeStore();
+      final n = s.newNote();
+      s.noteShown(n.id);
+      s.noteHidden(n.id);
+      expect(s.note(n.id), isNotNull);
+    });
+
+    test('a mood taken away from a note with nothing else deletes it, and '
+        'undo brings it back', () {
+      final s = makeStore(clock: const WallTime(day: friday, minute: 600));
+      s.setTodayMood(Mood.sun);
+      final n = s.existingDailyNote(friday)!;
+      expect(n.mood, Mood.sun.value);
+      s.setTodayMood(Mood.sun);
+      expect(s.existingDailyNote(friday), isNull);
+      s.undo();
+      expect(s.existingDailyNote(friday)!.mood, Mood.sun.value);
+    });
+
+    test('a mood taken away in an open editor keeps the note', () {
+      final s = makeStore();
+      final n = s.dailyNote(friday);
+      s.noteShown(n.id);
+      s.setMood(n.id, Mood.sun);
+      s.setMood(n.id, Mood.sun);
+      expect(s.note(n.id), isNotNull);
+      s.noteHidden(n.id);
+      expect(s.note(n.id), isNull);
+    });
+
+    test('the sweep takes empty notes that did not change for a day', () {
+      final s = makeStore(clock: const WallTime(day: friday, minute: 600));
+      final old = s.dailyNote(friday);
+      final full = s.dailyNote(friday.adding(days: 1));
+      s.setNoteBody(full.id, 'A good day');
+      s.clockOverride = WallTime(day: friday.adding(days: 1), minute: 300);
+      final fresh = s.dailyNote(friday.adding(days: 2));
+      final shown = s.dailyNote(friday.adding(days: 3));
+      s.noteShown(shown.id);
+
+      // 19 hours later: nothing is old enough
+      s.forgetEmptyDailyNotes();
+      expect(s.note(old.id), isNotNull);
+
+      s.clockOverride = WallTime(day: friday.adding(days: 1), minute: 660);
+      s.forgetEmptyDailyNotes();
+      expect(s.note(old.id), isNull);
+      expect(s.note(full.id), isNotNull);
+      expect(s.note(fresh.id), isNotNull); // a sync can still bring its text
+      expect(s.note(shown.id), isNotNull);
+    });
+
+    test('the start sweeps the empty notes', () {
+      final dir = tempDir('grove-empty-notes').path;
+      final first = AppStore.open(dataDir: dir, prefs: MemoryPrefs());
+      final n = Note(
+        title: NotesRules.dailyTitle(friday),
+        body: NotesRules.template(NoteKind.daily),
+        kind: NoteKind.daily,
+        date: friday,
+        createdAt: '2026-01-01T09:00:00',
+        updatedAt: '2026-01-01T09:00:00',
+      );
+      first.repos.notes.save(n, touch: false);
+      first.dispose();
+      first.repos.db.close();
+
+      final s = AppStore.open(dataDir: dir, prefs: MemoryPrefs());
+      addTearDown(() {
+        s.dispose();
+        s.repos.db.close();
+      });
+      expect(s.note(n.id), isNull);
     });
   });
 }

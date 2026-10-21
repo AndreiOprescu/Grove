@@ -74,6 +74,7 @@ class _NoteEditorPaneState extends State<NoteEditorPane> {
   @override
   void initState() {
     super.initState();
+    _store.noteShown(_id);
     final n = _store.note(_id);
     _titleSeen = n?.title ?? '';
     _title.text = _titleSeen;
@@ -98,10 +99,11 @@ class _NoteEditorPaneState extends State<NoteEditorPane> {
     final text = _unsaved ? _text : null;
     final title = _title.text;
     final typing = _typing;
-    writeLater(
-      store,
-      () => _write(store, id, text: text, title: title, creating: typing),
-    );
+    // After the text is written: an empty daily note goes.
+    writeLater(store, () {
+      _write(store, id, text: text, title: title, creating: typing);
+      store.noteHidden(id);
+    });
     _titleFocus
       ..removeListener(_titleFocusChanged)
       ..dispose();

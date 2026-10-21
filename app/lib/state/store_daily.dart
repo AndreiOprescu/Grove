@@ -61,6 +61,10 @@ extension AppStoreDaily on AppStore {
     final old = note(noteId);
     if (old == null || old.kind != NoteKind.daily) return;
     final n = old.copyWith(mood: old.mood == mood.value ? null : mood.value);
-    commit(Mutation('Set Mood')..notes.add((before: old, after: n)));
+    // A note with nothing left and no editor goes. Undo brings it back.
+    final gone = !_shownNotes.containsKey(noteId) && isEmptyDailyNote(n);
+    commit(
+      Mutation('Set Mood')..notes.add((before: old, after: gone ? null : n)),
+    );
   }
 }
