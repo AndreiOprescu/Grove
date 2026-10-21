@@ -44,6 +44,7 @@ AppStore makeStore({
   ReleaseSource? releases,
   WeatherSource? weather,
   LocationSource? location,
+  AgentRunner? agentRunner,
 }) {
   final s = AppStore(
     repos: repos ?? Repos(Database.inMemory()),
@@ -52,6 +53,7 @@ AppStore makeStore({
     releaseSource: releases,
     weatherSource: weather,
     locationSource: location,
+    agentRunner: agentRunner,
   );
   s.clockOverride = clock;
   addTearDown(s.dispose);
@@ -252,5 +254,91 @@ class FakeLocation implements LocationSource {
   Future<LocationAnswer> here() async {
     asked += 1;
     return answer;
+  }
+}
+
+/// One call of [FakeAgentRunner.start].
+class AgentCall {
+  AgentCall(this.exe, this.args, this.stdin, this.timeout);
+
+  final String exe;
+  final List<String> args;
+  final String stdin;
+  final Duration timeout;
+}
+
+/// A `claude` process of [FakeAgentRunner]. It ends when the test calls
+/// [finish], or at [cancel].
+class FakeAgentProcess implements AgentProcess {
+  final _done = Completer<AgentRunOutput>();
+  int cancels = 0;
+
+  @override
+  Future<AgentRunOutput> get done => _done.future;
+
+  bool get isDone => _done.isCompleted;
+
+  void finish(AgentRunOutput out) {
+    if (!_done.isCompleted) _done.complete(out);
+  }
+
+  @override
+  void cancel() {
+    cancels += 1;
+    finish(
+      const AgentRunOutput(
+        exitCode: -15,
+        stdout: '',
+        stderr: '',
+        cancelled: true,
+      ),
+    );
+  }
+}
+
+/// A `claude` door with scripted answers. It writes down what Grove asks.
+class FakeAgentRunner extends AgentRunner {
+  FakeAgentRunner({this.exe = '/fake/claude', this.initLine, this.output});
+
+  /// What [locate] finds. Null: this computer has no `claude`.
+  String? exe;
+
+  /// The first line of the probe.
+  String? initLine;
+
+  /// How each run ends at once. Null: the run waits until the test calls
+  /// `FakeAgentProcess.finish` on [processes].
+  AgentRunOutput? output;
+
+  int locates = 0;
+  final List<List<String>> probes = [];
+  final List<AgentCall> calls = [];
+  final List<FakeAgentProcess> processes = [];
+
+  @override
+  Future<String?> locate() async {
+    locates += 1;
+    return exe;
+  }
+
+  @override
+  Future<String?> probeInit(String exe, List<String> args) async {
+    probes.add(args);
+    return initLine;
+  }
+
+  @override
+  AgentProcess start(
+    String exe,
+    List<String> args, {
+    required String stdin,
+    required Duration timeout,
+  }) {
+    calls.add(AgentCall(exe, args, stdin, timeout));
+    final p = FakeAgentProcess();
+    processes.add(p);
+    final out = output;
+    if (out != null) p.finish(out);
+    return p;
   }
 }

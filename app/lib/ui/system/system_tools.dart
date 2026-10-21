@@ -1,6 +1,7 @@
 // The real windows of the system: the file windows (the package
-// `file_selector`, Q-15 and Q-18 of `docs/questions.md`) and the browser
-// (the package `url_launcher`, Q-16). Only `main.dart` uses this file. A
+// `file_selector`, Q-15 and Q-18 of `docs/questions.md`), the browser
+// (the package `url_launcher`, Q-16), and Mail and Messages for a draft of
+// the agent (ADR 0004). Only `main.dart` uses this file. A
 // test gives fakes to `StoreApp`, so no test opens a real window.
 import 'dart:convert';
 import 'dart:io';
@@ -9,6 +10,7 @@ import 'package:file_selector/file_selector.dart';
 import 'package:flutter/foundation.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../agent/agent_dialog.dart';
 import '../editor/editor_tools.dart';
 import '../editor/image_prepare.dart';
 import '../editor/markdown_controller.dart';
@@ -48,6 +50,17 @@ Future<bool> openInBrowser(Uri url) async {
   if (webLink('$url') == null) return false;
   try {
     return await launchUrl(url, mode: LaunchMode.externalApplication);
+  } on Object {
+    return false;
+  }
+}
+
+/// Opens a draft of the agent in Mail or Messages. Only `mailto:` and
+/// `sms:`; false for any other address, and when the system cannot.
+Future<bool> openDraftApp(Uri url) async {
+  if (!isDraftLink(url)) return false;
+  try {
+    return await launchUrl(url);
   } on Object {
     return false;
   }

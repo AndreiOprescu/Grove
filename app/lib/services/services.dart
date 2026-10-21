@@ -1,8 +1,10 @@
 export 'app_services.dart';
 export 'app_window.dart';
 export 'backup_schedule.dart';
+export 'claude_cli_runner.dart';
 export 'local_notifications_gateway.dart';
 export 'notification_gateway.dart';
+export 'sandbox_data_copy.dart';
 export 'supabase_backend.dart';
 export 'sync_schedule.dart';
 export 'system_notifier.dart';

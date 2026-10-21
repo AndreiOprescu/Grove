@@ -4,7 +4,9 @@
 #
 # The build is scripts/flutter_release.sh, so the key file of Supabase is
 # used when it is there (app/config/supabase.json). The data of Grove is not
-# touched. It is in ~/Library/Containers/local.grove.app/.
+# touched. It is in ~/Library/Application Support/local.grove.app/. A Grove
+# from before the agent (ADR 0004) kept it in the sandbox folder
+# ~/Library/Containers/local.grove.app/; the first start copies it over.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 if [[ "$(uname)" != Darwin ]]; then

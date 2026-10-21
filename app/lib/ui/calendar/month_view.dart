@@ -1,7 +1,8 @@
 // Port of Sources/Grove/Calendar/MonthView.swift: six weeks, Monday first
 // (Sunday first in Settings). Each day shows its events, a dot for each open
 // task (up to three) and a leaf when it has a daily note. A click opens the
-// Planner on that week. A double click makes an all-day event.
+// Planner on that week. A double click makes an all-day event. A right-click
+// (a long press on a phone) opens the day menu.
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -11,6 +12,7 @@ import 'package:grove/core/planner/planner_math.dart';
 import 'package:grove/state/state.dart' hide MotionRules;
 
 import '../tasks/task_widgets.dart' show WholeCenter, wholeShares;
+import 'day_menu.dart';
 import '../theme/grove_theme.dart';
 import '../theme/named_colors.dart';
 import '../theme/symbols.dart';
@@ -74,6 +76,24 @@ class _MonthViewState extends State<MonthView> {
       _store.selectedDay = day;
       widget.openDay(day);
     });
+  }
+
+  /// The day menu of a day. [at] is null for a screen reader: the menu opens
+  /// at the top left of the month.
+  void _dayMenu(DayKey day, Offset? at) {
+    _click?.cancel();
+    _click = null;
+    final box = context.findRenderObject() as RenderBox?;
+    showDayMenu(
+      context,
+      at ?? box?.localToGlobal(Offset.zero) ?? Offset.zero,
+      store: _store,
+      day: day,
+      showInPlanner: () {
+        _store.selectedDay = day;
+        widget.openDay(day);
+      },
+    );
   }
 
   @override
@@ -271,10 +291,13 @@ class _MonthViewState extends State<MonthView> {
             _store.selectedDay = day;
             widget.openDay(day);
           },
+          onLongPress: () => _dayMenu(day, null),
           child: GestureDetector(
             key: ValueKey('month-day-${day.string}'),
             behavior: HitTestBehavior.opaque,
             onTap: () => _tap(day),
+            onSecondaryTapUp: (d) => _dayMenu(day, d.globalPosition),
+            onLongPressStart: (d) => _dayMenu(day, d.globalPosition),
             child: Opacity(
               opacity: inMonth ? 1 : 0.5,
               child: DecoratedBox(

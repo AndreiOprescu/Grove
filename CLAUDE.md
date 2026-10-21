@@ -11,3 +11,5 @@
 - The first Grove (Swift, macOS only) was taken out of the repo on 2026-10-12. Its code is in the git history before that day. The app id is `local.grove.app` (`docs/acceptance/retire-swift.md`).
 - Work on a branch `feat/<topic>`, made from `main`. Until the Flutter branch is merged into `main`, make it from `feat/cross-platform-flutter`. Never commit on main. Stage exact paths. No AI attribution.
 - Log every decision you make that the plan does not cover in `docs/assumptions.md`. Questions for the owner go in `docs/questions.md`.
+- Each PR that adds a feature also adds a short post in `docs/blog/` (`YYYY-MM-DD-<topic>.md`) and a line at the top of the table in `docs/blog/README.md`. Plain words: what it does, how to try it, what is not done yet.
+- The agent (`docs/adr/0004-agent-delegation.md`) reads and drafts only. Never give it a tool that sends, deletes, runs commands or writes files without a yes from the owner.

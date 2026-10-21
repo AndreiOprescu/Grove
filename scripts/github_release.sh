@@ -15,6 +15,8 @@
 # there already (made on another computer), only the files it does not have
 # yet go up: a Mac and a Windows PC can each add their own.
 #
+# The notes of the release are the lines of the version in CHANGELOG.md.
+#
 # This publishes: everyone can see the release. It needs `gh auth login`.
 set -euo pipefail
 root="$(cd "$(dirname "$0")/.." && pwd)"
@@ -32,6 +34,18 @@ if [ "$core" != "$version" ]; then
   exit 1
 fi
 tag="v$version"
+
+# The lines of this version in CHANGELOG.md: from its "## <version>" title
+# to the next title.
+notes="$(awk -v v="$version" '
+  /^## / { on = ($2 == v); next }
+  on { print }
+' "$root/CHANGELOG.md")"
+if ! grep -q '[^[:space:]]' <<<"$notes"; then
+  echo "CHANGELOG.md has no lines for $version." >&2
+  echo "Add a part '## $version', one line for each feature, then run this again." >&2
+  exit 1
+fi
 
 dist=build/dist
 if [ -d "$dist/grove-windows" ]; then
@@ -62,6 +76,6 @@ if gh release view "$tag" >/dev/null 2>&1; then
   echo "Added to release $tag: ${missing[*]}"
 else
   gh release create "$tag" "${files[@]}" \
-    --title "Grove $version" --generate-notes --latest
+    --title "Grove $version" --notes "$notes" --latest
   echo "Made release $tag with: ${files[*]}"
 fi

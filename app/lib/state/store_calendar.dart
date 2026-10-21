@@ -65,10 +65,17 @@ extension AppStoreCalendar on AppStore {
   // The editor
 
   /// A new all-day event on [day]. Nothing is stored until the user saves.
-  void newEvent({required DayKey on}) {
+  /// With [deadline], the card opens with Deadline on (the day menu).
+  void newEvent({required DayKey on, bool deadline = false}) {
     final at = WallTime(day: on, minute: 0);
     editingEvent = EditingEvent(
-      item: EventItem(title: '', start: at, end: at, allDay: true),
+      item: EventItem(
+        title: '',
+        start: at,
+        end: at,
+        allDay: true,
+        isDeadline: deadline,
+      ),
       isNew: true,
       anchor: 'new:${on.string}',
     );
@@ -96,7 +103,11 @@ extension AppStoreCalendar on AppStore {
     var item = EventDraft.normalize(edited);
     item = item.copyWith(title: item.title.trim());
     if (original == null) {
-      if (item.title.isEmpty) item = item.copyWith(title: 'New Event');
+      if (item.title.isEmpty) {
+        item = item.copyWith(
+          title: item.isDeadline ? 'New Deadline' : 'New Event',
+        );
+      }
       final m = Mutation('New Event')..events.add((before: null, after: item));
       if (commit(m)) selection = {item.id};
       closeEditor();

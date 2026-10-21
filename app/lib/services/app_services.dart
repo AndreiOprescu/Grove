@@ -6,6 +6,7 @@ import 'package:flutter/widgets.dart';
 import '../state/state.dart';
 import 'app_window.dart';
 import 'backup_schedule.dart';
+import 'claude_cli_runner.dart';
 import 'local_notifications_gateway.dart';
 import 'sync_schedule.dart';
 import 'system_notifier.dart';
@@ -73,6 +74,22 @@ class AppServices {
       case TargetPlatform.linux:
       case TargetPlatform.fuchsia:
         return NullNotifier();
+    }
+  }
+
+  /// The door to the `claude` command of the agent (ADR 0004). Only a
+  /// computer can run it; a phone or the web gets null and only makes jobs.
+  static AgentRunner? agentRunner() {
+    if (kIsWeb) return null;
+    switch (defaultTargetPlatform) {
+      case TargetPlatform.macOS:
+      case TargetPlatform.windows:
+      case TargetPlatform.linux:
+        return ClaudeCliRunner();
+      case TargetPlatform.android:
+      case TargetPlatform.iOS:
+      case TargetPlatform.fuchsia:
+        return null;
     }
   }
 

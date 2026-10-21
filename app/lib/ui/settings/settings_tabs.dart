@@ -1,4 +1,4 @@
-// The six tabs of the Settings window. Port of the tabs of
+// The tabs of the Settings window. Port of the tabs of
 // Sources/Grove/Settings/SettingsView.swift; the texts are the same.
 import 'dart:async';
 
@@ -595,6 +595,109 @@ class _NotificationSettingsState extends State<NotificationSettings> {
                   onTap: () => unawaited(store.askForNotifications()),
                 ),
               ),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+// Agent (ADR 0004)
+
+class AgentSettings extends StatelessWidget {
+  const AgentSettings({super.key, required this.store});
+
+  final AppStore store;
+
+  static const menusText = 'Shows "Ask the agent…" in the task menus.';
+
+  /// Two runners could take the same job (docs/assumptions.md).
+  static const oneRunnerText = 'Turn this on on one computer only.';
+  static const gmailText =
+      'Connect Gmail first in claude.ai ▸ Settings ▸ Connectors.';
+  static const safetyText =
+      'The agent reads and drafts. It never sends, runs commands or changes '
+      'files. You press Send yourself.';
+  static const needsText =
+      'Needs Claude Code, logged in with your own Claude plan.';
+
+  /// A control that is grey and takes no taps when `on` is false.
+  static Widget _greyed({required bool on, required Widget child}) =>
+      IgnorePointer(
+        ignoring: !on,
+        child: ExcludeSemantics(
+          excluding: !on,
+          child: Opacity(opacity: on ? 1 : 0.45, child: child),
+        ),
+      );
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = GroveTheme.of(context);
+    // A phone has no runner. A computer keeps the switch: turning it on
+    // looks for Claude Code again.
+    final computer = store.agentRunner != null;
+    final runnerOn = store.agentRunnerOn;
+    final help = store.agentHelp;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        SettingsSection(
+          title: 'Agent',
+          children: [
+            SettingsSwitchRow(
+              switchKey: const ValueKey('settings-agent'),
+              label: 'Use the agent',
+              value: store.agentEnabled,
+              onChanged: store.setAgentEnabled,
+            ),
+            const SettingsCaption(menusText),
+          ],
+        ),
+        _gap,
+        SettingsSection(
+          title: 'This device',
+          children: [
+            _greyed(
+              on: computer,
+              child: SettingsSwitchRow(
+                switchKey: const ValueKey('settings-agent-runner'),
+                label: 'This device runs agent tasks',
+                value: runnerOn,
+                onChanged: store.setAgentRunner,
+              ),
+            ),
+            const SettingsCaption(oneRunnerText),
+            if (help != null)
+              Text(
+                help,
+                key: const ValueKey('settings-agent-help'),
+                style: theme
+                    .body(11)
+                    .copyWith(
+                      color: help == SettingsRules.agentNotFound
+                          ? TaskPalette.color('orange')
+                          : theme.muted,
+                    ),
+              ),
+            _greyed(
+              on: computer && runnerOn,
+              child: SettingsSwitchRow(
+                switchKey: const ValueKey('settings-agent-email'),
+                label: 'Let the agent read my email',
+                value: store.agentEmailOn,
+                onChanged: store.setAgentEmail,
+              ),
+            ),
+            const SettingsCaption(gmailText),
+          ],
+        ),
+        _gap,
+        SettingsSection(
+          title: 'Safety',
+          children: [
+            Text(safetyText, style: theme.body(13).copyWith(color: theme.ink)),
+            const SettingsCaption(needsText),
           ],
         ),
       ],
