@@ -5,6 +5,11 @@ makes the next version. Each line is one feature. The newest version is first.
 
 `scripts/github_release.sh` puts the lines of the version on its GitHub release.
 
+## 1.2.0 · 2026-10-21
+
+- **No empty day notes:** Grove no longer makes a note for a day by itself. Press "Start a note" to make one. A day note you leave empty is deleted.
+- **Weather low and high:** each day shows its lowest and highest temperature.
+
 ## 1.1.0 · 2026-10-21
 
 - **Ask the agent:** a computer with the `claude` command reads a task and writes a draft for you. It only reads and drafts. A phone can ask, and the computer does the work.
