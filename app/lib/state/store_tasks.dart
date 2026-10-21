@@ -446,6 +446,33 @@ extension AppStoreTasks on AppStore {
     commit(m);
   }
 
+  /// The day menu's "Move open tasks to…": every open task planned for
+  /// [from] goes to [to]. A time block keeps its time on the new day. One
+  /// undo step. Gives the number of tasks moved.
+  int moveOpenTasks({required DayKey from, required DayKey to}) {
+    if (from == to) return 0;
+    final moving = [
+      for (final t in openTasks(TaskPlacement.day(from)))
+        if (t.status == TaskStatus.open) t,
+    ];
+    if (moving.isEmpty) return 0;
+    final m = Mutation('Move Open Tasks');
+    for (final t in moving) {
+      m.tasks.add((before: t, after: placed(t, TaskPlacement.day(to))));
+      for (final b in blocksOfTask(t.id)) {
+        if (b.start.day != from) continue;
+        m.events.add((
+          before: b,
+          after: b.copyWith(
+            start: WallTime(day: to, minute: b.start.minute),
+            end: WallTime(day: to, minute: b.end.minute),
+          ),
+        ));
+      }
+    }
+    return commit(m) ? moving.length : 0;
+  }
+
   // Deleting
 
   /// Deletes a task with its subtasks and time blocks. Undo brings everything

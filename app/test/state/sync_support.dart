@@ -63,6 +63,7 @@ class World {
     String? dataDir,
     Repos? repos,
     Prefs? prefs,
+    AgentRunner? agentRunner,
     bool seed = false,
     bool realTime = false,
   }) {
@@ -78,6 +79,7 @@ class World {
       repos: r,
       prefs: prefs,
       dataDir: dataDir,
+      agentRunner: agentRunner,
       syncBackend: SyncBackend(
         auth: auth,
         remote: (_) => PersonRemote(this, auth),
