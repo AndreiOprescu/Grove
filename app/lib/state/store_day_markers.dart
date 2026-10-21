@@ -68,12 +68,15 @@ extension AppStoreDayMarkers on AppStore {
   }
 
   /// Adds the line to [day]. Gives its minute. A line that is there stays
-  /// where it is.
-  int? addDayMarker(DayMarkerKind kind, DayKey day) {
+  /// where it is. With [at], the new line starts at that minute, on the grid
+  /// of 15 minutes (a right click on the time of the planner).
+  int? addDayMarker(DayMarkerKind kind, DayKey day, {int? at}) {
     final has = dayMarker(kind, day);
     if (has != null) return has;
     final key = DayMarkerRules.key(kind, day);
-    final minute = newDayMarkerMinute(kind, day);
+    final minute = at == null
+        ? newDayMarkerMinute(kind, day)
+        : DayMarkerRules.snapped(at);
     final m = Mutation('Add ${kind.undoName}')
       ..settings.add((
         key: key,

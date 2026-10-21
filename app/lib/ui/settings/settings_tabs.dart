@@ -22,6 +22,7 @@ import '../theme/panel.dart';
 import '../theme/theme_spec.dart';
 import 'settings_parts.dart';
 import 'settings_view.dart';
+import 'weather_settings.dart';
 
 /// Saves a view setting of this device and tells the screens.
 ///
@@ -382,6 +383,7 @@ class PlannerSettings extends StatelessWidget {
             ),
           ],
         ),
+        if (store.canShowWeather) ...[_gap, WeatherSettings(store: store)],
       ],
     );
   }

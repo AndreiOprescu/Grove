@@ -10,3 +10,4 @@ export 'tray_gateway.dart';
 export 'tray_manager_gateway.dart';
 export 'tray_service.dart';
 export 'update_check.dart';
+export 'weather_check.dart';

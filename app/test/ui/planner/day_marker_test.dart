@@ -826,6 +826,79 @@ void main() {
     });
   });
 
+  group('a right click on empty time', () {
+    testWidgets('adds the wake-up line at the time of the click', (
+      tester,
+    ) async {
+      final store = plannerStore();
+      await pumpPlanner(tester, store);
+
+      await rightClick(tester, pointAt(tester, wednesday, 11 * 60 + 38));
+      expect(menuLine('Add wake-up line at 11:45'), findsOneWidget);
+      expect(menuLine('Add sleep line at 11:45'), findsOneWidget);
+      await tester.tap(menuLine('Add wake-up line at 11:45'));
+      await tester.pumpAndSettle();
+
+      expect(store.dayMarker(DayMarkerKind.wake, wednesday), 11 * 60 + 45);
+      expect(store.dayMarker(DayMarkerKind.sleep, wednesday), isNull);
+      expect(store.undoName, 'Add Wake-up Line');
+      expect(shownTime(tester, DayMarkerKind.wake), '11:45');
+      // No new block, no block that waits for its title.
+      expect(store.blocks(DayRange.single(wednesday)), isEmpty);
+      expect(gridState(tester).draft, isNull);
+    });
+
+    testWidgets('acts on the day of the column that was clicked', (
+      tester,
+    ) async {
+      final store = plannerStore();
+      await pumpPlanner(tester, store);
+      final thursday = wednesday.adding(days: 1);
+
+      await rightClick(tester, pointAt(tester, thursday, 10 * 60));
+      await tester.tap(menuLine('Add sleep line at 10:00'));
+      await tester.pumpAndSettle();
+
+      expect(store.dayMarker(DayMarkerKind.sleep, thursday), 10 * 60);
+      expect(store.dayMarker(DayMarkerKind.sleep, wednesday), isNull);
+    });
+
+    testWidgets('moves a line that is there to the time of the click', (
+      tester,
+    ) async {
+      final store = plannerStore();
+      store.addDayMarker(DayMarkerKind.wake, wednesday);
+      await pumpPlanner(tester, store);
+
+      await rightClick(tester, pointAt(tester, wednesday, 12 * 60));
+      expect(menuLine('Add wake-up line at 12:00'), findsNothing);
+      await tester.tap(menuLine('Move wake-up line to 12:00'));
+      await tester.pumpAndSettle();
+
+      expect(store.dayMarker(DayMarkerKind.wake, wednesday), 12 * 60);
+      expect(store.undoName, 'Move Wake-up Line');
+    });
+
+    testWidgets('on a block opens the menu of the block', (tester) async {
+      final store = plannerStore();
+      store
+        ..createFromDraft(
+          title: 'Deep work',
+          day: wednesday,
+          start: 11 * 60,
+          end: 12 * 60,
+          asEvent: true,
+        )
+        ..selection = {};
+      await pumpPlanner(tester, store);
+
+      await rightClick(tester, pointAt(tester, wednesday, 11 * 60 + 30));
+
+      expect(menuLine('Duration'), findsOneWidget);
+      expect(find.textContaining('wake-up line at'), findsNothing);
+    });
+  });
+
   // The header of the week with the real fonts: day_marker_header_test.dart.
   group('the header of the timeline', () {
     testWidgets('fits at each width with the "+" in it', (tester) async {

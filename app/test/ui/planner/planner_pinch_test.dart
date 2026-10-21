@@ -146,6 +146,43 @@ void main() {
       expect(gridScroll(tester), greaterThan(before));
     });
 
+    for (final edge in ['resizeTop', 'resizeBottom']) {
+      testWidgets('two fingers that slide on the $edge edge of a block scroll '
+          'the grid and keep the block length', (tester) async {
+        final store = plannerStore();
+        store
+          ..createFromDraft(
+            title: 'Lunch',
+            day: wednesday,
+            start: 12 * 60,
+            end: 13 * 60,
+            asEvent: true,
+          )
+          ..selection = {};
+        final id = blockNamed(store, 'Lunch').id;
+        await pumpPlanner(tester, store);
+        final at = tester.getCenter(find.byKey(ValueKey('$edge-$id')));
+        final before = gridScroll(tester);
+
+        final gesture = await tester.createGesture(
+          kind: PointerDeviceKind.trackpad,
+        );
+        await gesture.panZoomStart(at);
+        await tester.pump();
+        for (var i = 1; i <= 4; i++) {
+          await gesture.panZoomUpdate(at, pan: Offset(0, -30.0 * i));
+          await tester.pump(const Duration(milliseconds: 16));
+        }
+        await gesture.panZoomEnd();
+        await tester.pumpAndSettle();
+
+        final block = blockNamed(store, 'Lunch');
+        expect((block.startMinute, block.endMinute), (12 * 60, 13 * 60));
+        expect(store.undoName, isNot(contains('Resize')));
+        expect(gridScroll(tester), greaterThan(before));
+      });
+    }
+
     testWidgets('the blocks keep their times and are drawn at the new size', (
       tester,
     ) async {

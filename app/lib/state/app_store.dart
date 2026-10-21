@@ -29,6 +29,7 @@ import '../core/services/focus_rules.dart';
 import '../core/services/persona.dart';
 import '../core/services/reminder_planner.dart';
 import '../core/update/update_rules.dart';
+import '../core/weather/weather_rules.dart';
 import '../data/data.dart';
 import '../sync/sync.dart';
 import 'editor_services.dart';
@@ -87,6 +88,7 @@ part 'store_roll_over.dart';
 part 'store_sync.dart';
 part 'store_tasks.dart';
 part 'store_updates.dart';
+part 'store_weather.dart';
 part 'store_welcome.dart';
 
 /// Runs a read. A read that fails gives null, so the screen shows nothing
@@ -135,6 +137,8 @@ class AppStore extends ChangeNotifier {
     this.dataDir,
     this.syncBackend,
     this.releaseSource,
+    this.weatherSource,
+    this.locationSource,
     this._errorMessage,
   }) : notifier = notifier ?? NullNotifier(),
        prefs = prefs ?? MemoryPrefs() {
@@ -164,6 +168,8 @@ class AppStore extends ChangeNotifier {
     Prefs? prefs,
     SyncBackend? sync,
     ReleaseSource? releases,
+    WeatherSource? weather,
+    LocationSource? location,
   }) {
     final sep = Platform.pathSeparator;
     try {
@@ -189,6 +195,8 @@ class AppStore extends ChangeNotifier {
           dataDir: dataDir,
           syncBackend: sync,
           releaseSource: releases,
+          weatherSource: weather,
+          locationSource: location,
         )
         // Day notes left empty, on this device or another one.
         ..forgetEmptyDailyNotes();
@@ -198,6 +206,8 @@ class AppStore extends ChangeNotifier {
         notifier: notifier,
         prefs: prefs,
         releaseSource: releases,
+        weatherSource: weather,
+        locationSource: location,
         errorMessage:
             'Grove could not open its database. Changes will not be saved.',
       );
@@ -223,6 +233,12 @@ class AppStore extends ChangeNotifier {
   /// (a test, or a copy that has none). See `store_updates.dart`.
   final ReleaseSource? releaseSource;
   final _updates = _UpdateState();
+
+  /// Where Grove gets the forecast, and the position of this device. Null:
+  /// no weather (a test, or a copy that has none). See `store_weather.dart`.
+  final WeatherSource? weatherSource;
+  final LocationSource? locationSource;
+  final _weather = _WeatherState();
 
   /// How long a change waits before it is sent. A burst of changes is one
   /// sync.

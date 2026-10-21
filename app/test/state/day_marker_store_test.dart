@@ -88,6 +88,28 @@ void main() {
       expect(s.dayMarker(wake, wednesday), 8 * 60);
       expect(s.undoStack.length, steps);
     });
+
+    test('a line added at a time starts there, on the 15-minute grid', () {
+      final s = makeStore();
+      s
+        ..addDayMarker(wake, tuesday)
+        ..moveDayMarker(wake, tuesday, 6 * 60);
+      expect(s.addDayMarker(wake, wednesday, at: 7 * 60 + 38), 7 * 60 + 45);
+      expect(s.dayMarker(wake, wednesday), 7 * 60 + 45);
+      expect(s.undoName, 'Add Wake-up Line');
+
+      s.undo();
+      expect(s.dayMarker(wake, wednesday), isNull);
+    });
+
+    test('a line that is there keeps its time when added at a time', () {
+      final s = makeStore();
+      s.addDayMarker(sleep, wednesday);
+      final steps = s.undoStack.length;
+      expect(s.addDayMarker(sleep, wednesday, at: 22 * 60), 23 * 60);
+      expect(s.dayMarker(sleep, wednesday), 23 * 60);
+      expect(s.undoStack.length, steps);
+    });
   });
 
   group('Moving and removing a line', () {
