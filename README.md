@@ -13,7 +13,7 @@
   <img alt="Local-first" src="https://img.shields.io/badge/data-stays%20on%20your%20device-D9B44A?style=flat-square">
   <img alt="Sync is optional" src="https://img.shields.io/badge/sync-optional-7FA36B?style=flat-square">
   <img alt="MIT license" src="https://img.shields.io/badge/license-MIT-A9C79A?style=flat-square">
-  <img alt="2456 tests" src="https://img.shields.io/badge/tests-2456%20passing-8DB57A?style=flat-square">
+  <img alt="3131 tests" src="https://img.shields.io/badge/tests-3131%20passing-8DB57A?style=flat-square">
 </p>
 
 <p align="center">
@@ -143,6 +143,15 @@ It is a quiet reward for a good day.
   <img src="docs/images/plant-page.png" alt="Grove Garden: a budding plant and its stages" width="100%">
 </p>
 
+### Persona — see yourself grow
+Give a task or a goal a reward, for example "+30 Strength".
+When you finish it, that skill gets the points and grows level by level.
+
+- A bar for each skill, and a list of the newest points.
+- A small pop-up when a skill reaches a new level.
+- **Your days**: three bars for good, okay and rough days, from the mood of your daily
+  notes. See this month or all time.
+
 ### Four themes, light and dark
 **Grove** (natural, the default), **Minimal**, **Futuristic** and **Vintage**.
 Each one has its own colours, fonts and shapes, in a light look and a dark look.
@@ -168,7 +177,7 @@ On Windows, use `Ctrl` in place of `⌘`.
 | `⌥ ⌘ N` | New note |
 | `⇧ ⌘ N` | New event |
 | `⌘ T` | Today |
-| `⌘ 1` … `⌘ 5` | Planner · Tasks · Calendar · Notes · Garden |
+| `⌘ 1` … `⌘ 6` | Planner · Tasks · Calendar · Notes · Garden · Persona |
 | `⌘ K` | Command palette |
 | `⌘ =` / `⌘ −` | Zoom the planner |
 | `⌘ Z` / `⇧ ⌘ Z` | Undo / Redo |
@@ -349,11 +358,12 @@ data is on a server that is yours.
 2. Open **SQL Editor**. Paste the whole file
    [`supabase/migrations/20261011000000_grove_sync.sql`](supabase/migrations/20261011000000_grove_sync.sql)
    and run it.
-   Then do the same with
-   [`supabase/migrations/20261012000000_grove_sync_goal_subtasks.sql`](supabase/migrations/20261012000000_grove_sync_goal_subtasks.sql),
-   and then with
-   [`supabase/migrations/20261013000000_grove_sync_goal_subtask_block.sql`](supabase/migrations/20261013000000_grove_sync_goal_subtask_block.sql).
-   Sync works only after all three files.
+   Then do the same with each other file in
+   [`supabase/migrations/`](supabase/migrations/), oldest first (the date is in the name):
+   [`…_goal_subtasks.sql`](supabase/migrations/20261012000000_grove_sync_goal_subtasks.sql),
+   [`…_goal_subtask_block.sql`](supabase/migrations/20261013000000_grove_sync_goal_subtask_block.sql),
+   [`…_persona.sql`](supabase/migrations/20261015000000_grove_sync_persona.sql).
+   Sync works only after all the files. When a new Grove brings a new file, run that one too.
 3. Open **Authentication ▸ Emails ▸ Templates**. In "Magic Link" and in "Confirm signup",
    add this line: `Your code for Grove: {{ .Token }}`
 4. Make the key file and fill in the two fields:
@@ -390,7 +400,7 @@ systems. It lives in [`app/`](app/).
 
 ```mermaid
 flowchart LR
-    UI["Flutter widgets<br/>Today · Planner · Calendar · Notes · Garden"]
+    UI["Flutter widgets<br/>Today · Planner · Calendar · Notes · Garden · Persona"]
     Store["AppStore<br/>every change is a Mutation"]
     Undo["Undo / redo<br/>one Mutation = one step"]
     Core["core<br/>pure Dart, no UI"]
@@ -437,7 +447,7 @@ are bundled and open (OFL).
 **Art in code.** The app icon is drawn by `scripts/make_flutter_icons.swift`. The garden,
 the plant and the drifting background light are drawn at run time.
 
-**Tested.** 2456 tests. The script also checks the format and runs the analyzer:
+**Tested.** 3131 tests. The script also checks the format and runs the analyzer:
 
 ```bash
 ./scripts/flutter_test.sh
@@ -457,7 +467,7 @@ app/                 the Flutter app (all four systems)
 │  ├─ sync/          outbox, push and pull, last write wins
 │  ├─ services/      reminders, tray, window, Supabase
 │  └─ ui/            planner · tasks · calendar · notes · goals · garden ·
-│                    editor · settings · shell · theme · auth
+│                    persona · editor · settings · shell · theme · auth
 ├─ test/             unit, widget and golden tests
 ├─ config/           supabase.example.json (your key file goes here)
 └─ macos/ windows/ android/ ios/    the native shells
@@ -473,7 +483,7 @@ docs/                plan, decisions (ADR), assumptions, acceptance proof
 
 ## 🗺️ Roadmap
 
-- [x] Day Planner, tasks, calendar, notes, goals, garden
+- [x] Day Planner, tasks, calendar, notes, goals, garden, persona
 - [x] Four themes, each in light and dark
 - [x] One app for macOS, Windows, Android and iOS with Flutter
 - [x] Optional sync between devices (built and tested)
