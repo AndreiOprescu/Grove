@@ -6,7 +6,8 @@ import '../screen.dart';
 enum LeftPane {
   notes('Notes', 'note.text'),
   tasks('Tasks', 'checklist'),
-  goals('Goals', 'target');
+  goals('Goals', 'target'),
+  deadlines('Deadlines', 'flag');
 
   const LeftPane(this.title, this.icon);
 

@@ -102,6 +102,7 @@ void main() {
         'Tasks ⌘2',
         'Notes Panel',
         'Goals Panel',
+        'Deadlines Panel',
         'Calendar ⌘3',
         'Notes ⌘4',
         'Garden ⌘5',
@@ -584,6 +585,7 @@ void main() {
             'Tasks',
             'Notes Panel',
             'Goals Panel',
+            'Deadlines Panel',
             'Calendar',
             'Notes',
             'Garden',
@@ -644,6 +646,47 @@ void main() {
         line(menuBar(tester)['Grove']!, 'Settings…').onSelected!();
         await tester.pumpAndSettle();
         expect(settingsView, findsOneWidget);
+        await tester.pumpWidget(const SizedBox());
+      });
+    });
+
+    testWidgets('a copy with no update check has no line for it', (
+      tester,
+    ) async {
+      await onMac(() async {
+        await pumpApp(tester, plannerStore());
+        expect(
+          leaves(menuBar(tester)['Grove']!).map((item) => item.label),
+          isNot(contains('Check for Updates…')),
+        );
+        await tester.pumpWidget(const SizedBox());
+      });
+    });
+
+    testWidgets('Check for Updates… asks GitHub and says the answer', (
+      tester,
+    ) async {
+      await onMac(() async {
+        final releases = FakeReleases(release('9.9.9'));
+        final store = makeStore(
+          prefs: MemoryPrefs()..set('appearance.motion', false),
+          releases: releases,
+        );
+        await pumpApp(tester, store);
+        // The line comes after About.
+        final grove = leaves(menuBar(tester)['Grove']!).toList();
+        final about = grove.indexWhere(
+          (item) =>
+              item is PlatformProvidedMenuItem &&
+              item.type == PlatformProvidedMenuItemType.about,
+        );
+        expect(grove[about + 1].label, 'Check for Updates…');
+        grove[about + 1].onSelected!();
+        await tester.pump();
+        expect(releases.asked, 1);
+        expect(store.toast, 'Grove 9.9.9 is here.');
+        expect(store.availableUpdate?.version.toString(), '9.9.9');
+        await tester.pump(const Duration(seconds: 3));
         await tester.pumpWidget(const SizedBox());
       });
     });

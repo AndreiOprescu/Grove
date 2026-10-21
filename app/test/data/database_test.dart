@@ -44,13 +44,14 @@ void main() {
       }
     });
 
-    test('there are ten migrations: the seven of the Mac app, and three of '
-        'this app only', () {
+    test('there are eleven migrations: the seven of the Mac app, and four '
+        'of this app only', () {
       // The export file carries this number. The Mac app refuses a higher
       // one, so it does not read a file of this app (migration 8, the
-      // subtasks of a goal, migration 9, the block of such a subtask, and
-      // migration 10, the persona, are not in the Mac app).
-      expect(Migrations.all.length, 10);
+      // subtasks of a goal, migration 9, the block of such a subtask,
+      // migration 10, the persona, and migration 11, deadlines, are not in
+      // the Mac app).
+      expect(Migrations.all.length, 11);
     });
 
     test('migrations are idempotent', () {
@@ -248,6 +249,41 @@ void main() {
       expect(r.events.exdates(series.id), [const DayKey('2026-10-01')]);
       r.events.removeExdate(series.id, const DayKey('2026-10-01'));
       expect(r.events.exdates(series.id), isEmpty);
+    });
+
+    test('a deadline keeps its mark and its tick, and is in deadlines()', () {
+      final r = makeRepos();
+      final due = EventItem(
+        title: 'Essay',
+        start: const WallTime(day: DayKey('2026-10-20'), minute: 900),
+        end: const WallTime(day: DayKey('2026-10-20'), minute: 960),
+        isDeadline: true,
+      );
+      final sooner = EventItem(
+        title: 'Form',
+        start: const WallTime(day: DayKey('2026-10-19'), minute: 600),
+        end: const WallTime(day: DayKey('2026-10-19'), minute: 660),
+        isDeadline: true,
+        doneAt: '2026-10-18T09:00:00',
+      );
+      final plain = EventItem(
+        title: 'Lunch',
+        start: const WallTime(day: DayKey('2026-10-19'), minute: 720),
+        end: const WallTime(day: DayKey('2026-10-19'), minute: 780),
+      );
+      for (final e in [due, sooner, plain]) {
+        r.events.save(e);
+      }
+      expect(r.events.get(due.id)!.isDeadline, isTrue);
+      expect(r.events.get(plain.id)!.isDeadline, isFalse);
+      expect(r.events.get(sooner.id)!.doneAt, '2026-10-18T09:00:00');
+      expect(r.events.deadlines().map((e) => e.title), ['Form', 'Essay']);
+
+      // A row pulled from the server from before the column has no value.
+      r.db.execute('UPDATE events SET is_deadline = NULL WHERE id = ?', [
+        plain.id,
+      ]);
+      expect(r.events.get(plain.id)!.isDeadline, isFalse);
     });
 
     test('a daily note is unique per day', () {
