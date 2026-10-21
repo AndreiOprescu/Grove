@@ -195,7 +195,7 @@ ReleaseInfo release(String version) => ReleaseInfo(
 );
 
 /// A forecast that only writes down what the store asks for. Each day from
-/// [from] has rain, 9° at 9am and 14° at 9pm, unless [days] says other.
+/// [from] has rain, a low of 9° and a high of 14°, unless [days] says other.
 class FakeWeather implements WeatherSource {
   FakeWeather({required this.from, this.count = 16, this.towns = const []});
 
@@ -226,8 +226,8 @@ class FakeWeather implements WeatherSource {
             from.adding(days: i): DayWeather(
               day: from.adding(days: i),
               condition: WeatherCondition.rain,
-              morning: 9,
-              evening: 14,
+              low: 9,
+              high: 14,
             ),
         };
   }
