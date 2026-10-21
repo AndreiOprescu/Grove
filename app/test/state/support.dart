@@ -42,12 +42,16 @@ AppStore makeStore({
   Repos? repos,
   WallTime? clock,
   ReleaseSource? releases,
+  WeatherSource? weather,
+  LocationSource? location,
 }) {
   final s = AppStore(
     repos: repos ?? Repos(Database.inMemory()),
     notifier: notifier,
     prefs: prefs,
     releaseSource: releases,
+    weatherSource: weather,
+    locationSource: location,
   );
   s.clockOverride = clock;
   addTearDown(s.dispose);
@@ -189,3 +193,64 @@ ReleaseInfo release(String version) => ReleaseInfo(
         'https://github.com/AndreiOprescu/Grove/releases/download/v$version/grove-macos.zip',
   },
 );
+
+/// A forecast that only writes down what the store asks for. Each day from
+/// [from] has rain, 9° at 9am and 14° at 9pm, unless [days] says other.
+class FakeWeather implements WeatherSource {
+  FakeWeather({required this.from, this.count = 16, this.towns = const []});
+
+  final DayKey from;
+  final int count;
+  final List<WeatherPlace> towns;
+  Map<DayKey, DayWeather>? days;
+
+  /// Set to make the next questions fail.
+  Object? error;
+
+  /// Each position asked for.
+  final List<(double, double)> asked = [];
+  final List<String> searched = [];
+
+  /// Set to hold the answer until the test completes it.
+  Completer<void>? gate;
+
+  @override
+  Future<Map<DayKey, DayWeather>> forecast(double lat, double lon) async {
+    asked.add((lat, lon));
+    await gate?.future;
+    final e = error;
+    if (e != null) throw e;
+    return days ??
+        {
+          for (var i = 0; i < count; i++)
+            from.adding(days: i): DayWeather(
+              day: from.adding(days: i),
+              condition: WeatherCondition.rain,
+              morning: 9,
+              evening: 14,
+            ),
+        };
+  }
+
+  @override
+  Future<List<WeatherPlace>> search(String name) async {
+    searched.add(name);
+    final e = error;
+    if (e != null) throw e;
+    return towns;
+  }
+}
+
+/// The position of this device in a test.
+class FakeLocation implements LocationSource {
+  FakeLocation([this.answer = const LocationAnswer.at(51.5072, -0.1276)]);
+
+  LocationAnswer answer;
+  int asked = 0;
+
+  @override
+  Future<LocationAnswer> here() async {
+    asked += 1;
+    return answer;
+  }
+}

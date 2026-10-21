@@ -26,6 +26,9 @@ Future<void> main() async {
     sync: sync,
     // GitHub tells Grove when a newer version is out.
     releases: GitHubReleaseSource(),
+    // The weather at the top of each day.
+    weather: OpenMeteoSource(),
+    location: const DeviceLocationSource(),
   );
   AppServices.forThisDevice(store).start();
   runApp(
