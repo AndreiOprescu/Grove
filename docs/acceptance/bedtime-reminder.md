@@ -2,7 +2,7 @@
 
 The owner asked: "use some sort of detection system to figure out when I am awake, and when I go to sleep. Maybe by using screen time detections. maybe try to do some sort of statistical approach, because maybe on certain days I go to sleep earlier or later than others. with that, I want you to send me a friendly notification, on my phone and on my laptop that I should plan my next day. Tell me like 1 hour and 30 minutes before I would normally go to sleep. The sleep and wakeup lines arent always accurate so dont just rely on those"
 
-The owner's answers of 2026-10-22 are decisions 1–9 below. Decision record: `docs/adr/0005-bedtime-from-device-activity.md`. Words: `CONTEXT.md` › Sleep. Rules decided on the way: `docs/assumptions.md` (lines "2026-10-22 · Bedtime reminder").
+The owner's answers of 2026-10-22 are decisions 1–9 below. Decision record: `docs/adr/0006-bedtime-from-device-activity.md`. Words: `CONTEXT.md` › Sleep. Rules decided on the way: `docs/assumptions.md` (lines "2026-10-22 · Bedtime reminder").
 
 Branch `feat/next-version` (draft PR #48, version 1.2.0).
 

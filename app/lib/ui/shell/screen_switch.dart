@@ -15,6 +15,7 @@ IconData screenIcon(Screen screen) => switch (screen) {
   Screen.notes => Icons.sticky_note_2_outlined,
   Screen.garden => Icons.eco_outlined,
   Screen.persona => Icons.person_outline,
+  Screen.agents => Icons.auto_awesome_outlined,
 };
 
 /// The screens of the window, in the strip at the top of a desktop window.
@@ -27,9 +28,13 @@ class ScreenSwitch extends StatelessWidget {
 
   /// The width of the switch with a word beside each picture. The words
   /// are measured in the bold style, the widest one.
-  static double labelledWidth(GroveTheme theme, TextScaler scaler) {
-    var width = 2.0 * 2 + 2 * 1 + 2.0 * (Screen.values.length - 1);
-    for (final screen in Screen.values) {
+  static double labelledWidth(
+    GroveTheme theme,
+    TextScaler scaler, [
+    List<Screen> screens = Screen.always,
+  ]) {
+    var width = 2.0 * 2 + 2 * 1 + 2.0 * (screens.length - 1);
+    for (final screen in screens) {
       final text = TextPainter(
         text: TextSpan(
           text: screen.title,
@@ -52,6 +57,7 @@ class ScreenSwitch extends StatelessWidget {
         final need = labelledWidth(
           GroveTheme.of(context),
           MediaQuery.textScalerOf(context),
+          model.screens,
         );
         return _switch(context, labels: need <= box.maxWidth);
       },
@@ -63,7 +69,7 @@ class ScreenSwitch extends StatelessWidget {
     final showLabels = labels;
     return PillGroup(
       children: [
-        for (final screen in Screen.values)
+        for (final screen in model.screens)
           ShellButton(
             key: ValueKey('screen-${screen.name}'),
             label: screen.title,
@@ -119,7 +125,7 @@ class PhoneNavBar extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          for (final screen in Screen.values)
+          for (final screen in model.screens)
             Expanded(
               child: ShellButton(
                 key: ValueKey('screen-${screen.name}'),

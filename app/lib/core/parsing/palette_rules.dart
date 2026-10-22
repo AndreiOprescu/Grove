@@ -14,6 +14,7 @@ enum PaletteCommandId {
   showNotes,
   showGarden,
   showPersona,
+  showAgents,
   toggleTheme,
   toggleMotion,
 }
@@ -152,6 +153,13 @@ abstract final class PaletteRules {
       keywords: ['skills', 'level', 'points'],
       shortcut: '⌘6',
       symbol: 'person',
+    ),
+    PaletteCommand(
+      id: PaletteCommandId.showAgents,
+      title: 'Open agents',
+      keywords: ['agent', 'chat', 'helper', 'ai'],
+      shortcut: '⌘7',
+      symbol: 'sparkles',
     ),
     PaletteCommand(
       id: PaletteCommandId.toggleTheme,

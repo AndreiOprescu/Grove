@@ -7,6 +7,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart' show PlatformException;
 
 import '../core/grove_core.dart';
+import '../core/agent/agent_context.dart';
 import '../core/agent/agent_models.dart';
 import '../core/agent/agent_policy.dart';
 import '../core/agent/agent_runner.dart';
@@ -272,7 +273,7 @@ class AppStore extends ChangeNotifier {
   final _agent = _AgentState();
 
   /// The use history of this device, which tells when the owner fell
-  /// asleep (ADR 0005). Null: this device does not learn nights. See
+  /// asleep (ADR 0006). Null: this device does not learn nights. See
   /// `store_sleep.dart`.
   final ActivitySource? activitySource;
 
@@ -497,6 +498,8 @@ class AppStore extends ChangeNotifier {
   Screen _screen = Screen.today;
   Screen get screen => _screen;
   set screen(Screen v) {
+    // The Agents screen shows only when the agent is on.
+    if (v == Screen.agents && !agentEnabled) return;
     final old = _screen;
     _screen = v;
     if (v == Screen.today && old != Screen.today) _selectedDay = todayScreenDay;

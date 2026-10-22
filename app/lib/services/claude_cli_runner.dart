@@ -8,8 +8,9 @@ import '../core/agent/agent_runner.dart';
 /// The real door to the `claude` command on a computer (ADR 0004).
 ///
 /// - `claude` is looked for only in known places, never on the PATH.
-/// - It starts with no shell, in a new empty temp folder, which is deleted
-///   at the end.
+/// - It starts with no shell, in a new temp folder, which is deleted at the
+///   end. The folder is empty but for copies of the files the person linked
+///   (ADR 0005).
 /// - Cancel and the time limit stop it and the processes it started (its
 ///   MCP servers, found with `pgrep -P`): SIGTERM, then SIGKILL after
 ///   [killWait]. On Windows `taskkill /T /F` stops it and its children.
@@ -117,7 +118,25 @@ class ClaudeCliRunner extends AgentRunner {
     List<String> args, {
     required String stdin,
     required Duration timeout,
-  }) => _CliProcess(this, exe, args, stdin, timeout).._run();
+    List<AgentFile> files = const [],
+    void Function(String line)? onLine,
+  }) => _CliProcess(this, exe, args, stdin, timeout, files, onLine).._run();
+
+  /// Copies [files] into [dir], with the names of
+  /// [AgentPolicy.fileNames], the ones the prompt gives. A file that is gone
+  /// is left out.
+  static Future<void> _copyFiles(Directory dir, List<AgentFile> files) async {
+    final names = AgentPolicy.fileNames([for (final f in files) f.name]);
+    for (final (i, f) in files.indexed) {
+      final name = names[i];
+      try {
+        await File(f.path).copy('${dir.path}${Platform.pathSeparator}$name');
+      } on FileSystemException {
+        // Gone: the agent is told the names it can read, and this one is
+        // not there.
+      }
+    }
+  }
 
   @override
   Future<String?> probeInit(String exe, List<String> args) async {
@@ -242,13 +261,23 @@ class ClaudeCliRunner extends AgentRunner {
 }
 
 class _CliProcess implements AgentProcess {
-  _CliProcess(this.runner, this.exe, this.args, this.stdin, this.timeout);
+  _CliProcess(
+    this.runner,
+    this.exe,
+    this.args,
+    this.stdin,
+    this.timeout,
+    this.files,
+    this.onLine,
+  );
 
   final ClaudeCliRunner runner;
   final String exe;
   final List<String> args;
   final String stdin;
   final Duration timeout;
+  final List<AgentFile> files;
+  final void Function(String line)? onLine;
 
   final _done = Completer<AgentRunOutput>();
   Process? _process;
@@ -284,6 +313,7 @@ class _CliProcess implements AgentProcess {
     var result = const AgentRunOutput(exitCode: -1, stdout: '', stderr: '');
     try {
       tmp = await Directory.systemTemp.createTemp('grove-agent-');
+      await ClaudeCliRunner._copyFiles(tmp, files);
       if (_cancelled) return;
       final p = _process = await Process.start(
         exe,
@@ -298,10 +328,28 @@ class _CliProcess implements AgentProcess {
         _timedOut = true;
         _stopNow();
       });
+      // The output is kept as it came. Each whole line also goes to
+      // [onLine] at once, so the steps show while the run works.
+      var rest = '';
+      void say(String l) {
+        if (onLine == null || l.trim().isEmpty) return;
+        try {
+          onLine!(l);
+        } on Object {
+          // A step that could not be saved does not stop the run.
+        }
+      }
+
       final outDone = p.stdout
           .transform(utf8.decoder)
-          .listen(out.write, onError: (_) {})
+          .listen((chunk) {
+            out.write(chunk);
+            final lines = '$rest$chunk'.split('\n');
+            rest = lines.removeLast();
+            lines.forEach(say);
+          }, onError: (_) {})
           .asFuture<void>()
+          .then((_) => say(rest))
           .catchError((_) {});
       final errDone = p.stderr
           .transform(utf8.decoder)

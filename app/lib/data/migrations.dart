@@ -2,7 +2,7 @@ import 'database.dart';
 import 'sync_schema.dart';
 
 /// Ordered schema migrations. Index N takes the database from user_version N to N+1.
-/// 1 to 7 are the Mac app's migrations, word for word. 8 to 12 are in this
+/// 1 to 7 are the Mac app's migrations, word for word. 8 to 13 are in this
 /// app only (the Mac app has no subtasks of a goal, no persona, no
 /// deadlines and no agent). The
 /// export file carries the number, and an app refuses a file with a higher
@@ -236,16 +236,77 @@ abstract final class Migrations {
     CREATE INDEX agent_jobs_task ON agent_jobs(task_id);
     CREATE INDEX agent_jobs_status ON agent_jobs(status);
     ''',
+    // 13 — chats with the agent (ADR 0005). A job may have no task (the
+    // [_before] step makes `task_id` optional first). It gets a title, the
+    // plan switch and its links. Its messages, steps and results are rows
+    // of `agent_events`, which sync, so a phone can watch a run.
+    '''
+    ALTER TABLE agent_jobs ADD COLUMN title TEXT NOT NULL DEFAULT '';
+    ALTER TABLE agent_jobs ADD COLUMN plan_access INTEGER NOT NULL DEFAULT 0;
+    ALTER TABLE agent_jobs ADD COLUMN links_json TEXT NOT NULL DEFAULT '[]';
+    CREATE TABLE agent_events (
+      id TEXT PRIMARY KEY,
+      job_id TEXT NOT NULL REFERENCES agent_jobs(id) ON DELETE CASCADE,
+      line_no INTEGER NOT NULL DEFAULT 0,
+      kind TEXT NOT NULL DEFAULT 'step',
+      label TEXT NOT NULL DEFAULT '',
+      body TEXT NOT NULL DEFAULT '',
+      created_at TEXT NOT NULL, updated_at TEXT NOT NULL
+    );
+    CREATE INDEX agent_events_job ON agent_events(job_id, line_no);
+    ''',
   ];
+
+  /// Steps in Dart that run right before the migration at the same index,
+  /// in its transaction: work that plain SQL cannot do.
+  static final Map<int, void Function(Database db)> _before = {
+    12: _jobTaskOptional,
+  };
 
   static void run(Database db) {
     final current = db.userVersion;
     for (var index = current; index < all.length; index++) {
       db.transaction(() {
+        _before[index]?.call(db);
         db.executeScript(all[index]);
         db.userVersion = index + 1;
       });
     }
+  }
+
+  /// Makes `agent_jobs.task_id` optional. SQLite cannot change a column, so
+  /// the table is made again from its own text, with every column it has
+  /// now (the sync columns too, when sync migration 6 added them), and the
+  /// rows are copied.
+  static void _jobTaskOptional(Database db) {
+    final sql = db.queryOne(
+      "SELECT sql FROM sqlite_master WHERE type = 'table' "
+      "AND name = 'agent_jobs'",
+      const [],
+      (r) => r.text(0),
+    );
+    if (sql == null) return;
+    final optional = sql.replaceFirst(
+      RegExp(r'task_id\s+TEXT\s+NOT\s+NULL', caseSensitive: false),
+      'task_id TEXT',
+    );
+    if (optional == sql) return;
+    final columns = db
+        .query('PRAGMA table_info(agent_jobs)', const [], (r) => r.text(1))
+        .join(', ');
+    db.executeScript(
+      [
+        optional.replaceFirst(
+          RegExp(r'CREATE TABLE\s+"?agent_jobs"?', caseSensitive: false),
+          'CREATE TABLE agent_jobs_new',
+        ),
+        'INSERT INTO agent_jobs_new ($columns) SELECT $columns FROM agent_jobs',
+        'DROP TABLE agent_jobs',
+        'ALTER TABLE agent_jobs_new RENAME TO agent_jobs',
+        'CREATE INDEX agent_jobs_task ON agent_jobs(task_id)',
+        'CREATE INDEX agent_jobs_status ON agent_jobs(status)',
+      ].join(';\n'),
+    );
   }
 }
 
@@ -256,7 +317,8 @@ abstract final class SyncMigrations {
   /// The tables the sync columns go on. The same list as `DataExport.tables`.
   /// A table comes after the tables it points at: the sync sends them in
   /// this order. `goal_subtasks` points at `goals` and at `events`;
-  /// `agent_jobs` at `tasks` and at `notes`.
+  /// `agent_jobs` at `tasks` and at `notes`; `agent_events` at
+  /// `agent_jobs`.
   static const syncedTables = [
     'lists',
     'notes',
@@ -269,6 +331,7 @@ abstract final class SyncMigrations {
     'rewards',
     'earnings',
     'agent_jobs',
+    'agent_events',
     'event_exdates',
     'links',
     'tags',
@@ -288,6 +351,7 @@ abstract final class SyncMigrations {
     'goal_subtasks',
     'skills',
     'agent_jobs',
+    'agent_events',
   };
 
   /// The columns each sync migration added, by table. The export leaves them out.
@@ -333,6 +397,9 @@ abstract final class SyncMigrations {
     // 6 — `agent_jobs` (shared migration 12) joins the sync, like
     // `block_subtasks`.
     (db) => SyncSchema.addTable(db, 'agent_jobs'),
+    // 7 — `agent_events` (shared migration 13) joins the sync, in the same
+    // way.
+    (db) => SyncSchema.addTable(db, 'agent_events'),
   ];
 
   static const _key = 'schema';

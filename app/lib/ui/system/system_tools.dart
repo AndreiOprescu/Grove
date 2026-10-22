@@ -44,6 +44,10 @@ Future<List<PickedImage>> pickImageFiles() async {
   ];
 }
 
+/// The window of "Add a file…" in a chat of the agent: any one file. Gives
+/// its path, or null when the window was closed.
+Future<String?> pickAgentFile() async => (await openFile())?.path;
+
 /// Opens a web address in the browser of the system. Only `http` and
 /// `https`; false for any other address, and when the system cannot.
 Future<bool> openInBrowser(Uri url) async {

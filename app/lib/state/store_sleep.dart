@@ -22,7 +22,7 @@ class _SleepState {
   String? loginProblem;
 }
 
-/// The bedtime reminder (ADR 0005): Grove learns when the owner usually
+/// The bedtime reminder (ADR 0006): Grove learns when the owner usually
 /// falls asleep from the use of the phone and the Mac, and asks to plan
 /// tomorrow some time before.
 ///

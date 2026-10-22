@@ -1,4 +1,4 @@
-# ADR 0005 · Grove learns the usual bedtime from device use, and only night times sync
+# ADR 0006 · Grove learns the usual bedtime from device use, and only night times sync
 
 Status: Proposed (2026-10-22; the owner said yes to it in the plan of 2026-10-22, the owner marks it Accepted)
 

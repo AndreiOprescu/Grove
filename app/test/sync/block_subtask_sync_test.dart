@@ -135,6 +135,7 @@ void main() {
         DROP TABLE earnings;
         DROP TABLE rewards;
         DROP TABLE skills;
+        DROP TABLE agent_events;
         DROP TABLE agent_jobs;
         PRAGMA user_version = 6;
         UPDATE sync_meta SET value = '2' WHERE key = 'schema';

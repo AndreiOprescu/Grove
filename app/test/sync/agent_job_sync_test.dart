@@ -6,8 +6,9 @@ import 'package:sqlite3/sqlite3.dart' as raw;
 import 'support.dart';
 
 // The jobs of the agent (table `agent_jobs`, shared migration 12, sync
-// migration 6) sync like every other row: a phone makes a job, the Mac runs
-// it, and the phone sees the result (ADR 0004).
+// migration 6) and their steps (table `agent_events`, shared migration 13,
+// sync migration 7) sync like every other row: a phone makes a job, the Mac
+// runs it, and the phone sees the steps and the result (ADR 0004, 0005).
 
 void main() {
   late MemoryRemote remote;
@@ -104,8 +105,9 @@ void main() {
     );
     // Take the database back to what the deadlines build makes: shared
     // migrations 1 to 11 and sync migrations 1 to 5. That build has no
-    // sync migration of its own, so only the agent table and its sync goes.
+    // sync migration of its own, so only the agent tables and their sync go.
     db.executeScript('''
+      DROP TABLE agent_events;
       DROP TABLE agent_jobs;
       PRAGMA user_version = 11;
       UPDATE sync_meta SET value = '5' WHERE key = 'schema';
@@ -148,9 +150,9 @@ void main() {
 
     db = Database.open(path);
     addTearDown(db.close);
-    expect(db.userVersion, 12);
+    expect(db.userVersion, 13);
     expect(db.userVersion, Migrations.all.length);
-    expect(db.syncVersion, 6);
+    expect(db.syncVersion, 7);
     expect(db.syncVersion, SyncMigrations.all.length);
     final cols = db.query(
       'PRAGMA table_info(agent_jobs)',
@@ -170,6 +172,19 @@ void main() {
       'sync_agent_jobs_insert',
       'sync_agent_jobs_update',
     ]);
+    expect(
+      db.query(
+        "SELECT name FROM sqlite_master WHERE type = 'trigger' "
+        "AND tbl_name = 'agent_events' ORDER BY name",
+        const [],
+        (r) => r.text(0),
+      ),
+      [
+        'sync_agent_events_delete',
+        'sync_agent_events_insert',
+        'sync_agent_events_update',
+      ],
+    );
     // The deadline is kept, and its column is still watched by the sync.
     final r = Repos(db);
     expect(r.events.get('E1')!.isDeadline, isTrue);

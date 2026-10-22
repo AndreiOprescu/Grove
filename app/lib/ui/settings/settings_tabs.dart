@@ -616,7 +616,7 @@ class _NotificationSettingsState extends State<NotificationSettings> {
     );
   }
 
-  /// The bedtime reminder (ADR 0005). The global switch turns it off too.
+  /// The bedtime reminder (ADR 0006). The global switch turns it off too.
   Widget _bedtime() {
     final all = store.notifyEnabled;
     final on = store.bedtimeEnabled;

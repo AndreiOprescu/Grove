@@ -61,7 +61,7 @@ abstract final class SettingsRules {
         NotifyAuthorization.denied => 'Notifications are off for Grove. Turn them on in System Settings to get reminders.',
       };
 
-  // The bedtime reminder (ADR 0005)
+  // The bedtime reminder (ADR 0006)
 
   /// 60 → "1 hour before", 90 → "1½ hours before"
   static String bedtimeLeadText(int minutes) => switch (minutes) {

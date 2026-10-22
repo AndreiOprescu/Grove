@@ -46,6 +46,24 @@ abstract class AgentProcess {
   void cancel();
 }
 
+/// A file that goes into the folder of a run, so the agent can read it.
+class AgentFile {
+  const AgentFile({required this.name, required this.path});
+
+  /// The name in the folder of the run.
+  final String name;
+
+  /// Where the file is on this computer.
+  final String path;
+
+  @override
+  bool operator ==(Object other) =>
+      other is AgentFile && other.name == name && other.path == path;
+
+  @override
+  int get hashCode => Object.hash(name, path);
+}
+
 /// The door to the `claude` command (ADR 0004). Grove starts it with no
 /// shell, in an empty folder. A test uses a fake one.
 abstract class AgentRunner {
@@ -53,12 +71,16 @@ abstract class AgentRunner {
   Future<String?> locate();
 
   /// Starts [exe] with [args] and writes [stdin] to it, then closes stdin.
-  /// The process is stopped after [timeout].
+  /// The process is stopped after [timeout]. [files] are copied into the
+  /// folder of the run first (ADR 0005). [onLine] gets each line of the
+  /// output while the run goes on.
   AgentProcess start(
     String exe,
     List<String> args, {
     required String stdin,
     required Duration timeout,
+    List<AgentFile> files = const [],
+    void Function(String line)? onLine,
   });
 
   /// Starts [exe] with [args], returns the first line it prints, and stops
@@ -78,6 +100,8 @@ class NullAgentRunner extends AgentRunner {
     List<String> args, {
     required String stdin,
     required Duration timeout,
+    List<AgentFile> files = const [],
+    void Function(String line)? onLine,
   }) => throw UnsupportedError('This device cannot run the agent.');
 
   @override

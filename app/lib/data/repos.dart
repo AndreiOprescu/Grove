@@ -11,6 +11,7 @@ import '../core/model/recurrence.dart';
 import '../core/model/task.dart';
 import '../core/parsing/note_parser.dart';
 import '../core/parsing/reference_parser.dart';
+import 'agent_event_repo.dart';
 import 'agent_job_repo.dart';
 import 'attachment_repo.dart';
 import 'database.dart';
@@ -1065,7 +1066,8 @@ class Repos {
       skills = SkillRepo(db),
       rewards = RewardRepo(db),
       earnings = EarningRepo(db),
-      agentJobs = AgentJobRepo(db) {
+      agentJobs = AgentJobRepo(db),
+      agentEvents = AgentEventRepo(db) {
     tasks = TaskRepo(db, search);
     events = EventRepo(db, search);
     notes = NoteRepo(db, search);
@@ -1096,6 +1098,7 @@ class Repos {
   final RewardRepo rewards;
   final EarningRepo earnings;
   final AgentJobRepo agentJobs;
+  final AgentEventRepo agentEvents;
   late final ReferenceIndexer refs;
 
   /// Throws the search index away and builds it again from the tables.

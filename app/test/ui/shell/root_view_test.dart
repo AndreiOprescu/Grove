@@ -33,7 +33,7 @@ void main() {
       await pumpApp(tester, still(), size: desktopSize);
       expect(find.byType(ScreenSwitch), findsOneWidget);
       expect(find.byType(PhoneNavBar), findsNothing);
-      for (final s in Screen.values) {
+      for (final s in Screen.always) {
         expect(
           find.descendant(of: screenButton(s), matching: find.text(s.title)),
           findsOneWidget,
@@ -173,7 +173,7 @@ void main() {
 
     testWidgets('a nav button is big enough for a finger', (tester) async {
       await pumpApp(tester, still(), size: phoneSize);
-      for (final s in Screen.values) {
+      for (final s in Screen.always) {
         final size = tester.getSize(screenButton(s));
         expect(size.height, greaterThanOrEqualTo(44), reason: s.name);
         expect(size.width, greaterThanOrEqualTo(44), reason: s.name);

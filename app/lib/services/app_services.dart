@@ -96,7 +96,7 @@ class AppServices {
     }
   }
 
-  /// The use history of this device, for the bedtime reminder (ADR 0005):
+  /// The use history of this device, for the bedtime reminder (ADR 0006):
   /// the phone (Android) and the Mac. Null on the others.
   static ActivitySource? activitySource() {
     if (kIsWeb) return null;
