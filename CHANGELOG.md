@@ -7,6 +7,7 @@ makes the next version. Each line is one feature. The newest version is first.
 
 ## 1.2.0 · 2026-10-21
 
+- **Plan tomorrow:** Grove learns when you usually fall asleep from when you stop using your phone and Mac, and reminds you to plan tomorrow before bed. On the Mac, closing the window keeps Grove in the menu bar, and it opens at login.
 - **No empty day notes:** Grove no longer makes a note for a day by itself. Press "Start a note" to make one. A day note you leave empty is deleted.
 - **Weather low and high:** each day shows its lowest and highest temperature.
 

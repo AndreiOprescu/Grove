@@ -471,6 +471,106 @@ void main() {
       await showTab(tester, SettingsTab.notifications);
       expect(store.notifyStatus, NotifyAuthorization.allowed);
     });
+
+    testWidgets('the bedtime switch and its lead', (tester) async {
+      final store = _notifyStore(FakeNotifier());
+      await openSettings(tester, store, tab: SettingsTab.notifications);
+      expect(switchOn(tester, 'settings-bedtime'), isTrue);
+      expect(
+        inSettings(find.text('Remind me to plan tomorrow before bed')),
+        findsOneWidget,
+      );
+      expect(
+        inSettings(
+          find.text(
+            'Tonight: usually asleep around 23:00, reminder at 21:30. '
+            'Only these times sync, never what you used.',
+          ),
+        ),
+        findsOneWidget,
+      );
+
+      await pick(tester, 'settings-bedtime-lead', '2 hours before');
+      expect(store.bedtimeLead, 120);
+      expect(
+        inSettings(find.textContaining('reminder at 21:00')),
+        findsOneWidget,
+      );
+
+      await tapIn(tester, keyed('settings-bedtime'));
+      expect(store.bedtimeEnabled, isFalse);
+      // The picker is off: a tap opens no list.
+      await tester.tap(keyed('settings-bedtime-lead'), warnIfMissed: false);
+      await tester.pumpAndSettle();
+      expect(find.text('1 hour before'), findsNothing);
+      await _endReminders(tester, store);
+    });
+
+    testWidgets('the Usage access card shows only with the phone source', (
+      tester,
+    ) async {
+      final activity = FakeActivity(answer: ActivityAccess.needsGrant);
+      final store = makeStore(
+        prefs: MemoryPrefs()..set('appearance.motion', false),
+        clock: WallTime(day: wednesday, minute: 10 * 60),
+        activity: activity,
+      )..screen = Screen.planner;
+      await openSettings(tester, store, tab: SettingsTab.notifications);
+      expect(keyed('settings-usage-access'), findsOneWidget);
+      expect(
+        inSettings(
+          find.text('Turn on Usage access so Grove can learn when you sleep'),
+        ),
+        findsOneWidget,
+      );
+      await tapIn(tester, keyed('settings-usage-access-open'));
+      expect(activity.opened, 1);
+
+      // The person turned it on and came back.
+      activity.answer = ActivityAccess.granted;
+      await store.refreshActivityAccess();
+      await tester.pumpAndSettle();
+      expect(inSettings(find.text('Usage access is on')), findsOneWidget);
+      expect(keyed('settings-open-at-login'), findsNothing);
+    });
+
+    testWidgets('a computer has no Usage access card', (tester) async {
+      final store = makeStore(
+        prefs: MemoryPrefs()..set('appearance.motion', false),
+        clock: WallTime(day: wednesday, minute: 10 * 60),
+        activity: FakeActivity(name: 'mac'),
+      )..screen = Screen.planner;
+      await openSettings(tester, store, tab: SettingsTab.notifications);
+      expect(keyed('settings-usage-access'), findsNothing);
+    });
+
+    testWidgets('"Open Grove at login" shows only on the Mac', (tester) async {
+      final login = FakeLoginItem(LoginItemStatus.enabled);
+      final store = makeStore(
+        prefs: MemoryPrefs()..set('appearance.motion', false),
+        clock: WallTime(day: wednesday, minute: 10 * 60),
+        loginItem: login,
+      )..screen = Screen.planner;
+      await openSettings(tester, store, tab: SettingsTab.notifications);
+      expect(switchOn(tester, 'settings-open-at-login'), isTrue);
+      expect(inSettings(find.text('Open Grove at login')), findsOneWidget);
+      expect(
+        inSettings(find.textContaining('keeps Grove in the menu bar')),
+        findsOneWidget,
+      );
+      expect(keyed('settings-usage-access'), findsNothing);
+
+      await tapIn(tester, keyed('settings-open-at-login'));
+      expect(login.sets, [false]);
+      expect(switchOn(tester, 'settings-open-at-login'), isFalse);
+    });
+
+    testWidgets('no login item: no "Open Grove at login"', (tester) async {
+      final store = _notifyStore(FakeNotifier());
+      await openSettings(tester, store, tab: SettingsTab.notifications);
+      expect(keyed('settings-open-at-login'), findsNothing);
+      expect(keyed('settings-usage-access'), findsNothing);
+    });
   });
 
   group('Agent', () {

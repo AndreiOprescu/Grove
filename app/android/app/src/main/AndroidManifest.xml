@@ -1,10 +1,15 @@
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
     <!-- The sync with the account (Supabase) goes over the internet. -->
     <uses-permission android:name="android.permission.INTERNET"/>
     <!-- Reminders are scheduled again after the phone starts. -->
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>
     <!-- The weather of the place of the phone. The approximate place is enough. -->
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION"/>
+    <!-- Sleep times: when the screen went on and off. The user turns it on
+         in "Usage access"; only the times are read, no app names. -->
+    <uses-permission android:name="android.permission.PACKAGE_USAGE_STATS"
+        tools:ignore="ProtectedPermissions"/>
     <application
         android:label="Grove"
         android:name="${applicationName}"

@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:grove/core/model/note.dart';
 import 'package:grove/core/planner/planner_math.dart';
+import 'package:grove/core/services/bedtime_planner.dart';
 import 'package:grove/core/services/reminder_planner.dart';
 import 'package:grove/data/data.dart'
     show DataExport, ExportFailure, ExportSummary;
@@ -514,7 +515,20 @@ class _NotificationSettingsState extends State<NotificationSettings> {
     super.initState();
     // The person can change the permission in the settings of the system.
     unawaited(store.refreshNotifyStatus());
+    // And Usage access, and the login items of the Mac.
+    unawaited(store.refreshActivityAccess());
+    unawaited(store.refreshOpenAtLogin());
   }
+
+  /// A control that is grey and takes no taps when [on] is false.
+  static Widget _greyed({required bool on, required Widget child}) =>
+      IgnorePointer(
+        ignoring: !on,
+        child: ExcludeSemantics(
+          excluding: !on,
+          child: Opacity(opacity: on ? 1 : 0.45, child: child),
+        ),
+      );
 
   void _setEnabled(bool on) {
     store.setNotifyEnabled(on);
@@ -544,21 +558,15 @@ class _NotificationSettingsState extends State<NotificationSettings> {
             ),
             SettingsRow(
               label: 'Remind me',
-              control: IgnorePointer(
-                ignoring: !on,
-                child: ExcludeSemantics(
-                  excluding: !on,
-                  child: Opacity(
-                    opacity: on ? 1 : 0.45,
-                    child: MenuPick<int>(
-                      key: const ValueKey('settings-notify-lead'),
-                      value: store.notifyLead,
-                      values: ReminderPlanner.leadChoices,
-                      name: SettingsRules.leadText,
-                      onPick: store.setNotifyLead,
-                      label: 'Remind me',
-                    ),
-                  ),
+              control: _greyed(
+                on: on,
+                child: MenuPick<int>(
+                  key: const ValueKey('settings-notify-lead'),
+                  value: store.notifyLead,
+                  values: ReminderPlanner.leadChoices,
+                  name: SettingsRules.leadText,
+                  onPick: store.setNotifyLead,
+                  label: 'Remind me',
                 ),
               ),
             ),
@@ -568,6 +576,13 @@ class _NotificationSettingsState extends State<NotificationSettings> {
             ),
           ],
         ),
+        _gap,
+        _bedtime(),
+        if (store.activitySource?.name == 'android') ...[
+          _gap,
+          _usageAccess(theme),
+        ],
+        if (store.loginItem != null) ...[_gap, _openAtLogin(theme)],
         _gap,
         SettingsSection(
           title: 'Permission',
@@ -597,6 +612,112 @@ class _NotificationSettingsState extends State<NotificationSettings> {
               ),
           ],
         ),
+      ],
+    );
+  }
+
+  /// The bedtime reminder (ADR 0005). The global switch turns it off too.
+  Widget _bedtime() {
+    final all = store.notifyEnabled;
+    final on = store.bedtimeEnabled;
+    final tonight = store.usualBedtimeTonight;
+    return SettingsSection(
+      title: 'Bedtime',
+      children: [
+        _greyed(
+          on: all,
+          child: SettingsSwitchRow(
+            switchKey: const ValueKey('settings-bedtime'),
+            label: 'Remind me to plan tomorrow before bed',
+            value: on,
+            onChanged: store.setBedtimeEnabled,
+          ),
+        ),
+        SettingsRow(
+          label: 'Remind me',
+          control: _greyed(
+            on: all && on,
+            child: MenuPick<int>(
+              key: const ValueKey('settings-bedtime-lead'),
+              value: store.bedtimeLead,
+              values: BedtimePlanner.leadChoices,
+              name: SettingsRules.bedtimeLeadText,
+              onPick: store.setBedtimeLead,
+              label: 'Remind me before bed',
+            ),
+          ),
+        ),
+        SettingsCaption(
+          SettingsRules.bedtimeText(
+            bedtime: tonight.bedtime,
+            reminder: all && on ? tonight.reminder : null,
+          ),
+        ),
+      ],
+    );
+  }
+
+  /// Android only: Grove reads the use of the phone with Usage access.
+  Widget _usageAccess(GroveTheme theme) {
+    final granted = store.activityAccess == ActivityAccess.granted;
+    final words = granted
+        ? SettingsRules.usageAccessOnText
+        : SettingsRules.usageAccessOffText;
+    return SettingsSection(
+      key: const ValueKey('settings-usage-access'),
+      title: 'Usage access',
+      children: [
+        Semantics(
+          container: true,
+          label: granted ? words : 'Problem: $words',
+          excludeSemantics: true,
+          child: Text(
+            words,
+            style: theme
+                .body(13)
+                .copyWith(
+                  color: granted ? theme.muted : TaskPalette.color('orange'),
+                ),
+          ),
+        ),
+        if (!granted)
+          Align(
+            alignment: Alignment.centerLeft,
+            child: CardButton(
+              key: const ValueKey('settings-usage-access-open'),
+              label: 'Open Usage access settings',
+              onTap: () => unawaited(store.openActivityAccessSettings()),
+            ),
+          ),
+      ],
+    );
+  }
+
+  /// The Mac: Grove keeps running in the menu bar, and opens at login.
+  Widget _openAtLogin(GroveTheme theme) {
+    final problem = store.openAtLoginProblem;
+    return SettingsSection(
+      title: 'On this Mac',
+      children: [
+        SettingsSwitchRow(
+          switchKey: const ValueKey('settings-open-at-login'),
+          label: 'Open Grove at login',
+          value: store.openAtLogin == LoginItemStatus.enabled,
+          onChanged: (on) => unawaited(store.setOpenAtLogin(on)),
+        ),
+        if (problem != null)
+          Semantics(
+            container: true,
+            label: 'Problem: $problem',
+            excludeSemantics: true,
+            child: Text(
+              problem,
+              style: theme
+                  .body(13)
+                  .copyWith(color: TaskPalette.color('orange')),
+            ),
+          ),
+        const SettingsCaption(SettingsRules.openAtLoginText),
       ],
     );
   }

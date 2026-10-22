@@ -27,8 +27,9 @@ class Reminder {
   /// The day to open on a click.
   final DayKey day;
 
-  /// What to open on a click. A block opens its task.
-  final ItemRef ref;
+  /// What to open on a click. A block opens its task. Null: the click opens
+  /// the planner on [day] (a bedtime reminder).
+  final ItemRef? ref;
 
   @override
   bool operator ==(Object other) =>
@@ -111,11 +112,18 @@ abstract final class ReminderPlanner {
     }
 
     final future = all.where((r) => r.fireAt.compareTo(now) > 0).toList()
-      ..sort((a, b) {
-        final byTime = a.fireAt.compareTo(b.fireAt);
-        return byTime != 0 ? byTime : a.id.compareTo(b.id);
-      });
+      ..sort(_byTime);
     return future.take(limit).toList();
+  }
+
+  /// Two lists in one, in time order; the same time sorts by id. Plan the
+  /// others with `limit - bedtime.length`, so the total stays at [limit].
+  static List<Reminder> joined(List<Reminder> a, List<Reminder> b) =>
+      [...a, ...b]..sort(_byTime);
+
+  static int _byTime(Reminder a, Reminder b) {
+    final byTime = a.fireAt.compareTo(b.fireAt);
+    return byTime != 0 ? byTime : a.id.compareTo(b.id);
   }
 
   /// [time] moved by some minutes, over midnight too.

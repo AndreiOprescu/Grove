@@ -45,6 +45,8 @@ AppStore makeStore({
   WeatherSource? weather,
   LocationSource? location,
   AgentRunner? agentRunner,
+  ActivitySource? activity,
+  LoginItem? loginItem,
 }) {
   final s = AppStore(
     repos: repos ?? Repos(Database.inMemory()),
@@ -54,6 +56,8 @@ AppStore makeStore({
     weatherSource: weather,
     locationSource: location,
     agentRunner: agentRunner,
+    activitySource: activity,
+    loginItem: loginItem,
   );
   s.clockOverride = clock;
   addTearDown(s.dispose);
@@ -340,5 +344,73 @@ class FakeAgentRunner extends AgentRunner {
     final out = output;
     if (out != null) p.finish(out);
     return p;
+  }
+}
+
+/// The use history of a device in a test: the events the test puts in it.
+class FakeActivity implements ActivitySource {
+  FakeActivity({this.name = 'android', this.answer = ActivityAccess.granted});
+
+  @override
+  final String name;
+
+  ActivityAccess answer;
+  final List<ActivityEvent> log = [];
+  DateTime? alarm;
+
+  /// How many times the store read the events, and opened the system page.
+  int reads = 0;
+  int opened = 0;
+
+  final _changes = StreamController<void>.broadcast();
+
+  /// The device is used again (the Mac woke up).
+  void used() => _changes.add(null);
+
+  /// One use from [from] to [to].
+  void use(DateTime from, DateTime to) => log
+    ..add(ActivityEvent(from, ActivitySignal.useStart))
+    ..add(ActivityEvent(to, ActivitySignal.useEnd));
+
+  @override
+  Future<ActivityAccess> access() async => answer;
+
+  @override
+  Future<void> openAccessSettings() async => opened += 1;
+
+  @override
+  Future<List<ActivityEvent>> events(DateTime from, DateTime to) async {
+    reads += 1;
+    return [
+      for (final e in log)
+        if (!e.at.isBefore(from) && !e.at.isAfter(to)) e,
+    ]..sort((a, b) => a.at.compareTo(b.at));
+  }
+
+  @override
+  Future<DateTime?> nextAlarm() async => alarm;
+
+  @override
+  Stream<void> get changes => _changes.stream;
+}
+
+/// "Open Grove at login" in a test.
+class FakeLoginItem implements LoginItem {
+  FakeLoginItem([this.now = LoginItemStatus.notRegistered]);
+
+  LoginItemStatus now;
+
+  /// Thrown by the next [set], as the Mac does when it says no.
+  Object? refusal;
+  final List<bool> sets = [];
+
+  @override
+  Future<LoginItemStatus> status() async => now;
+
+  @override
+  Future<LoginItemStatus> set(bool on) async {
+    sets.add(on);
+    if (refusal case final r?) throw r;
+    return now = on ? LoginItemStatus.enabled : LoginItemStatus.notRegistered;
   }
 }

@@ -7,11 +7,12 @@ import 'support.dart';
 const sunday = DayKey('2026-10-04');
 const monday = DayKey('2026-10-05');
 
+/// The bedtime reminder is off here: `sleep_store_test.dart` has its own tests.
 AppStore store({FakeNotifier? notifier, Prefs? prefs}) => makeStore(
   notifier: notifier ?? FakeNotifier(),
   prefs: prefs,
   clock: const WallTime(day: sunday, minute: 20 * 60),
-);
+)..setBedtimeEnabled(false);
 
 EventItem addEvent(
   AppStore s, {

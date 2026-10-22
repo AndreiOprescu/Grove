@@ -7,7 +7,9 @@ import '../state/state.dart';
 import 'app_window.dart';
 import 'backup_schedule.dart';
 import 'claude_cli_runner.dart';
+import 'device_activity_source.dart';
 import 'local_notifications_gateway.dart';
+import 'login_item.dart';
 import 'sync_schedule.dart';
 import 'system_notifier.dart';
 import 'tray_gateway.dart';
@@ -34,7 +36,8 @@ class AppServices {
     AppWindow window = const AppWindow(),
     void Function()? showWindow,
     void Function()? quit,
-  }) : _backup = BackupSchedule(store),
+  }) : _showWindow = showWindow ?? (() => unawaited(window.show())),
+       _backup = BackupSchedule(store),
        _sync = SyncSchedule(store),
        _updates = UpdateSchedule(store),
        _weather = WeatherSchedule(store),
@@ -93,7 +96,31 @@ class AppServices {
     }
   }
 
+  /// The use history of this device, for the bedtime reminder (ADR 0005):
+  /// the phone (Android) and the Mac. Null on the others.
+  static ActivitySource? activitySource() {
+    if (kIsWeb) return null;
+    switch (defaultTargetPlatform) {
+      case TargetPlatform.android:
+        return MethodChannelActivitySource(name: 'android');
+      case TargetPlatform.macOS:
+        return MethodChannelActivitySource(name: 'mac');
+      case TargetPlatform.iOS:
+      case TargetPlatform.windows:
+      case TargetPlatform.linux:
+      case TargetPlatform.fuchsia:
+        return null;
+    }
+  }
+
+  /// "Open Grove at login". Only the Mac has it.
+  static LoginItem? loginItem() =>
+      !kIsWeb && defaultTargetPlatform == TargetPlatform.macOS
+      ? const MethodChannelLoginItem()
+      : null;
+
   final AppStore store;
+  final void Function() _showWindow;
   final BackupSchedule _backup;
   final SyncSchedule _sync;
   final UpdateSchedule _updates;
@@ -110,6 +137,10 @@ class AppServices {
   void start() {
     if (_started) return;
     _started = true;
+    // A click on a reminder brings the window of a computer to the front.
+    if (_tray != null) store.bringToFront ??= _showWindow;
+    // Before the reminders: they wait for the nights it learns.
+    unawaited(store.startSleep());
     unawaited(store.keepRemindersFresh());
     final notifier = store.notifier;
     // A click on a notification that started Grove.
@@ -130,6 +161,7 @@ class AppServices {
     _sync.check();
     _updates.check();
     _weather.check();
+    store.resumeSleep();
     store.scheduleReminderRefresh();
     _tray?.refresh();
   }

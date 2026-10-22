@@ -8,6 +8,8 @@ export '../core/weather/weather_rules.dart';
 export '../core/agent/agent_models.dart';
 export '../core/agent/agent_policy.dart';
 export '../core/agent/agent_runner.dart';
+export '../core/sleep/activity.dart';
+export '../services/login_item.dart' show LoginItem, LoginItemStatus;
 export 'app_store.dart';
 export 'editor_services.dart';
 export 'mutation.dart';

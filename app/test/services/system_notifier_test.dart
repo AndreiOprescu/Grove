@@ -13,7 +13,7 @@ Reminder _reminder(
   String body = 'In 10 min',
   int minute = 10 * 60,
   DayKey? day,
-  ItemRef ref = const ItemRef(ItemType.event, 'e1'),
+  ItemRef? ref = const ItemRef(ItemType.event, 'e1'),
 }) => Reminder(
   id: id,
   title: title,
@@ -39,6 +39,7 @@ void main() {
     notifier.onOpen = (day, ref) =>
         opened.add('${day.string} ${ref.type.name} ${ref.id}');
     notifier.onFocusDone = done.add;
+    notifier.onOpenPlanner = (day) => opened.add('${day.string} planner');
   });
 
   group('permission', () {
@@ -140,6 +141,24 @@ void main() {
         'kind': 'task',
         'id': 't2',
         'at': '2026-10-12T18:00',
+      });
+    });
+
+    test('a bedtime reminder opens the planner on its day', () async {
+      await notifier.replaceAll([
+        _reminder(
+          'bed-2026-10-10',
+          title: 'Plan tomorrow',
+          minute: 21 * 60 + 30,
+          day: _today.adding(days: 1),
+          ref: null,
+        ),
+      ]);
+      final r = gateway.scheduled.values.single;
+      expect(jsonDecode(r.payload), {
+        'day': '2026-10-11',
+        'screen': 'planner',
+        'at': '2026-10-11T21:30',
       });
     });
 
@@ -385,6 +404,15 @@ void main() {
       expect(done, isEmpty);
     });
 
+    test('on a bedtime reminder opens the planner on the next day', () async {
+      await notifier.replaceAll([
+        _reminder('bed-2026-10-10', day: _today.adding(days: 1), ref: null),
+      ]);
+      gateway.click(payload: gateway.scheduled.values.single.payload);
+      expect(opened, ['2026-10-11 planner']);
+      expect(done, isEmpty);
+    });
+
     test('on the focus notification opens the task', () async {
       gateway.click(payload: (await scheduledFocus()).payload);
       expect(opened, ['2026-10-10 task t1']);
@@ -429,6 +457,7 @@ void main() {
         '{"day":"2026-10-10","kind":"plant","id":"t1"}',
         '{"day":"2026-10-10","kind":"task","id":7}',
         '{"action":"focus-done"}',
+        '{"day":"not a day","screen":"planner"}',
       ]) {
         gateway.click(payload: payload);
       }
@@ -478,7 +507,7 @@ void main() {
         notifier: notifier,
         prefs: prefs,
         clock: WallTime(day: _today, minute: 9 * 60),
-      );
+      )..setBedtimeEnabled(false);
       store.repos.events.save(
         EventItem(
           id: 'E1',
@@ -498,6 +527,32 @@ void main() {
       gateway.click(payload: r.payload);
       expect(store.selectedDay, tomorrow);
       expect(store.screen, isNot(Screen.notes));
+    });
+
+    test('the store sends its bedtime reminders, and a click opens the '
+        'planner on the next day', () async {
+      final store = makeStore(
+        notifier: notifier,
+        prefs: prefs,
+        clock: WallTime(day: _today, minute: 9 * 60),
+      );
+      var shown = 0;
+      store.bringToFront = () => shown++;
+      await store.refreshReminders();
+
+      final bed =
+          gateway.scheduled.values
+              .where((r) => r.payload.contains('"screen":"planner"'))
+              .toList()
+            ..sort((a, b) => a.at.compareTo(b.at));
+      expect(bed.length, 7);
+      expect(bed.first.at, DateTime(2026, 10, 10, 21, 30));
+
+      store.screen = Screen.notes;
+      gateway.click(payload: bed.first.payload);
+      expect(store.screen, Screen.planner);
+      expect(store.selectedDay, _today.adding(days: 1));
+      expect(shown, 1);
     });
 
     test('the store marks the task done from the button', () async {
