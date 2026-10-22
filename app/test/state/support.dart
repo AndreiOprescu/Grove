@@ -45,6 +45,7 @@ AppStore makeStore({
   WeatherSource? weather,
   LocationSource? location,
   AgentRunner? agentRunner,
+  String? dataDir,
 }) {
   final s = AppStore(
     repos: repos ?? Repos(Database.inMemory()),
@@ -54,6 +55,7 @@ AppStore makeStore({
     weatherSource: weather,
     locationSource: location,
     agentRunner: agentRunner,
+    dataDir: dataDir,
   );
   s.clockOverride = clock;
   addTearDown(s.dispose);
@@ -259,12 +261,19 @@ class FakeLocation implements LocationSource {
 
 /// One call of [FakeAgentRunner.start].
 class AgentCall {
-  AgentCall(this.exe, this.args, this.stdin, this.timeout);
+  AgentCall(
+    this.exe,
+    this.args,
+    this.stdin,
+    this.timeout, {
+    this.files = const [],
+  });
 
   final String exe;
   final List<String> args;
   final String stdin;
   final Duration timeout;
+  final List<AgentFile> files;
 }
 
 /// A `claude` process of [FakeAgentRunner]. It ends when the test calls
@@ -272,6 +281,12 @@ class AgentCall {
 class FakeAgentProcess implements AgentProcess {
   final _done = Completer<AgentRunOutput>();
   int cancels = 0;
+
+  /// Where the lines of the run go.
+  void Function(String line)? onLine;
+
+  /// The process prints [line] while it works.
+  void say(String line) => onLine?.call(line);
 
   @override
   Future<AgentRunOutput> get done => _done.future;
@@ -310,6 +325,10 @@ class FakeAgentRunner extends AgentRunner {
   /// `FakeAgentProcess.finish` on [processes].
   AgentRunOutput? output;
 
+  /// The lines each run that ends at once prints while it works, before
+  /// [output].
+  List<String> lines = const [];
+
   int locates = 0;
   final List<List<String>> probes = [];
   final List<AgentCall> calls = [];
@@ -333,12 +352,19 @@ class FakeAgentRunner extends AgentRunner {
     List<String> args, {
     required String stdin,
     required Duration timeout,
+    List<AgentFile> files = const [],
+    void Function(String line)? onLine,
   }) {
-    calls.add(AgentCall(exe, args, stdin, timeout));
-    final p = FakeAgentProcess();
+    calls.add(AgentCall(exe, args, stdin, timeout, files: files));
+    final p = FakeAgentProcess()..onLine = onLine;
     processes.add(p);
     final out = output;
-    if (out != null) p.finish(out);
+    if (out != null) {
+      for (final line in lines) {
+        onLine?.call(line);
+      }
+      p.finish(out);
+    }
     return p;
   }
 }

@@ -9,6 +9,7 @@ makes the next version. Each line is one feature. The newest version is first.
 
 - **No empty day notes:** Grove no longer makes a note for a day by itself. Press "Start a note" to make one. A day note you leave empty is deleted.
 - **Weather low and high:** each day shows its lowest and highest temperature.
+- **Agents screen:** a new tab shows what each agent does, live, on every device. Chat with the agent, link notes, tasks and files with "+", answer its questions, and press Apply on the plan changes it proposes. Jobs queue and run in the background. You can stop a job at any time.
 
 ## 1.1.0 · 2026-10-21
 

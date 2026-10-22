@@ -195,6 +195,7 @@ void main() {
         DROP TABLE earnings;
         DROP TABLE rewards;
         DROP TABLE skills;
+        DROP TABLE agent_events;
         DROP TABLE agent_jobs;
         PRAGMA user_version = 8;
         UPDATE sync_meta SET value = '4' WHERE key = 'schema';
@@ -246,6 +247,7 @@ void main() {
         DROP TABLE earnings;
         DROP TABLE rewards;
         DROP TABLE skills;
+        DROP TABLE agent_events;
         DROP TABLE agent_jobs;
         PRAGMA user_version = 7;
         UPDATE sync_meta SET value = '3' WHERE key = 'schema';
@@ -257,7 +259,7 @@ void main() {
       db = Database.open(path);
       expect(db.userVersion, Migrations.all.length);
       expect(db.syncVersion, SyncMigrations.all.length);
-      expect(db.syncVersion, 6);
+      expect(db.syncVersion, 7);
       expect(columns(db, 'goal_subtasks'), containsAll(['deleted', 'user_id']));
       expect(Repos(db).goals.get(g.id)?.title, 'Read');
       expect(Outbox(db).count, 0);

@@ -11,6 +11,7 @@ import 'package:grove/core/parsing/palette_rules.dart' show PaletteCommandId;
 import 'package:grove/state/state.dart' hide MotionRules;
 
 import 'agent/agent_dialog.dart';
+import 'agent/agents_view.dart';
 import 'app.dart';
 import 'auth/first_sync_dialog.dart';
 import 'calendar/event_editor.dart';
@@ -41,6 +42,7 @@ class StoreApp extends StatefulWidget {
     this.pickImages,
     this.openLink,
     this.openDraft,
+    this.pickAgentFile,
   });
 
   /// The one who made the store closes it.
@@ -62,6 +64,10 @@ class StoreApp extends StatefulWidget {
   /// Opens a draft of the agent in Mail or Messages. With null the agent
   /// window hides "Open in Mail" and "Open in Messages".
   final DraftOpener? openDraft;
+
+  /// The window to pick a file for a chat of the agent. With null the
+  /// Agents screen hides "Add a file…".
+  final AgentFilePicker? pickAgentFile;
 
   @override
   State<StoreApp> createState() => _StoreAppState();
@@ -185,6 +191,7 @@ class _StoreAppState extends State<StoreApp> {
       ),
       Screen.garden => GardenView(store: store),
       Screen.persona => PersonaView(store: store),
+      Screen.agents => AgentsView(store: store),
     };
   }
 
@@ -197,6 +204,7 @@ class _StoreAppState extends State<StoreApp> {
   @override
   Widget build(BuildContext context) => AgentTools(
     openDraft: widget.openDraft,
+    pickFile: widget.pickAgentFile,
     child: EditorTools(
       pickImages: widget.pickImages,
       openLink: widget.openLink,

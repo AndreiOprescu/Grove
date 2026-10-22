@@ -6,6 +6,7 @@ import 'dart:math';
 import 'package:flutter/foundation.dart';
 
 import '../core/grove_core.dart';
+import '../core/agent/agent_context.dart';
 import '../core/agent/agent_models.dart';
 import '../core/agent/agent_policy.dart';
 import '../core/agent/agent_runner.dart';
@@ -466,6 +467,8 @@ class AppStore extends ChangeNotifier {
   Screen _screen = Screen.today;
   Screen get screen => _screen;
   set screen(Screen v) {
+    // The Agents screen shows only when the agent is on.
+    if (v == Screen.agents && !agentEnabled) return;
     final old = _screen;
     _screen = v;
     if (v == Screen.today && old != Screen.today) _selectedDay = todayScreenDay;

@@ -55,6 +55,7 @@ Future<void> main() async {
       pickImages: pickImageFiles,
       openLink: openInBrowser,
       openDraft: openDraftApp,
+      pickAgentFile: pickAgentFile,
     ),
   );
 }

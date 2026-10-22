@@ -13,12 +13,29 @@ abstract final class AgentNote {
   // The messages of a job.
 
   static const crashed = 'Grove was closed while the agent worked.';
-  static const timedOut =
-      'The agent took longer than 10 minutes and was stopped.';
+  static final timedOut =
+      'The agent took longer than ${AgentPolicy.timeout.inMinutes} minutes '
+      'and was stopped.';
   static const cancelled = 'The job was cancelled.';
   static const taskGone = 'The task is gone.';
   static const notSaved = 'Grove could not save the result of the agent.';
   static const _noAnswer = 'The agent stopped before it answered.';
+
+  /// The first message of a job of a task when the person typed nothing.
+  static const workOnTask = 'Work on this task.';
+
+  /// The longest name of a chat.
+  static const maxChatTitle = 60;
+
+  /// The name of a chat: the first line of [text], at most [maxChatTitle]
+  /// characters. "New chat" when it is empty.
+  static String chatTitle(String text) {
+    final first = _line(text.trim().split('\n').first);
+    if (first.isEmpty) return 'New chat';
+    return first.length > maxChatTitle
+        ? '${first.substring(0, maxChatTitle).trimRight()}…'
+        : first;
+  }
 
   /// The extra question when the job asked for email and this computer does
   /// not allow it.
@@ -51,6 +68,17 @@ abstract final class AgentNote {
     final t = _line(AgentPolicy.safeForNote(doc.title));
     return t.isEmpty ? 'Document: ${_line(task.title)}' : t;
   }
+
+  /// The title of a document note of a chat with no task: the agent's
+  /// title, or "Document: " and the name of the chat.
+  static String chatDocumentTitle(String chat, AgentDocument doc) {
+    final t = _line(AgentPolicy.safeForNote(doc.title));
+    return t.isEmpty ? 'Document: ${_line(chat)}' : t;
+  }
+
+  /// The body of a document note of a chat with no task.
+  static String chatDocumentBody(AgentDocument doc) =>
+      AgentPolicy.safeForNote(doc.markdown.trim());
 
   /// The body of the document note: a link to the task, then the document.
   static String documentBody(TaskItem task, AgentDocument doc) =>

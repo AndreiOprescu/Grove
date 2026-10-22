@@ -21,6 +21,7 @@ const Map<String, IconData> _icons = {
   'calendar.day.timeline.left': Icons.view_timeline_outlined,
   'leaf': Icons.eco_outlined,
   'person': Icons.person_outline,
+  'sparkles': Icons.auto_awesome_outlined,
   'paintpalette': Icons.palette_outlined,
   'wind': Icons.air,
   'circle': Icons.circle_outlined,

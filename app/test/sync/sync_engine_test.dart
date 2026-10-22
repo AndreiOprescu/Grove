@@ -107,8 +107,15 @@ void fill(Device d) {
       earnedAt: '2026-10-05T15:00:00',
     ),
   );
-  r.agentJobs.insert(
-    AgentJob(taskId: task.id, instructions: 'Find a cheap broom'),
+  final job = AgentJob(taskId: task.id, instructions: 'Find a cheap broom');
+  r.agentJobs.insert(job);
+  r.agentEvents.insert(
+    AgentEvent(
+      jobId: job.id,
+      seq: 1,
+      kind: AgentEventKind.ask,
+      body: 'Find a cheap broom',
+    ),
   );
   r.attachments.add(
     mime: 'image/png',

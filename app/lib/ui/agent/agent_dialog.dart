@@ -22,20 +22,33 @@ typedef DraftOpener = Future<bool> Function(Uri url);
 /// `sms:`. Grove opens nothing else from the agent.
 bool isDraftLink(Uri url) => url.isScheme('mailto') || url.isScheme('sms');
 
-/// Gives the opener of Mail and Messages to the agent window. The app gives
-/// the real one (`main.dart`); a test gives a fake, or none.
+/// The window to pick one file for a chat of the agent. Gives its path, or
+/// null when the person closed the window.
+typedef AgentFilePicker = Future<String?> Function();
+
+/// Gives the opener of Mail and Messages and the file window to the agent
+/// screens. The app gives the real ones (`main.dart`); a test gives fakes,
+/// or none.
 class AgentTools extends InheritedWidget {
-  const AgentTools({super.key, this.openDraft, required super.child});
+  const AgentTools({
+    super.key,
+    this.openDraft,
+    this.pickFile,
+    required super.child,
+  });
 
   /// With null the window hides "Open in Mail" and "Open in Messages".
   final DraftOpener? openDraft;
+
+  /// With null the Agents screen hides "Add a file…".
+  final AgentFilePicker? pickFile;
 
   static AgentTools? maybeOf(BuildContext context) =>
       context.dependOnInheritedWidgetOfExactType<AgentTools>();
 
   @override
   bool updateShouldNotify(AgentTools oldWidget) =>
-      oldWidget.openDraft != openDraft;
+      oldWidget.openDraft != openDraft || oldWidget.pickFile != pickFile;
 }
 
 /// Shows the agent window of the task `taskId`. The future ends when the
@@ -153,6 +166,18 @@ class _AgentDialogState extends State<AgentDialog> {
     _store.openNote(id);
     _close();
   }
+
+  /// The chat of [job] on the Agents screen: the live steps, and a reply.
+  DialogButton? _inAgents(AgentJob job) => _store.agentEnabled
+      ? DialogButton(
+          key: const ValueKey('agent-open-chat'),
+          label: 'Open in Agents',
+          onTap: () {
+            _store.showAgentJob(job.id);
+            _close();
+          },
+        )
+      : null;
 
   @override
   Widget build(BuildContext context) => StoreBuilder(
@@ -283,20 +308,21 @@ class _AgentDialogState extends State<AgentDialog> {
       primary: true,
       onTap: _askAgain,
     );
+    final chat = _inAgents(job);
     return switch (job.status) {
       AgentStatus.queued => [
         _status(context, Icons.hourglass_empty, AgentDialog.waiting),
         if (!_store.agentRunnerOn)
           Text(AgentDialog.turnOnRunner, style: _small(theme)),
-        dialogButtons([close, cancelJob]),
+        dialogButtons([close, ?chat, cancelJob]),
       ],
       AgentStatus.running => [
         _status(context, null, AgentDialog.working),
-        dialogButtons([close, cancelJob]),
+        dialogButtons([close, ?chat, cancelJob]),
       ],
       AgentStatus.cancelRequested => [
         _status(context, Icons.stop_circle_outlined, AgentDialog.stopping),
-        dialogButtons([close]),
+        dialogButtons([close, ?chat]),
       ],
       AgentStatus.failed || AgentStatus.cancelled => [
         Text(
@@ -360,6 +386,7 @@ class _AgentDialogState extends State<AgentDialog> {
         label: 'Ask again',
         onTap: _askAgain,
       ),
+      ?_inAgents(job),
       if (hasNote)
         DialogButton(
           key: const ValueKey('agent-open-note'),
@@ -412,7 +439,7 @@ class _AgentDialogState extends State<AgentDialog> {
           style: _small(theme),
         ),
       if (email != null)
-        _DraftCard(
+        DraftCard(
           toKey: const ValueKey('agent-email-to'),
           to: email.to,
           subject: email.subject,
@@ -434,7 +461,7 @@ class _AgentDialogState extends State<AgentDialog> {
           ],
         ),
       if (text != null)
-        _DraftCard(
+        DraftCard(
           toKey: const ValueKey('agent-text-to'),
           to: text.to,
           body: text.body,
@@ -482,8 +509,9 @@ class _AgentDialogState extends State<AgentDialog> {
 
 /// A draft of an email or a text message: the person it goes to in large
 /// letters, so a wrong one is easy to see, then the text and the buttons.
-class _DraftCard extends StatelessWidget {
-  const _DraftCard({
+class DraftCard extends StatelessWidget {
+  const DraftCard({
+    super.key,
     required this.toKey,
     required this.to,
     this.subject,
