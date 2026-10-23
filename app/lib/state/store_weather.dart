@@ -12,8 +12,8 @@ class _WeatherState {
 }
 
 /// The weather at the top of each day of the Planner and of the Today
-/// screen (owner's choice of 2026-10-20): the kind of the day and the
-/// temperature at 9am and 9pm, from Open-Meteo. The place is the position
+/// screen (owner, 2026-10-20 and 2026-10-21): the kind of the day and the
+/// lowest and highest temperature, from Open-Meteo. The place is the position
 /// of this device, or a town picked in Settings. The settings and the last
 /// forecast are of this device: they do not sync.
 /// `services/weather_check.dart` asks at start and every hour.

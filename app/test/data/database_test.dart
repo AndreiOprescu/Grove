@@ -44,15 +44,15 @@ void main() {
       }
     });
 
-    test('there are twelve migrations: the seven of the Mac app, and five '
+    test('there are thirteen migrations: the seven of the Mac app, and six '
         'of this app only', () {
       // The export file carries this number. The Mac app refuses a higher
       // one, so it does not read a file of this app (migration 8, the
       // subtasks of a goal, migration 9, the block of such a subtask,
-      // migration 10, the persona, migration 11, deadlines, and migration
-      // 12, the agent, are not in
-      // the Mac app).
-      expect(Migrations.all.length, 12);
+      // migration 10, the persona, migration 11, deadlines, migration 12,
+      // the agent, and migration 13, the chats of the agent, are not in the
+      // Mac app).
+      expect(Migrations.all.length, 13);
     });
 
     test('migrations are idempotent', () {

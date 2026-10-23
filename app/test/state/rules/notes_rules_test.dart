@@ -128,4 +128,73 @@ void main() {
       'Untitled 3',
     );
   });
+
+  group('an empty daily note', () {
+    const template = '## Plan\n\n## Notes\n\n## Reflection\n';
+    Note daily(String body, {int? mood, bool pinned = false}) => Note(
+      title: 'Friday',
+      body: body,
+      kind: NoteKind.daily,
+      date: const DayKey('2026-10-02'),
+      mood: mood,
+      pinned: pinned,
+    );
+
+    test('the template, blank lines and spaces are empty', () {
+      expect(
+        NotesRules.isEmptyDaily(daily(template), template: template),
+        isTrue,
+      );
+      expect(NotesRules.isEmptyDaily(daily(''), template: template), isTrue);
+      expect(
+        NotesRules.isEmptyDaily(
+          daily('  ## Notes  \n\n   '),
+          template: template,
+        ),
+        isTrue,
+      );
+    });
+
+    test('a line of its own, a mood or a pin is not empty', () {
+      expect(
+        NotesRules.isEmptyDaily(
+          daily('${template}A good day'),
+          template: template,
+        ),
+        isFalse,
+      );
+      expect(
+        NotesRules.isEmptyDaily(
+          daily(template, mood: Mood.sun.value),
+          template: template,
+        ),
+        isFalse,
+      );
+      expect(
+        NotesRules.isEmptyDaily(
+          daily(template, pinned: true),
+          template: template,
+        ),
+        isFalse,
+      );
+    });
+
+    test('the first template counts when the person has their own', () {
+      expect(
+        NotesRules.isEmptyDaily(daily(template), template: '# My day\n'),
+        isTrue,
+      );
+      expect(
+        NotesRules.isEmptyDaily(daily('# My day\n'), template: '# My day\n'),
+        isTrue,
+      );
+    });
+
+    test('a note that is not a daily note is never empty', () {
+      expect(
+        NotesRules.isEmptyDaily(note('Idea'), template: template),
+        isFalse,
+      );
+    });
+  });
 }

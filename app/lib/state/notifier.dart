@@ -56,6 +56,10 @@ abstract class Notifier {
   /// Set by the store. Called when the user clicks a notification.
   void Function(DayKey day, ItemRef ref)? onOpen;
 
+  /// Set by the store. Called when the user clicks a bedtime reminder: the
+  /// planner opens on [day], the day to plan.
+  void Function(DayKey day)? onOpenPlanner;
+
   /// Set by the store. Called with the task id when the user taps "Mark done"
   /// on the focus notification.
   void Function(String taskId)? onFocusDone;

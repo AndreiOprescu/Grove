@@ -201,6 +201,7 @@ void main() {
         expect(b.remove('earnings'), isEmpty);
         // The agent is in this app only too.
         expect(b.remove('agent_jobs'), isEmpty);
+        expect(b.remove('agent_events'), isEmpty);
         if (version == 6) {
           expect(a.keys, isNot(contains('block_subtasks')));
           expect(b.remove('block_subtasks'), isEmpty);

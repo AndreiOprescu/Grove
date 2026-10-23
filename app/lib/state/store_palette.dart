@@ -118,6 +118,7 @@ extension AppStorePalette on AppStore {
     }
     for (final c in PaletteRules.commandsMatching(query.text)) {
       if (day == now && c.id == PaletteCommandId.goToday) continue;
+      if (c.id == PaletteCommandId.showAgents && !agentEnabled) continue;
       rows.add(
         PaletteItem(
           action: PaletteRun(c.id),
@@ -247,6 +248,8 @@ extension AppStorePalette on AppStore {
         screen = Screen.garden;
       case PaletteCommandId.showPersona:
         screen = Screen.persona;
+      case PaletteCommandId.showAgents:
+        screen = Screen.agents;
       case PaletteCommandId.toggleTheme:
         nextTheme();
       case PaletteCommandId.toggleMotion:

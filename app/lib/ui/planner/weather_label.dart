@@ -1,5 +1,5 @@
 // The weather at the top of a day: the emoji of the kind of the day, and
-// the temperature at 9am and at 9pm (`store_weather.dart`). The Planner
+// its lowest and highest temperature (`store_weather.dart`). The Planner
 // week shows it under each date, the Today screen next to its date.
 import 'package:flutter/material.dart';
 import 'package:grove/core/model/day_key.dart';

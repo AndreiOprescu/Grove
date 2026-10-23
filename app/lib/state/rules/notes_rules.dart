@@ -1,6 +1,7 @@
 import '../../core/model/day_key.dart';
 import '../../core/model/note.dart';
 import '../../core/parsing/markdown_plain.dart';
+import '../../core/parsing/note_parser.dart';
 import 'text.dart';
 
 /// Which notes the list shows.
@@ -90,6 +91,22 @@ abstract final class NotesRules {
     NoteKind.weekly => '## Goals\n\n## Notes\n\n## Review\n',
     NoteKind.note => '',
   };
+
+  /// True for a daily note with nothing of its own: no mood, no pin, and
+  /// no line that is not a line of [template] or of the first template
+  /// (blank lines and the headings do not count). Grove does not keep such
+  /// a note.
+  static bool isEmptyDaily(Note n, {required String template}) {
+    if (n.kind != NoteKind.daily || n.mood != null || n.pinned) return false;
+    final given = {
+      for (final t in [template, NotesRules.template(NoteKind.daily)])
+        for (final l in t.split('\n')) l.trim(),
+    };
+    return NoteParser.withoutMarkers(n.body)
+        .split('\n')
+        .map((l) => l.trim())
+        .every((l) => l.isEmpty || given.contains(l));
+  }
 
   /// Keeps the notes the filter allows. The order stays as given.
   static List<Note> filter(

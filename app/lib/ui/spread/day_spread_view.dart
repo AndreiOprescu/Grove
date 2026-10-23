@@ -204,17 +204,7 @@ class _DaySpreadViewState extends State<DaySpreadView> {
           SizedBox(
             key: const ValueKey('spread-note'),
             width: note,
-            child:
-                inspector ??
-                DayNoteColumn(
-                  // A new column when "tomorrow" turns into "today" at
-                  // midnight: the note of today is made then.
-                  key: ValueKey(
-                    day == _store.clockToday ? 'note-today' : 'note-next',
-                  ),
-                  store: _store,
-                  day: day,
-                ),
+            child: inspector ?? DayNoteColumn(store: _store, day: day),
           ),
         ],
       ],
@@ -409,45 +399,18 @@ class _DaySwitch extends StatelessWidget {
 }
 
 /// The note of a day, in the third column. A day with no note yet shows a
-/// button to start one. The note of today is made when the column opens,
-/// because the page is about today.
-class DayNoteColumn extends StatefulWidget {
+/// button to start one. Grove does not make a note by itself, and it does not
+/// keep a note that is left empty.
+class DayNoteColumn extends StatelessWidget {
   const DayNoteColumn({super.key, required this.store, required this.day});
 
   final AppStore store;
   final DayKey day;
 
   @override
-  State<DayNoteColumn> createState() => _DayNoteColumnState();
-}
-
-class _DayNoteColumnState extends State<DayNoteColumn> {
-  @override
-  void initState() {
-    super.initState();
-    _makeToday();
-  }
-
-  @override
-  void didUpdateWidget(DayNoteColumn oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (oldWidget.day != widget.day) _makeToday();
-  }
-
-  void _makeToday() {
-    final store = widget.store;
-    final day = widget.day;
-    if (day != store.clockToday || store.existingDailyNote(day) != null) {
-      return;
-    }
-    writeLater(store, () => store.dailyNote(day));
-  }
-
-  @override
   Widget build(BuildContext context) {
-    final store = widget.store;
     final theme = GroveTheme.of(context);
-    final note = store.existingDailyNote(widget.day);
+    final note = store.existingDailyNote(day);
     if (note != null) {
       return NoteEditorPane(
         key: ValueKey('spread-note-${note.id}'),
@@ -474,7 +437,7 @@ class _DayNoteColumnState extends State<DayNoteColumn> {
             child: CardButton(
               key: const ValueKey('spread-start-note'),
               label: 'Start a note',
-              onTap: () => store.dailyNote(widget.day),
+              onTap: () => store.dailyNote(day),
             ),
           ),
         ],

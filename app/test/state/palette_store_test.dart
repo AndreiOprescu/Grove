@@ -24,8 +24,20 @@ void main() {
       final s = makeStore();
       s.quickAdd('Report taxes');
       final items = s.paletteItems('', today: friday);
-      expect(commandIds(items), PaletteCommandId.values);
-      expect(items.length, PaletteCommandId.values.length);
+      // "Open agents" shows only while the agent is on.
+      final ids = [
+        for (final c in PaletteCommandId.values)
+          if (c != PaletteCommandId.showAgents) c,
+      ];
+      expect(commandIds(items), ids);
+      expect(items.length, ids.length);
+      s.setAgentEnabled(true);
+      expect(
+        commandIds(s.paletteItems('', today: friday)),
+        PaletteCommandId.values,
+      );
+      s.run(PaletteCommandId.showAgents);
+      expect(s.screen, Screen.agents);
     });
 
     test('an arrow keeps only commands', () {
@@ -39,7 +51,7 @@ void main() {
       expect(items.length, 2); // the task "New shoes" is not listed
       expect(
         s.paletteItems('>', today: friday).length,
-        PaletteCommandId.values.length,
+        PaletteCommandId.values.length - 1,
       );
     });
 

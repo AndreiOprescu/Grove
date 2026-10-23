@@ -25,6 +25,9 @@ abstract class ShellModel implements Listenable {
   Screen get screen;
   set screen(Screen value);
 
+  /// The screens in the switch, in order.
+  List<Screen> get screens;
+
   /// The open left panel. null is closed.
   LeftPane? get leftPane;
 
@@ -68,6 +71,7 @@ class LocalShellModel extends ChangeNotifier implements ShellModel {
     this._appearance = AppearanceMode.system,
     this._leftPane,
     this._motion = true,
+    this.screens = Screen.always,
   });
 
   /// How long a message stays.
@@ -80,6 +84,9 @@ class LocalShellModel extends ChangeNotifier implements ShellModel {
   bool _motion;
   String? _toast;
   Timer? _toastTimer;
+
+  @override
+  final List<Screen> screens;
 
   @override
   Screen get screen => _screen;

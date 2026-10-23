@@ -64,6 +64,7 @@ void main() {
         'Notes',
         'Garden',
         'Persona',
+        'Agents',
       ]);
     });
 

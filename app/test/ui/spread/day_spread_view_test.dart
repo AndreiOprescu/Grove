@@ -62,6 +62,12 @@ Future<void> showTomorrow(WidgetTester tester) async {
   await tester.pumpAndSettle();
 }
 
+/// Taps "Start a note" in the note column.
+Future<void> startNote(WidgetTester tester) async {
+  await tester.tap(key('spread-start-note'));
+  await tester.pumpAndSettle();
+}
+
 /// An event with a time, not a task.
 void addEvent(AppStore store, String title, DayKey day, int start) =>
     store.createFromDraft(
@@ -99,7 +105,12 @@ void main() {
     expect(pane.mode, TasksPaneMode.today);
     expect(rowFinder('report'), findsOneWidget);
     expect(find.byType(PlannerGrid), findsOneWidget);
-    // the note of today is made when the column opens
+    // no note is made by a look at the day
+    expect(store.existingDailyNote(wednesday), isNull);
+    expect(find.text('No note for this day yet.'), findsOneWidget);
+    expect(find.byType(NoteEditorPane), findsNothing);
+
+    await startNote(tester);
     final daily = store.existingDailyNote(wednesday);
     expect(daily, isNotNull);
     final editor = tester.widget<NoteEditorPane>(find.byType(NoteEditorPane));
@@ -127,6 +138,15 @@ void main() {
     final store = spreadStore();
     addTask(store, 'Write report', id: 'report');
     await pumpPlanner(tester, store, size: wide);
+    await startNote(tester);
+    await tester.enterText(
+      find.descendant(
+        of: key('note-text'),
+        matching: find.byType(EditableText),
+      ),
+      'A good day',
+    );
+    await tester.pump(NoteEditorPane.saveDelay);
     final before = tester.getRect(key('spread-timeline'));
     expect(find.byType(TaskInspector), findsNothing);
 
@@ -307,16 +327,20 @@ void main() {
   ) async {
     final store = spreadStore();
     await pumpPlanner(tester, store, size: wide);
+    await startNote(tester);
     final daily = store.existingDailyNote(wednesday)!;
     await tester.tap(key('note-open'));
     await tester.pumpAndSettle();
     expect(store.screen, Screen.notes);
     expect(store.selectedNoteId, daily.id);
+    // the editor of the Notes screen shows it, so the empty note stays
+    expect(store.note(daily.id), isNotNull);
   });
 
   testWidgets('text typed in the note of today is saved', (tester) async {
     final store = spreadStore();
     await pumpPlanner(tester, store, size: wide);
+    await startNote(tester);
     final daily = store.existingDailyNote(wednesday)!;
     await tester.enterText(
       find.descendant(
@@ -332,6 +356,59 @@ void main() {
     await tester.tap(key('mood-sun'));
     await tester.pumpAndSettle();
     expect(store.note(daily.id)!.mood, Mood.sun.value);
+  });
+
+  group('an empty note of a day', () {
+    testWidgets('is forgotten when the user leaves it', (tester) async {
+      final store = spreadStore();
+      await pumpPlanner(tester, store, size: wide);
+      await startNote(tester);
+      expect(store.existingDailyNote(wednesday), isNotNull);
+
+      await showTomorrow(tester);
+      expect(store.existingDailyNote(wednesday), isNull);
+      await tester.tap(dayButton('Today'));
+      await tester.pumpAndSettle();
+      expect(find.text('No note for this day yet.'), findsOneWidget);
+      expect(store.undoStack, isEmpty);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('keeps text typed just before the user leaves', (tester) async {
+      final store = spreadStore();
+      await pumpPlanner(tester, store, size: wide);
+      await startNote(tester);
+      // no wait for the save: the editor writes the text when it goes
+      await tester.enterText(
+        find.descendant(
+          of: key('note-text'),
+          matching: find.byType(EditableText),
+        ),
+        'A good day',
+      );
+      await showTomorrow(tester);
+      expect(store.existingDailyNote(wednesday)!.body, 'A good day');
+    });
+
+    testWidgets('a note emptied by the user goes when the user leaves', (
+      tester,
+    ) async {
+      final store = spreadStore();
+      store.setNoteBody(store.dailyNote(wednesday).id, 'A good day');
+      await pumpPlanner(tester, store, size: wide);
+      await tester.enterText(
+        find.descendant(
+          of: key('note-text'),
+          matching: find.byType(EditableText),
+        ),
+        '',
+      );
+      await tester.pump(NoteEditorPane.saveDelay);
+      // it stays while the user can see it
+      expect(store.existingDailyNote(wednesday), isNotNull);
+      await showTomorrow(tester);
+      expect(store.existingDailyNote(wednesday), isNull);
+    });
   });
 
   // Swift: CheckBoxClickTests. A click in the middle of the box checks the
@@ -474,8 +551,8 @@ void main() {
       expect(nowLine, findsOneWidget);
       expect(rowFinder('report'), findsOneWidget);
       expect(rowFinder('pack'), findsNothing);
-      final editor = tester.widget<NoteEditorPane>(find.byType(NoteEditorPane));
-      expect(editor.noteId, store.existingDailyNote(wednesday)!.id);
+      expect(find.text('No note for this day yet.'), findsOneWidget);
+      expect(store.existingDailyNote(wednesday), isNull);
     });
 
     testWidgets('a task typed in the list lands on tomorrow', (tester) async {
@@ -772,9 +849,9 @@ void main() {
       expect(nowLine, findsOneWidget);
       expect(headerPlant, findsOneWidget);
       expect(rowFinder('pack'), findsOneWidget);
-      // the note of today is made, as when the screen opens
-      expect(store.existingDailyNote(thursday), isNotNull);
-      expect(find.byType(NoteEditorPane), findsOneWidget);
+      // no note is made for the new day
+      expect(store.existingDailyNote(thursday), isNull);
+      expect(find.text('No note for this day yet.'), findsOneWidget);
 
       // "Tomorrow" is now Friday
       await showTomorrow(tester);

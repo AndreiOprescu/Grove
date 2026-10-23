@@ -230,6 +230,12 @@ List<ShellMenu> shellMenus(ShellModel model, ShellCommands commands) => [
       () => model.screen = Screen.persona,
       key: LogicalKeyboardKey.digit6,
     ),
+    if (model.screens.contains(Screen.agents))
+      ShellEntry(
+        'Agents',
+        () => model.screen = Screen.agents,
+        key: LogicalKeyboardKey.digit7,
+      ),
     const ShellDivider(),
     ShellEntry(
       'Zoom In',

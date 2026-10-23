@@ -18,18 +18,24 @@ extension AppStoreReminders on AppStore {
       final t = task(id);
       if (t != null && t.status != TaskStatus.open) finished.add(id);
     }
-    return ReminderPlanner.plan(
-      events: events,
-      dueTasks: _try(repos.tasks.openWithTimedDue) ?? const [],
-      finishedTaskIds: finished,
-      now: now,
-      lead: notifyLead,
+    final bedtime = _bedtimeReminders(now);
+    return ReminderPlanner.joined(
+      ReminderPlanner.plan(
+        events: events,
+        dueTasks: _try(repos.tasks.openWithTimedDue) ?? const [],
+        finishedTaskIds: finished,
+        now: now,
+        lead: notifyLead,
+        limit: ReminderPlanner.limit - bedtime.length,
+      ),
+      bedtime,
     );
   }
 
   /// Makes the reminders again now. Does nothing until the user has allowed
-  /// notifications.
+  /// notifications. The nights are learned first, when the last look is old.
   Future<void> refreshReminders() async {
+    await updateSleepNights();
     final status = await notifier.authorization();
     _notifyStatus = status;
     _changed();
@@ -96,5 +102,6 @@ extension AppStoreReminders on AppStore {
     open(ref);
     // Also when the item is gone: the day still opens.
     showDay(day);
+    bringToFront?.call();
   }
 }

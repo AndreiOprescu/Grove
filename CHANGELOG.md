@@ -5,6 +5,13 @@ makes the next version. Each line is one feature. The newest version is first.
 
 `scripts/github_release.sh` puts the lines of the version on its GitHub release.
 
+## 1.2.0 · 2026-10-21
+
+- **Plan tomorrow:** Grove learns when you usually fall asleep from when you stop using your phone and Mac, and reminds you to plan tomorrow before bed. On the Mac, closing the window keeps Grove in the menu bar, and it opens at login.
+- **No empty day notes:** Grove no longer makes a note for a day by itself. Press "Start a note" to make one. A day note you leave empty is deleted.
+- **Weather low and high:** each day shows its lowest and highest temperature.
+- **Agents screen:** a new tab shows what each agent does, live, on every device. Chat with the agent, link notes, tasks and files with "+", answer its questions, and press Apply on the plan changes it proposes. Jobs queue and run in the background. You can stop a job at any time.
+
 ## 1.1.0 · 2026-10-21
 
 - **Ask the agent:** a computer with the `claude` command reads a task and writes a draft for you. It only reads and drafts. A phone can ask, and the computer does the work.

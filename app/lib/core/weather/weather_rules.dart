@@ -54,31 +54,31 @@ enum TemperatureUnit {
   };
 }
 
-/// The weather of one day: its main kind, and the temperature at 9am and
-/// at 9pm, in °C (owner's choice of 2026-10-20). Null for an hour the
+/// The weather of one day: its main kind, and its lowest and highest
+/// temperature, in °C (owner's choice of 2026-10-21). Null for a value the
 /// forecast does not have.
 class DayWeather {
   const DayWeather({
     required this.day,
     required this.condition,
-    this.morning,
-    this.evening,
+    this.low,
+    this.high,
   });
 
   final DayKey day;
   final WeatherCondition condition;
 
-  /// At 9am.
-  final double? morning;
+  /// The lowest temperature of the day.
+  final double? low;
 
-  /// At 9pm.
-  final double? evening;
+  /// The highest temperature of the day.
+  final double? high;
 
   Map<String, Object?> toJson() => {
     'day': day.string,
     'condition': condition.name,
-    'morning': morning,
-    'evening': evening,
+    'low': low,
+    'high': high,
   };
 
   /// Null for a damaged entry.
@@ -89,12 +89,12 @@ class DayWeather {
         .where((c) => c.name == json['condition'])
         .firstOrNull;
     if (day == null || condition == null) return null;
-    final morning = json['morning'], evening = json['evening'];
+    final low = json['low'], high = json['high'];
     return DayWeather(
       day: day,
       condition: condition,
-      morning: morning is num ? morning.toDouble() : null,
-      evening: evening is num ? evening.toDouble() : null,
+      low: low is num ? low.toDouble() : null,
+      high: high is num ? high.toDouble() : null,
     );
   }
 
@@ -103,11 +103,11 @@ class DayWeather {
       other is DayWeather &&
       other.day == day &&
       other.condition == condition &&
-      other.morning == morning &&
-      other.evening == evening;
+      other.low == low &&
+      other.high == high;
 
   @override
-  int get hashCode => Object.hash(day, condition, morning, evening);
+  int get hashCode => Object.hash(day, condition, low, high);
 }
 
 /// A town picked in Settings.
@@ -261,10 +261,6 @@ abstract final class WeatherRules {
   /// Open-Meteo gives at most 16 days.
   static const forecastDays = 16;
 
-  /// The hours of the two temperatures.
-  static const morningHour = 9;
-  static const eveningHour = 21;
-
   /// The key of the place of a forecast: `here` for the position of this
   /// device, the position of a picked town otherwise.
   static String placeKey(WeatherPlace? place) => place == null
@@ -280,8 +276,7 @@ abstract final class WeatherRules {
       Uri.https('api.open-meteo.com', '/v1/forecast', {
         'latitude': coordinate(latitude),
         'longitude': coordinate(longitude),
-        'daily': 'weather_code',
-        'hourly': 'temperature_2m',
+        'daily': 'weather_code,temperature_2m_min,temperature_2m_max',
         'timezone': 'auto',
         'forecast_days': '$forecastDays',
       });
@@ -296,24 +291,22 @@ abstract final class WeatherRules {
   /// the place (`timezone=auto`). Throws [FormatException] for an answer
   /// with no days.
   static Map<DayKey, DayWeather> parseForecast(Map<String, Object?> json) {
-    final daily = json['daily'], hourly = json['hourly'];
-    if (daily is! Map || hourly is! Map) {
+    final daily = json['daily'];
+    if (daily is! Map) {
       throw const FormatException('The answer of Open-Meteo has no days');
     }
     final dayTimes = daily['time'], codes = daily['weather_code'];
     if (dayTimes is! List || codes is! List) {
       throw const FormatException('The answer of Open-Meteo has no days');
     }
-    final temps = <String, double>{};
-    final hours = hourly['time'], values = hourly['temperature_2m'];
-    if (hours is List && values is List) {
-      for (var i = 0; i < hours.length && i < values.length; i++) {
-        final h = hours[i], v = values[i];
-        if (h is String && v is num) temps[h] = v.toDouble();
-      }
+    // Value i of the list key, when it is a number.
+    double? number(String key, int i) {
+      final list = daily[key];
+      if (list is! List || i >= list.length) return null;
+      final v = list[i];
+      return v is num ? v.toDouble() : null;
     }
-    String at(DayKey day, int hour) =>
-        '${day.string}T${hour.toString().padLeft(2, '0')}:00';
+
     final out = <DayKey, DayWeather>{};
     for (var i = 0; i < dayTimes.length && i < codes.length; i++) {
       final day = DayKey.parse('${dayTimes[i]}');
@@ -322,8 +315,8 @@ abstract final class WeatherRules {
       out[day] = DayWeather(
         day: day,
         condition: WeatherCondition.fromCode(code.toInt()),
-        morning: temps[at(day, morningHour)],
-        evening: temps[at(day, eveningHour)],
+        low: number('temperature_2m_min', i),
+        high: number('temperature_2m_max', i),
       );
     }
     return out;
@@ -346,15 +339,15 @@ abstract final class WeatherRules {
   static String _degrees(double? celsius, TemperatureUnit unit) =>
       celsius == null ? '–' : '${unit.whole(celsius)}°';
 
-  /// The label of a day: "🌧️ 9° → 14°", 9am then 9pm.
+  /// The label of a day: "🌧️ 9° / 14°", the lowest then the highest.
   static String label(DayWeather w, TemperatureUnit unit) {
-    if (w.morning == null && w.evening == null) return w.condition.emoji;
-    return '${w.condition.emoji} ${_degrees(w.morning, unit)} → '
-        '${_degrees(w.evening, unit)}';
+    if (w.low == null && w.high == null) return w.condition.emoji;
+    return '${w.condition.emoji} ${_degrees(w.low, unit)} / '
+        '${_degrees(w.high, unit)}';
   }
 
-  /// The words of the label: "Rain · 9am 9° · 9pm 14°".
+  /// The words of the label: "Rain · low 9° · high 14°".
   static String words(DayWeather w, TemperatureUnit unit) =>
-      '${w.condition.words} · 9am ${_degrees(w.morning, unit)} · '
-      '9pm ${_degrees(w.evening, unit)}';
+      '${w.condition.words} · low ${_degrees(w.low, unit)} · '
+      'high ${_degrees(w.high, unit)}';
 }

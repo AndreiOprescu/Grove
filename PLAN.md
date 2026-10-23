@@ -656,8 +656,9 @@ Use `.focusable()` + `.onKeyPress`.
   small floating list (child `NSPanel` or SwiftUI overlay positioned at the caret rect
   from `firstRect(forCharacterRange:)`) of matching notes, tasks and events (FTS prefix
   search). ↑↓ Return inserts `[[Exact Title]]`. Esc closes.
-- **Daily note**: one per day (`kind='daily'`), created on first open of that day, title
-  "Friday, 2 October 2026". Template body: `## Plan\n\n## Notes\n\n## Reflection\n`
+- **Daily note**: one per day (`kind='daily'`), title "Friday, 2 October 2026". It is
+  not made by itself: the user starts it ("Start a note", Today's note, a mood). A daily
+  note left with no text, mood or pin of its own is deleted (owner, 2026-10-21). Template body: `## Plan\n\n## Notes\n\n## Reflection\n`
   (setting: editable template).
 - **Weekly note**: one per week, title "Week 40 · 28 Sep – 4 Oct". Template with
   `## Goals`, `## Notes`, `## Review`.

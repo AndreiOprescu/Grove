@@ -51,7 +51,7 @@ void main() {
           ),
           findsOneWidget,
         );
-        expect(labelOf(tester, day), '🌧️ 9° → 14°');
+        expect(labelOf(tester, day), '🌧️ 9° / 14°');
       }
       // Monday and Tuesday are past: no weather, and the dates stay in one
       // row.
@@ -80,7 +80,7 @@ void main() {
               find.descendant(of: label, matching: find.byType(Tooltip)),
             )
             .message,
-        'Rain · 9am 9° · 9pm 14°',
+        'Rain · low 9° · high 14°',
       );
     });
 
@@ -102,7 +102,7 @@ void main() {
     testWidgets('the weather is next to the date', (tester) async {
       final (store, _) = await weatherStore(screen: Screen.today);
       await pumpPlanner(tester, store, size: const Size(1280, 720));
-      expect(labelOf(tester, wednesday), '🌧️ 9° → 14°');
+      expect(labelOf(tester, wednesday), '🌧️ 9° / 14°');
       final date = tester.getRect(keyed('spread-date'));
       final weather = tester.getRect(weatherOf(wednesday));
       expect(weather.left, greaterThan(date.right));
@@ -140,7 +140,7 @@ void main() {
       await tester.tap(inSettings(find.text('°F')));
       await tester.pumpAndSettle();
       expect(store.temperatureUnit, TemperatureUnit.fahrenheit);
-      expect(labelOf(tester, wednesday), '🌧️ 48° → 57°');
+      expect(labelOf(tester, wednesday), '🌧️ 48° / 57°');
     });
 
     testWidgets('a town found by its name', (tester) async {

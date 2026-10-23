@@ -77,15 +77,16 @@ void main() {
       otherServers: init.otherServers,
     );
 
-    test('always print mode, JSON with the schema, no session, no asking, '
-        'and a step limit', () {
+    test('always print mode, a stream of JSON lines with the schema, no '
+        'session, no asking, and a step limit', () {
       for (final args in [emailOff, emailOn]) {
         expect(args.first, '-p');
-        expect(valueOf(args, '--output-format'), 'json');
+        expect(valueOf(args, '--output-format'), 'stream-json');
+        expect(args, contains('--verbose'));
         expect(valueOf(args, '--json-schema'), AgentPolicy.resultSchema);
         expect(args, contains('--no-session-persistence'));
         expect(valueOf(args, '--permission-mode'), 'dontAsk');
-        expect(valueOf(args, '--max-turns'), '30');
+        expect(valueOf(args, '--max-turns'), '60');
       }
       expect(
         valueOf(AgentPolicy.args(email: false, maxTurns: 5), '--max-turns'),
@@ -394,6 +395,8 @@ void main() {
         'text_draft',
         'questions',
         'sources',
+        'plan_changes',
+        'new_tasks',
       });
     });
 

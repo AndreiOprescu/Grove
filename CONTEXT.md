@@ -76,3 +76,30 @@ _Avoid_: Gain, transaction
 **Your days**:
 The 3 bars on the Persona screen that count the good, okay and rough days of this month or of all time. They come from the mood of each daily note.
 _Avoid_: Mood stats, day score
+
+### Sleep
+
+**Night**:
+The time from one evening to the next morning. It is named by the date of its evening, so the night of Friday ends on Saturday morning.
+
+**Fell asleep / Woke**:
+The start and the end of the night's no-use gap. Grove learns them from the devices; they are a guess, not a measurement.
+_Avoid_: Sleep line, wake-up line (those are the lines the user puts on the planner; detection never moves them)
+
+**No-use gap**:
+The longest time in a night when no device of the user was in use. It must last at least 3 hours and start in the evening or early night.
+_Avoid_: Sleep session
+
+**Brief use**:
+A use of a device that lasts less than 3 minutes, such as a look at the time. It does not end a no-use gap.
+
+**Usual bedtime**:
+The time the user usually falls asleep on a given night, worked out from earlier nights of the same weekday, then from all recent nights, then from the sleep line.
+_Avoid_: Bedtime goal, target bedtime
+
+**Usual sleep length**:
+How long the user usually sleeps, worked out the same way. With the phone's next alarm it can make the usual bedtime earlier.
+
+**Bedtime reminder**:
+The notification that asks the user to plan tomorrow, a lead time (1, 1½ or 2 hours) before the usual bedtime.
+_Avoid_: Sleep reminder, evening nudge

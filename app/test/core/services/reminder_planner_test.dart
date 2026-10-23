@@ -214,6 +214,50 @@ void main() {
       expect(plan([a, b]).map((x) => x.id).toSet().length, 2);
     });
 
+    test('the bedtime reminders join the list, which stays at sixty', () {
+      final many = [
+        for (var i = 0; i < 100; i++)
+          event('E$i', 'e', from: 600, to: 660, on: day.adding(days: i + 1)),
+      ];
+      final bed = [
+        for (var i = 0; i < 8; i++)
+          Reminder(
+            id: 'bed-${day.adding(days: i).string}',
+            title: 'Plan tomorrow',
+            body: 'Bedtime is in about 1½ hours.',
+            fireAt: at(21 * 60 + 30, day.adding(days: i)),
+            day: day.adding(days: i + 1),
+            ref: null,
+          ),
+      ];
+      final all = ReminderPlanner.joined(
+        plan(many, limit: ReminderPlanner.limit - bed.length),
+        bed,
+      );
+      expect(all.length, ReminderPlanner.limit);
+      expect(all.where((r) => r.ref == null).length, 8);
+      final times = all.map((x) => x.fireAt).toList();
+      expect(times, [...times]..sort());
+    });
+
+    test('joined: the same time sorts by id', () {
+      Reminder r(String id) => Reminder(
+        id: id,
+        title: id,
+        body: '',
+        fireAt: at(600),
+        day: day,
+        ref: null,
+      );
+      expect(
+        ReminderPlanner.joined(
+          [r('ev-b')],
+          [r('bed-a'), r('ev-a')],
+        ).map((x) => x.id),
+        ['bed-a', 'ev-a', 'ev-b'],
+      );
+    });
+
     test('the lead choices are the four in the plan', () {
       expect(ReminderPlanner.leadChoices, [0, 5, 10, 15]);
       expect(ReminderPlanner.defaultLead, 5);
