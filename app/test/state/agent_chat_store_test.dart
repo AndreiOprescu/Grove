@@ -287,7 +287,8 @@ void main() {
       final file = call.files.single;
       expect(file.name, 'My plan.txt');
       expect(File(file.path).readAsStringSync(), 'Plan');
-      expect(file.path, startsWith('${data.path}/Agent files/'));
+      final sep = Platform.pathSeparator;
+      expect(file.path, startsWith('${data.path}${sep}Agent files$sep'));
       expect(call.args, AgentPolicy.args(email: false, files: true));
       expect(call.stdin, contains('with the Read tool: My plan.txt.'));
       expect(call.stdin, contains('cannot read them: far.pdf'));
