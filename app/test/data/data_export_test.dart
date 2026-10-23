@@ -199,6 +199,8 @@ void main() {
         expect(b.remove('skills'), hasLength(8));
         expect(b.remove('rewards'), isEmpty);
         expect(b.remove('earnings'), isEmpty);
+        // The agent is in this app only too.
+        expect(b.remove('agent_jobs'), isEmpty);
         if (version == 6) {
           expect(a.keys, isNot(contains('block_subtasks')));
           expect(b.remove('block_subtasks'), isEmpty);

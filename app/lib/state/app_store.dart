@@ -6,6 +6,9 @@ import 'dart:math';
 import 'package:flutter/foundation.dart';
 
 import '../core/grove_core.dart';
+import '../core/agent/agent_models.dart';
+import '../core/agent/agent_policy.dart';
+import '../core/agent/agent_runner.dart';
 import '../core/model/block_subtask.dart';
 import '../core/model/day_key.dart';
 import '../core/model/event.dart';
@@ -29,12 +32,14 @@ import '../core/services/focus_rules.dart';
 import '../core/services/persona.dart';
 import '../core/services/reminder_planner.dart';
 import '../core/update/update_rules.dart';
+import '../core/weather/weather_rules.dart';
 import '../data/data.dart';
 import '../sync/sync.dart';
 import 'editor_services.dart';
 import 'mutation.dart';
 import 'notifier.dart';
 import 'prefs.dart';
+import 'rules/agent_note.dart';
 import 'rules/all_tasks_rules.dart';
 import 'rules/block_subtask_row.dart';
 import 'rules/calendar_rules.dart';
@@ -60,6 +65,7 @@ import 'rules/text.dart';
 import 'screen.dart';
 import 'theme_id.dart';
 
+part 'store_agent.dart';
 part 'store_appearance.dart';
 part 'store_at_date.dart';
 part 'store_block_subtasks.dart';
@@ -87,6 +93,7 @@ part 'store_roll_over.dart';
 part 'store_sync.dart';
 part 'store_tasks.dart';
 part 'store_updates.dart';
+part 'store_weather.dart';
 part 'store_welcome.dart';
 
 /// Runs a read. A read that fails gives null, so the screen shows nothing
@@ -135,6 +142,9 @@ class AppStore extends ChangeNotifier {
     this.dataDir,
     this.syncBackend,
     this.releaseSource,
+    this.weatherSource,
+    this.locationSource,
+    this.agentRunner,
     this._errorMessage,
   }) : notifier = notifier ?? NullNotifier(),
        prefs = prefs ?? MemoryPrefs() {
@@ -153,6 +163,7 @@ class AppStore extends ChangeNotifier {
     _welcomeVisible = FirstRun.welcomeVisible(repos);
     _adoptBlockSubtasks();
     _startSync();
+    _startAgent();
   }
 
   /// Opens the database in [dataDir] and does the launch steps: the daily
@@ -164,6 +175,9 @@ class AppStore extends ChangeNotifier {
     Prefs? prefs,
     SyncBackend? sync,
     ReleaseSource? releases,
+    WeatherSource? weather,
+    LocationSource? location,
+    AgentRunner? agentRunner,
   }) {
     final sep = Platform.pathSeparator;
     try {
@@ -189,6 +203,9 @@ class AppStore extends ChangeNotifier {
         dataDir: dataDir,
         syncBackend: sync,
         releaseSource: releases,
+        weatherSource: weather,
+        locationSource: location,
+        agentRunner: agentRunner,
       );
     } on Exception {
       return AppStore(
@@ -196,6 +213,8 @@ class AppStore extends ChangeNotifier {
         notifier: notifier,
         prefs: prefs,
         releaseSource: releases,
+        weatherSource: weather,
+        locationSource: location,
         errorMessage:
             'Grove could not open its database. Changes will not be saved.',
       );
@@ -221,6 +240,17 @@ class AppStore extends ChangeNotifier {
   /// (a test, or a copy that has none). See `store_updates.dart`.
   final ReleaseSource? releaseSource;
   final _updates = _UpdateState();
+
+  /// Where Grove gets the forecast, and the position of this device. Null:
+  /// no weather (a test, or a copy that has none). See `store_weather.dart`.
+  final WeatherSource? weatherSource;
+  final LocationSource? locationSource;
+  final _weather = _WeatherState();
+
+  /// The door to the `claude` command (ADR 0004). Null on a phone: it makes
+  /// agent jobs but does not run them. See `store_agent.dart`.
+  final AgentRunner? agentRunner;
+  final _agent = _AgentState();
 
   /// How long a change waits before it is sent. A burst of changes is one
   /// sync.
@@ -257,6 +287,7 @@ class AppStore extends ChangeNotifier {
     _reminderSleep?.cancel();
     _freshSleep?.cancel();
     _stopSync();
+    _stopAgent();
     super.dispose();
   }
 

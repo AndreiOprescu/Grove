@@ -2,6 +2,7 @@
 // (PLAN §5.1.4: "Right-click", "Click a block", "Double-click empty space").
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:grove/ui/agent/agent_dialog.dart';
 import 'package:grove/ui/calendar/event_editor.dart';
 import 'package:grove/ui/planner/inline_title_field.dart';
 import 'package:grove/ui/tasks/task_inspector.dart';
@@ -100,6 +101,31 @@ void main() {
       ]) {
         expect(menuLine(line), findsNothing, reason: line);
       }
+    });
+
+    testWidgets('"Ask the agent…" is on a task block only with the agent on', (
+      tester,
+    ) async {
+      final (store, _) = await withMenu(tester);
+      expect(menuLine('Ask the agent…'), findsNothing);
+      await tester.tapAt(const Offset(5, 5));
+      await tester.pumpAndSettle();
+
+      store.setAgentEnabled(true);
+      await tester.pumpAndSettle();
+      await rightClick(tester, pointAt(tester, wednesday, 11 * 60 + 30));
+      await pick(tester, 'Ask the agent…');
+      expect(find.byType(AgentDialog), findsOneWidget);
+      expect(find.text('Lunch'), findsWidgets);
+    });
+
+    testWidgets('an event has no "Ask the agent…"', (tester) async {
+      final store = plannerStore()..setAgentEnabled(true);
+      addBlock(store, 'Lunch', asEvent: true);
+      await pumpPlanner(tester, store);
+      await rightClick(tester, pointAt(tester, wednesday, 11 * 60 + 30));
+      expect(menuLine('Edit Event…'), findsOneWidget);
+      expect(menuLine('Ask the agent…'), findsNothing);
     });
 
     testWidgets('a click away closes the menu and changes nothing', (

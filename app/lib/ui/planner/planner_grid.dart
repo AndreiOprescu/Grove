@@ -13,6 +13,7 @@ import 'package:grove/core/planner/planner_math.dart';
 // The store has its own `MotionRules`, for the garden.
 import 'package:grove/state/state.dart' hide MotionRules;
 
+import '../agent/agent_dialog.dart';
 import '../theme/grove_theme.dart';
 import '../theme/named_colors.dart';
 import '../theme/theme_math.dart';
@@ -660,6 +661,32 @@ class PlannerGridState extends State<PlannerGrid> {
     if (!again) _focus.requestFocus();
   }
 
+  /// A right click on empty time: the wake-up line and the sleep line of
+  /// [day] go to the time of the click. A line that is not there is added.
+  Future<void> _columnMenu(DayKey day, Offset global) async {
+    if (_isDragging || _twoFingers) return;
+    _closeDraft();
+    _store.selection = {};
+    setState(() => _renamingId = null);
+    final y = _inViewport(global).dy + _scrollY;
+    final minute = DayMarkerRules.snapped(_geo.minute(y));
+    final time = PlannerMath.clock(minute);
+    final action = await _menu<VoidCallback>(global, [
+      for (final kind in DayMarkerKind.values)
+        if (_store.dayMarker(kind, day) == null)
+          _item(
+            'Add ${kind.lineName} at $time',
+            () => _store.addDayMarker(kind, day, at: minute),
+          )
+        else
+          _item(
+            'Move ${kind.lineName} to $time',
+            () => _store.moveDayMarker(kind, day, minute),
+          ),
+    ]);
+    if (mounted) action?.call();
+  }
+
   // A pinch
 
   /// Sets the height of one hour to `scale` times the height at the start
@@ -1111,6 +1138,13 @@ class PlannerGridState extends State<PlannerGrid> {
             final e = store.event(block.id);
             if (e != null) store.startFocus(e);
           }),
+        if (store.agentEnabled) ...[
+          const PopupMenuDivider(),
+          _item(
+            'Ask the agent…',
+            () => unawaited(showAgentDialog(context, store, taskId)),
+          ),
+        ],
       ],
       const PopupMenuDivider(),
       if (block.isTaskBlock) ...[
@@ -1336,6 +1370,7 @@ class PlannerGridState extends State<PlannerGrid> {
       builder: (context, _, _) => _ColumnGestures(
         key: ValueKey('day-column-${day.string}'),
         onTap: (at) => _columnTapped(day, at),
+        onSecondaryTap: (at) => _columnMenu(day, at),
         onDragStart: (at) => _createStart(index, at),
         onDragUpdate: _dragUpdate,
         onDragEnd: _createEnd,
@@ -1739,6 +1774,7 @@ class _ColumnGestures extends StatelessWidget {
   const _ColumnGestures({
     super.key,
     required this.onTap,
+    required this.onSecondaryTap,
     required this.onDragStart,
     required this.onDragUpdate,
     required this.onDragEnd,
@@ -1746,6 +1782,7 @@ class _ColumnGestures extends StatelessWidget {
   });
 
   final ValueChanged<Offset> onTap;
+  final ValueChanged<Offset> onSecondaryTap;
   final ValueChanged<Offset> onDragStart;
   final ValueChanged<Offset> onDragUpdate;
   final VoidCallback onDragEnd;
@@ -1758,7 +1795,10 @@ class _ColumnGestures extends StatelessWidget {
       TapGestureRecognizer:
           GestureRecognizerFactoryWithHandlers<TapGestureRecognizer>(
             TapGestureRecognizer.new,
-            (tap) => tap.onTapUp = (d) => onTap(d.globalPosition),
+            (tap) {
+              tap.onTapUp = (d) => onTap(d.globalPosition);
+              tap.onSecondaryTapUp = (d) => onSecondaryTap(d.globalPosition);
+            },
           ),
       PanGestureRecognizer:
           GestureRecognizerFactoryWithHandlers<PanGestureRecognizer>(

@@ -1,6 +1,7 @@
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:grove/ui/agent/agent_dialog.dart';
 import 'package:grove/ui/tasks/notice_cards.dart';
 import 'package:grove/ui/tasks/quick_add_field.dart';
 import 'package:grove/ui/tasks/task_row.dart';
@@ -231,6 +232,46 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('Buy oat milk'), findsOneWidget);
       await endToast(tester);
+    });
+
+    testWidgets('"Ask the agent…" is in the menu only with the agent on', (
+      tester,
+    ) async {
+      final store = paneStore();
+      addTask(store, 'Buy milk');
+      await pumpPane(tester, today(store));
+
+      await rightClick(tester, rowFinder('buy-milk'));
+      expect(find.text('Ask the agent…'), findsNothing);
+      await tester.tapAt(const Offset(5, 5));
+      await tester.pumpAndSettle();
+
+      store.setAgentEnabled(true);
+      await tester.pumpAndSettle();
+      await rightClick(tester, rowFinder('buy-milk'));
+      await tester.tap(find.text('Ask the agent…'));
+      await tester.pumpAndSettle();
+      expect(find.byType(AgentDialog), findsOneWidget);
+    });
+
+    testWidgets('a row says when the agent waits or works on its task', (
+      tester,
+    ) async {
+      final store = paneStore();
+      addTask(store, 'Buy milk');
+      store.setAgentEnabled(true);
+      final id = store.delegateToAgent('buy-milk');
+      await pumpPane(tester, today(store));
+      expect(find.text('Agent waiting'), findsOneWidget);
+
+      store.repos.agentJobs.setStatus(id, AgentStatus.running);
+      store.setAgentEnabled(true);
+      await tester.pumpAndSettle();
+      expect(find.text('Agent working'), findsOneWidget);
+
+      store.setAgentEnabled(false);
+      await tester.pumpAndSettle();
+      expect(find.text('Agent working'), findsNothing);
     });
 
     testWidgets('subtasks: add, count, check and hide', (tester) async {

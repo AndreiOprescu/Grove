@@ -13,6 +13,7 @@ import 'package:grove/state/state.dart' hide MotionRules;
 import '../notes/note_editor_pane.dart';
 import '../planner/planner_kind.dart';
 import '../planner/planner_view.dart';
+import '../planner/weather_label.dart';
 import '../shell/shell_layout.dart';
 import '../tasks/store_panes.dart';
 import '../tasks/task_widgets.dart';
@@ -277,15 +278,25 @@ class SpreadHeader extends StatelessWidget {
     final day = store.todayScreenDay;
     final isToday = !store.showsTomorrow;
     final progress = store.plantProgress(day);
+    final heading = ThemedHeading(
+      NotesRules.longDay(day),
+      compact ? 22 : 28,
+      key: const ValueKey('spread-date'),
+    );
     final words = Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       spacing: 2,
       children: [
-        ThemedHeading(
-          NotesRules.longDay(day),
-          compact ? 22 : 28,
-          key: const ValueKey('spread-date'),
-        ),
+        if (store.weatherFor(day) == null)
+          heading
+        else
+          Row(
+            spacing: 10,
+            children: [
+              Flexible(child: heading),
+              WeatherLabel(store: store, day: day, size: compact ? 13 : 15),
+            ],
+          ),
         Text(
           isToday
               ? SpreadRules.subtitle(

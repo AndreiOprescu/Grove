@@ -42,12 +42,18 @@ AppStore makeStore({
   Repos? repos,
   WallTime? clock,
   ReleaseSource? releases,
+  WeatherSource? weather,
+  LocationSource? location,
+  AgentRunner? agentRunner,
 }) {
   final s = AppStore(
     repos: repos ?? Repos(Database.inMemory()),
     notifier: notifier,
     prefs: prefs,
     releaseSource: releases,
+    weatherSource: weather,
+    locationSource: location,
+    agentRunner: agentRunner,
   );
   s.clockOverride = clock;
   addTearDown(s.dispose);
@@ -189,3 +195,150 @@ ReleaseInfo release(String version) => ReleaseInfo(
         'https://github.com/AndreiOprescu/Grove/releases/download/v$version/grove-macos.zip',
   },
 );
+
+/// A forecast that only writes down what the store asks for. Each day from
+/// [from] has rain, 9° at 9am and 14° at 9pm, unless [days] says other.
+class FakeWeather implements WeatherSource {
+  FakeWeather({required this.from, this.count = 16, this.towns = const []});
+
+  final DayKey from;
+  final int count;
+  final List<WeatherPlace> towns;
+  Map<DayKey, DayWeather>? days;
+
+  /// Set to make the next questions fail.
+  Object? error;
+
+  /// Each position asked for.
+  final List<(double, double)> asked = [];
+  final List<String> searched = [];
+
+  /// Set to hold the answer until the test completes it.
+  Completer<void>? gate;
+
+  @override
+  Future<Map<DayKey, DayWeather>> forecast(double lat, double lon) async {
+    asked.add((lat, lon));
+    await gate?.future;
+    final e = error;
+    if (e != null) throw e;
+    return days ??
+        {
+          for (var i = 0; i < count; i++)
+            from.adding(days: i): DayWeather(
+              day: from.adding(days: i),
+              condition: WeatherCondition.rain,
+              morning: 9,
+              evening: 14,
+            ),
+        };
+  }
+
+  @override
+  Future<List<WeatherPlace>> search(String name) async {
+    searched.add(name);
+    final e = error;
+    if (e != null) throw e;
+    return towns;
+  }
+}
+
+/// The position of this device in a test.
+class FakeLocation implements LocationSource {
+  FakeLocation([this.answer = const LocationAnswer.at(51.5072, -0.1276)]);
+
+  LocationAnswer answer;
+  int asked = 0;
+
+  @override
+  Future<LocationAnswer> here() async {
+    asked += 1;
+    return answer;
+  }
+}
+
+/// One call of [FakeAgentRunner.start].
+class AgentCall {
+  AgentCall(this.exe, this.args, this.stdin, this.timeout);
+
+  final String exe;
+  final List<String> args;
+  final String stdin;
+  final Duration timeout;
+}
+
+/// A `claude` process of [FakeAgentRunner]. It ends when the test calls
+/// [finish], or at [cancel].
+class FakeAgentProcess implements AgentProcess {
+  final _done = Completer<AgentRunOutput>();
+  int cancels = 0;
+
+  @override
+  Future<AgentRunOutput> get done => _done.future;
+
+  bool get isDone => _done.isCompleted;
+
+  void finish(AgentRunOutput out) {
+    if (!_done.isCompleted) _done.complete(out);
+  }
+
+  @override
+  void cancel() {
+    cancels += 1;
+    finish(
+      const AgentRunOutput(
+        exitCode: -15,
+        stdout: '',
+        stderr: '',
+        cancelled: true,
+      ),
+    );
+  }
+}
+
+/// A `claude` door with scripted answers. It writes down what Grove asks.
+class FakeAgentRunner extends AgentRunner {
+  FakeAgentRunner({this.exe = '/fake/claude', this.initLine, this.output});
+
+  /// What [locate] finds. Null: this computer has no `claude`.
+  String? exe;
+
+  /// The first line of the probe.
+  String? initLine;
+
+  /// How each run ends at once. Null: the run waits until the test calls
+  /// `FakeAgentProcess.finish` on [processes].
+  AgentRunOutput? output;
+
+  int locates = 0;
+  final List<List<String>> probes = [];
+  final List<AgentCall> calls = [];
+  final List<FakeAgentProcess> processes = [];
+
+  @override
+  Future<String?> locate() async {
+    locates += 1;
+    return exe;
+  }
+
+  @override
+  Future<String?> probeInit(String exe, List<String> args) async {
+    probes.add(args);
+    return initLine;
+  }
+
+  @override
+  AgentProcess start(
+    String exe,
+    List<String> args, {
+    required String stdin,
+    required Duration timeout,
+  }) {
+    calls.add(AgentCall(exe, args, stdin, timeout));
+    final p = FakeAgentProcess();
+    processes.add(p);
+    final out = output;
+    if (out != null) p.finish(out);
+    return p;
+  }
+}

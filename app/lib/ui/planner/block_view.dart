@@ -585,8 +585,12 @@ class _BodyGesturesState extends State<_BodyGestures> {
 /// waits for 18 points. The scroll view waits for the touch slop of the
 /// device, and an Android phone says 8 points. So on Android the scroll
 /// view was first, the grid scrolled, and the edge did not move.
+///
+/// Two fingers on a trackpad are not for it. They scroll the grid, also
+/// when the pointer is on an edge.
 class EdgeDragRecognizer extends VerticalDragGestureRecognizer {
-  EdgeDragRecognizer({super.debugOwner});
+  EdgeDragRecognizer({super.debugOwner})
+    : super(supportedDevices: const {...mouseKinds, ...touchKinds});
 
   @override
   bool hasSufficientGlobalDistanceToAccept(

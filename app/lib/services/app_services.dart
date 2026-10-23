@@ -6,6 +6,7 @@ import 'package:flutter/widgets.dart';
 import '../state/state.dart';
 import 'app_window.dart';
 import 'backup_schedule.dart';
+import 'claude_cli_runner.dart';
 import 'local_notifications_gateway.dart';
 import 'sync_schedule.dart';
 import 'system_notifier.dart';
@@ -13,10 +14,11 @@ import 'tray_gateway.dart';
 import 'tray_manager_gateway.dart';
 import 'tray_service.dart';
 import 'update_check.dart';
+import 'weather_check.dart';
 
 /// The work that runs behind the screens from launch to quit: reminders, the
-/// daily backup, the sync, the check for a new Grove, and the tray icon on a
-/// computer.
+/// daily backup, the sync, the check for a new Grove, the weather, and the
+/// tray icon on a computer.
 ///
 /// `main.dart` makes the notifier, opens the store with it, then starts this:
 ///
@@ -35,6 +37,7 @@ class AppServices {
   }) : _backup = BackupSchedule(store),
        _sync = SyncSchedule(store),
        _updates = UpdateSchedule(store),
+       _weather = WeatherSchedule(store),
        _tray = tray == null
            ? null
            : TrayService(
@@ -74,10 +77,27 @@ class AppServices {
     }
   }
 
+  /// The door to the `claude` command of the agent (ADR 0004). Only a
+  /// computer can run it; a phone or the web gets null and only makes jobs.
+  static AgentRunner? agentRunner() {
+    if (kIsWeb) return null;
+    switch (defaultTargetPlatform) {
+      case TargetPlatform.macOS:
+      case TargetPlatform.windows:
+      case TargetPlatform.linux:
+        return ClaudeCliRunner();
+      case TargetPlatform.android:
+      case TargetPlatform.iOS:
+      case TargetPlatform.fuchsia:
+        return null;
+    }
+  }
+
   final AppStore store;
   final BackupSchedule _backup;
   final SyncSchedule _sync;
   final UpdateSchedule _updates;
+  final WeatherSchedule _weather;
   final TrayService? _tray;
   AppLifecycleListener? _lifecycle;
   bool _started = false;
@@ -97,6 +117,7 @@ class AppServices {
     _backup.start();
     _sync.start();
     _updates.start();
+    _weather.start();
     _trayShown = _tray?.start() ?? false;
     _lifecycle = AppLifecycleListener(onResume: resumed);
   }
@@ -108,6 +129,7 @@ class AppServices {
     _backup.check();
     _sync.check();
     _updates.check();
+    _weather.check();
     store.scheduleReminderRefresh();
     _tray?.refresh();
   }
@@ -120,6 +142,7 @@ class AppServices {
     _backup.dispose();
     _sync.dispose();
     _updates.dispose();
+    _weather.dispose();
     _tray?.dispose();
     _trayShown = false;
   }

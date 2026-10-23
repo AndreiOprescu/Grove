@@ -12,6 +12,7 @@ import 'package:grove/core/model/event.dart';
 import 'package:grove/core/planner/planner_math.dart';
 import 'package:grove/state/state.dart' hide MotionRules;
 
+import '../calendar/day_menu.dart';
 import '../calendar/month_view.dart';
 import '../shell/shell_layout.dart';
 import '../theme/grove_theme.dart';
@@ -26,6 +27,7 @@ import 'planner_geometry.dart';
 import 'planner_grid.dart';
 import 'planner_kind.dart';
 import 'sticky_strip.dart';
+import 'weather_label.dart';
 import 'workload.dart';
 
 class PlannerView extends StatefulWidget {
@@ -586,8 +588,28 @@ class _PlannerViewState extends State<PlannerView> {
     ],
   ];
 
+  /// The day menu of a day name. [at] is null for a screen reader: the menu
+  /// opens at the name.
+  void _dayMenu(BuildContext context, DayKey day, Offset? at) {
+    final box = context.findRenderObject() as RenderBox?;
+    final where = at ?? box?.localToGlobal(Offset.zero) ?? Offset.zero;
+    showDayMenu(
+      context,
+      where,
+      store: _store,
+      day: day,
+      planDay: () {
+        _store.selectedDay = day;
+        _showPlan();
+      },
+    );
+  }
+
   Widget _dayHeaders(GroveTheme theme, List<DayKey> days) {
     final today = _store.clockToday;
+    // Each date gets a weather line when one day of the week has weather,
+    // so the dates stay in one row.
+    final weather = days.any((d) => _store.weatherFor(d) != null);
     return DecoratedBox(
       decoration: BoxDecoration(
         border: Border(bottom: BorderSide(color: theme.line)),
@@ -604,10 +626,15 @@ class _PlannerViewState extends State<PlannerView> {
                   button: true,
                   label: NotesRules.longDay(day),
                   onTap: () => _store.selectedDay = day,
+                  onLongPress: () => _dayMenu(context, day, null),
                   child: GestureDetector(
                     key: ValueKey('day-header-${day.string}'),
                     behavior: HitTestBehavior.opaque,
                     onTap: () => _store.selectedDay = day,
+                    onSecondaryTapUp: (d) =>
+                        _dayMenu(context, day, d.globalPosition),
+                    onLongPressStart: (d) =>
+                        _dayMenu(context, day, d.globalPosition),
                     child: Padding(
                       padding: const EdgeInsets.symmetric(vertical: 6),
                       child: Column(
@@ -635,6 +662,14 @@ class _PlannerViewState extends State<PlannerView> {
                                       : theme.ink,
                                 ),
                           ),
+                          if (weather)
+                            SizedBox(
+                              height: 15,
+                              child: FittedBox(
+                                fit: BoxFit.scaleDown,
+                                child: WeatherLabel(store: _store, day: day),
+                              ),
+                            ),
                         ],
                       ),
                     ),

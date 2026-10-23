@@ -13,14 +13,15 @@
   <img alt="Local-first" src="https://img.shields.io/badge/data-stays%20on%20your%20device-D9B44A?style=flat-square">
   <img alt="Sync is optional" src="https://img.shields.io/badge/sync-optional-7FA36B?style=flat-square">
   <img alt="MIT license" src="https://img.shields.io/badge/license-MIT-A9C79A?style=flat-square">
-  <img alt="2456 tests" src="https://img.shields.io/badge/tests-2456%20passing-8DB57A?style=flat-square">
+  <img alt="3131 tests" src="https://img.shields.io/badge/tests-3131%20passing-8DB57A?style=flat-square">
 </p>
 
 <p align="center">
   <a href="#-install"><b>Install</b></a> ·
   <a href="#-what-grove-does"><b>Features</b></a> ·
   <a href="#-who-its-for"><b>Who it's for</b></a> ·
-  <a href="#-how-it-works-for-the-curious"><b>How it works</b></a>
+  <a href="#-how-it-works-for-the-curious"><b>How it works</b></a> ·
+  <a href="docs/blog/README.md"><b>Blog</b></a>
 </p>
 
 <p align="center">
@@ -86,6 +87,7 @@ The heart of Grove. A timeline of your day, with your tasks on the side.
 ### Planner — your week at a glance
 Seven days side by side. Drag blocks between days. Zoom in and out with `⌘ =` and `⌘ −`
 (`Ctrl` in place of `⌘` on Windows).
+Right-click a day name (a long press on a phone) for the day menu: a new event, deadline or task on that day, its notes, Plan my day, and Move open tasks to another day.
 
 <p align="center">
   <img src="docs/images/planner-tab.png" alt="Grove Planner: a full week of blocks, goals and sticky notes" width="100%">
@@ -129,7 +131,7 @@ Some things have no date. You just want to do them *enough*.
 
 ### Calendar
 A month view with your events, a dot for each open task and a leaf for each day with a note.
-Click a day to jump to that week.
+Click a day to jump to that week. Double-click a day for a new event. Right-click it (a long press on a phone) for the day menu.
 
 <p align="center">
   <img src="docs/images/calendar-screen.png" alt="Grove Calendar: a month view tinted by mood" width="100%">
@@ -143,11 +145,43 @@ It is a quiet reward for a good day.
   <img src="docs/images/plant-page.png" alt="Grove Garden: a budding plant and its stages" width="100%">
 </p>
 
+### Persona — see yourself grow
+Give a task or a goal a reward, for example "+30 Strength".
+When you finish it, that skill gets the points and grows level by level.
+
+- A bar for each skill, and a list of the newest points.
+- A small pop-up when a skill reaches a new level.
+- **Your days**: three bars for good, okay and rough days, from the mood of your daily
+  notes. See this month or all time.
+
 ### Four themes, light and dark
 **Grove** (natural, the default), **Minimal**, **Futuristic** and **Vintage**.
 Each one has its own colours, fonts and shapes, in a light look and a dark look.
 Soft light drifts in the background. Motion can be turned off, and Grove follows
 the *Reduce motion* setting of your system.
+
+### Agent — hand a task off (optional) 🤖
+Right-click a task and pick **Ask the agent…**. An AI agent works on it for you:
+it can write a document, read your email (only if you allow it), and draft an email
+or a text message. The results come back as notes linked to the task, on all your devices.
+
+**It reads and drafts. It never sends.** You open a draft in Mail or Messages and press
+Send yourself. It cannot run commands or change files on your computer.
+
+You need [Claude Code](https://claude.com/claude-code) on a Mac or Windows PC, logged in
+with your own Claude plan. That computer runs the jobs. You can ask from any device,
+also your phone. The jobs wait until that computer is on and Grove is open.
+
+The agent is **off at first**. Turn it on in **Settings ▸ Agent**:
+
+| Switch | What it does |
+|---|---|
+| **Use the agent** | Shows *Ask the agent…* in the task menus. |
+| **This device runs agent tasks** | This computer runs the jobs. Needs Claude Code. |
+| **Let the agent read my email** | The agent may search and read Gmail, read-only. Connect Gmail first in claude.ai ▸ Settings ▸ Connectors. |
+
+No Claude Code? Leave it off. Nothing else in Grove changes.
+Why it works this way: [ADR 0004](docs/adr/0004-agent-delegation.md).
 
 ### Small things that feel good
 - **Command palette** (`⌘ K`) to find and do anything.
@@ -168,7 +202,7 @@ On Windows, use `Ctrl` in place of `⌘`.
 | `⌥ ⌘ N` | New note |
 | `⇧ ⌘ N` | New event |
 | `⌘ T` | Today |
-| `⌘ 1` … `⌘ 5` | Planner · Tasks · Calendar · Notes · Garden |
+| `⌘ 1` … `⌘ 6` | Planner · Tasks · Calendar · Notes · Garden · Persona |
 | `⌘ K` | Command palette |
 | `⌘ =` / `⌘ −` | Zoom the planner |
 | `⌘ Z` / `⇧ ⌘ Z` | Undo / Redo |
@@ -321,12 +355,15 @@ After the update, use **Import JSON…** in the new one. The steps are in
 
 | System | Place |
 |---|---|
-| macOS | `~/Library/Containers/local.grove.app/Data/Library/Application Support/local.grove.app/` |
+| macOS | `~/Library/Application Support/local.grove.app/` |
 | Windows | `%APPDATA%\local.grove\Grove` |
 | Android, iOS | Inside the app. It goes away when you remove the app. |
 
 The file is `grove.sqlite`. Grove makes a backup each day and keeps the newest 14 in `Backups`.
 On a Mac and on Windows, **Settings ▸ Data ▸ Show data folder** opens the place.
+
+Grove for Mac used to keep its data in `~/Library/Containers/local.grove.app/`. The first time
+the new version starts, it copies the data to the new place. The old folder stays as a backup.
 
 ### Uninstall
 
@@ -349,11 +386,12 @@ data is on a server that is yours.
 2. Open **SQL Editor**. Paste the whole file
    [`supabase/migrations/20261011000000_grove_sync.sql`](supabase/migrations/20261011000000_grove_sync.sql)
    and run it.
-   Then do the same with
-   [`supabase/migrations/20261012000000_grove_sync_goal_subtasks.sql`](supabase/migrations/20261012000000_grove_sync_goal_subtasks.sql),
-   and then with
-   [`supabase/migrations/20261013000000_grove_sync_goal_subtask_block.sql`](supabase/migrations/20261013000000_grove_sync_goal_subtask_block.sql).
-   Sync works only after all three files.
+   Then do the same with each other file in
+   [`supabase/migrations/`](supabase/migrations/), oldest first (the date is in the name):
+   [`…_goal_subtasks.sql`](supabase/migrations/20261012000000_grove_sync_goal_subtasks.sql),
+   [`…_goal_subtask_block.sql`](supabase/migrations/20261013000000_grove_sync_goal_subtask_block.sql),
+   [`…_persona.sql`](supabase/migrations/20261015000000_grove_sync_persona.sql).
+   Sync works only after all the files. When a new Grove brings a new file, run that one too.
 3. Open **Authentication ▸ Emails ▸ Templates**. In "Magic Link" and in "Confirm signup",
    add this line: `Your code for Grove: {{ .Token }}`
 4. Make the key file and fill in the two fields:
@@ -390,7 +428,7 @@ systems. It lives in [`app/`](app/).
 
 ```mermaid
 flowchart LR
-    UI["Flutter widgets<br/>Today · Planner · Calendar · Notes · Garden"]
+    UI["Flutter widgets<br/>Today · Planner · Calendar · Notes · Garden · Persona"]
     Store["AppStore<br/>every change is a Mutation"]
     Undo["Undo / redo<br/>one Mutation = one step"]
     Core["core<br/>pure Dart, no UI"]
@@ -437,7 +475,7 @@ are bundled and open (OFL).
 **Art in code.** The app icon is drawn by `scripts/make_flutter_icons.swift`. The garden,
 the plant and the drifting background light are drawn at run time.
 
-**Tested.** 2456 tests. The script also checks the format and runs the analyzer:
+**Tested.** 3131 tests. The script also checks the format and runs the analyzer:
 
 ```bash
 ./scripts/flutter_test.sh
@@ -457,7 +495,7 @@ app/                 the Flutter app (all four systems)
 │  ├─ sync/          outbox, push and pull, last write wins
 │  ├─ services/      reminders, tray, window, Supabase
 │  └─ ui/            planner · tasks · calendar · notes · goals · garden ·
-│                    editor · settings · shell · theme · auth
+│                    persona · editor · settings · shell · theme · auth
 ├─ test/             unit, widget and golden tests
 ├─ config/           supabase.example.json (your key file goes here)
 └─ macos/ windows/ android/ ios/    the native shells
@@ -471,12 +509,22 @@ docs/                plan, decisions (ADR), assumptions, acceptance proof
 
 ---
 
+## 📰 What's new
+
+Each version has one line for each feature in the [version log](CHANGELOG.md).
+Each new feature also gets a short post in the [Grove blog](docs/blog/README.md).
+The newest: [A menu for each day](docs/blog/2026-10-20-day-menu.md).
+
+---
+
 ## 🗺️ Roadmap
 
-- [x] Day Planner, tasks, calendar, notes, goals, garden
+- [x] Day Planner, tasks, calendar, notes, goals, garden, persona
 - [x] Four themes, each in light and dark
 - [x] One app for macOS, Windows, Android and iOS with Flutter
 - [x] Optional sync between devices (built and tested)
+- [x] Optional agent that reads and drafts for you (needs Claude Code)
+- [ ] Agent documents as files (PDF, Word), not only notes
 - [ ] Prove sync against a real server
 - [ ] Try the app by hand on a Windows PC, an Android phone and an iPhone
 - [ ] Ready-made, signed downloads
