@@ -148,7 +148,7 @@ class _NotesListState extends State<NotesList> {
     builder: (context) {
       final theme = GroveTheme.of(context);
       final notes = _store.notes(
-        filter: _store.noteFilter,
+        section: _store.noteSection,
         query: _store.noteQuery,
       );
       final today = _store.clockToday;
@@ -202,7 +202,7 @@ class _NotesListState extends State<NotesList> {
                           padding: const EdgeInsets.only(top: 14),
                           child: Text(
                             _store.noteQuery.isEmpty &&
-                                    _store.noteFilter == NoteFilter.all
+                                    _store.noteSection == NoteSection.all
                                 ? 'No notes here yet.'
                                 : 'Nothing matches.',
                             style: theme.body(12).copyWith(color: theme.muted),
@@ -296,13 +296,13 @@ class _NotesListState extends State<NotesList> {
   );
 
   Widget _filters(GroveTheme theme) {
-    final filters = <(String, String, NoteFilter)>[
-      ('all', 'All', NoteFilter.all),
-      ('daily', 'Daily', NoteFilter.daily),
-      ('weekly', 'Weekly', NoteFilter.weekly),
-      ('pinned', 'Pinned', NoteFilter.pinned),
+    final filters = <(String, String, NoteSection)>[
+      ('all', 'All', NoteSection.all),
+      ('daily', 'Daily', NoteSection.daily),
+      ('weekly', 'Weekly', NoteSection.weekly),
+      ('pinned', 'Pinned', NoteSection.pinned),
       for (final tag in _store.allNoteTags())
-        ('tag-$tag', '#$tag', NoteFilter.tag(tag)),
+        ('tag-$tag', '#$tag', NoteSection.tag(tag)),
     ];
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
@@ -316,13 +316,18 @@ class _NotesListState extends State<NotesList> {
     );
   }
 
-  Widget _filter(GroveTheme theme, String key, String name, NoteFilter filter) {
-    final on = _store.noteFilter == filter;
+  Widget _filter(
+    GroveTheme theme,
+    String key,
+    String name,
+    NoteSection filter,
+  ) {
+    final on = _store.noteSection == filter;
     return NoteTap(
       key: ValueKey('notes-filter-$key'),
       label: name,
       selected: on,
-      onTap: () => _store.noteFilter = filter,
+      onTap: () => _store.noteSection = filter,
       child: DecoratedBox(
         decoration: ShapeDecoration(
           color: on ? theme.accent : theme.surface2,

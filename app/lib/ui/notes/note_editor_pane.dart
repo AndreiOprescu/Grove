@@ -488,7 +488,7 @@ class _NoteEditorPaneState extends State<NoteEditorPane> {
               key: ValueKey('note-tag-$tag'),
               label: '#$tag',
               tip: 'Show notes with this tag',
-              onTap: () => _store.noteFilter = NoteFilter.tag(tag),
+              onTap: () => _store.noteSection = NoteSection.tag(tag),
               child: DecoratedBox(
                 decoration: ShapeDecoration(
                   color: theme.surface2,

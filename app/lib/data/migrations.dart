@@ -2,9 +2,9 @@ import 'database.dart';
 import 'sync_schema.dart';
 
 /// Ordered schema migrations. Index N takes the database from user_version N to N+1.
-/// 1 to 7 are the Mac app's migrations, word for word. 8 to 13 are in this
+/// 1 to 7 are the Mac app's migrations, word for word. 8 to 14 are in this
 /// app only (the Mac app has no subtasks of a goal, no persona, no
-/// deadlines and no agent). The
+/// deadlines, no agent and no notebooks). The
 /// export file carries the number, and an app refuses a file with a higher
 /// number than its own: the Mac app does not read a file of this app. Never
 /// edit a shipped migration; append a new one.
@@ -255,6 +255,37 @@ abstract final class Migrations {
     );
     CREATE INDEX agent_events_job ON agent_events(job_id, line_no);
     ''',
+    // 14 — notebooks and their sections (notes redesign, 2026-10-26). A note
+    // is in one notebook or in none, and in one section of it or in none. It
+    // has a place in its notebook and can be archived. When a notebook goes,
+    // its sections go and its notes are free. When a section goes, its notes
+    // stay in the notebook. `sort_order` on notes may be empty: rows on the
+    // server from before it have no value, and a pull writes them as they
+    // are. Empty reads as 0. Not in the Mac app.
+    '''
+    CREATE TABLE notebooks (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      color TEXT,
+      sort_order REAL NOT NULL DEFAULT 0,
+      created_at TEXT NOT NULL, updated_at TEXT NOT NULL
+    );
+    CREATE TABLE notebook_sections (
+      id TEXT PRIMARY KEY,
+      notebook_id TEXT NOT NULL REFERENCES notebooks(id) ON DELETE CASCADE,
+      name TEXT NOT NULL,
+      sort_order REAL NOT NULL DEFAULT 0,
+      created_at TEXT NOT NULL, updated_at TEXT NOT NULL
+    );
+    CREATE INDEX notebook_sections_notebook ON notebook_sections(notebook_id);
+    ALTER TABLE notes ADD COLUMN notebook_id TEXT
+      REFERENCES notebooks(id) ON DELETE SET NULL;
+    ALTER TABLE notes ADD COLUMN section_id TEXT
+      REFERENCES notebook_sections(id) ON DELETE SET NULL;
+    ALTER TABLE notes ADD COLUMN sort_order REAL DEFAULT 0;
+    ALTER TABLE notes ADD COLUMN archived_at TEXT;
+    CREATE INDEX notes_notebook ON notes(notebook_id);
+    ''',
   ];
 
   /// Steps in Dart that run right before the migration at the same index,
@@ -318,9 +349,11 @@ abstract final class SyncMigrations {
   /// A table comes after the tables it points at: the sync sends them in
   /// this order. `goal_subtasks` points at `goals` and at `events`;
   /// `agent_jobs` at `tasks` and at `notes`; `agent_events` at
-  /// `agent_jobs`.
+  /// `agent_jobs`; `notes` at `notebooks` and at `notebook_sections`.
   static const syncedTables = [
     'lists',
+    'notebooks',
+    'notebook_sections',
     'notes',
     'goals',
     'tasks',
@@ -343,6 +376,8 @@ abstract final class SyncMigrations {
 
   /// Tables that already had `updated_at` in the shared schema.
   static const _hadUpdatedAt = {
+    'notebooks',
+    'notebook_sections',
     'notes',
     'goals',
     'tasks',
@@ -400,6 +435,14 @@ abstract final class SyncMigrations {
     // 7 — `agent_events` (shared migration 13) joins the sync, in the same
     // way.
     (db) => SyncSchema.addTable(db, 'agent_events'),
+    // 8 — `notebooks` and `notebook_sections` (shared migration 14) join the
+    // sync, in the same way. The new columns of `notes` need nothing here:
+    // the triggers are made again when the columns change.
+    (db) {
+      for (final t in const ['notebooks', 'notebook_sections']) {
+        SyncSchema.addTable(db, t);
+      }
+    },
   ];
 
   static const _key = 'schema';

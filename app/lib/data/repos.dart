@@ -15,6 +15,7 @@ import 'agent_event_repo.dart';
 import 'agent_job_repo.dart';
 import 'attachment_repo.dart';
 import 'database.dart';
+import 'notebook_repo.dart';
 import 'persona_repo.dart';
 import 'reference_indexer.dart';
 import 'search_index.dart';
@@ -742,8 +743,13 @@ class NoteRepo {
     'mood',
     'created_at',
     'updated_at',
+    'notebook_id',
+    'section_id',
+    'sort_order',
+    'archived_at',
   ];
   static final _select = 'SELECT ${_cols.join(',')} FROM notes';
+  static const _live = 'archived_at IS NULL';
   static final _upsert = _upsertSql('notes', _cols);
 
   static Note _map(Row r) => Note(
@@ -756,6 +762,10 @@ class NoteRepo {
     mood: r.optInt(6),
     createdAt: r.text(7),
     updatedAt: r.text(8),
+    notebookId: r.optText(9),
+    sectionId: r.optText(10),
+    sortOrder: r.asDouble(11),
+    archivedAt: r.optText(12),
   );
 
   List<Note> _where(String clause, [List<Object?> args = const []]) =>
@@ -776,6 +786,10 @@ class NoteRepo {
         n.mood,
         n.createdAt,
         n.updatedAt,
+        n.notebookId,
+        n.sectionId,
+        n.sortOrder,
+        n.archivedAt,
       ]);
       search.upsert(ItemType.note, n.id, n.title, searchBody(n));
     });
@@ -793,8 +807,71 @@ class NoteRepo {
   static String searchBody(Note n) =>
       ReferenceParser.searchText(NoteParser.withoutMarkers(n.body));
 
-  /// Pinned first, then most recently edited.
-  List<Note> all() => _where('ORDER BY pinned DESC, updated_at DESC');
+  /// Pinned first, then most recently edited. Archived notes are left out
+  /// unless [includeArchived].
+  List<Note> all({bool includeArchived = false}) => _where(
+    '${includeArchived ? '' : 'WHERE $_live '}'
+    'ORDER BY pinned DESC, updated_at DESC',
+  );
+
+  /// The archived notes, the most recently archived first.
+  List<Note> archived() =>
+      _where('WHERE archived_at IS NOT NULL ORDER BY archived_at DESC');
+
+  /// The notes of a notebook that are not archived: the notes in no section
+  /// first (a section that is gone counts as none), then each section in its
+  /// order, and in each the notes in their order.
+  List<Note> inNotebook(String notebookId) => db.query(
+    'SELECT ${[for (final c in _cols) 'n.$c'].join(',')} FROM notes n '
+    'LEFT JOIN notebook_sections s ON s.id = n.section_id '
+    'WHERE n.notebook_id = ? AND n.archived_at IS NULL '
+    'ORDER BY s.id IS NOT NULL, s.sort_order, s.name COLLATE NOCASE, s.id, '
+    'COALESCE(n.sort_order, 0), n.created_at, n.rowid',
+    [notebookId],
+    _map,
+  );
+
+  /// Puts a note in a notebook and a section (null for none) at an order.
+  /// The edit time stays: the text did not change.
+  void move(
+    String id, {
+    required String? notebookId,
+    String? sectionId,
+    double sortOrder = 0,
+  }) => db.execute(
+    'UPDATE notes SET notebook_id = ?, section_id = ?, sort_order = ? '
+    'WHERE id = ?',
+    [notebookId, sectionId, sortOrder, id],
+  );
+
+  /// Archives a note at [at] (now when not given), or takes it out of the
+  /// archive. The edit time stays.
+  void setArchived(String id, bool archived, {String? at}) => db.execute(
+    'UPDATE notes SET archived_at = ? WHERE id = ?',
+    [archived ? (at ?? Stamp.now()) : null, id],
+  );
+
+  /// The ids of the notes linked to an event, either way.
+  Set<String> linkedToEvents() => db
+      .query(
+        "SELECT src_id FROM links WHERE src_type = 'note' "
+        "AND dst_type = 'event' UNION "
+        "SELECT dst_id FROM links WHERE src_type = 'event' "
+        "AND dst_type = 'note'",
+        const [],
+        (r) => r.text(0),
+      )
+      .toSet();
+
+  /// The ids of the notes that a task that is still open came from.
+  Set<String> withOpenTasks() => db
+      .query(
+        'SELECT DISTINCT source_note_id FROM tasks '
+        "WHERE source_note_id IS NOT NULL AND status = 'open'",
+        const [],
+        (r) => r.text(0),
+      )
+      .toSet();
 
   /// Notes with a check box line that is tied to task [taskId].
   List<Note> withTaskMarker(String taskId) =>
@@ -1067,7 +1144,8 @@ class Repos {
       rewards = RewardRepo(db),
       earnings = EarningRepo(db),
       agentJobs = AgentJobRepo(db),
-      agentEvents = AgentEventRepo(db) {
+      agentEvents = AgentEventRepo(db),
+      notebooks = NotebookRepo(db) {
     tasks = TaskRepo(db, search);
     events = EventRepo(db, search);
     notes = NoteRepo(db, search);
@@ -1099,6 +1177,7 @@ class Repos {
   final EarningRepo earnings;
   final AgentJobRepo agentJobs;
   final AgentEventRepo agentEvents;
+  final NotebookRepo notebooks;
   late final ReferenceIndexer refs;
 
   /// Throws the search index away and builds it again from the tables.
@@ -1113,7 +1192,7 @@ class Repos {
         if (e.kind != EventKind.event) continue;
         search.upsert(ItemType.event, e.id, e.title, EventRepo.searchBody(e));
       }
-      for (final n in notes.all()) {
+      for (final n in notes.all(includeArchived: true)) {
         search.upsert(ItemType.note, n.id, n.title, NoteRepo.searchBody(n));
       }
     });

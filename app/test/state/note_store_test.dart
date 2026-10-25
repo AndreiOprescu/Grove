@@ -176,9 +176,9 @@ void main() {
       s.newNote(title: 'B');
       s.togglePin(a.id);
       expect(s.notes().first.id, a.id);
-      expect(noteTitles(s.notes(filter: NoteFilter.pinned)), ['A']);
+      expect(noteTitles(s.notes(section: NoteSection.pinned)), ['A']);
       s.undo();
-      expect(s.notes(filter: NoteFilter.pinned), isEmpty);
+      expect(s.notes(section: NoteSection.pinned), isEmpty);
     });
 
     test('the list searches titles and text', () {
@@ -196,7 +196,9 @@ void main() {
       final a = s.newNote(title: 'A');
       s.newNote(title: 'B');
       s.setNoteBody(a.id, '#home', now: DateTime.now());
-      expect(noteTitles(s.notes(filter: const NoteFilter.tag('Home'))), ['A']);
+      expect(noteTitles(s.notes(section: const NoteSection.tag('Home'))), [
+        'A',
+      ]);
       expect(s.allNoteTags(), ['home']);
     });
 
@@ -230,9 +232,9 @@ void main() {
     test('opening a note the list hides resets the filter', () {
       final s = makeStore();
       final n = s.newNote(title: 'Trip');
-      s.noteFilter = NoteFilter.pinned;
+      s.noteSection = NoteSection.pinned;
       s.openNote(n.id);
-      expect(s.noteFilter, NoteFilter.all);
+      expect(s.noteSection, NoteSection.all);
     });
   });
 
@@ -338,6 +340,350 @@ void main() {
         s.repos.db.close();
       });
       expect(s.note(n.id), isNull);
+    });
+  });
+
+  group('sections of the sidebar', () {
+    EventItem meeting(AppStore s) {
+      final e = EventItem(
+        title: 'Team sync',
+        start: WallTime(day: friday, minute: 600),
+        end: WallTime(day: friday, minute: 660),
+      );
+      s.repos.events.save(e);
+      return e;
+    }
+
+    test('the section starts at All, and a note list follows it', () {
+      final s = makeStore();
+      expect(s.noteSection, NoteSection.all);
+      final a = s.newNote(title: 'Plain');
+      final d = s.dailyNote(friday);
+      expect(noteTitles(s.notes()).toSet(), {'Plain', d.title});
+      s.noteSection = NoteSection.daily;
+      expect(s.notes(section: s.noteSection).map((n) => n.id), [d.id]);
+      expect(s.notes(section: NoteSection.inbox).map((n) => n.id), [a.id]);
+    });
+
+    test('the inbox leaves out meeting notes and notes in a notebook', () {
+      final s = makeStore();
+      final plain = s.newNote(title: 'Plain');
+      final m = s.createMeetingNote(meeting(s))!;
+      final b = s.newNotebook('Work');
+      final inBook = s.newNote(title: 'In book');
+      expect(s.note(inBook.id)!.notebookId, b.id);
+      expect(s.notes(section: NoteSection.inbox).map((n) => n.id), [plain.id]);
+      expect(s.notes(section: NoteSection.meetings).map((n) => n.id), [m.id]);
+      expect(s.notes(section: NoteSection.notebook(b.id)).map((n) => n.id), [
+        inBook.id,
+      ]);
+    });
+
+    test('with tasks: only notes with a task that is not done', () {
+      final s = makeStore();
+      final a = s.newNote(title: 'A');
+      final b = s.newNote(title: 'B');
+      s.newNote(title: 'C');
+      s.repos.tasks.save(TaskItem(title: 'open', sourceNoteId: a.id));
+      s.repos.tasks.save(
+        TaskItem(title: 'done', sourceNoteId: b.id, status: TaskStatus.done),
+      );
+      expect(noteTitles(s.notes(section: NoteSection.withTasks)), ['A']);
+    });
+
+    test('a search narrows inside the section', () {
+      final s = makeStore();
+      s.newNotebook('Work');
+      final a = s.newNote(title: 'Milk plan');
+      s.newNote(title: 'Other');
+      s.noteSection = NoteSection.all;
+      s.newNote(title: 'Milk outside');
+      expect(
+        noteTitles(
+          s.notes(section: NoteSection.notebook(a.notebookId!), query: 'milk'),
+        ),
+        ['Milk plan'],
+      );
+    });
+
+    test('counts for the sidebar', () {
+      final s = makeStore();
+      s.newNote(title: 'Plain');
+      s.createMeetingNote(meeting(s));
+      final old = s.newNote(title: 'Old');
+      s.archiveNote(old.id);
+      final b = s.newNotebook('Work');
+      s.newNote(title: 'In book');
+      final c = s.sectionCounts();
+      expect(c[NoteSection.all], 3);
+      expect(c[NoteSection.inbox], 1);
+      expect(c[NoteSection.meetings], 1);
+      expect(c[NoteSection.archive], 1);
+      expect(c[NoteSection.withTasks], 0);
+      expect(c[NoteSection.notebook(b.id)], 1);
+    });
+
+    test('opening a note the section hides goes to All, or to the archive '
+        'for an archived note', () {
+      final s = makeStore();
+      final a = s.newNote(title: 'A');
+      final old = s.newNote(title: 'Old');
+      s.archiveNote(old.id);
+      s.noteSection = NoteSection.pinned;
+      s.openNote(a.id);
+      expect(s.noteSection, NoteSection.all);
+      s.openNote(old.id);
+      expect(s.noteSection, NoteSection.archive);
+      expect(s.selectedNoteId, old.id);
+    });
+  });
+
+  group('notebooks', () {
+    test('a new notebook is listed and selected; blank names get a fresh '
+        'one', () {
+      final s = makeStore();
+      final b = s.newNotebook('  Work ');
+      expect(b.name, 'Work');
+      expect(s.noteSection, NoteSection.notebook(b.id));
+      final c = s.newNotebook('');
+      expect(c.name, 'Notebook');
+      expect(s.newNotebook(' ').name, 'Notebook 2');
+      expect(s.notebooks().map((x) => x.name), [
+        'Work',
+        'Notebook',
+        'Notebook 2',
+      ]);
+      s.undo();
+      expect(s.notebooks(), hasLength(2));
+    });
+
+    test('rename a notebook and a section; an empty name is refused', () {
+      final s = makeStore();
+      final b = s.newNotebook('Work');
+      s.renameNotebook(b.id, 'Job');
+      s.renameNotebook(b.id, '  ');
+      expect(s.notebook(b.id)!.name, 'Job');
+      final sec = s.newSection(b.id, 'Q4')!;
+      s.renameSection(sec.id, 'Q1');
+      s.renameSection(sec.id, '');
+      expect(s.notebookSections(b.id).single.name, 'Q1');
+      s.undo();
+      expect(s.notebookSections(b.id).single.name, 'Q4');
+      expect(s.newSection('nope', 'X'), isNull);
+    });
+
+    test('a new note in a notebook section goes in the notebook, and in the '
+        'section when one is given', () {
+      final s = makeStore();
+      final b = s.newNotebook('Work');
+      final sec = s.newSection(b.id, 'Q4')!;
+      final a = s.newNote(title: 'A');
+      final c = s.newNote(title: 'C', sectionId: sec.id);
+      expect((a.notebookId, a.sectionId), (b.id, null));
+      expect((c.notebookId, c.sectionId), (b.id, sec.id));
+      expect(s.noteSection, NoteSection.notebook(b.id));
+      // A section of another notebook is not taken.
+      final other = s.newNotebook('Home');
+      final d = s.newNote(title: 'D', sectionId: sec.id);
+      expect((d.notebookId, d.sectionId), (other.id, null));
+    });
+
+    test('move and reorder: the order goes between the neighbours, and the '
+        'edit time stays', () {
+      final s = makeStore(clock: WallTime(day: friday, minute: 600));
+      final b = s.newNotebook('Work');
+      s.noteSection = NoteSection.all;
+      final x = s.newNote(title: 'X');
+      final y = s.newNote(title: 'Y');
+      final z = s.newNote(title: 'Z');
+      final before = s.note(x.id)!.updatedAt;
+      s.clockOverride = WallTime(day: friday.adding(days: 1), minute: 600);
+      for (final n in [x, y, z]) {
+        s.moveNote(n.id, notebookId: b.id);
+      }
+      List<String> order() => [
+        for (final n in s.notes(section: NoteSection.notebook(b.id))) n.title,
+      ];
+      expect(order(), ['X', 'Y', 'Z']);
+      expect(s.note(x.id)!.updatedAt, before);
+      s.reorderInNotebook(z.id, 0);
+      expect(order(), ['Z', 'X', 'Y']);
+      s.reorderInNotebook(z.id, 1);
+      expect(order(), ['X', 'Z', 'Y']);
+      s.undo();
+      expect(order(), ['Z', 'X', 'Y']);
+      // Into a section, at a place.
+      final sec = s.newSection(b.id, 'Q4')!;
+      s.moveNote(x.id, notebookId: b.id, sectionId: sec.id);
+      s.moveNote(y.id, notebookId: b.id, sectionId: sec.id, index: 0);
+      expect(
+        [
+          for (final g in s.groupedNotes(section: NoteSection.notebook(b.id)))
+            [g.label, noteTitles(g.notes)],
+        ],
+        [
+          [
+            '',
+            ['Z'],
+          ],
+          [
+            'Q4',
+            ['Y', 'X'],
+          ],
+        ],
+      );
+      // Out of the notebook.
+      s.moveNote(z.id, notebookId: null);
+      expect(s.note(z.id)!.notebookId, isNull);
+      expect(noteTitles(s.notes(section: NoteSection.inbox)), ['Z']);
+    });
+
+    test('notebooks and sections can be put in order', () {
+      final s = makeStore();
+      final a = s.newNotebook('A');
+      final b = s.newNotebook('B');
+      final c = s.newNotebook('C');
+      s.reorderNotebook(c.id, 0);
+      expect(s.notebooks().map((x) => x.name), ['C', 'A', 'B']);
+      final s1 = s.newSection(a.id, 'One')!;
+      s.newSection(a.id, 'Two');
+      s.reorderSection(s1.id, 1);
+      expect(s.notebookSections(a.id).map((x) => x.name), ['Two', 'One']);
+      expect(b.id, isNotEmpty);
+    });
+
+    test('deleting a notebook frees its notes, and undo brings it all '
+        'back', () {
+      final s = makeStore();
+      final b = s.newNotebook('Work');
+      final sec = s.newSection(b.id, 'Q4')!;
+      final a = s.newNote(title: 'A');
+      final c = s.newNote(title: 'C', sectionId: sec.id);
+      s.deleteNotebook(b.id);
+      expect(s.notebook(b.id), isNull);
+      expect(s.notebookSections(b.id), isEmpty);
+      expect(s.noteSection, NoteSection.all);
+      for (final id in [a.id, c.id]) {
+        expect(s.note(id)!.notebookId, isNull);
+        expect(s.note(id)!.sectionId, isNull);
+      }
+      expect(s.undoName, 'Delete Notebook');
+      s.undo();
+      expect(s.notebook(b.id)!.name, 'Work');
+      expect(s.notebookSections(b.id).single.id, sec.id);
+      expect(s.note(a.id)!.notebookId, b.id);
+      expect(
+        (s.note(c.id)!.notebookId, s.note(c.id)!.sectionId),
+        (b.id, sec.id),
+      );
+      s.redo();
+      expect(s.notebook(b.id), isNull);
+    });
+
+    test('deleting a section keeps its notes in the notebook; undo puts them '
+        'back', () {
+      final s = makeStore();
+      final b = s.newNotebook('Work');
+      final sec = s.newSection(b.id, 'Q4')!;
+      final c = s.newNote(title: 'C', sectionId: sec.id);
+      s.deleteSection(sec.id);
+      expect(s.notebookSections(b.id), isEmpty);
+      expect((s.note(c.id)!.notebookId, s.note(c.id)!.sectionId), (b.id, null));
+      s.undo();
+      expect(s.note(c.id)!.sectionId, sec.id);
+    });
+
+    test('duplicating a note keeps it in its notebook and section, right '
+        'after it', () {
+      final s = makeStore();
+      final b = s.newNotebook('Work');
+      final a = s.newNote(title: 'A');
+      s.newNote(title: 'B');
+      s.duplicateNote(a.id);
+      expect(noteTitles(s.notes(section: NoteSection.notebook(b.id))), [
+        'A',
+        'A copy',
+        'B',
+      ]);
+    });
+  });
+
+  group('archive', () {
+    test('archiving keeps the note selected and shows the archive; '
+        'unarchiving brings it back to All', () {
+      final s = makeStore();
+      final a = s.newNote(title: 'A');
+      s.newNote(title: 'B');
+      s.selectedNoteId = a.id;
+      s.noteSection = NoteSection.inbox;
+      s.archiveNote(a.id);
+      expect(s.note(a.id)!.archived, isTrue);
+      expect(s.selectedNoteId, a.id);
+      expect(s.noteSection, NoteSection.archive);
+      expect(noteTitles(s.notes()), ['B']);
+      expect(noteTitles(s.notes(section: NoteSection.archive)), ['A']);
+      expect(s.undoName, 'Archive Note');
+      s.undo();
+      expect(s.note(a.id)!.archived, isFalse);
+      s.redo();
+      s.unarchiveNote(a.id);
+      expect(s.note(a.id)!.archived, isFalse);
+      expect(s.selectedNoteId, a.id);
+      expect(s.noteSection, NoteSection.all);
+    });
+
+    test('a note that is not selected is archived in place', () {
+      final s = makeStore();
+      final a = s.newNote(title: 'A');
+      final b = s.newNote(title: 'B');
+      s.noteSection = NoteSection.inbox;
+      s.selectedNoteId = b.id;
+      s.archiveNote(a.id);
+      expect(s.noteSection, NoteSection.inbox);
+      expect(s.selectedNoteId, b.id);
+    });
+
+    test('an archived daily note is still the note of its day', () {
+      final s = makeStore();
+      final d = s.dailyNote(friday);
+      s.setNoteBody(d.id, '${d.body}text');
+      s.archiveNote(d.id);
+      expect(s.dailyNote(friday).id, d.id);
+    });
+  });
+
+  group('date groups', () {
+    test('the list in groups, by the clock of the store', () {
+      // Wednesday 21 October 2026.
+      final s = makeStore(
+        clock: WallTime(day: const DayKey('2026-10-21'), minute: 900),
+      );
+      final today = s.newNote(title: 'Today');
+      s.clockOverride = WallTime(day: const DayKey('2026-10-20'), minute: 600);
+      s.newNote(title: 'Yesterday');
+      s.clockOverride = WallTime(day: const DayKey('2026-10-02'), minute: 600);
+      s.newNote(title: 'Early');
+      s.clockOverride = WallTime(day: const DayKey('2026-10-21'), minute: 900);
+      expect(s.note(today.id)!.updatedAt, startsWith('2026-10-21'));
+      expect(
+        [
+          for (final g in s.groupedNotes()) [g.label, noteTitles(g.notes)],
+        ],
+        [
+          [
+            'Today',
+            ['Today'],
+          ],
+          [
+            'Yesterday',
+            ['Yesterday'],
+          ],
+          [
+            'October',
+            ['Early'],
+          ],
+        ],
+      );
     });
   });
 }

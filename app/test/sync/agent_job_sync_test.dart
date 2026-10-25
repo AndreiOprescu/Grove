@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sqlite3/sqlite3.dart' as raw;
 
+import '../data/helpers.dart' show rewindNotebooks;
 import 'support.dart';
 
 // The jobs of the agent (table `agent_jobs`, shared migration 12, sync
@@ -105,7 +106,9 @@ void main() {
     );
     // Take the database back to what the deadlines build makes: shared
     // migrations 1 to 11 and sync migrations 1 to 5. That build has no
-    // sync migration of its own, so only the agent tables and their sync go.
+    // sync migration of its own, so only the agent tables and their sync go,
+    // and the notebooks (shared 14, sync 8), which came later.
+    rewindNotebooks(db);
     db.executeScript('''
       DROP TABLE agent_events;
       DROP TABLE agent_jobs;
@@ -150,9 +153,9 @@ void main() {
 
     db = Database.open(path);
     addTearDown(db.close);
-    expect(db.userVersion, 13);
+    expect(db.userVersion, 14);
     expect(db.userVersion, Migrations.all.length);
-    expect(db.syncVersion, 7);
+    expect(db.syncVersion, 8);
     expect(db.syncVersion, SyncMigrations.all.length);
     final cols = db.query(
       'PRAGMA table_info(agent_jobs)',

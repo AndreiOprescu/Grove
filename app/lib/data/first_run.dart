@@ -28,7 +28,7 @@ abstract final class FirstRun {
         r.lists.all(includeArchived: true).isNotEmpty ||
         r.tasks.all().isNotEmpty ||
         r.events.all().isNotEmpty ||
-        r.notes.all().isNotEmpty;
+        r.notes.all(includeArchived: true).isNotEmpty;
     r.settings.set(doneKey, '1');
     if (hasData) return false;
 

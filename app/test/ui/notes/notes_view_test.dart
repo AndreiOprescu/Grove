@@ -148,14 +148,14 @@ void main() {
     expect(rows(), {'Other'});
     await tapKey(tester, 'notes-filter-tag-garden');
     expect(rows(), {'Plain'});
-    expect(store.noteFilter, const NoteFilter.tag('garden'));
+    expect(store.noteSection, const NoteSection.tag('garden'));
     await tapKey(tester, 'notes-filter-all');
     expect(rows(), hasLength(4));
 
     // the tag under the title of a note sets the same filter
     await tapKey(tester, 'note-row-${plain.id}');
     await tapKey(tester, 'note-tag-garden');
-    expect(store.noteFilter, const NoteFilter.tag('garden'));
+    expect(store.noteSection, const NoteSection.tag('garden'));
     expect(rows(), {'Plain'});
   });
 

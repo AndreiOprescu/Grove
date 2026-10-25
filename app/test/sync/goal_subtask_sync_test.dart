@@ -184,6 +184,8 @@ void main() {
         (r) => r.text(0),
       )!;
       expect(eventTrigger, contains(deadlineWatch));
+      // The notebooks (shared schema 14, sync schema 8) go too.
+      rewindNotebooks(db);
       db.executeScript('''
         DROP TRIGGER sync_events_update;
         ALTER TABLE events DROP COLUMN is_deadline;
@@ -239,7 +241,8 @@ void main() {
       var db = Database.open(path);
       final g = goal(Repos(db));
       // Take the database back to shared schema 7 and sync schema 3. The
-      // persona and the agent came later, so they go too.
+      // persona, the agent and the notebooks came later, so they go too.
+      rewindNotebooks(db);
       db.executeScript('''
         DROP TRIGGER sync_events_update;
         ALTER TABLE events DROP COLUMN is_deadline;
@@ -259,7 +262,7 @@ void main() {
       db = Database.open(path);
       expect(db.userVersion, Migrations.all.length);
       expect(db.syncVersion, SyncMigrations.all.length);
-      expect(db.syncVersion, 7);
+      expect(db.syncVersion, 8);
       expect(columns(db, 'goal_subtasks'), containsAll(['deleted', 'user_id']));
       expect(Repos(db).goals.get(g.id)?.title, 'Read');
       expect(Outbox(db).count, 0);
