@@ -906,7 +906,7 @@ class AppStore extends ChangeNotifier {
       if (now == null) continue;
       final was = forward ? e.before : e.after;
       final ref = ItemRef(ItemType.event, now.id);
-      if (now.kind != EventKind.event) {
+      if (now.kind == EventKind.block) {
         // A task block or a goal block holds no text. But a note can link to
         // it (its meeting note): a block that was brought back gets the link
         // again.

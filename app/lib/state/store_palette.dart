@@ -169,7 +169,7 @@ extension AppStorePalette on AppStore {
         );
       case ItemType.event:
         final e = _try(() => repos.events.get(ref.id));
-        if (e == null || e.kind != EventKind.event) return null;
+        if (e == null || e.kind == EventKind.block) return null;
         final when = e.allDay
             ? AtDatePlanner.whenLabel(e.start.day)
             : AtDatePlanner.whenLabel(

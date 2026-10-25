@@ -59,6 +59,7 @@ class PlannerBlock {
   int get length => endMinute - startMinute;
   bool get isTaskBlock => taskId != null;
   bool get isGoalBlock => goalId != null;
+  bool get isActivity => kind == EventKind.activity;
 
   List<Object?> get _props => [
     id,
