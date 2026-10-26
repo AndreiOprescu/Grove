@@ -395,6 +395,13 @@ Done blocks are faded with strike-through. Events are filled with their colour a
 opacity and a 3pt left border; task blocks use a dashed 1pt border + 3pt solid left
 border (exactly as in `design/layouts.html`).
 
+An **activity** (`kind` activity) is reserved time that is not a task: lunch, a train
+ride. A new block on the grid is a task; the "Task · Activity" row under the draft's
+title field makes it an activity. It has soft diagonal stripes, a small cup before the
+title, and no checkbox. It is never done, pays no XP, does not roll over and is not in
+any task list. A click opens the event editor ("Activity", no Deadline switch). It shows
+in the month view, search and the palette like an event, and it gets the event reminder.
+
 A task block with subtasks lists them under the title and short description, in panel
 order, without cancelled ones. Each row has a small mark and the title; done rows are
 struck through and dimmed. The marks only show; the task panel changes subtasks. The

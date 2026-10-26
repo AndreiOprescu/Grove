@@ -8,8 +8,9 @@ import 'package:grove/ui/store_app.dart';
 
 import '../planner/planner_support.dart';
 
-/// A day with every kind of block: events, task blocks, an overlap, a done
-/// task, subtasks, a selected block, an all-day event and tasks with no time.
+/// A day with every kind of block: events, task blocks, an activity, an
+/// overlap, a done task, subtasks, a selected block, an all-day event and
+/// tasks with no time.
 AppStore _fullDay({ThemeId theme = ThemeId.grove, bool dark = false}) {
   final store = plannerStore(now: 10 * 60 + 20);
   store
@@ -41,7 +42,8 @@ AppStore _fullDay({ThemeId theme = ThemeId.grove, bool dark = false}) {
       day: wednesday,
       start: 12 * 60 + 30,
       end: 13 * 60 + 15,
-      asEvent: true,
+      asEvent: false,
+      asActivity: true,
     )
     ..createFromDraft(
       title: 'Pack for the trip',

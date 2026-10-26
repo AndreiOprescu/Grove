@@ -147,7 +147,7 @@ extension AppStorePlanner on AppStore {
       selectedTaskId = taskId;
     } else if (block.isGoalBlock) {
       openGoalPanel(block.id);
-    } else if (block.kind == EventKind.event) {
+    } else if (block.kind != EventKind.block) {
       final e = event(block.id);
       if (e != null) editEvent(e);
     }
@@ -282,22 +282,25 @@ extension AppStorePlanner on AppStore {
     }
   }
 
-  /// New task and block together, or a plain event.
+  /// New task and block together, a plain event, or an activity: reserved
+  /// time with no task. [asActivity] wins over [asEvent].
   void createFromDraft({
     required String title,
     required DayKey day,
     required int start,
     required int end,
     required bool asEvent,
+    bool asActivity = false,
   }) {
     final name = title.trim();
     if (name.isEmpty) return;
     final m = Mutation('New Block');
-    if (asEvent) {
+    if (asEvent || asActivity) {
       final e = EventItem(
         title: name,
         start: WallTime(day: day, minute: start),
         end: WallTime(day: day, minute: end),
+        kind: asActivity ? EventKind.activity : EventKind.event,
       );
       m.events.add((before: null, after: e));
     } else {

@@ -346,7 +346,7 @@ class EventRepo {
         e.doneAt,
         e.isDeadline,
       ]);
-      if (e.kind == EventKind.event) {
+      if (e.kind != EventKind.block) {
         search.upsert(ItemType.event, e.id, e.title, searchBody(e));
       }
     });
@@ -1199,7 +1199,7 @@ class Repos {
   late final ReferenceIndexer refs;
 
   /// Throws the search index away and builds it again from the tables.
-  /// Time blocks are not searched, only real events.
+  /// Time blocks are not searched, only real events and activities.
   void rebuildSearch() {
     db.transaction(() {
       db.execute('DELETE FROM search');
@@ -1207,7 +1207,7 @@ class Repos {
         search.upsert(ItemType.task, t.id, t.title, TaskRepo.searchBody(t));
       }
       for (final e in events.all()) {
-        if (e.kind != EventKind.event) continue;
+        if (e.kind == EventKind.block) continue;
         search.upsert(ItemType.event, e.id, e.title, EventRepo.searchBody(e));
       }
       for (final n in notes.all(includeArchived: true)) {

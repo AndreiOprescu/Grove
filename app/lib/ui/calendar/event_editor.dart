@@ -345,7 +345,12 @@ class _EventEditorState extends State<EventEditor> {
             container: true,
             scopesRoute: true,
             explicitChildNodes: true,
-            label: _editing.isNew ? 'New event' : 'Event',
+            label: switch ((_editing.isNew, _draft.isActivity)) {
+              (true, true) => 'New activity',
+              (false, true) => 'Activity',
+              (true, false) => 'New event',
+              (false, false) => 'Event',
+            },
             child: DecoratedBox(
               decoration: BoxDecoration(
                 color: theme.surface,
@@ -373,7 +378,9 @@ class _EventEditorState extends State<EventEditor> {
                         GroveField(
                           key: const ValueKey('event-title'),
                           controller: _title,
-                          placeholder: 'Event title',
+                          placeholder: _draft.isActivity
+                              ? 'Activity title'
+                              : 'Event title',
                           autofocus: _editing.isNew,
                           padding: EdgeInsets.zero,
                           style: theme.heading(20).copyWith(color: theme.ink),

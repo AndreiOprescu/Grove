@@ -2,10 +2,12 @@ import 'day_key.dart';
 import 'ids.dart';
 import 'recurrence.dart';
 
-enum EventKind { event, block }
+/// `activity` is reserved time that is not a task, like lunch or a train. It
+/// has no task and is never done. Stored by name, so the order can grow.
+enum EventKind { event, block, activity }
 
-/// A calendar event, a task time-block (an event with [taskId] set) or a
-/// goal block ([goalId] set). Same fields as the Swift `EventItem`.
+/// A calendar event, a task time-block (an event with [taskId] set), a goal
+/// block ([goalId] set) or an activity. Same fields as the Swift `EventItem`.
 class EventItem {
   EventItem({
     String? id,
@@ -59,6 +61,8 @@ class EventItem {
   final bool isDeadline;
   final String createdAt;
   final String updatedAt;
+
+  bool get isActivity => kind == EventKind.activity;
 
   int get durationMinutes => start.day == end.day
       ? end.minute - start.minute

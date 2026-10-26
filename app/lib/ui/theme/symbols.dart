@@ -60,6 +60,9 @@ const Map<String, IconData> _icons = {
   'gearshape': Icons.settings_outlined,
   // the sleep line of the planner
   'moon': Icons.bedtime_outlined,
+  // a new block: task or activity
+  'square': Icons.check_box_outline_blank,
+  'cup.and.saucer': Icons.local_cafe_outlined,
 };
 
 /// True when `name` has its own icon.
