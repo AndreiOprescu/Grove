@@ -74,9 +74,9 @@ void main() {
       expect(store.leftPane, isNull);
 
       store.screen = Screen.garden;
-      model.showLeftPane(LeftPane.notes);
+      model.showLeftPane(LeftPane.goals);
       expect(store.screen, Screen.planner);
-      expect(store.leftPane, LeftPane.notes);
+      expect(store.leftPane, LeftPane.goals);
 
       model.setTheme(ThemeId.minimal);
       expect(store.themeId, ThemeId.minimal);

@@ -17,7 +17,6 @@ import 'auth/first_sync_dialog.dart';
 import 'calendar/event_editor.dart';
 import 'editor/editor_tools.dart';
 import 'garden/garden_view.dart';
-import 'notes/notes_pane.dart';
 import 'notes/notes_view.dart';
 import 'persona/level_up_layer.dart';
 import 'persona/persona_view.dart';
@@ -195,11 +194,9 @@ class _StoreAppState extends State<StoreApp> {
     };
   }
 
-  /// The notes in the left panel are a part of the screens (Track B). The
-  /// other panels come from `storePane`.
-  Widget? _pane(BuildContext context, LeftPane pane) => pane == LeftPane.notes
-      ? NotesPane(store: widget.store)
-      : storePane(context, widget.store, pane);
+  /// The left panels come from `storePane`.
+  Widget? _pane(BuildContext context, LeftPane pane) =>
+      storePane(context, widget.store, pane);
 
   @override
   Widget build(BuildContext context) => AgentTools(

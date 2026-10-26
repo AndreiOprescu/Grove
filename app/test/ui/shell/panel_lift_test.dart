@@ -90,28 +90,6 @@ void main() {
       expect(tester.takeException(), isNull);
     });
 
-    testWidgets('a note of the Notes panel drops on the grid', (tester) async {
-      final store = plannerStore();
-      final note = store.newNote(title: 'Ideas');
-      store
-        ..screen = Screen.planner
-        ..leftPane = LeftPane.notes;
-      await pumpPlanner(tester, store, size: phoneSize);
-
-      await fingerDrag(
-        tester,
-        find.byKey(ValueKey('pane-note-${note.id}')),
-        at(tester, 14 * 60),
-      );
-
-      final block = store.blocks(DayRange.single(wednesday)).single;
-      expect(block.title, contains('Ideas'));
-      expect(block.startMinute, 14 * 60);
-      expect(store.leftPane, isNull);
-      await endToast(tester);
-      expect(tester.takeException(), isNull);
-    });
-
     testWidgets('a subtask of the Goals panel drops on a block of its goal', (
       tester,
     ) async {

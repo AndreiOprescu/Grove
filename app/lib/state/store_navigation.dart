@@ -53,7 +53,7 @@ extension AppStoreNavigation on AppStore {
     screen = Screen.planner;
   }
 
-  /// View ▸ Notes Panel and Goals Panel: the panel on the screen the user is
+  /// View ▸ Goals Panel and Deadlines Panel: the panel on the screen the user is
   /// on. The Calendar, the Notes and the Garden have no left side, so they go
   /// to the Planner first.
   void showLeftPane(LeftPane pane) {
