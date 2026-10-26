@@ -120,6 +120,7 @@ class IconTap extends StatelessWidget {
     this.size = 15,
     this.color,
     this.tip,
+    this.minSide = 0,
   });
 
   final IconData icon;
@@ -135,9 +136,17 @@ class IconTap extends StatelessWidget {
   /// The text of the tooltip. `label` when null.
   final String? tip;
 
+  /// The least width and height of the part that takes the tap: 44 for a
+  /// finger on a phone. 0 keeps the button as small as its icon.
+  final double minSide;
+
   @override
   Widget build(BuildContext context) {
     final theme = GroveTheme.of(context);
+    final inside = Padding(
+      padding: const EdgeInsets.all(3),
+      child: Icon(icon, size: size, color: color ?? theme.muted),
+    );
     return Tooltip(
       message: tip ?? label,
       excludeFromSemantics: true,
@@ -155,10 +164,19 @@ class IconTap extends StatelessWidget {
           child: GestureDetector(
             behavior: HitTestBehavior.opaque,
             onTap: onTap,
-            child: Padding(
-              padding: const EdgeInsets.all(3),
-              child: Icon(icon, size: size, color: color ?? theme.muted),
-            ),
+            child: minSide <= 0
+                ? inside
+                : ConstrainedBox(
+                    constraints: BoxConstraints(
+                      minWidth: minSide,
+                      minHeight: minSide,
+                    ),
+                    child: Center(
+                      widthFactor: 1,
+                      heightFactor: 1,
+                      child: inside,
+                    ),
+                  ),
           ),
         ),
       ),

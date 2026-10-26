@@ -16,6 +16,7 @@ import '../theme/grove_theme.dart';
 import '../theme/panel.dart';
 import '../theme/symbols.dart';
 import 'day_panel.dart';
+import 'notes_sidebar.dart';
 
 /// Give it a key with the id of the note: another note needs a new pane.
 class NoteEditorPane extends StatefulWidget {
@@ -345,6 +346,54 @@ class _NoteEditorPaneState extends State<NoteEditorPane> {
     onTap: () => _store.togglePin(note.id),
   );
 
+  /// Where the note lives. A click shows that place in the list.
+  Widget _crumb(GroveTheme theme, Note note) {
+    final place = _store.notePlace(note.id) ?? NoteSection.inbox;
+    final text = NoteSectionLook.crumb(_store, note);
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: NoteTap(
+        key: const ValueKey('note-crumb'),
+        label: 'In $text',
+        tip: 'Show in the list',
+        onTap: () => _store.noteSection = place,
+        child: Text(
+          text,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: theme
+              .body(11, weight: FontWeight.w500)
+              .copyWith(color: theme.muted),
+        ),
+      ),
+    );
+  }
+
+  /// Puts the note in a notebook, another one, or none.
+  Widget _move(GroveTheme theme, Note note) => Builder(
+    builder: (context) => IconTap(
+      key: const ValueKey('note-move'),
+      icon: symbolIcon('folder'),
+      label: note.notebookId == null
+          ? 'Add to a notebook'
+          : 'Move to another notebook',
+      tip: note.notebookId == null ? 'Add to notebook' : 'Move to notebook',
+      color: theme.muted,
+      onTap: () => showMoveMenu(context, belowOf(context), _store, note),
+    ),
+  );
+
+  Widget _archive(GroveTheme theme, Note note) => IconTap(
+    key: const ValueKey('note-archive'),
+    icon: symbolIcon(note.archived ? 'tray.and.arrow.up' : 'archivebox'),
+    label: note.archived ? 'Take out of the archive' : 'Archive note',
+    tip: note.archived ? 'Unarchive' : 'Archive',
+    color: theme.muted,
+    onTap: () => note.archived
+        ? _store.unarchiveNote(note.id)
+        : _store.archiveNote(note.id),
+  );
+
   static bool get _apple =>
       defaultTargetPlatform == TargetPlatform.macOS ||
       defaultTargetPlatform == TargetPlatform.iOS;
@@ -396,6 +445,7 @@ class _NoteEditorPaneState extends State<NoteEditorPane> {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       spacing: 4,
       children: [
+        _crumb(theme, note),
         Row(
           spacing: 6,
           children: [
@@ -422,6 +472,8 @@ class _NoteEditorPaneState extends State<NoteEditorPane> {
                   : ThemedHeading(note.title, size),
             ),
             if (mood != null && !narrow) mood,
+            _move(theme, note),
+            _archive(theme, note),
             _pin(theme, note),
             _menu(theme, note),
           ],

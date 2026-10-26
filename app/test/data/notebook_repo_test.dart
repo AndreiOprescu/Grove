@@ -353,4 +353,36 @@ void main() {
       expect(r.notes.withOpenTasks(), {'A'});
     });
   });
+
+  group('light reads', () {
+    test('allWithoutBodies has every note, archived too, with no body', () {
+      final r = makeRepos();
+      r.notes
+        ..save(Note(id: 'A', title: 'Live', body: 'long text', pinned: true))
+        ..save(
+          Note(
+            id: 'B',
+            title: 'Old',
+            body: 'x',
+            archivedAt: '2026-10-26T09:00:00',
+          ),
+        );
+      final list = r.notes.allWithoutBodies();
+      expect(ids(list)..sort(), ['A', 'B']);
+      expect(list.map((n) => n.body), everyElement(''));
+      expect(list.firstWhere((n) => n.id == 'A').pinned, isTrue);
+      expect(list.firstWhere((n) => n.id == 'B').archived, isTrue);
+    });
+
+    test('anyLive leaves archived notes out', () {
+      final r = makeRepos();
+      expect(r.notes.anyLive(), isFalse);
+      r.notes.save(
+        Note(id: 'B', title: 'Old', archivedAt: '2026-10-26T09:00:00'),
+      );
+      expect(r.notes.anyLive(), isFalse);
+      r.notes.save(Note(id: 'A', title: 'Live'));
+      expect(r.notes.anyLive(), isTrue);
+    });
+  });
 }

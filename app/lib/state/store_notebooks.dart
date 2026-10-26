@@ -42,10 +42,10 @@ extension AppStoreNotebooks on AppStore {
       _try(() => repos.notebooks.sections(notebookId)) ?? const [];
 
   /// How many notes each fixed section and each notebook has. One pass over
-  /// the notes and one query each for meeting notes and notes with tasks.
+  /// the notes (read without bodies) and one query each for meeting notes and
+  /// notes with tasks.
   Map<NoteSection, int> sectionCounts() {
-    final list =
-        _try(() => repos.notes.all(includeArchived: true)) ?? const <Note>[];
+    final list = _try(repos.notes.allWithoutBodies) ?? const <Note>[];
     return NotesRules.counts(
       list,
       facts: _noteFacts(meetings: true, tasks: true),
@@ -64,6 +64,19 @@ extension AppStoreNotebooks on AppStore {
       return NotesRules.notebookGroups(list, notebookSections(book));
     }
     return NotesRules.dateGroups(list, now: clockNow());
+  }
+
+  /// The home of each of [list] (`NotesRules.homeOf`), with one query for
+  /// the meeting notes.
+  Map<String, NoteSection> notePlaces(Iterable<Note> list) {
+    final facts = _noteFacts(meetings: true);
+    return {for (final n in list) n.id: NotesRules.homeOf(n, facts: facts)};
+  }
+
+  /// The home of note [id], or null when it is gone.
+  NoteSection? notePlace(String id) {
+    final n = note(id);
+    return n == null ? null : notePlaces([n])[id];
   }
 
   NoteFacts _noteFacts({bool meetings = false, bool tasks = false}) =>

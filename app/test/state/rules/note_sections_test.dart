@@ -333,4 +333,19 @@ void main() {
       });
     });
   });
+
+  group('the home of a note', () {
+    test('archive, notebook, daily, weekly, meeting, then the inbox', () {
+      NoteSection home(String id) =>
+          NotesRules.homeOf(notes.firstWhere((x) => x.id == id), facts: facts);
+      expect(home('old'), NoteSection.archive);
+      expect(home('oldInBook'), NoteSection.archive);
+      expect(home('inBook'), const NoteSection.notebook('B1'));
+      expect(home('daily'), NoteSection.daily);
+      expect(home('weekly'), NoteSection.weekly);
+      expect(home('meeting'), NoteSection.meetings);
+      expect(home('plain'), NoteSection.inbox);
+      expect(home('pinned'), NoteSection.inbox);
+    });
+  });
 }

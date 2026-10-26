@@ -223,6 +223,23 @@ abstract final class NotesRules {
       if (inSection(n, s, facts: facts, tagsOf: tagsOf)) n,
   ];
 
+  /// The one place a note lives, for the chip of a row and the breadcrumb
+  /// of a note: the archive, its notebook, Daily, Weekly, Meetings, or else
+  /// the inbox.
+  static NoteSection homeOf(Note n, {NoteFacts facts = const NoteFacts()}) {
+    if (n.archived) return NoteSection.archive;
+    final book = n.notebookId;
+    if (book != null) return NoteSection.notebook(book);
+    return switch (n.kind) {
+      NoteKind.daily => NoteSection.daily,
+      NoteKind.weekly => NoteSection.weekly,
+      NoteKind.note =>
+        facts.meetingIds.contains(n.id)
+            ? NoteSection.meetings
+            : NoteSection.inbox,
+    };
+  }
+
   /// How many notes each fixed section and each notebook has, in one pass.
   /// Every fixed section and every id of [notebookIds] has an entry, 0 when
   /// empty. Tags are not counted.

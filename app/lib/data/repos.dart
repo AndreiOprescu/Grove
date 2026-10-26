@@ -814,6 +814,24 @@ class NoteRepo {
     'ORDER BY pinned DESC, updated_at DESC',
   );
 
+  /// Every note, archived ones too, with an empty body. For counts: the
+  /// bodies are the big part of a note.
+  List<Note> allWithoutBodies() => db.query(
+    'SELECT ${[for (final c in _cols) c == 'body' ? "'' AS body" : c].join(',')} '
+    'FROM notes',
+    const [],
+    _map,
+  );
+
+  /// True if there is at least one note that is not archived.
+  bool anyLive() =>
+      db.queryOne(
+        'SELECT 1 FROM notes WHERE $_live LIMIT 1',
+        const [],
+        (_) => true,
+      ) ??
+      false;
+
   /// The archived notes, the most recently archived first.
   List<Note> archived() =>
       _where('WHERE archived_at IS NOT NULL ORDER BY archived_at DESC');

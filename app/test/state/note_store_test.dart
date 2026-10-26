@@ -686,4 +686,36 @@ void main() {
       );
     });
   });
+
+  group('the home of a note', () {
+    test('one call gives the home of each note', () {
+      final s = makeStore();
+      final plain = s.newNote(title: 'Plain');
+      final d = s.dailyNote(friday);
+      final e = EventItem(
+        title: 'Team sync',
+        start: WallTime(day: friday, minute: 600),
+        end: WallTime(day: friday, minute: 660),
+      );
+      s.repos.events.save(e);
+      final m = s.createMeetingNote(e)!;
+      final b = s.newNotebook('Work');
+      final inBook = s.newNote(title: 'In book');
+      final places = s.notePlaces([
+        s.note(plain.id)!,
+        s.note(d.id)!,
+        s.note(m.id)!,
+        s.note(inBook.id)!,
+      ]);
+      expect(places, {
+        plain.id: NoteSection.inbox,
+        d.id: NoteSection.daily,
+        m.id: NoteSection.meetings,
+        inBook.id: NoteSection.notebook(b.id),
+      });
+      s.archiveNote(plain.id);
+      expect(s.notePlace(plain.id), NoteSection.archive);
+      expect(s.notePlace('gone'), isNull);
+    });
+  });
 }

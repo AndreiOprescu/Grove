@@ -32,6 +32,9 @@ extension AppStoreNotes on AppStore {
 
   List<String> allNoteTags() => _try(repos.tags.noteTagNames) ?? const [];
 
+  /// True if there is at least one note that is not archived.
+  bool hasNotes() => _try(repos.notes.anyLive) ?? false;
+
   /// The list on the notes screen for [section]: pinned first, then the
   /// most recently edited; a notebook in its own order. A [query] narrows it
   /// to the notes that the search finds.
