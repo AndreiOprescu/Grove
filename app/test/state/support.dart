@@ -45,6 +45,9 @@ AppStore makeStore({
   WeatherSource? weather,
   LocationSource? location,
   AgentRunner? agentRunner,
+  ActivitySource? activity,
+  LoginItem? loginItem,
+  String? dataDir,
 }) {
   final s = AppStore(
     repos: repos ?? Repos(Database.inMemory()),
@@ -54,6 +57,9 @@ AppStore makeStore({
     weatherSource: weather,
     locationSource: location,
     agentRunner: agentRunner,
+    activitySource: activity,
+    loginItem: loginItem,
+    dataDir: dataDir,
   );
   s.clockOverride = clock;
   addTearDown(s.dispose);
@@ -197,7 +203,7 @@ ReleaseInfo release(String version) => ReleaseInfo(
 );
 
 /// A forecast that only writes down what the store asks for. Each day from
-/// [from] has rain, 9° at 9am and 14° at 9pm, unless [days] says other.
+/// [from] has rain, a low of 9° and a high of 14°, unless [days] says other.
 class FakeWeather implements WeatherSource {
   FakeWeather({required this.from, this.count = 16, this.towns = const []});
 
@@ -228,8 +234,8 @@ class FakeWeather implements WeatherSource {
             from.adding(days: i): DayWeather(
               day: from.adding(days: i),
               condition: WeatherCondition.rain,
-              morning: 9,
-              evening: 14,
+              low: 9,
+              high: 14,
             ),
         };
   }
@@ -259,12 +265,19 @@ class FakeLocation implements LocationSource {
 
 /// One call of [FakeAgentRunner.start].
 class AgentCall {
-  AgentCall(this.exe, this.args, this.stdin, this.timeout);
+  AgentCall(
+    this.exe,
+    this.args,
+    this.stdin,
+    this.timeout, {
+    this.files = const [],
+  });
 
   final String exe;
   final List<String> args;
   final String stdin;
   final Duration timeout;
+  final List<AgentFile> files;
 }
 
 /// A `claude` process of [FakeAgentRunner]. It ends when the test calls
@@ -272,6 +285,12 @@ class AgentCall {
 class FakeAgentProcess implements AgentProcess {
   final _done = Completer<AgentRunOutput>();
   int cancels = 0;
+
+  /// Where the lines of the run go.
+  void Function(String line)? onLine;
+
+  /// The process prints [line] while it works.
+  void say(String line) => onLine?.call(line);
 
   @override
   Future<AgentRunOutput> get done => _done.future;
@@ -310,6 +329,10 @@ class FakeAgentRunner extends AgentRunner {
   /// `FakeAgentProcess.finish` on [processes].
   AgentRunOutput? output;
 
+  /// The lines each run that ends at once prints while it works, before
+  /// [output].
+  List<String> lines = const [];
+
   int locates = 0;
   final List<List<String>> probes = [];
   final List<AgentCall> calls = [];
@@ -333,12 +356,87 @@ class FakeAgentRunner extends AgentRunner {
     List<String> args, {
     required String stdin,
     required Duration timeout,
+    List<AgentFile> files = const [],
+    void Function(String line)? onLine,
   }) {
-    calls.add(AgentCall(exe, args, stdin, timeout));
-    final p = FakeAgentProcess();
+    calls.add(AgentCall(exe, args, stdin, timeout, files: files));
+    final p = FakeAgentProcess()..onLine = onLine;
     processes.add(p);
     final out = output;
-    if (out != null) p.finish(out);
+    if (out != null) {
+      for (final line in lines) {
+        onLine?.call(line);
+      }
+      p.finish(out);
+    }
     return p;
+  }
+}
+
+/// The use history of a device in a test: the events the test puts in it.
+class FakeActivity implements ActivitySource {
+  FakeActivity({this.name = 'android', this.answer = ActivityAccess.granted});
+
+  @override
+  final String name;
+
+  ActivityAccess answer;
+  final List<ActivityEvent> log = [];
+  DateTime? alarm;
+
+  /// How many times the store read the events, and opened the system page.
+  int reads = 0;
+  int opened = 0;
+
+  final _changes = StreamController<void>.broadcast();
+
+  /// The device is used again (the Mac woke up).
+  void used() => _changes.add(null);
+
+  /// One use from [from] to [to].
+  void use(DateTime from, DateTime to) => log
+    ..add(ActivityEvent(from, ActivitySignal.useStart))
+    ..add(ActivityEvent(to, ActivitySignal.useEnd));
+
+  @override
+  Future<ActivityAccess> access() async => answer;
+
+  @override
+  Future<void> openAccessSettings() async => opened += 1;
+
+  @override
+  Future<List<ActivityEvent>> events(DateTime from, DateTime to) async {
+    reads += 1;
+    return [
+      for (final e in log)
+        if (!e.at.isBefore(from) && !e.at.isAfter(to)) e,
+    ]..sort((a, b) => a.at.compareTo(b.at));
+  }
+
+  @override
+  Future<DateTime?> nextAlarm() async => alarm;
+
+  @override
+  Stream<void> get changes => _changes.stream;
+}
+
+/// "Open Grove at login" in a test.
+class FakeLoginItem implements LoginItem {
+  FakeLoginItem([this.now = LoginItemStatus.notRegistered]);
+
+  LoginItemStatus now;
+
+  /// Thrown by the next [set], as the Mac does when it says no.
+  Object? refusal;
+  final List<bool> sets = [];
+
+  @override
+  Future<LoginItemStatus> status() async => now;
+
+  @override
+  Future<LoginItemStatus> set(bool on) async {
+    sets.add(on);
+    if (refusal case final r?) throw r;
+    return now = on ? LoginItemStatus.enabled : LoginItemStatus.notRegistered;
   }
 }

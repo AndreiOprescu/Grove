@@ -25,6 +25,9 @@ class StoreShellModel implements ShellModel {
   set screen(Screen value) => store.screen = value;
 
   @override
+  List<Screen> get screens => store.screens;
+
+  @override
   LeftPane? get leftPane => store.leftPane;
 
   @override

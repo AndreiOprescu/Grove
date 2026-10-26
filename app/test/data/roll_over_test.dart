@@ -65,6 +65,21 @@ void main() {
     expect(RollOver.items(r, today: today), isEmpty);
   });
 
+  test('an activity is not offered, and it is saved as an activity', () {
+    final r = makeRepos();
+    final lunch = EventItem(
+      title: 'Lunch',
+      start: WallTime(day: yesterday, minute: 720),
+      end: WallTime(day: yesterday, minute: 780),
+      kind: EventKind.activity,
+      // Even with a task, only a task block is offered.
+      taskId: plan(r, 'Lunch', day: today).task.id,
+    );
+    r.events.save(lunch);
+    expect(r.events.get(lunch.id)?.kind, EventKind.activity);
+    expect(RollOver.items(r, today: today), isEmpty);
+  });
+
   test('only yesterday counts', () {
     final r = makeRepos();
     plan(r, 'Two days ago', day: today.adding(days: -2));

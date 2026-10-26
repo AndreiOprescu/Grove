@@ -26,12 +26,17 @@ class _AgentState {
   /// The job that runs now on this device, and its process.
   String? liveJob;
   AgentProcess? live;
+
+  /// The chat open on the Agents screen. Null: the new-chat page.
+  String? shown;
 }
 
-/// The agent (ADR 0004): any device makes a job for a task, the job syncs,
-/// and the computer with "This device runs agent tasks" on runs it with the
-/// `claude` command. One job at a time. The result is a note linked to the
-/// task (and a document note when the agent wrote one), so it syncs too.
+/// The agent (ADR 0004, 0005): any device makes a job (a chat, maybe for a
+/// task), the job syncs, and the computer with "This device runs agent
+/// tasks" on runs it with the `claude` command. One job at a time. Each
+/// message of the person, each step of a run and each result is an
+/// [AgentEvent], so a phone can watch. A job of a task also leaves a note
+/// linked to the task (and a document note when the agent wrote one).
 ///
 /// Writes of the agent are not on the undo stack: they come from the
 /// background, like rows a sync pulls in, and an undo must not delete a
@@ -78,8 +83,38 @@ extension AppStoreAgent on AppStore {
   void setAgentEnabled(bool on) {
     _agent.enabled = on;
     prefs.set(_enabledKey, on);
+    if (!on && _screen == Screen.agents) screen = Screen.today;
     _changed();
   }
+
+  /// The screens in the switch: the Agents screen only when the agent is
+  /// on.
+  List<Screen> get screens => [
+    ...Screen.always,
+    if (agentEnabled) Screen.agents,
+  ];
+
+  /// The chat open on the Agents screen, or null for the new-chat page. A
+  /// chat that is gone (a sync deleted it) reads as null.
+  String? get shownAgentJob {
+    final id = _agent.shown;
+    return id != null && agentJob(id) != null ? id : null;
+  }
+
+  /// Opens the chat [jobId] on the Agents screen; null opens the new-chat
+  /// page.
+  void showAgentJob(String? jobId) {
+    _agent.shown = jobId;
+    if (agentEnabled) screen = Screen.agents;
+    _changed();
+  }
+
+  /// True when the file of [link] is on this computer, so the agent here
+  /// can read it.
+  bool agentFileHere(AgentLink link) =>
+      link.kind == AgentLinkKind.file &&
+      canLinkAgentFiles &&
+      link.device == _agentDevice;
 
   /// On: Grove looks for `claude` again (it may be installed now), then runs
   /// the queue. Off: the one-minute check stops. A job that runs now goes on
@@ -117,6 +152,49 @@ extension AppStoreAgent on AppStore {
     });
   }
 
+  /// Every job, the newest change first: the chats of the Agents screen.
+  List<AgentJob> agentJobs() => _try(repos.agentJobs.all) ?? const <AgentJob>[];
+
+  AgentJob? agentJob(String id) => _try(() => repos.agentJobs.get(id));
+
+  /// The lines of a chat, in order.
+  List<AgentEvent> agentEvents(String jobId) =>
+      _try(() => repos.agentEvents.forJob(jobId)) ?? const <AgentEvent>[];
+
+  /// The result in a result line, or null.
+  AgentResult? agentEventResult(AgentEvent event) {
+    if (event.kind != AgentEventKind.result) return null;
+    return _try(() {
+      final json = jsonDecode(event.body);
+      return json is Map<String, Object?> ? AgentResult.fromJson(json) : null;
+    });
+  }
+
+  /// The document note that a result line made, or null.
+  String? agentEventDocument(AgentEvent event) => _agentEventId(event, _docKey);
+
+  /// The result note (of a job of a task) that a result line made, or null.
+  String? agentEventNote(AgentEvent event) => _agentEventId(event, _noteKey);
+
+  static const _docKey = 'grove_document_note';
+  static const _noteKey = 'grove_result_note';
+
+  String? _agentEventId(AgentEvent event, String key) {
+    if (event.kind != AgentEventKind.result) return null;
+    return _try(() {
+      final json = jsonDecode(event.body);
+      return json is Map<String, Object?> && json[key] is String
+          ? json[key] as String
+          : null;
+    });
+  }
+
+  /// The keys of the proposals of a result line that the person applied.
+  Set<String> agentApplied(AgentEvent event) => {
+    for (final k in event.label.split(','))
+      if (k.trim().isNotEmpty) k.trim(),
+  };
+
   /// Gives the task to the agent: a queued job that syncs to the computer
   /// that runs agent tasks. [email]: the person allows the agent to read
   /// their email for this task. Returns the id of the job, or an empty text
@@ -125,14 +203,56 @@ extension AppStoreAgent on AppStore {
     String taskId, {
     String instructions = '',
     bool email = false,
-  }) {
-    final job = AgentJob(
+  }) => _agentNewJob(
+    AgentJob(
       taskId: taskId,
+      title: AgentNote.chatTitle(task(taskId)?.title ?? ''),
       instructions: instructions.trim(),
       emailAccess: email,
+    ),
+    instructions.trim().isEmpty ? AgentNote.workOnTask : instructions.trim(),
+  );
+
+  /// Starts a chat on the Agents screen: a queued job with the first
+  /// message. [links]: notes, tasks and files the agent may read. [email]
+  /// and [plan]: the person lets the agent read their email, or see their
+  /// plan. Returns the id of the job, or an empty text when the message is
+  /// empty or could not be saved.
+  String startAgentChat(
+    String text, {
+    List<AgentLink> links = const [],
+    bool email = false,
+    bool plan = false,
+    String? taskId,
+  }) {
+    final message = text.trim();
+    if (message.isEmpty) return '';
+    return _agentNewJob(
+      AgentJob(
+        taskId: taskId,
+        title: AgentNote.chatTitle(message),
+        instructions: message,
+        emailAccess: email,
+        planAccess: plan,
+        links: links,
+      ),
+      message,
     );
+  }
+
+  String _agentNewJob(AgentJob job, String message) {
     try {
-      repos.agentJobs.insert(job);
+      repos.db.transaction(() {
+        repos.agentJobs.insert(job);
+        repos.agentEvents.insert(
+          AgentEvent(
+            jobId: job.id,
+            seq: 1,
+            kind: AgentEventKind.ask,
+            body: message,
+          ),
+        );
+      });
     } on Exception catch (e) {
       errorMessage = 'Could not save: $e';
       return '';
@@ -140,6 +260,133 @@ extension AppStoreAgent on AppStore {
     _bump();
     if (_agentCanWork) unawaited(runAgentQueue());
     return job.id;
+  }
+
+  /// A new message in a finished chat: the job goes back in the queue. The
+  /// new [links] join the old ones. False when the message is empty, or the
+  /// job is gone or still works.
+  bool askAgentAgain(
+    String jobId,
+    String text, {
+    List<AgentLink> links = const [],
+    bool? email,
+    bool? plan,
+  }) {
+    final message = text.trim();
+    final job = agentJob(jobId);
+    if (message.isEmpty || job == null || !job.status.isFinished) return false;
+    final all = [
+      ...job.links,
+      for (final l in links)
+        if (!job.links.any((o) => o.kind == l.kind && o.id == l.id)) l,
+    ];
+    var ok = false;
+    try {
+      repos.db.transaction(() {
+        ok = repos.agentJobs.requeue(
+          jobId,
+          emailAccess: email ?? job.emailAccess,
+          planAccess: plan ?? job.planAccess,
+          links: all,
+        );
+        if (!ok) return;
+        repos.agentEvents.insert(
+          AgentEvent(
+            jobId: jobId,
+            seq: repos.agentEvents.nextSeq(jobId),
+            kind: AgentEventKind.ask,
+            body: message,
+          ),
+        );
+      });
+    } on Exception catch (e) {
+      errorMessage = 'Could not save: $e';
+      return false;
+    }
+    if (!ok) return false;
+    _bump();
+    if (_agentCanWork) unawaited(runAgentQueue());
+    return true;
+  }
+
+  /// The folder of the copies of linked files, on a computer.
+  String? get _agentFilesDir {
+    final dir = dataDir;
+    if (dir == null || agentRunner == null) return null;
+    return '$dir${Platform.pathSeparator}Agent files';
+  }
+
+  /// This device can link files: it is a computer with a data folder.
+  bool get canLinkAgentFiles => _agentFilesDir != null;
+
+  /// Copies the file at [path] into the agent files folder of this computer
+  /// and gives the link for a chat. Files do not sync: only this computer
+  /// can give the file to the agent (ADR 0005). Null when the copy failed.
+  Future<AgentLink?> linkAgentFile(String path) async {
+    final dir = _agentFilesDir;
+    if (dir == null) return null;
+    final name = AgentPolicy.safeName(path);
+    final id = newId();
+    final sep = Platform.pathSeparator;
+    try {
+      await Directory('$dir$sep$id').create(recursive: true);
+      await File(path).copy('$dir$sep$id$sep$name');
+    } on FileSystemException catch (e) {
+      errorMessage = 'Could not add the file: ${e.message}';
+      _changed();
+      return null;
+    }
+    return AgentLink(
+      kind: AgentLinkKind.file,
+      id: id,
+      name: name,
+      device: _agentDevice,
+    );
+  }
+
+  /// Applies one proposal of a result line: [key] is
+  /// [AgentResult.planKey] or [AgentResult.taskKey]. One undo step. False
+  /// when it was applied before, or the task is gone.
+  bool applyAgentChange(String eventId, String key) {
+    final event = _try(() => repos.agentEvents.get(eventId));
+    if (event == null) return false;
+    final result = agentEventResult(event);
+    final applied = agentApplied(event);
+    if (result == null || applied.contains(key)) return false;
+    final index = int.tryParse(key.substring(1));
+    if (index == null || index < 0) return false;
+    var done = false;
+    if (key.startsWith('p') && index < result.planChanges.length) {
+      final c = result.planChanges[index];
+      final t = task(c.taskId);
+      if (t == null || t.status != TaskStatus.open) return false;
+      schedule(taskId: c.taskId, day: c.day, start: c.start, length: c.minutes);
+      done = true;
+    } else if (key.startsWith('t') && index < result.newTasks.length) {
+      final n = result.newTasks[index];
+      final parent = n.parentTaskId;
+      if (parent != null && task(parent) == null) return false;
+      final title = n.title.length > 200 ? n.title.substring(0, 200) : n.title;
+      var t = TaskItem(
+        title: title,
+        parentId: parent,
+        estimateMin: n.minutes ?? 30,
+        sort: _nextSort(),
+      );
+      if (n.day case final day?) t = planned(t, on: day);
+      done = commit(
+        Mutation(parent == null ? 'New Task' : 'New Subtask')
+          ..tasks.add((before: null, after: t)),
+      );
+    }
+    if (!done) return false;
+    _try(
+      () => repos.agentEvents.update(
+        event.copyWith(label: ({...applied, key}).join(',')),
+      ),
+    );
+    _bump();
+    return true;
   }
 
   /// Cancel, from any device. A queued job is cancelled at once. A running
@@ -157,6 +404,7 @@ extension AppStoreAgent on AppStore {
           ),
         ) ??
         false;
+    if (done) _agentLine(jobId, AgentEventKind.stopped, AgentNote.cancelled);
     if (!done) {
       final marked =
           _try(
@@ -254,16 +502,19 @@ extension AppStoreAgent on AppStore {
       for (final j in _try(() => jobs.withStatus(status)) ?? <AgentJob>[]) {
         if (j.runnerDevice != device) continue;
         final cancel = status == AgentStatus.cancelRequested;
-        changed |=
+        final message = cancel ? AgentNote.cancelled : AgentNote.crashed;
+        final stopped =
             _try(
               () => jobs.setStatus(
                 j.id,
                 cancel ? AgentStatus.cancelled : AgentStatus.failed,
-                error: cancel ? AgentNote.cancelled : AgentNote.crashed,
+                error: message,
                 from: {status},
               ),
             ) ??
             false;
+        if (stopped) _agentLine(j.id, AgentEventKind.stopped, message);
+        changed |= stopped;
       }
     }
     if (changed) _bump();
@@ -328,6 +579,9 @@ extension AppStoreAgent on AppStore {
     } while (_agent.again && _agentCanWork);
   }
 
+  /// The most step lines of one run. Later steps are not saved.
+  static const maxAgentSteps = 300;
+
   /// Runs one job: claim, (probe for Gmail), `claude`, then the notes.
   Future<void> _agentRun(AgentJob job) async {
     final runner = agentRunner;
@@ -338,9 +592,13 @@ extension AppStoreAgent on AppStore {
     _bump();
     _agent.liveJob = job.id;
     try {
-      final task = this.task(job.taskId);
-      if (task == null) return _agentFail(job.id, AgentNote.taskGone);
+      final taskId = job.taskId;
+      final task = taskId == null ? null : this.task(taskId);
+      if (taskId != null && task == null) {
+        return _agentFail(job.id, AgentNote.taskGone);
+      }
       final email = job.emailAccess && agentEmailOn;
+      final files = _agentFiles(job);
       final List<String> args;
       if (email) {
         final line = await runner.probeInit(exe, AgentPolicy.probeArgs());
@@ -359,28 +617,32 @@ extension AppStoreAgent on AppStore {
           gmailReadTools: init.gmailReadTools,
           otherConnectorTools: init.denied,
           otherServers: init.otherServers,
+          files: files.here.isNotEmpty,
         );
       } else {
-        args = AgentPolicy.args(email: false);
+        args = AgentPolicy.args(email: false, files: files.here.isNotEmpty);
       }
       // A cancel during the probe.
       if (_try(() => jobs.get(job.id))?.status != AgentStatus.running) {
         return _agentCancelled(job.id);
       }
-      final notes = [
-        task.summary.trim(),
-        task.notes.trim(),
-      ].where((t) => t.isNotEmpty).join('\n\n');
+      final stdin = AgentPolicy.chatPrompt(
+        _agentBrief(job, task, email: email, files: files),
+      );
+      var steps = 0;
       final process = _agent.live = runner.start(
         exe,
         args,
-        stdin: AgentPolicy.prompt(
-          task.title,
-          notes,
-          job.instructions,
-          emailAccess: email,
-        ),
+        stdin: stdin,
         timeout: AgentPolicy.timeout,
+        files: files.here,
+        onLine: (line) {
+          if (_disposed) return;
+          for (final step in AgentPolicy.stepsOf(line)) {
+            if (++steps > maxAgentSteps) return;
+            _agentLine(job.id, AgentEventKind.step, step.text, step.label);
+          }
+        },
       );
       final poll = _agentPoll(job.id, process);
       final AgentRunOutput out;
@@ -399,12 +661,12 @@ extension AppStoreAgent on AppStore {
       if (out.stdout.trim().isEmpty) {
         return _agentFail(job.id, AgentNote.noAnswer(out.stderr));
       }
-      switch (AgentPolicy.parse(out.stdout)) {
+      switch (AgentPolicy.parseStream(out.stdout)) {
         case AgentFailed(:final message):
           _agentFail(job.id, message);
         case AgentOk(:final result):
           _agentDone(
-            job.id,
+            now,
             task,
             AgentResult(
               summary: result.summary,
@@ -417,6 +679,8 @@ extension AppStoreAgent on AppStore {
                 if (job.emailAccess && !email) AgentNote.emailNotAllowed,
               ],
               sources: result.sources,
+              planChanges: job.planAccess ? result.planChanges : const [],
+              newTasks: job.planAccess ? result.newTasks : const [],
             ),
           );
       }
@@ -427,6 +691,152 @@ extension AppStoreAgent on AppStore {
         ..liveJob = null
         ..live = null;
     }
+  }
+
+  /// The linked files of [job]: the ones this computer keeps, and the names
+  /// of the ones on another device.
+  ({List<AgentFile> here, List<String> elsewhere}) _agentFiles(AgentJob job) {
+    final dir = _agentFilesDir;
+    final device = prefs.getString(_deviceKey);
+    final here = <AgentFile>[], elsewhere = <String>[];
+    final sep = Platform.pathSeparator;
+    for (final l in job.links) {
+      if (l.kind != AgentLinkKind.file) continue;
+      final path = '$dir$sep${l.id}$sep${AgentPolicy.safeName(l.name)}';
+      if (dir != null && l.device == device && File(path).existsSync()) {
+        here.add(AgentFile(name: l.name, path: path));
+      } else {
+        elsewhere.add(l.name);
+      }
+    }
+    return (here: here, elsewhere: elsewhere);
+  }
+
+  /// What the run knows: the chat so far, the task, the linked notes and
+  /// tasks, the files, and the plan when the person shared it.
+  AgentBrief _agentBrief(
+    AgentJob job,
+    TaskItem? task, {
+    required bool email,
+    required ({List<AgentFile> here, List<String> elsewhere}) files,
+  }) {
+    final turns = <AgentTurn>[];
+    for (final e in agentEvents(job.id)) {
+      switch (e.kind) {
+        case AgentEventKind.ask:
+          turns.add(AgentTurn(person: true, text: e.body));
+        case AgentEventKind.result:
+          if (agentEventResult(e) case final r?) {
+            turns.add(
+              AgentTurn(
+                person: false,
+                text: [
+                  r.summary.trim(),
+                  if (r.questions.isNotEmpty)
+                    'Questions: ${r.questions.join(' / ')}',
+                ].join('\n'),
+              ),
+            );
+          }
+        case AgentEventKind.step || AgentEventKind.stopped:
+          break;
+      }
+    }
+    final linked = <AgentLinkedText>[];
+    for (final l in job.links) {
+      switch (l.kind) {
+        case AgentLinkKind.note:
+          final n = _try(() => repos.notes.get(l.id));
+          if (n != null) {
+            linked.add(
+              AgentLinkedText(kind: 'note', name: n.title, text: n.body),
+            );
+          }
+        case AgentLinkKind.task:
+          final t = this.task(l.id);
+          if (t != null) {
+            linked.add(
+              AgentLinkedText(
+                kind: 'task',
+                name: '${t.title} (id ${t.id})',
+                text: [t.summary.trim(), t.notes.trim()].join('\n\n'),
+              ),
+            );
+          }
+        case AgentLinkKind.file:
+          break;
+      }
+    }
+    return AgentBrief(
+      turns: turns,
+      emailAccess: email,
+      taskTitle: task?.title,
+      taskNotes: task == null
+          ? ''
+          : [
+              task.summary.trim(),
+              task.notes.trim(),
+            ].where((t) => t.isNotEmpty).join('\n\n'),
+      linked: linked,
+      files: AgentPolicy.fileNames([for (final f in files.here) f.name]),
+      missingFiles: files.elsewhere,
+      plan: job.planAccess ? _agentPlanText() : null,
+    );
+  }
+
+  /// The plan for the agent: the next days, the deadlines and the open
+  /// tasks.
+  String _agentPlanText() {
+    final now = clockNow();
+    final today = DayKey.fromDate(now);
+    final range = DayRange(today, today.adding(days: AgentContext.days - 1));
+    final open = allOpenTasks();
+    final top = [...open.byDay, ...open.noDay];
+    final subs = [
+      for (final t in top)
+        for (final s in subtasks(t.id))
+          if (s.status == TaskStatus.open) s,
+    ];
+    return AgentContext.plan(
+      today: today,
+      nowMinute: now.hour * 60 + now.minute,
+      items: [
+        for (final b in blocks(range))
+          AgentPlanItem(
+            day: b.day,
+            start: b.startMinute,
+            end: b.endMinute,
+            title: b.title,
+            taskId: b.taskId,
+            isDone: b.isDone,
+          ),
+      ],
+      deadlines: _try(() => repos.events.deadlines()) ?? const [],
+      openTasks: [...top, ...subs],
+    );
+  }
+
+  /// Adds a line to a chat. A line that cannot be saved is left out: the
+  /// job goes on.
+  void _agentLine(
+    String jobId,
+    AgentEventKind kind,
+    String body, [
+    String label = '',
+  ]) {
+    final saved = _try(() {
+      repos.agentEvents.insert(
+        AgentEvent(
+          jobId: jobId,
+          seq: repos.agentEvents.nextSeq(jobId),
+          kind: kind,
+          label: label,
+          body: body,
+        ),
+      );
+      return true;
+    });
+    if (saved ?? false) _bump();
   }
 
   /// Reads the job every [agentPoll] while it runs. A cancel that came from
@@ -462,7 +872,7 @@ extension AppStoreAgent on AppStore {
           ),
         ) ??
         false;
-    if (changed) _bump();
+    if (changed) _agentLine(jobId, AgentEventKind.stopped, message);
   }
 
   void _agentCancelled(String jobId) {
@@ -477,52 +887,71 @@ extension AppStoreAgent on AppStore {
           ),
         ) ??
         false;
-    if (changed) _bump();
+    if (changed) {
+      _agentLine(jobId, AgentEventKind.stopped, AgentNote.cancelled);
+    }
   }
 
-  /// Saves the result: a document note (when there is one) and the result
-  /// note, both linked to the task, then the job is done.
-  void _agentDone(String jobId, TaskItem task, AgentResult result) {
+  /// Saves the result: a document note (when there is one), and for a job
+  /// of a task the result note, both linked to the task. Then the result
+  /// line, and the job is done.
+  void _agentDone(AgentJob job, TaskItem? task, AgentResult result) {
     final stamp = clockStamp();
     final doc = result.document;
     final docNote = doc == null
         ? null
         : Note(
-            title: AgentNote.documentTitle(task, doc),
-            body: AgentNote.documentBody(task, doc),
+            title: task == null
+                ? AgentNote.chatDocumentTitle(job.title, doc)
+                : AgentNote.documentTitle(task, doc),
+            body: task == null
+                ? AgentNote.chatDocumentBody(doc)
+                : AgentNote.documentBody(task, doc),
             createdAt: stamp,
           );
-    final note = Note(
-      title: AgentNote.title(task),
-      body: AgentNote.resultBody(
-        task,
-        result,
-        document: docNote == null
-            ? null
-            : (id: docNote.id, title: docNote.title),
-      ),
-      createdAt: stamp,
-    );
+    final note = task == null
+        ? null
+        : Note(
+            title: AgentNote.title(task),
+            body: AgentNote.resultBody(
+              task,
+              result,
+              document: docNote == null
+                  ? null
+                  : (id: docNote.id, title: docNote.title),
+            ),
+            createdAt: stamp,
+          );
     final m = Mutation('Agent result');
     if (docNote != null) m.notes.add((before: null, after: docNote));
-    m.notes.add((before: null, after: note));
+    if (note != null) m.notes.add((before: null, after: note));
     // Not `commit`: no undo for a write of the agent. `_apply` saves the
     // notes and their links to the task, like any new note.
-    if (!_apply(m, forward: true)) {
-      return _agentFail(jobId, AgentNote.notSaved);
+    if (m.notes.isNotEmpty && !_apply(m, forward: true)) {
+      return _agentFail(job.id, AgentNote.notSaved);
     }
+    final json = jsonEncode(result.toJson());
     final changed =
         _try(
           () => repos.agentJobs.setStatus(
-            jobId,
+            job.id,
             AgentStatus.done,
-            resultJson: jsonEncode(result.toJson()),
-            resultNoteId: note.id,
+            resultJson: json,
+            resultNoteId: note?.id ?? docNote?.id,
             from: {AgentStatus.running},
           ),
         ) ??
         false;
-    if (changed) _bump();
+    if (!changed) return;
+    _agentLine(
+      job.id,
+      AgentEventKind.result,
+      jsonEncode({
+        ...result.toJson(),
+        _docKey: ?docNote?.id,
+        _noteKey: ?note?.id,
+      }),
+    );
   }
 }
 

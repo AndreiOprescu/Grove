@@ -2,7 +2,8 @@ import '../core/agent/agent_models.dart';
 import '../core/model/day_key.dart';
 import 'database.dart';
 
-/// The jobs of the agent (ADR 0004). A job goes with its task.
+/// The jobs of the agent (ADR 0004, 0005): the chats. A job of a task goes
+/// with its task.
 class AgentJobRepo {
   AgentJobRepo(this.db);
 
@@ -11,11 +12,11 @@ class AgentJobRepo {
   static const _cols =
       'id, task_id, instructions, email_access, status, runner_device, '
       'result_json, error, result_note_id, created_at, updated_at, '
-      'finished_at';
+      'finished_at, title, plan_access, links_json';
 
   static AgentJob _map(Row r) => AgentJob(
     id: r.text(0),
-    taskId: r.text(1),
+    taskId: r.optText(1),
     instructions: r.text(2),
     emailAccess: r.asBool(3),
     status: AgentStatus.fromCode(r.text(4)),
@@ -26,12 +27,15 @@ class AgentJobRepo {
     createdAt: r.text(9),
     updatedAt: r.text(10),
     finishedAt: r.optText(11),
+    title: r.text(12),
+    planAccess: r.asBool(13),
+    links: AgentLink.listFromJson(r.optText(14)),
   );
 
-  /// A new job. Throws when the task is gone.
+  /// A new job. Throws when its task is gone.
   void insert(AgentJob j) => db.execute(
     'INSERT INTO agent_jobs ($_cols) '
-    'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+    'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
     [
       j.id,
       j.taskId,
@@ -45,6 +49,9 @@ class AgentJobRepo {
       j.createdAt,
       j.updatedAt,
       j.finishedAt,
+      j.title,
+      j.planAccess,
+      AgentLink.listToJson(j.links),
     ],
   );
 
@@ -68,6 +75,49 @@ class AgentJobRepo {
     'ORDER BY created_at, rowid',
     [status.code],
     _map,
+  );
+
+  /// Every job, the newest change first: the list of the Agents screen.
+  List<AgentJob> all() => db.query(
+    'SELECT $_cols FROM agent_jobs ORDER BY updated_at DESC, rowid DESC',
+    const [],
+    _map,
+  );
+
+  /// Puts a finished job back in the queue for a new message of the
+  /// person. [emailAccess], [planAccess] and [links] are the ones of the new
+  /// message. The error goes; the last result stays until the next one.
+  /// False when the job is gone or not finished.
+  bool requeue(
+    String id, {
+    required bool emailAccess,
+    required bool planAccess,
+    required List<AgentLink> links,
+  }) {
+    db.execute(
+      'UPDATE agent_jobs SET status = ?, runner_device = NULL, error = NULL, '
+      'finished_at = NULL, email_access = ?, plan_access = ?, links_json = ?, '
+      'updated_at = ? '
+      'WHERE id = ? AND status IN (?, ?, ?)',
+      [
+        AgentStatus.queued.code,
+        emailAccess,
+        planAccess,
+        AgentLink.listToJson(links),
+        Stamp.now(),
+        id,
+        AgentStatus.done.code,
+        AgentStatus.failed.code,
+        AgentStatus.cancelled.code,
+      ],
+    );
+    return db.changes == 1;
+  }
+
+  /// Gives the chat a new name.
+  void setTitle(String id, String title) => db.execute(
+    'UPDATE agent_jobs SET title = ?, updated_at = ? WHERE id = ?',
+    [title, Stamp.now(), id],
   );
 
   /// The jobs that wait for a runner, the oldest first.

@@ -2,31 +2,24 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:grove/core/model/day_key.dart';
 import 'package:grove/core/weather/weather_rules.dart';
 
-/// An answer of `/v1/forecast` for two days, with every hour of each day.
+/// An answer of `/v1/forecast` for two days. Day i has a low of 9.4 + 10 i
+/// and a high of 14.6 + 10 i.
 Map<String, Object?> openMeteo({
   List<String> days = const ['2026-10-20', '2026-10-21'],
   List<int> codes = const [61, 0],
-  bool hours = true,
+  bool temperatures = true,
 }) => {
-  'daily': {'time': days, 'weather_code': codes},
-  'hourly': {
-    'time': [
-      if (hours)
-        for (final d in days)
-          for (var h = 0; h < 24; h++)
-            '${d}T${h.toString().padLeft(2, '0')}:00',
-    ],
-    'temperature_2m': [
-      if (hours)
-        for (var i = 0; i < days.length; i++)
-          // 9am is 9.4 + 10 i, 9pm is 14.6 + 10 i.
-          for (var h = 0; h < 24; h++)
-            h == 9
-                ? 9.4 + 10 * i
-                : h == 21
-                ? 14.6 + 10 * i
-                : 0.0,
-    ],
+  'daily': {
+    'time': days,
+    'weather_code': codes,
+    if (temperatures) ...{
+      'temperature_2m_min': [
+        for (var i = 0; i < days.length; i++) 9.4 + 10 * i,
+      ],
+      'temperature_2m_max': [
+        for (var i = 0; i < days.length; i++) 14.6 + 10 * i,
+      ],
+    },
   },
 };
 
@@ -83,7 +76,7 @@ void main() {
   });
 
   group('parseForecast', () {
-    test('the kind of each day and its temperature at 9am and 9pm', () {
+    test('the kind of each day and its lowest and highest temperature', () {
       final days = WeatherRules.parseForecast(openMeteo());
       expect(days.keys, [tuesday, wednesday]);
       expect(
@@ -91,20 +84,35 @@ void main() {
         DayWeather(
           day: tuesday,
           condition: WeatherCondition.rain,
-          morning: 9.4,
-          evening: 14.6,
+          low: 9.4,
+          high: 14.6,
         ),
       );
       expect(days[wednesday]!.condition, WeatherCondition.clear);
-      expect(days[wednesday]!.morning, 19.4);
-      expect(days[wednesday]!.evening, 24.6);
+      expect(days[wednesday]!.low, 19.4);
+      expect(days[wednesday]!.high, 24.6);
     });
 
-    test('a day with no hours still has its kind', () {
-      final days = WeatherRules.parseForecast(openMeteo(hours: false));
+    test('a day with no temperatures still has its kind', () {
+      final days = WeatherRules.parseForecast(openMeteo(temperatures: false));
       expect(days[tuesday]!.condition, WeatherCondition.rain);
-      expect(days[tuesday]!.morning, isNull);
-      expect(days[tuesday]!.evening, isNull);
+      expect(days[tuesday]!.low, isNull);
+      expect(days[tuesday]!.high, isNull);
+    });
+
+    test('a missing or bad temperature is null', () {
+      final days = WeatherRules.parseForecast({
+        'daily': {
+          'time': ['2026-10-20', '2026-10-21'],
+          'weather_code': [3, 3],
+          'temperature_2m_min': [null],
+          'temperature_2m_max': ['hot', 20.5],
+        },
+      });
+      expect(days[tuesday]!.low, isNull);
+      expect(days[tuesday]!.high, isNull);
+      expect(days[wednesday]!.low, isNull);
+      expect(days[wednesday]!.high, 20.5);
     });
 
     test('a bad day or code is left out', () {
@@ -113,7 +121,6 @@ void main() {
           'time': ['2026-10-20', 'soon', '2026-10-22'],
           'weather_code': [3, 3, null],
         },
-        'hourly': <String, Object?>{},
       });
       expect(days.keys, [tuesday]);
     });
@@ -165,25 +172,25 @@ void main() {
     final rain = DayWeather(
       day: tuesday,
       condition: WeatherCondition.rain,
-      morning: 9.4,
-      evening: 14.6,
+      low: 9.4,
+      high: 14.6,
     );
 
-    test('the emoji, then 9am, then 9pm', () {
-      expect(WeatherRules.label(rain, TemperatureUnit.celsius), '🌧️ 9° → 15°');
+    test('the emoji, then the lowest, then the highest', () {
+      expect(WeatherRules.label(rain, TemperatureUnit.celsius), '🌧️ 9° / 15°');
       expect(
         WeatherRules.label(rain, TemperatureUnit.fahrenheit),
-        '🌧️ 49° → 58°',
+        '🌧️ 49° / 58°',
       );
     });
 
-    test('a missing hour shows a dash, and no hours shows the emoji', () {
+    test('a missing value shows a dash, and none shows the emoji', () {
       final half = DayWeather(
         day: tuesday,
         condition: WeatherCondition.clear,
-        evening: -1.2,
+        high: -1.2,
       );
-      expect(WeatherRules.label(half, TemperatureUnit.celsius), '☀️ – → -1°');
+      expect(WeatherRules.label(half, TemperatureUnit.celsius), '☀️ – / -1°');
       final none = DayWeather(day: tuesday, condition: WeatherCondition.fog);
       expect(WeatherRules.label(none, TemperatureUnit.celsius), '🌫️');
     });
@@ -191,7 +198,7 @@ void main() {
     test('the words of the tooltip', () {
       expect(
         WeatherRules.words(rain, TemperatureUnit.celsius),
-        'Rain · 9am 9° · 9pm 15°',
+        'Rain · low 9° · high 15°',
       );
     });
   });
@@ -203,8 +210,7 @@ void main() {
       expect(url.queryParameters, {
         'latitude': '51.51',
         'longitude': '-0.13',
-        'daily': 'weather_code',
-        'hourly': 'temperature_2m',
+        'daily': 'weather_code,temperature_2m_min,temperature_2m_max',
         'timezone': 'auto',
         'forecast_days': '16',
       });

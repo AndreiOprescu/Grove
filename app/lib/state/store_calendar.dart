@@ -33,7 +33,7 @@ extension AppStoreCalendar on AppStore {
       for (final day in days.days) day: [],
     };
     for (final e in eventItems(days)) {
-      if (e.kind != EventKind.event) continue;
+      if (e.kind == EventKind.block) continue;
       final from = e.start.day > days.first ? e.start.day : days.first;
       final to = e.end.day < days.last ? e.end.day : days.last;
       for (var day = from; day <= to; day = day.adding(days: 1)) {

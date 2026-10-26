@@ -61,6 +61,36 @@ abstract final class SettingsRules {
         NotifyAuthorization.denied => 'Notifications are off for Grove. Turn them on in System Settings to get reminders.',
       };
 
+  // The bedtime reminder (ADR 0006)
+
+  /// 60 → "1 hour before", 90 → "1½ hours before"
+  static String bedtimeLeadText(int minutes) => switch (minutes) {
+    60 => '1 hour before',
+    90 => '1½ hours before',
+    120 => '2 hours before',
+    _ => '$minutes minutes before',
+  };
+
+  /// Under the bedtime switch: tonight's usual bedtime and, when the
+  /// reminder is on, when it comes.
+  static String bedtimeText({
+    required WallTime bedtime,
+    required WallTime? reminder,
+  }) {
+    final asleep = 'Tonight: usually asleep around ${hourText(bedtime.minute)}';
+    final at = reminder == null
+        ? ''
+        : ', reminder at ${hourText(reminder.minute)}';
+    return '$asleep$at. Only these times sync, never what you used.';
+  }
+
+  static const usageAccessOnText = 'Usage access is on';
+  static const usageAccessOffText =
+      'Turn on Usage access so Grove can learn when you sleep';
+  static const openAtLoginText =
+      'Closing the window keeps Grove in the menu bar, so it can learn when '
+      'you sleep. Quit it from the menu bar.';
+
   // The agent (ADR 0004)
 
   /// Under "This device runs agent tasks" on a phone.

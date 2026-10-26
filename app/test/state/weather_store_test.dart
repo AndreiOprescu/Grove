@@ -42,7 +42,7 @@ void main() {
       expect(location.asked, 1);
       expect(weather.asked, [(51.5072, -0.1276)]);
       expect(s.weatherFor(today)?.condition, WeatherCondition.rain);
-      expect(s.weatherFor(today.adding(days: 15))?.evening, 14);
+      expect(s.weatherFor(today.adding(days: 15))?.high, 14);
       // A day in the past, and a day after the forecast.
       expect(s.weatherFor(today.adding(days: -1)), isNull);
       expect(s.weatherFor(today.adding(days: 16)), isNull);
@@ -153,7 +153,7 @@ void main() {
       final weather = FakeWeather(from: today)
         ..error = const SocketException('offline');
       final next = weatherStore(prefs: prefs, weather: weather);
-      expect(next.weatherFor(today)?.morning, 9);
+      expect(next.weatherFor(today)?.low, 9);
       // Less than an hour old: no question.
       await next.refreshWeather();
       expect(weather.asked, isEmpty);

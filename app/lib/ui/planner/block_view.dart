@@ -91,6 +91,7 @@ class BlockView extends StatelessWidget {
     final line =
         '${block.title} · ${PlannerMath.label(start: start, end: end)}';
     if (block.isGoalBlock) return 'Goal block · $line';
+    if (block.isActivity) return 'Activity · $line';
     return block.summary.isEmpty ? line : '$line\n${block.summary}';
   }
 
@@ -109,6 +110,13 @@ class BlockView extends StatelessWidget {
       child: Stack(
         fit: StackFit.expand,
         children: [
+          // An activity is reserved time, not work: soft stripes.
+          if (block.isActivity)
+            Positioned.fill(
+              child: CustomPaint(
+                painter: _Stripes(tint.withValues(alpha: 0.10)),
+              ),
+            ),
           Positioned(
             left: 0,
             top: 0,
@@ -267,6 +275,7 @@ class BlockView extends StatelessWidget {
           if (block.isGoalBlock && inner >= 46)
             Icon(symbolIcon('target'), size: 10, color: tint),
           if (block.isDeadline && inner >= 46) _deadlineIcon(tint),
+          if (block.isActivity && inner >= 46) _activityIcon(tint),
           Expanded(
             child: Text(
               block.title,
@@ -320,6 +329,11 @@ class BlockView extends StatelessWidget {
                         Padding(
                           padding: const EdgeInsets.only(top: 2),
                           child: _deadlineIcon(tint),
+                        ),
+                      if (block.isActivity && inner >= 46)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 2),
+                          child: _activityIcon(tint),
                         ),
                       Flexible(
                         child: Text(
@@ -460,6 +474,15 @@ class BlockView extends StatelessWidget {
     size: 10,
     color: tint,
     semanticLabel: 'Deadline',
+  );
+
+  /// The cup before the title of an activity.
+  Widget _activityIcon(Color tint) => Icon(
+    symbolIcon('cup.and.saucer'),
+    key: ValueKey('activity-${block.id}'),
+    size: 10,
+    color: tint,
+    semanticLabel: 'Activity',
   );
 
   Widget _noteIcon(Color tint) => Icon(
@@ -637,4 +660,28 @@ class EdgeHandle extends StatelessWidget {
       child: child,
     ),
   );
+}
+
+/// Thin lines from bottom left to top right, 8 points apart.
+class _Stripes extends CustomPainter {
+  _Stripes(this.color);
+
+  final Color color;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = color
+      ..strokeWidth = 3;
+    for (var x = -size.height; x < size.width; x += 8) {
+      canvas.drawLine(
+        Offset(x, size.height),
+        Offset(x + size.height, 0),
+        paint,
+      );
+    }
+  }
+
+  @override
+  bool shouldRepaint(_Stripes old) => old.color != color;
 }

@@ -9,6 +9,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:grove/core/model/day_key.dart';
 import 'package:grove/core/model/event.dart';
+import 'package:grove/core/model/task.dart';
 import 'package:grove/core/planner/planner_math.dart';
 // The store has its own `MotionRules`, for the garden.
 import 'package:grove/state/state.dart' hide MotionRules;
@@ -16,6 +17,7 @@ import 'package:grove/state/state.dart' hide MotionRules;
 import '../agent/agent_dialog.dart';
 import '../theme/grove_theme.dart';
 import '../theme/named_colors.dart';
+import '../theme/symbols.dart';
 import '../theme/theme_math.dart';
 import 'block_view.dart';
 import 'day_markers.dart';
@@ -64,7 +66,13 @@ class Draft {
   final DayKey day;
   final int start;
   final int end;
-  final bool asEvent;
+
+  /// A ⌘-drag starts an event. The Task chip turns it back into a task.
+  bool asEvent;
+
+  /// The icon under the draft turns this on: the block is reserved time,
+  /// not a task.
+  bool asActivity = false;
   String text = '';
 }
 
@@ -219,6 +227,7 @@ class PlannerGridState extends State<PlannerGrid> {
             start: draft.start,
             end: draft.end,
             asEvent: draft.asEvent,
+            asActivity: draft.asActivity,
           );
         });
       }
@@ -415,8 +424,9 @@ class PlannerGridState extends State<PlannerGrid> {
     if (_twoFingers) return;
     final again = _secondTap('block-${block.id}');
     _selectBlock(block);
-    // A plain event opens its editor. All other blocks get a title field.
-    if (again && (block.kind != EventKind.event || block.isTaskBlock)) {
+    // A plain event or an activity opens its editor. All other blocks get a
+    // title field.
+    if (again && (block.kind == EventKind.block || block.isTaskBlock)) {
       setState(() => _renamingId = block.id);
     }
   }
@@ -785,6 +795,7 @@ class PlannerGridState extends State<PlannerGrid> {
       start: current.start,
       end: current.end,
       asEvent: command || current.asEvent,
+      asActivity: current.asActivity,
     );
     if (refocus) _focus.requestFocus();
   }
@@ -1086,13 +1097,14 @@ class PlannerGridState extends State<PlannerGrid> {
         : [block.id];
     final taskId = block.taskId;
     final plainEvent = block.kind == EventKind.event && !block.isTaskBlock;
+    final noun = block.isActivity ? 'Activity' : 'Event';
     final action = await _menu<VoidCallback>(global, [
       if (block.isGoalBlock) ...[
         _item('Goal block · ${PlannerMath.duration(block.length)}', null),
         const PopupMenuDivider(),
       ],
-      if (plainEvent) ...[
-        _item('Edit Event…', () {
+      if (plainEvent || block.isActivity) ...[
+        _item('Edit $noun…', () {
           final e = store.event(block.id);
           if (e != null) store.editEvent(e);
         }),
@@ -1158,8 +1170,8 @@ class PlannerGridState extends State<PlannerGrid> {
         )
       else
         _item(
-          'Delete Event',
-          () => store.deleteBlocks(ids, name: 'Delete Event'),
+          'Delete $noun',
+          () => store.deleteBlocks(ids, name: 'Delete $noun'),
         ),
     ]);
     if (mounted) action?.call();
@@ -1605,13 +1617,49 @@ class PlannerGridState extends State<PlannerGrid> {
     );
   }
 
+  /// Task or activity, under the draft. A tap on it stays inside the title
+  /// field: the field keeps the keys and the draft does not save.
+  Widget _kindRow(Draft d) {
+    void pick(bool activity) => setState(() {
+      d
+        ..asActivity = activity
+        ..asEvent = false;
+    });
+    return TextFieldTapRegion(
+      child: ExcludeFocus(
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          spacing: 4,
+          children: [
+            _KindChip(
+              key: const ValueKey('draft-task'),
+              icon: symbolIcon('square'),
+              label: 'Task',
+              on: !d.asActivity && !d.asEvent,
+              onTap: () => pick(false),
+            ),
+            _KindChip(
+              key: const ValueKey('draft-activity'),
+              icon: symbolIcon('cup.and.saucer'),
+              label: 'Activity',
+              on: d.asActivity,
+              onTap: () => pick(true),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget? _draftWidget(GroveTheme theme, PlannerGeometry geo) {
     final d = _draft;
     if (d == null) return null;
     final index = _days.indexOf(d.day);
     if (index < 0) return null;
     final width = _dayWidthAt(index) - 6;
-    final matches = _store.matchingTasks(d.text, on: d.day);
+    final matches = d.asActivity
+        ? const <TaskItem>[]
+        : _store.matchingTasks(d.text, on: d.day);
     return Positioned(
       key: ValueKey('draft-${d.serial}'),
       left: _dayLeft(index) + 2,
@@ -1651,7 +1699,11 @@ class PlannerGridState extends State<PlannerGrid> {
                         .copyWith(color: theme.accent),
                   ),
                   InlineTitleField(
-                    placeholder: d.asEvent ? 'New event' : 'New task',
+                    placeholder: d.asActivity
+                        ? 'New activity'
+                        : d.asEvent
+                        ? 'New event'
+                        : 'New task',
                     onChanged: (text) => setState(() => d.text = text),
                     onCommit: (text, command) =>
                         _commitDraft(text, serial: d.serial, command: command),
@@ -1667,6 +1719,7 @@ class PlannerGridState extends State<PlannerGrid> {
               ),
             ),
           ),
+          _kindRow(d),
           if (matches.isNotEmpty)
             Container(
               width: max(160, width),
@@ -2038,6 +2091,61 @@ class _NowLineState extends State<_NowLine> with WidgetsBindingObserver {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// One choice of the row under the draft: an icon and a word.
+class _KindChip extends StatelessWidget {
+  const _KindChip({
+    super.key,
+    required this.icon,
+    required this.label,
+    required this.on,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String label;
+  final bool on;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = GroveTheme.of(context);
+    final color = on ? theme.accent : theme.muted;
+    return Semantics(
+      button: true,
+      selected: on,
+      label: label,
+      excludeSemantics: true,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+          decoration: BoxDecoration(
+            color: on
+                ? theme.accent.withValues(alpha: 0.14)
+                : theme.solidSurface,
+            borderRadius: BorderRadius.circular(6),
+            border: Border.all(color: on ? theme.accent : theme.line),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            spacing: 4,
+            children: [
+              Icon(icon, size: 12, color: color),
+              Text(
+                label,
+                style: theme
+                    .body(10, weight: FontWeight.w700)
+                    .copyWith(color: color),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

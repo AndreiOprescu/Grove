@@ -16,6 +16,7 @@ void main() {
         Screen.notes,
         Screen.garden,
         Screen.persona,
+        Screen.agents,
       ]);
       expect(Screen.values.map((s) => s.title), [
         'Today',
@@ -24,7 +25,11 @@ void main() {
         'Notes',
         'Garden',
         'Persona',
+        'Agents',
       ]);
+      // Agents shows only while the agent is on.
+      expect(Screen.always, Screen.values.take(6));
+      expect(LocalShellModel().screens, Screen.always);
     });
 
     test('the window starts on Today', () {

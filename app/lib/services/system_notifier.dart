@@ -184,11 +184,10 @@ class SystemNotifier extends Notifier {
     _clicked(response);
   }
 
-  static Map<String, String> _target(DayKey day, ItemRef ref) => {
-    'day': day.string,
-    'kind': ref.type.name,
-    'id': ref.id,
-  };
+  /// What a click opens. No item: the planner on [day].
+  static Map<String, String> _target(DayKey day, ItemRef? ref) => ref == null
+      ? {'day': day.string, 'screen': 'planner'}
+      : {'day': day.string, 'kind': ref.type.name, 'id': ref.id};
 
   static String _key(NoteResponse r) => '${r.actionId}\n${r.payload}';
 
@@ -211,6 +210,11 @@ class SystemNotifier extends Notifier {
     }
 
     final day = info['day'], kind = info['kind'], id = info['id'];
+    if (info['screen'] == 'planner') {
+      final key = day is String ? DayKey.parse(day) : null;
+      if (key != null) onOpenPlanner?.call(key);
+      return;
+    }
     if (day is! String || kind is! String || id is! String) return;
     final key = DayKey.parse(day);
     final type = ItemType.values.asNameMap()[kind];

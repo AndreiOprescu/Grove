@@ -77,7 +77,8 @@ extension AppStoreNotes on AppStore {
   // Daily and weekly notes
 
   /// The note of a day. It is made the first time it is asked for. That is not
-  /// an edit, so it cannot be undone.
+  /// an edit, so it cannot be undone. Grove does not keep it while it has no
+  /// text of its own ([forgetEmptyDailyNote]).
   Note dailyNote(DayKey day) {
     final found = _try(() => repos.notes.daily(day));
     if (found != null) return found;
@@ -114,6 +115,56 @@ extension AppStoreNotes on AppStore {
   }
 
   void openDailyNote(DayKey day) => openNote(dailyNote(day).id);
+
+  // Empty daily notes
+
+  /// True for a daily note with no text, mood or pin of its own.
+  bool isEmptyDailyNote(Note n) =>
+      NotesRules.isEmptyDaily(n, template: template(NoteKind.daily));
+
+  /// An editor of note [id] shows it.
+  void noteShown(String id) => _shownNotes[id] = (_shownNotes[id] ?? 0) + 1;
+
+  /// An editor of note [id] is gone, and it wrote its text. When no other
+  /// editor shows the note, an empty daily note is deleted.
+  void noteHidden(String id) {
+    final left = (_shownNotes[id] ?? 1) - 1;
+    if (left > 0) {
+      _shownNotes[id] = left;
+      return;
+    }
+    _shownNotes.remove(id);
+    forgetEmptyDailyNote(id);
+  }
+
+  /// Deletes daily note [id] when it is empty and no editor shows it. Grove
+  /// made the note, not the user, so this is not an undo step.
+  void forgetEmptyDailyNote(String id) {
+    final n = note(id);
+    if (n == null || _shownNotes.containsKey(id) || !isEmptyDailyNote(n)) {
+      return;
+    }
+    _try(() => repos.notes.delete(id));
+    if (_selectedNoteId == id) _selectedNoteId = null;
+    _bump();
+  }
+
+  /// Deletes the empty daily notes that did not change for [after]. A note
+  /// that changed in that time can be an empty copy of a note that another
+  /// device has text in, and the sync did not bring that text yet.
+  void forgetEmptyDailyNotes({Duration after = const Duration(hours: 24)}) {
+    final before = Stamp.fromDate(clockNow().subtract(after));
+    final empty = [
+      for (final n in _try(repos.notes.all) ?? const <Note>[])
+        if (n.updatedAt.compareTo(before) < 0 && isEmptyDailyNote(n)) n.id,
+    ];
+    if (empty.isEmpty) return;
+    for (final id in empty) {
+      _try(() => repos.notes.delete(id));
+      if (_selectedNoteId == id) _selectedNoteId = null;
+    }
+    _bump();
+  }
 
   void openWeeklyNote(DayKey day) => openNote(weeklyNote(day).id);
 

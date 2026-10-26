@@ -9,14 +9,14 @@ select grove_test.ok((select count(*) from storage.objects) = 1, 'the file is st
 select grove_test.ok((select count(*) from storage.buckets) = 1, 'there is one bucket');
 select grove_test.ok(
   (select count(*) from pg_class c join pg_namespace n on n.oid = c.relnamespace
-    where n.nspname = 'public' and c.relkind = 'r') = 19,
-  'there are 18 data tables and the counter');
+    where n.nspname = 'public' and c.relkind = 'r') = 20,
+  'there are 19 data tables and the counter');
 select grove_test.ok(
   (select count(*) from pg_class c join pg_namespace n on n.oid = c.relnamespace
     where n.nspname = 'public' and c.relkind = 'r' and not c.relrowsecurity) = 0,
   'each table has row level security');
 select grove_test.ok(
-  (select count(*) from pg_policies where schemaname = 'public') = 57,
+  (select count(*) from pg_policies where schemaname = 'public') = 60,
   'each table has its 3 rules, one time');
 select grove_test.ok(
   (select count(*) from pg_policies where schemaname = 'public' and cmd = 'DELETE') = 0,

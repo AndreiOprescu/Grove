@@ -42,6 +42,9 @@ Future<void> main() async {
     location: const DeviceLocationSource(),
     // Null on a phone: it makes jobs, a computer runs them.
     agentRunner: AppServices.agentRunner(),
+    // When the owner falls asleep, from the use of the phone and the Mac.
+    activity: AppServices.activitySource(),
+    loginItem: AppServices.loginItem(),
   );
   if (copy == SandboxCopyResult.failed && store.errorMessage == null) {
     store.errorMessage = SandboxDataCopy.failedMessage;
@@ -55,6 +58,7 @@ Future<void> main() async {
       pickImages: pickImageFiles,
       openLink: openInBrowser,
       openDraft: openDraftApp,
+      pickAgentFile: pickAgentFile,
     ),
   );
 }

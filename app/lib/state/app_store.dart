@@ -4,8 +4,10 @@ import 'dart:io';
 import 'dart:math';
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart' show PlatformException;
 
 import '../core/grove_core.dart';
+import '../core/agent/agent_context.dart';
 import '../core/agent/agent_models.dart';
 import '../core/agent/agent_policy.dart';
 import '../core/agent/agent_runner.dart';
@@ -30,10 +32,15 @@ import '../core/planner/planner_math.dart';
 import '../core/recurrence/recurrence_engine.dart';
 import '../core/services/focus_rules.dart';
 import '../core/services/persona.dart';
+import '../core/services/bedtime_planner.dart';
 import '../core/services/reminder_planner.dart';
+import '../core/sleep/activity.dart';
+import '../core/sleep/sleep_night.dart';
+import '../core/sleep/sleep_stats.dart';
 import '../core/update/update_rules.dart';
 import '../core/weather/weather_rules.dart';
 import '../data/data.dart';
+import '../services/login_item.dart' show LoginItem, LoginItemStatus;
 import '../sync/sync.dart';
 import 'editor_services.dart';
 import 'mutation.dart';
@@ -90,6 +97,7 @@ part 'store_persona.dart';
 part 'store_planner.dart';
 part 'store_reminders.dart';
 part 'store_roll_over.dart';
+part 'store_sleep.dart';
 part 'store_sync.dart';
 part 'store_tasks.dart';
 part 'store_updates.dart';
@@ -145,6 +153,8 @@ class AppStore extends ChangeNotifier {
     this.weatherSource,
     this.locationSource,
     this.agentRunner,
+    this.activitySource,
+    this.loginItem,
     this._errorMessage,
   }) : notifier = notifier ?? NullNotifier(),
        prefs = prefs ?? MemoryPrefs() {
@@ -160,10 +170,12 @@ class AppStore extends ChangeNotifier {
     this.notifier.onOpen = (day, ref) =>
         openFromNotification(day: day, ref: ref);
     this.notifier.onFocusDone = focusDoneFromNotification;
+    this.notifier.onOpenPlanner = openPlannerFromNotification;
     _welcomeVisible = FirstRun.welcomeVisible(repos);
     _adoptBlockSubtasks();
     _startSync();
     _startAgent();
+    _watchActivity();
   }
 
   /// Opens the database in [dataDir] and does the launch steps: the daily
@@ -178,6 +190,8 @@ class AppStore extends ChangeNotifier {
     WeatherSource? weather,
     LocationSource? location,
     AgentRunner? agentRunner,
+    ActivitySource? activity,
+    LoginItem? loginItem,
   }) {
     final sep = Platform.pathSeparator;
     try {
@@ -197,16 +211,20 @@ class AppStore extends ChangeNotifier {
       // anything else writes to it.
       _try(() => FirstRun.seedIfNew(repos, today: DayKey.today()));
       return AppStore(
-        repos: repos,
-        notifier: notifier,
-        prefs: prefs ?? FilePrefs('$dataDir${sep}prefs.json'),
-        dataDir: dataDir,
-        syncBackend: sync,
-        releaseSource: releases,
-        weatherSource: weather,
-        locationSource: location,
-        agentRunner: agentRunner,
-      );
+          repos: repos,
+          notifier: notifier,
+          prefs: prefs ?? FilePrefs('$dataDir${sep}prefs.json'),
+          dataDir: dataDir,
+          syncBackend: sync,
+          releaseSource: releases,
+          weatherSource: weather,
+          locationSource: location,
+          agentRunner: agentRunner,
+          activitySource: activity,
+          loginItem: loginItem,
+        )
+        // Day notes left empty, on this device or another one.
+        ..forgetEmptyDailyNotes();
     } on Exception {
       return AppStore(
         repos: Repos(Database.inMemory()),
@@ -215,6 +233,8 @@ class AppStore extends ChangeNotifier {
         releaseSource: releases,
         weatherSource: weather,
         locationSource: location,
+        activitySource: activity,
+        loginItem: loginItem,
         errorMessage:
             'Grove could not open its database. Changes will not be saved.',
       );
@@ -252,6 +272,19 @@ class AppStore extends ChangeNotifier {
   final AgentRunner? agentRunner;
   final _agent = _AgentState();
 
+  /// The use history of this device, which tells when the owner fell
+  /// asleep (ADR 0006). Null: this device does not learn nights. See
+  /// `store_sleep.dart`.
+  final ActivitySource? activitySource;
+
+  /// "Open Grove at login" on the Mac. Null on other devices.
+  final LoginItem? loginItem;
+  final _sleep = _SleepState();
+
+  /// Brings the window of Grove to the front, for a click on a reminder.
+  /// Set by the app on a computer.
+  void Function()? bringToFront;
+
   /// How long a change waits before it is sent. A burst of changes is one
   /// sync.
   Duration syncDelay = const Duration(seconds: 3);
@@ -288,6 +321,7 @@ class AppStore extends ChangeNotifier {
     _freshSleep?.cancel();
     _stopSync();
     _stopAgent();
+    _stopSleep();
     super.dispose();
   }
 
@@ -464,6 +498,8 @@ class AppStore extends ChangeNotifier {
   Screen _screen = Screen.today;
   Screen get screen => _screen;
   set screen(Screen v) {
+    // The Agents screen shows only when the agent is on.
+    if (v == Screen.agents && !agentEnabled) return;
     final old = _screen;
     _screen = v;
     if (v == Screen.today && old != Screen.today) _selectedDay = todayScreenDay;
@@ -478,6 +514,10 @@ class AppStore extends ChangeNotifier {
     _todayRequest = v;
     _changed();
   }
+
+  /// How many note editors show each note now. A daily note with no text
+  /// of its own is deleted when its last editor goes.
+  final _shownNotes = <String, int>{};
 
   /// The note the notes screen shows.
   String? _selectedNoteId;
@@ -866,7 +906,7 @@ class AppStore extends ChangeNotifier {
       if (now == null) continue;
       final was = forward ? e.before : e.after;
       final ref = ItemRef(ItemType.event, now.id);
-      if (now.kind != EventKind.event) {
+      if (now.kind == EventKind.block) {
         // A task block or a goal block holds no text. But a note can link to
         // it (its meeting note): a block that was brought back gets the link
         // again.

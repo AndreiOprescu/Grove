@@ -61,7 +61,7 @@ class WeatherSettings extends StatelessWidget {
             ),
         ],
         const SettingsCaption(
-          'Each day shows its weather and the temperature at 9am and 9pm. '
+          'Each day shows its weather and its lowest and highest temperature. '
           'Weather data by Open-Meteo.com.',
         ),
       ],
