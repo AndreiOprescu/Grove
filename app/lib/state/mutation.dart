@@ -4,6 +4,7 @@ import '../core/model/event.dart';
 import '../core/model/goal.dart';
 import '../core/model/goal_subtask.dart';
 import '../core/model/note.dart';
+import '../core/model/notebook.dart';
 import '../core/model/persona.dart';
 import '../core/model/task.dart';
 
@@ -57,6 +58,12 @@ class Mutation {
   /// removes them.
   final List<Change<EarningItem>> earnings = [];
 
+  /// Notebooks of the notes.
+  final List<Change<Notebook>> notebooks = [];
+
+  /// Sections of the notebooks.
+  final List<Change<NotebookSection>> notebookSections = [];
+
   /// Typing makes many small changes. Changes with the same key, close in
   /// time, become one undo step.
   String? mergeKey;
@@ -74,7 +81,9 @@ class Mutation {
       settings.isEmpty &&
       skills.isEmpty &&
       rewards.isEmpty &&
-      earnings.isEmpty;
+      earnings.isEmpty &&
+      notebooks.isEmpty &&
+      notebookSections.isEmpty;
 
   Mutation _copy() => Mutation(name, mergeKey: mergeKey, at: at)..append(this);
 
@@ -104,7 +113,11 @@ class Mutation {
         rewards.isNotEmpty ||
         next.rewards.isNotEmpty ||
         earnings.isNotEmpty ||
-        next.earnings.isNotEmpty) {
+        next.earnings.isNotEmpty ||
+        notebooks.isNotEmpty ||
+        next.notebooks.isNotEmpty ||
+        notebookSections.isNotEmpty ||
+        next.notebookSections.isNotEmpty) {
       return null;
     }
     final m = _copy();
@@ -141,5 +154,7 @@ class Mutation {
     skills.addAll(other.skills);
     rewards.addAll(other.rewards);
     earnings.addAll(other.earnings);
+    notebooks.addAll(other.notebooks);
+    notebookSections.addAll(other.notebookSections);
   }
 }

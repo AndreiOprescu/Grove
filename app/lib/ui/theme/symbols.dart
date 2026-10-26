@@ -45,6 +45,17 @@ const Map<String, IconData> _icons = {
   'flame': Icons.local_fire_department_outlined,
   'text.append': Icons.playlist_add,
   'chevron.left': Icons.chevron_left,
+  // the notes sidebar
+  'tray.full': Icons.all_inbox_outlined,
+  'tray': Icons.inbox_outlined,
+  'person.2': Icons.groups_outlined,
+  'archivebox': Icons.archive_outlined,
+  'tray.and.arrow.up': Icons.unarchive_outlined,
+  'book.closed': Icons.menu_book_outlined,
+  'folder': Icons.drive_file_move_outline,
+  'number': Icons.tag,
+  'plus': Icons.add,
+  'chevron.down': Icons.expand_more,
   // the top of the window
   'gearshape': Icons.settings_outlined,
   // the sleep line of the planner

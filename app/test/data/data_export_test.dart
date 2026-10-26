@@ -213,6 +213,22 @@ void main() {
         for (final e in b['events'] as List) {
           expect((e as Map).remove('is_deadline'), 0);
         }
+        // Notebooks are in this app only: a note from a Mac file is in no
+        // notebook, at the first place, and not archived.
+        expect(b.remove('notebooks'), isEmpty);
+        expect(b.remove('notebook_sections'), isEmpty);
+        for (final n in b['notes'] as List) {
+          final m = n as Map;
+          expect(
+            [
+              m.remove('notebook_id'),
+              m.remove('section_id'),
+              m.remove('sort_order'),
+              m.remove('archived_at'),
+            ],
+            [null, null, 0, null],
+          );
+        }
         expect(b.keys.toSet(), a.keys.toSet());
         for (final name in a.keys) {
           final macRows = a[name] as List;

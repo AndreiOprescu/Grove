@@ -125,8 +125,9 @@ void main() {
       final e = goalBlock(Repos(db));
       // Take the database back to shared schema 6 and sync schema 2. The
       // subtasks of a goal (shared schema 8), the persona (shared schema
-      // 10), deadlines (shared schema 11) and the agent (shared schema 12)
-      // came later, so they go too.
+      // 10), deadlines (shared schema 11), the agent (shared schema 12) and
+      // the notebooks (shared schema 14) came later, so they go too.
+      rewindNotebooks(db);
       db.executeScript('''
         DROP TRIGGER sync_events_update;
         ALTER TABLE events DROP COLUMN is_deadline;

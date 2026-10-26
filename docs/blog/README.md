@@ -5,6 +5,7 @@ The newest post is first.
 
 | Date | Post |
 |---|---|
+| 2026-10-26 | [Notebooks for your notes](2026-10-26-notebooks.md) |
 | 2026-10-22 | [A home for your agents](2026-10-22-agents-screen.md) |
 | 2026-10-20 | [A menu for each day](2026-10-20-day-menu.md) |
 | 2026-10-19 | [An agent that does tasks for you](2026-10-19-agent-delegation.md) |

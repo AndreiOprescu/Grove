@@ -117,6 +117,9 @@ Future<void> _tapAddImage(WidgetTester tester) async {
   await tester.tap(_addImage);
 }
 
+/// A window where the note of the notes screen has room for every tool.
+const _wide = Size(1400, 720);
+
 final _markup = RegExp(r'!\[door\]\(grove-image:([0-9A-Fa-f-]+)\)');
 
 void main() {
@@ -127,9 +130,12 @@ void main() {
       final store = _noteStore('see');
       final door = await _door(tester);
       var asked = 0;
+      // the notes screen has three columns: the note needs a wide window
+      // for every tool to fit in its row
       await _pump(
         tester,
         store,
+        size: _wide,
         pickImages: () async {
           asked += 1;
           return [door];
@@ -202,7 +208,7 @@ void main() {
 
     testWidgets('an app with no picker has no button', (tester) async {
       final note = _noteStore('see');
-      await _pump(tester, note);
+      await _pump(tester, note, size: _wide);
       expect(_field('note-text'), findsOneWidget);
       expect(_addImage, findsNothing);
       // A note is wide: every tool is in the row, and there is no "…".

@@ -1,35 +1,111 @@
 import '../../core/model/day_key.dart';
 import '../../core/model/note.dart';
+import '../../core/model/notebook.dart';
 import '../../core/parsing/markdown_plain.dart';
 import '../../core/parsing/note_parser.dart';
 import 'text.dart';
 
-/// Which notes the list shows.
-class NoteFilter {
-  const NoteFilter._(this._kind, [this.tagName]);
+/// The kinds of [NoteSection].
+enum NoteSectionKind {
+  all,
+  inbox,
+  daily,
+  weekly,
+  pinned,
+  meetings,
+  withTasks,
+  archive,
+  notebook,
+  tag,
+}
+
+/// Which notes the list shows: a section of the notes sidebar, one notebook,
+/// or one tag.
+class NoteSection {
+  const NoteSection._(this.kind, [this._value]);
+
+  /// The notes of one notebook.
+  const NoteSection.notebook(String id) : this._(NoteSectionKind.notebook, id);
 
   /// Notes that have this tag.
-  const NoteFilter.tag(String name) : this._('tag', name);
+  const NoteSection.tag(String name) : this._(NoteSectionKind.tag, name);
 
-  static const all = NoteFilter._('all');
-  static const daily = NoteFilter._('daily');
-  static const weekly = NoteFilter._('weekly');
-  static const pinned = NoteFilter._('pinned');
+  /// Every note that is not archived.
+  static const all = NoteSection._(NoteSectionKind.all);
 
-  final String _kind;
+  /// Plain notes in no notebook that are not meeting notes.
+  static const inbox = NoteSection._(NoteSectionKind.inbox);
+  static const daily = NoteSection._(NoteSectionKind.daily);
+  static const weekly = NoteSection._(NoteSectionKind.weekly);
+  static const pinned = NoteSection._(NoteSectionKind.pinned);
 
-  /// Set for a tag filter only.
-  final String? tagName;
+  /// Notes linked to an event.
+  static const meetings = NoteSection._(NoteSectionKind.meetings);
+
+  /// Notes with a task that is still open.
+  static const withTasks = NoteSection._(NoteSectionKind.withTasks);
+
+  /// The archived notes. They show nowhere else.
+  static const archive = NoteSection._(NoteSectionKind.archive);
+
+  /// The sections that are always in the sidebar, in sidebar order.
+  static const fixed = [
+    all,
+    inbox,
+    daily,
+    weekly,
+    pinned,
+    meetings,
+    withTasks,
+    archive,
+  ];
+
+  final NoteSectionKind kind;
+  final String? _value;
+
+  /// Set for a tag section only.
+  String? get tagName => kind == NoteSectionKind.tag ? _value : null;
+
+  /// Set for a notebook section only.
+  String? get notebookId => kind == NoteSectionKind.notebook ? _value : null;
 
   @override
   bool operator ==(Object other) =>
-      other is NoteFilter && other._kind == _kind && other.tagName == tagName;
+      other is NoteSection && other.kind == kind && other._value == _value;
 
   @override
-  int get hashCode => Object.hash(_kind, tagName);
+  int get hashCode => Object.hash(kind, _value);
 
   @override
-  String toString() => tagName == null ? _kind : 'tag($tagName)';
+  String toString() => _value == null ? kind.name : '${kind.name}($_value)';
+}
+
+/// What the sections need to know beyond the notes themselves. The store
+/// reads both sets with one query each.
+class NoteFacts {
+  const NoteFacts({
+    this.meetingIds = const {},
+    this.openTaskNoteIds = const {},
+  });
+
+  /// Notes linked to an event, either way.
+  final Set<String> meetingIds;
+
+  /// Notes that a task that is still open came from.
+  final Set<String> openTaskNoteIds;
+}
+
+/// A run of notes under one heading: a date group ("Today") or a section of
+/// a notebook ([sectionId]; the notes in no section have the label '').
+class NoteGroup {
+  const NoteGroup({required this.label, required this.notes, this.sectionId});
+
+  final String label;
+  final String? sectionId;
+  final List<Note> notes;
+
+  @override
+  String toString() => 'NoteGroup($label, ${notes.length})';
 }
 
 /// The small rules behind the notes screen: titles, templates, the list filter
@@ -108,36 +184,189 @@ abstract final class NotesRules {
         .every((l) => l.isEmpty || given.contains(l));
   }
 
-  /// Keeps the notes the filter allows. The order stays as given.
-  static List<Note> filter(
-    List<Note> notes,
-    NoteFilter f, {
+  /// True when note [n] shows in section [s].
+  static bool inSection(
+    Note n,
+    NoteSection s, {
+    NoteFacts facts = const NoteFacts(),
     required List<String> Function(String noteId) tagsOf,
   }) {
-    if (f == NoteFilter.all) return notes;
-    if (f == NoteFilter.daily) {
-      return [
-        for (final n in notes)
-          if (n.kind == NoteKind.daily) n,
-      ];
+    if (s.kind == NoteSectionKind.archive) return n.archived;
+    if (n.archived) return false;
+    return switch (s.kind) {
+      NoteSectionKind.all => true,
+      NoteSectionKind.inbox =>
+        n.kind == NoteKind.note &&
+            n.notebookId == null &&
+            !facts.meetingIds.contains(n.id),
+      NoteSectionKind.daily => n.kind == NoteKind.daily,
+      NoteSectionKind.weekly => n.kind == NoteKind.weekly,
+      NoteSectionKind.pinned => n.pinned,
+      NoteSectionKind.meetings => facts.meetingIds.contains(n.id),
+      NoteSectionKind.withTasks => facts.openTaskNoteIds.contains(n.id),
+      NoteSectionKind.notebook => n.notebookId == s.notebookId,
+      NoteSectionKind.tag => tagsOf(
+        n.id,
+      ).any((t) => t.toLowerCase() == (s.tagName ?? '').toLowerCase()),
+      NoteSectionKind.archive => n.archived,
+    };
+  }
+
+  /// Keeps the notes the section allows. The order stays as given.
+  static List<Note> filter(
+    List<Note> notes,
+    NoteSection s, {
+    NoteFacts facts = const NoteFacts(),
+    required List<String> Function(String noteId) tagsOf,
+  }) => [
+    for (final n in notes)
+      if (inSection(n, s, facts: facts, tagsOf: tagsOf)) n,
+  ];
+
+  /// The one place a note lives, for the chip of a row and the breadcrumb
+  /// of a note: the archive, its notebook, Daily, Weekly, Meetings, or else
+  /// the inbox.
+  static NoteSection homeOf(Note n, {NoteFacts facts = const NoteFacts()}) {
+    if (n.archived) return NoteSection.archive;
+    final book = n.notebookId;
+    if (book != null) return NoteSection.notebook(book);
+    return switch (n.kind) {
+      NoteKind.daily => NoteSection.daily,
+      NoteKind.weekly => NoteSection.weekly,
+      NoteKind.note =>
+        facts.meetingIds.contains(n.id)
+            ? NoteSection.meetings
+            : NoteSection.inbox,
+    };
+  }
+
+  /// How many notes each fixed section and each notebook has, in one pass.
+  /// Every fixed section and every id of [notebookIds] has an entry, 0 when
+  /// empty. Tags are not counted.
+  static Map<NoteSection, int> counts(
+    List<Note> notes, {
+    NoteFacts facts = const NoteFacts(),
+    Iterable<String> notebookIds = const [],
+  }) {
+    final out = <NoteSection, int>{
+      for (final s in NoteSection.fixed) s: 0,
+      for (final id in notebookIds) NoteSection.notebook(id): 0,
+    };
+    void add(NoteSection s) => out[s] = (out[s] ?? 0) + 1;
+    List<String> noTags(String _) => const [];
+    for (final n in notes) {
+      for (final s in NoteSection.fixed) {
+        if (inSection(n, s, facts: facts, tagsOf: noTags)) add(s);
+      }
+      final book = n.notebookId;
+      if (book != null && !n.archived) add(NoteSection.notebook(book));
     }
-    if (f == NoteFilter.weekly) {
-      return [
-        for (final n in notes)
-          if (n.kind == NoteKind.weekly) n,
-      ];
+    return out;
+  }
+
+  /// The day a note is listed under: its day for a daily or weekly note,
+  /// else the day of its last edit.
+  static DayKey listDay(Note n) => n.kind != NoteKind.note && n.date != null
+      ? n.date!
+      : DayKey(
+          n.updatedAt.length >= 10 ? n.updatedAt.substring(0, 10) : n.updatedAt,
+        );
+
+  /// The notes in date groups, as of [now]: Upcoming (after this week),
+  /// Today, Yesterday, This week, Last week, then one group per month,
+  /// newest first ("October", "December 2025" for another year). Weeks start
+  /// on Monday. In a group the newest day comes first. An empty group is
+  /// left out.
+  static List<NoteGroup> dateGroups(List<Note> notes, {required DateTime now}) {
+    final today = DayKey.fromDate(now);
+    final yesterday = today.adding(days: -1);
+    final monday = today.weekStart();
+    final lastMonday = monday.adding(days: -7);
+    final sunday = monday.adding(days: 6);
+    final nowMonths = now.year * 12 + now.month;
+    (int, String) groupOf(DayKey d) {
+      if (d > sunday) return (0, 'Upcoming');
+      if (d == today) return (1, 'Today');
+      if (d == yesterday) return (2, 'Yesterday');
+      if (d >= monday) return (3, 'This week');
+      if (d >= lastMonday) return (4, 'Last week');
+      final name = months[d.month - 1];
+      return (
+        5 + nowMonths - (d.year * 12 + d.month),
+        d.year == now.year ? name : '$name ${d.year}',
+      );
     }
-    if (f == NoteFilter.pinned) {
-      return [
-        for (final n in notes)
-          if (n.pinned) n,
-      ];
+
+    String key(Note n) => n.kind != NoteKind.note && n.date != null
+        ? n.date!.string
+        : n.updatedAt;
+    final indexed = [for (var i = 0; i < notes.length; i++) (i, notes[i])]
+      ..sort((a, b) {
+        final c = key(b.$2).compareTo(key(a.$2));
+        return c != 0 ? c : a.$1.compareTo(b.$1);
+      });
+    final groups = <(int, String), List<Note>>{};
+    for (final (_, n) in indexed) {
+      (groups[groupOf(listDay(n))] ??= []).add(n);
     }
-    final name = (f.tagName ?? '').toLowerCase();
+    final keys = groups.keys.toList()..sort((a, b) => a.$1.compareTo(b.$1));
+    return [for (final k in keys) NoteGroup(label: k.$2, notes: groups[k]!)];
+  }
+
+  /// The notes of one notebook in groups: first the notes in no section
+  /// (label '', always there; a note whose section is gone is one of them),
+  /// then each section in its order, empty ones too. In a group the notes
+  /// are in their order.
+  static List<NoteGroup> notebookGroups(
+    List<Note> notes,
+    List<NotebookSection> sections,
+  ) {
+    final ordered = [for (var i = 0; i < sections.length; i++) (i, sections[i])]
+      ..sort((a, b) {
+        final c = a.$2.sortOrder.compareTo(b.$2.sortOrder);
+        return c != 0 ? c : a.$1.compareTo(b.$1);
+      });
+    final known = {for (final s in sections) s.id};
+    final bySection = <String?, List<Note>>{};
+    final sorted = [for (var i = 0; i < notes.length; i++) (i, notes[i])]
+      ..sort((a, b) {
+        final c = a.$2.sortOrder.compareTo(b.$2.sortOrder);
+        return c != 0 ? c : a.$1.compareTo(b.$1);
+      });
+    for (final (_, n) in sorted) {
+      final s = known.contains(n.sectionId) ? n.sectionId : null;
+      (bySection[s] ??= []).add(n);
+    }
     return [
-      for (final n in notes)
-        if (tagsOf(n.id).any((t) => t.toLowerCase() == name)) n,
+      NoteGroup(label: '', notes: bySection[null] ?? const []),
+      for (final (_, s) in ordered)
+        NoteGroup(
+          label: s.name,
+          sectionId: s.id,
+          notes: bySection[s.id] ?? const [],
+        ),
     ];
+  }
+
+  /// The order for item [id] put at [index] among [others] (in order,
+  /// without [id]): halfway between its neighbours, one before the first,
+  /// one after the last, or 1 in an empty list. When the neighbours have no
+  /// room between them, every item gets a new order 1, 2, 3, … The result
+  /// has each item whose order changes.
+  static Map<String, double> placeAt(
+    String id,
+    List<({String id, double order})> others,
+    int index,
+  ) {
+    final at = index.clamp(0, others.length);
+    if (others.isEmpty) return {id: 1.0};
+    if (at == 0) return {id: others.first.order - 1};
+    if (at == others.length) return {id: others.last.order + 1};
+    final before = others[at - 1].order, after = others[at].order;
+    final mid = (before + after) / 2;
+    if (before < mid && mid < after) return {id: mid};
+    final ids = [for (final o in others) o.id]..insert(at, id);
+    return {for (var i = 0; i < ids.length; i++) ids[i]: (i + 1).toDouble()};
   }
 
   static final _imageRegex = RegExp(r'!\[[^\]\n]*\]\([^)\n]*\)');

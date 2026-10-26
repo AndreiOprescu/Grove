@@ -32,9 +32,19 @@ extension AppStoreNotes on AppStore {
 
   List<String> allNoteTags() => _try(repos.tags.noteTagNames) ?? const [];
 
-  /// The list on the notes screen: pinned first, then the most recently edited.
-  List<Note> notes({NoteFilter filter = NoteFilter.all, String query = ''}) {
-    var list = _try(repos.notes.all) ?? const <Note>[];
+  /// True if there is at least one note that is not archived.
+  bool hasNotes() => _try(repos.notes.anyLive) ?? false;
+
+  /// The list on the notes screen for [section]: pinned first, then the
+  /// most recently edited; a notebook in its own order. A [query] narrows it
+  /// to the notes that the search finds.
+  List<Note> notes({NoteSection section = NoteSection.all, String query = ''}) {
+    final book = section.notebookId;
+    var list = book != null
+        ? _try(() => repos.notes.inNotebook(book)) ?? const <Note>[]
+        : section == NoteSection.archive
+        ? _try(repos.notes.archived) ?? const <Note>[]
+        : _try(repos.notes.all) ?? const <Note>[];
     final q = query.trim();
     if (q.isNotEmpty) {
       final hits = {
@@ -54,7 +64,11 @@ extension AppStoreNotes on AppStore {
           if (hits.contains(n.id)) n,
       ];
     }
-    return NotesRules.filter(list, filter, tagsOf: noteTags);
+    final facts = _noteFacts(
+      meetings: section == NoteSection.inbox || section == NoteSection.meetings,
+      tasks: section == NoteSection.withTasks,
+    );
+    return NotesRules.filter(list, section, facts: facts, tagsOf: noteTags);
   }
 
   /// Items whose text mentions [ref], tasks and events included.
@@ -168,10 +182,16 @@ extension AppStoreNotes on AppStore {
 
   void openWeeklyNote(DayKey day) => openNote(weeklyNote(day).id);
 
-  /// Shows a note on the notes screen. A filter that would hide it is cleared.
+  /// Shows a note on the notes screen. When the section or the search would
+  /// hide it, the list shows All, or the archive for an archived note.
   void openNote(String id) {
-    if (!notes(filter: _noteFilter, query: _noteQuery).any((n) => n.id == id)) {
-      _noteFilter = NoteFilter.all;
+    if (!notes(
+      section: _noteSection,
+      query: _noteQuery,
+    ).any((n) => n.id == id)) {
+      _noteSection = note(id)?.archived == true
+          ? NoteSection.archive
+          : NoteSection.all;
       _noteQuery = '';
     }
     _selectedNoteId = id;
@@ -180,15 +200,32 @@ extension AppStoreNotes on AppStore {
 
   // Making and changing
 
-  Note newNote({String? title, String body = ''}) {
+  /// A new note. When the list shows a notebook, the note goes at the end of
+  /// it, in section [sectionId] when that is a section of the notebook.
+  Note newNote({String? title, String body = '', String? sectionId}) {
     final existing = {
-      for (final n in _try(repos.notes.all) ?? const <Note>[]) n.title,
+      for (final n
+          in _try(() => repos.notes.all(includeArchived: true)) ??
+              const <Note>[])
+        n.title,
     };
-    final n = Note(
+    var n = Note(
       title: title ?? NotesRules.untitled(existing: existing),
       body: body,
       createdAt: clockStamp(),
     );
+    final book = _noteSection.notebookId;
+    if (book != null && notebook(book) != null) {
+      final section = sectionId == null
+          ? null
+          : _try(() => repos.notebooks.section(sectionId));
+      final place = _placeNote(
+        n,
+        notebookId: book,
+        sectionId: section?.notebookId == book ? section!.id : null,
+      );
+      n = place.firstWhere((c) => c.after?.id == n.id).after!;
+    }
     commit(Mutation('New Note')..notes.add((before: null, after: n)));
     openNote(n.id);
     return n;
@@ -235,21 +272,45 @@ extension AppStoreNotes on AppStore {
     final old = note(id);
     if (old == null) return;
     final existing = {
-      for (final n in _try(repos.notes.all) ?? const <Note>[]) n.title,
+      for (final n
+          in _try(() => repos.notes.all(includeArchived: true)) ??
+              const <Note>[])
+        n.title,
     };
-    final copy = Note(
+    var copy = Note(
       title: NotesRules.copyTitle(old.title, existing: existing),
       body: NoteParser.withoutMarkers(old.body),
       createdAt: clockStamp(),
     );
-    commit(Mutation('Duplicate Note')..notes.add((before: null, after: copy)));
+    final m = Mutation('Duplicate Note');
+    // A copy in a notebook goes right after the first note, in its section.
+    final book = old.notebookId;
+    if (book != null && !old.archived) {
+      final known = {for (final s in notebookSections(book)) s.id};
+      final sectionId = known.contains(old.sectionId) ? old.sectionId : null;
+      final group = _groupNotes(book, sectionId);
+      final at = group.indexWhere((n) => n.id == old.id);
+      for (final c in _placeNote(
+        copy,
+        notebookId: book,
+        sectionId: sectionId,
+        index: at < 0 ? null : at + 1,
+      )) {
+        if (c.after?.id == copy.id) {
+          copy = c.after!;
+        } else {
+          m.notes.add(c);
+        }
+      }
+    }
+    commit(m..notes.add((before: null, after: copy)));
     openNote(copy.id);
   }
 
   void deleteNote(String id) {
     final old = note(id);
     if (old == null) return;
-    final list = notes(filter: _noteFilter, query: _noteQuery);
+    final list = notes(section: _noteSection, query: _noteQuery);
     final m = Mutation('Delete Note')..notes.add((before: old, after: null));
     if (!commit(m)) return;
     if (_selectedNoteId == id) {

@@ -1,5 +1,7 @@
-// The notes screen (milestone F9): the list, the search, the filters, the
-// note itself with its side card, and the notes in the left panel.
+// The notes screen (milestone F9, notebooks in 1.2.0): the sidebar with its
+// sections, notebooks and tags, the list in groups, the search, the note
+// itself with its place and its side card, the narrow and phone layouts, and
+// the notes in the left panel.
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart' hide Row;
 import 'package:flutter/services.dart';
@@ -126,7 +128,7 @@ void main() {
     expect(key('note-row-${b.id}'), findsOneWidget);
   });
 
-  testWidgets('the filters: daily, weekly, pinned and a tag', (tester) async {
+  testWidgets('the sidebar: daily, weekly, pinned and a tag', (tester) async {
     final store = notesStore();
     final plain = store.newNote(title: 'Plain', body: 'about #garden');
     final other = store.newNote(title: 'Other', body: 'nothing');
@@ -140,23 +142,390 @@ void main() {
     };
 
     expect(rows(), {'Plain', 'Other', daily.title, weekly.title});
-    await tapKey(tester, 'notes-filter-daily');
+    await tapKey(tester, 'notes-section-daily');
     expect(rows(), {daily.title});
-    await tapKey(tester, 'notes-filter-weekly');
+    await tapKey(tester, 'notes-section-weekly');
     expect(rows(), {weekly.title});
-    await tapKey(tester, 'notes-filter-pinned');
+    await tapKey(tester, 'notes-section-pinned');
     expect(rows(), {'Other'});
-    await tapKey(tester, 'notes-filter-tag-garden');
+    // the tags have their own group under the notebooks
+    await tapKey(tester, 'notes-tag-garden');
     expect(rows(), {'Plain'});
-    expect(store.noteFilter, const NoteFilter.tag('garden'));
-    await tapKey(tester, 'notes-filter-all');
+    expect(store.noteSection, const NoteSection.tag('garden'));
+    expect(find.text('#garden'), findsWidgets);
+    await tapKey(tester, 'notes-section-all');
     expect(rows(), hasLength(4));
 
-    // the tag under the title of a note sets the same filter
+    // the tag under the title of a note sets the same section
     await tapKey(tester, 'note-row-${plain.id}');
     await tapKey(tester, 'note-tag-garden');
-    expect(store.noteFilter, const NoteFilter.tag('garden'));
+    expect(store.noteSection, const NoteSection.tag('garden'));
     expect(rows(), {'Plain'});
+  });
+
+  testWidgets('the sidebar: each section shows its notes and its count', (
+    tester,
+  ) async {
+    final store = notesStore();
+    final plain = store.newNote(title: 'Plain');
+    final old = store.newNote(title: 'Old');
+    store.archiveNote(old.id);
+    store.dailyNote(wednesday);
+    final book = store.newNotebook('Work');
+    final inBook = store.newNote(title: 'In book');
+    store
+      ..noteSection = NoteSection.all
+      ..selectedNoteId = null;
+    await pumpPlanner(tester, store);
+    String count(String section) => tester
+        .widget<Text>(
+          find.descendant(
+            of: key('notes-section-$section'),
+            matching: find.byKey(const ValueKey('notes-count')),
+          ),
+        )
+        .data!;
+    expect(count('all'), '3');
+    expect(count('inbox'), '1');
+    expect(count('daily'), '1');
+    expect(count('archive'), '1');
+    expect(
+      find.descendant(
+        of: key('notebook-row-${book.id}'),
+        matching: find.text('1'),
+      ),
+      findsOneWidget,
+    );
+    // no tags: no tag group
+    expect(find.text('TAGS'), findsNothing);
+    expect(find.text('Tags'), findsNothing);
+
+    await tapKey(tester, 'notes-section-inbox');
+    expect(store.noteSection, NoteSection.inbox);
+    expect(key('note-row-${plain.id}'), findsOneWidget);
+    expect(key('note-row-${inBook.id}'), findsNothing);
+    expect(
+      find.descendant(
+        of: key('notes-list-title'),
+        matching: find.text('Inbox'),
+      ),
+      findsOneWidget,
+    );
+
+    // Archive: the archived note, and only there
+    await tapKey(tester, 'notes-section-archive');
+    expect(key('note-row-${old.id}'), findsOneWidget);
+    expect(key('note-row-${plain.id}'), findsNothing);
+
+    // an empty section says what goes there
+    await tapKey(tester, 'notes-section-meetings');
+    expect(find.textContaining('No meeting notes'), findsOneWidget);
+  });
+
+  testWidgets('a new notebook shows in the sidebar and takes a name', (
+    tester,
+  ) async {
+    final store = notesStore();
+    await pumpPlanner(tester, store);
+    await tapKey(tester, 'notes-new-notebook');
+    final book = store.notebooks().single;
+    expect(store.noteSection, NoteSection.notebook(book.id));
+    expect(key('notebook-row-${book.id}'), findsOneWidget);
+    // the name is a field now
+    expect(fieldOf('notebook-rename-${book.id}'), findsOneWidget);
+    await tester.enterText(fieldOf('notebook-rename-${book.id}'), 'Garden');
+    await tester.testTextInput.receiveAction(TextInputAction.done);
+    await tester.pumpAndSettle();
+    expect(store.notebook(book.id)!.name, 'Garden');
+    expect(fieldOf('notebook-rename-${book.id}'), findsNothing);
+    expect(
+      find.descendant(
+        of: key('notebook-row-${book.id}'),
+        matching: find.text('Garden'),
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(
+        of: key('notes-list-title'),
+        matching: find.text('Garden'),
+      ),
+      findsOneWidget,
+    );
+
+    // the menu of a notebook: Rename, Colour, New section, Delete
+    Future<void> menu(String line) async {
+      await tester.tapAt(
+        tester.getCenter(key('notebook-row-${book.id}')),
+        buttons: kSecondaryButton,
+        kind: PointerDeviceKind.mouse,
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.text(line).last);
+      await tester.pumpAndSettle();
+    }
+
+    await menu('Colour…');
+    await tester.tap(find.text('Teal').last);
+    await tester.pumpAndSettle();
+    expect(store.notebook(book.id)!.color, 'teal');
+
+    await menu('New section');
+    final section = store.notebookSections(book.id).single;
+    expect(fieldOf('section-rename-${section.id}'), findsOneWidget);
+    await tester.enterText(fieldOf('section-rename-${section.id}'), 'Seeds');
+    await tester.testTextInput.receiveAction(TextInputAction.done);
+    await tester.pumpAndSettle();
+    expect(store.notebookSections(book.id).single.name, 'Seeds');
+
+    await menu('Rename');
+    await tester.enterText(fieldOf('notebook-rename-${book.id}'), 'Yard');
+    await leaveField(tester);
+    expect(store.notebook(book.id)!.name, 'Yard');
+
+    await menu('Delete notebook');
+    expect(store.notebooks(), isEmpty);
+    expect(store.noteSection, NoteSection.all);
+    await endToast(tester);
+  });
+
+  testWidgets('a notebook shows its sections in order, and "Add note to" '
+      'makes a note there', (tester) async {
+    final store = notesStore();
+    final book = store.newNotebook('Work');
+    final plans = store.newSection(book.id, 'Plans')!;
+    final ideas = store.newSection(book.id, 'Ideas')!;
+    final a = store.newNote(title: 'Roadmap', sectionId: plans.id);
+    final b = store.newNote(title: 'Spark', sectionId: ideas.id);
+    store.selectedNoteId = null;
+    await pumpPlanner(tester, store);
+    expect(key('section-head-${plans.id}'), findsOneWidget);
+    expect(key('section-head-${ideas.id}'), findsOneWidget);
+    double top(String name) => tester.getTopLeft(key(name)).dy;
+    expect(top('section-head-${plans.id}'), lessThan(top('note-row-${a.id}')));
+    expect(top('note-row-${a.id}'), lessThan(top('section-head-${ideas.id}')));
+    expect(top('section-head-${ideas.id}'), lessThan(top('note-row-${b.id}')));
+
+    await tapKey(tester, 'section-add-${ideas.id}');
+    final made = store.note(store.selectedNoteId!)!;
+    expect(made.notebookId, book.id);
+    expect(made.sectionId, ideas.id);
+    expect(top('note-row-${b.id}'), lessThan(top('note-row-${made.id}')));
+
+    // the breadcrumb of the note says where it lives
+    expect(
+      find.descendant(
+        of: key('note-crumb'),
+        matching: find.textContaining('Work'),
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(
+        of: key('note-crumb'),
+        matching: find.textContaining('Ideas'),
+      ),
+      findsOneWidget,
+    );
+
+    // "New section" at the end makes one and asks for its name
+    await tapKey(tester, 'notes-new-section');
+    expect(store.notebookSections(book.id), hasLength(3));
+  });
+
+  testWidgets('the menu of a section: Rename, and Delete keeps its notes', (
+    tester,
+  ) async {
+    final store = notesStore();
+    final book = store.newNotebook('Work');
+    final plans = store.newSection(book.id, 'Plans')!;
+    final a = store.newNote(title: 'Roadmap', sectionId: plans.id);
+    store.selectedNoteId = null;
+    await pumpPlanner(tester, store);
+
+    Future<void> menu(String line) async {
+      await tapKey(tester, 'section-menu-${plans.id}');
+      await tester.tap(find.text(line).last);
+      await tester.pumpAndSettle();
+    }
+
+    await menu('Rename section');
+    expect(fieldOf('section-rename-${plans.id}'), findsOneWidget);
+    await tester.enterText(fieldOf('section-rename-${plans.id}'), 'Goals');
+    await tester.testTextInput.receiveAction(TextInputAction.done);
+    await tester.pumpAndSettle();
+    expect(store.notebookSections(book.id).single.name, 'Goals');
+
+    await menu('Delete section');
+    expect(store.notebookSections(book.id), isEmpty);
+    expect(key('section-head-${plans.id}'), findsNothing);
+    // the note stays in the notebook, in no section
+    expect(store.note(a.id)!.notebookId, book.id);
+    expect(store.note(a.id)!.sectionId, isNull);
+    expect(key('note-row-${a.id}'), findsOneWidget);
+
+    store.undo();
+    await tester.pumpAndSettle();
+    expect(store.note(a.id)!.sectionId, plans.id);
+    expect(key('section-head-${plans.id}'), findsOneWidget);
+    await endToast(tester);
+  });
+
+  testWidgets('a note is dragged to another section of its notebook', (
+    tester,
+  ) async {
+    final store = notesStore();
+    final book = store.newNotebook('Work');
+    final plans = store.newSection(book.id, 'Plans')!;
+    final ideas = store.newSection(book.id, 'Ideas')!;
+    final a = store.newNote(title: 'Roadmap', sectionId: plans.id);
+    final b = store.newNote(title: 'Spark', sectionId: ideas.id);
+    store.selectedNoteId = null;
+    await pumpPlanner(tester, store);
+    final from = tester.getCenter(key('note-row-${a.id}'));
+    final to =
+        tester.getBottomLeft(key('note-row-${b.id}')) + const Offset(40, 4);
+    final gesture = await tester.startGesture(
+      from,
+      kind: PointerDeviceKind.mouse,
+    );
+    await tester.pump();
+    for (var i = 1; i <= 10; i++) {
+      await gesture.moveTo(Offset.lerp(from, to, i / 10)!);
+      await tester.pump(const Duration(milliseconds: 16));
+    }
+    await gesture.up();
+    await tester.pumpAndSettle();
+    expect(store.note(a.id)!.sectionId, ideas.id);
+    expect(
+      [
+        for (final n in store.notes(section: NoteSection.notebook(book.id)))
+          if (n.sectionId == ideas.id) n.id,
+      ],
+      [b.id, a.id],
+    );
+  });
+
+  testWidgets('"Move to notebook…" in the menu of a row, and in the note', (
+    tester,
+  ) async {
+    final store = notesStore();
+    final book = store.newNotebook('Work');
+    final plans = store.newSection(book.id, 'Plans')!;
+    store.noteSection = NoteSection.all;
+    final a = store.newNote(title: 'Alpha');
+    await pumpPlanner(tester, store);
+    // a note in no notebook: the chip says Inbox, the button says "Add"
+    expect(
+      find.descendant(
+        of: key('note-place-${a.id}'),
+        matching: find.text('Inbox'),
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(
+        of: key('note-crumb'),
+        matching: find.textContaining('Inbox'),
+      ),
+      findsOneWidget,
+    );
+    expect(find.bySemanticsLabel('Add to a notebook'), findsOneWidget);
+
+    await tester.tapAt(
+      tester.getCenter(key('note-row-${a.id}')),
+      buttons: kSecondaryButton,
+      kind: PointerDeviceKind.mouse,
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Move to notebook…'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Work › Plans'));
+    await tester.pumpAndSettle();
+    expect(store.note(a.id)!.notebookId, book.id);
+    expect(store.note(a.id)!.sectionId, plans.id);
+    expect(
+      find.descendant(
+        of: key('note-place-${a.id}'),
+        matching: find.text('Work'),
+      ),
+      findsOneWidget,
+    );
+
+    // the button beside the pin takes it out again
+    await tapKey(tester, 'note-move');
+    await tester.tap(find.text('No notebook'));
+    await tester.pumpAndSettle();
+    expect(store.note(a.id)!.notebookId, isNull);
+  });
+
+  testWidgets('Archive takes a note out of All and into Archive', (
+    tester,
+  ) async {
+    final store = notesStore();
+    final a = store.newNote(title: 'Alpha');
+    final b = store.newNote(title: 'Beta');
+    store.selectedNoteId = null;
+    await pumpPlanner(tester, store);
+    await tester.tapAt(
+      tester.getCenter(key('note-row-${a.id}')),
+      buttons: kSecondaryButton,
+      kind: PointerDeviceKind.mouse,
+    );
+    await tester.pumpAndSettle();
+    // the menu is on top of the sidebar, which has an "Archive" row too
+    await tester.tap(find.text('Archive').last);
+    await tester.pumpAndSettle();
+    expect(store.note(a.id)!.archived, isTrue);
+    expect(key('note-row-${a.id}'), findsNothing);
+    expect(key('note-row-${b.id}'), findsOneWidget);
+    await tapKey(tester, 'notes-section-archive');
+    expect(key('note-row-${a.id}'), findsOneWidget);
+
+    // the button of the open note brings it back
+    await tapKey(tester, 'note-row-${a.id}');
+    await tapKey(tester, 'note-archive');
+    expect(store.note(a.id)!.archived, isFalse);
+    expect(store.noteSection, NoteSection.all);
+    await tapKey(tester, 'note-archive');
+    expect(store.note(a.id)!.archived, isTrue);
+    expect(store.noteSection, NoteSection.archive);
+  });
+
+  testWidgets('the search narrows inside the section', (tester) async {
+    final store = notesStore();
+    store.newNotebook('Work');
+    final inside = store.newNote(title: 'Milk plan');
+    store.noteSection = NoteSection.all;
+    final outside = store.newNote(title: 'Milk outside');
+    store.noteSection = NoteSection.notebook(store.notebooks().single.id);
+    await pumpPlanner(tester, store);
+    await tester.enterText(fieldOf('notes-search'), 'milk');
+    await tester.pumpAndSettle();
+    expect(key('note-row-${inside.id}'), findsOneWidget);
+    expect(key('note-row-${outside.id}'), findsNothing);
+  });
+
+  testWidgets('a window under 1000 wide: no sidebar, a section picker', (
+    tester,
+  ) async {
+    final store = notesStore();
+    final a = store.newNote(title: 'Alpha');
+    final d0 = store.dailyNote(wednesday);
+    store.selectedNoteId = null;
+    await pumpPlanner(tester, store, size: const Size(900, 620));
+    expect(tester.takeException(), isNull);
+    expect(key('notes-sidebar'), findsNothing);
+    expect(key('notes-picker'), findsOneWidget);
+    await tapKey(tester, 'notes-picker');
+    await tester.tap(find.text('Daily').last);
+    await tester.pumpAndSettle();
+    expect(store.noteSection, NoteSection.daily);
+    expect(key('note-row-${d0.id}'), findsOneWidget);
+    expect(key('note-row-${a.id}'), findsNothing);
+    // "New note" and "Today" are still there
+    expect(key('notes-new'), findsOneWidget);
+    expect(key('notes-today'), findsOneWidget);
   });
 
   testWidgets('"Today" opens the note of today with the card of the day', (
@@ -170,7 +539,8 @@ void main() {
       end: 10 * 60,
       asEvent: true,
     );
-    await pumpPlanner(tester, store);
+    // three columns and the card beside the text need a wide window
+    await pumpPlanner(tester, store, size: const Size(1400, 720));
     await tapKey(tester, 'notes-today');
     final note = store.existingDailyNote(wednesday)!;
     expect(store.selectedNoteId, note.id);
@@ -847,17 +1217,40 @@ void main() {
     expect(card.top, greaterThan(text.bottom));
   });
 
-  testWidgets('a phone shows the list, then the note with a way back', (
+  testWidgets('a phone: the sections, the list, the note, and back', (
     tester,
   ) async {
     final store = notesStore();
     final a = store.newNote(title: 'Alpha', body: 'text of alpha');
-    store.selectedNoteId = null;
+    final book = store.newNotebook('Work');
+    final b = store.newNote(title: 'Beta');
+    store
+      ..noteSection = NoteSection.all
+      ..selectedNoteId = null;
     await pumpPlanner(tester, store, size: phoneSize);
     expect(tester.takeException(), isNull);
     expect(find.byType(NotesList), findsOneWidget);
     expect(find.byType(NoteEditorPane), findsNothing);
+    expect(key('notes-sidebar'), findsNothing);
 
+    // back from the list shows the sections
+    await tapKey(tester, 'notes-sections-back');
+    expect(key('notes-sidebar'), findsOneWidget);
+    expect(find.byType(NotesList), findsNothing);
+    expect(tester.takeException(), isNull);
+    // a row of the sidebar is big enough for a finger
+    expect(
+      tester.getSize(key('notes-section-inbox')).height,
+      greaterThanOrEqualTo(44),
+    );
+    await tapKey(tester, 'notebook-row-${book.id}');
+    expect(store.noteSection, NoteSection.notebook(book.id));
+    expect(find.byType(NotesList), findsOneWidget);
+    expect(key('note-row-${b.id}'), findsOneWidget);
+    expect(key('note-row-${a.id}'), findsNothing);
+
+    await tapKey(tester, 'notes-sections-back');
+    await tapKey(tester, 'notes-section-all');
     await tapKey(tester, 'note-row-${a.id}');
     expect(find.byType(NotesList), findsNothing);
     expect(find.byType(NoteEditorPane), findsOneWidget);

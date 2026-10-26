@@ -12,6 +12,10 @@ class Note {
     this.date,
     this.pinned = false,
     this.mood,
+    this.notebookId,
+    this.sectionId,
+    this.sortOrder = 0,
+    this.archivedAt,
     String? createdAt,
     String? updatedAt,
   }) : id = id ?? newId(),
@@ -29,8 +33,23 @@ class Note {
 
   /// Daily only, 1…3.
   final int? mood;
+
+  /// The notebook the note is in, or null for none.
+  final String? notebookId;
+
+  /// The section of the notebook the note is in, or null for none.
+  final String? sectionId;
+
+  /// The place of the note in its notebook. Lower comes first.
+  final double sortOrder;
+
+  /// When the note was archived, or null. An archived note shows only in the
+  /// archive.
+  final String? archivedAt;
   final String createdAt;
   final String updatedAt;
+
+  bool get archived => archivedAt != null;
 
   Note copyWith({
     String? id,
@@ -40,6 +59,10 @@ class Note {
     Object? date = keep,
     bool? pinned,
     Object? mood = keep,
+    Object? notebookId = keep,
+    Object? sectionId = keep,
+    double? sortOrder,
+    Object? archivedAt = keep,
     String? createdAt,
     String? updatedAt,
   }) => Note(
@@ -50,6 +73,16 @@ class Note {
     date: identical(date, keep) ? this.date : date as DayKey?,
     pinned: pinned ?? this.pinned,
     mood: identical(mood, keep) ? this.mood : mood as int?,
+    notebookId: identical(notebookId, keep)
+        ? this.notebookId
+        : notebookId as String?,
+    sectionId: identical(sectionId, keep)
+        ? this.sectionId
+        : sectionId as String?,
+    sortOrder: sortOrder ?? this.sortOrder,
+    archivedAt: identical(archivedAt, keep)
+        ? this.archivedAt
+        : archivedAt as String?,
     createdAt: createdAt ?? this.createdAt,
     updatedAt: updatedAt ?? this.updatedAt,
   );
@@ -62,6 +95,10 @@ class Note {
     date,
     pinned,
     mood,
+    notebookId,
+    sectionId,
+    sortOrder,
+    archivedAt,
     createdAt,
     updatedAt,
   ];

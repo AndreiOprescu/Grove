@@ -30,7 +30,15 @@ class HookRemote extends MemoryRemote {
 void fill(Device d) {
   final r = d.repos;
   final list = ListItem(name: 'Home', emoji: '🌿');
-  final note = Note(title: 'Idea', body: 'A plum tree');
+  final notebook = Notebook(name: 'Garden', color: 'green');
+  final section = NotebookSection(notebookId: notebook.id, name: 'Trees');
+  final note = Note(
+    title: 'Idea',
+    body: 'A plum tree',
+    notebookId: notebook.id,
+    sectionId: section.id,
+    sortOrder: 1,
+  );
   final goal = GoalItem(title: 'Read');
   final task = TaskItem(title: 'Sweep', listId: list.id, sourceNoteId: note.id);
   final sub = TaskItem(title: 'Find the broom', parentId: task.id);
@@ -54,6 +62,9 @@ void fill(Device d) {
     goalId: goal.id,
   );
   r.lists.save(list);
+  r.notebooks
+    ..save(notebook)
+    ..saveSection(section);
   r.notes.save(note);
   r.goals.upsert(goal);
   r.goalSubtasks.save(GoalSubtaskItem(goalId: goal.id, title: 'Chapter 4'));

@@ -14,6 +14,7 @@ export 'package:grove/core/model/goal.dart';
 export 'package:grove/core/model/goal_subtask.dart';
 export 'package:grove/core/model/link.dart';
 export 'package:grove/core/model/note.dart';
+export 'package:grove/core/model/notebook.dart';
 export 'package:grove/core/services/persona.dart';
 export 'package:grove/core/model/task.dart';
 export 'package:grove/data/data.dart';

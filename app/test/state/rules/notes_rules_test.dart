@@ -59,17 +59,17 @@ void main() {
     final d = note('D');
     final all = [a, b, c, d];
     List<String> none(String _) => const [];
-    List<String> names(NoteFilter f, List<String> Function(String) tagsOf) => [
+    List<String> names(NoteSection f, List<String> Function(String) tagsOf) => [
       for (final n in NotesRules.filter(all, f, tagsOf: tagsOf)) n.title,
     ];
-    expect(NotesRules.filter(all, NoteFilter.all, tagsOf: none).length, 4);
-    expect(names(NoteFilter.daily, none), ['A']);
-    expect(names(NoteFilter.weekly, none), ['B']);
-    expect(names(NoteFilter.pinned, none), ['C']);
+    expect(NotesRules.filter(all, NoteSection.all, tagsOf: none).length, 4);
+    expect(names(NoteSection.daily, none), ['A']);
+    expect(names(NoteSection.weekly, none), ['B']);
+    expect(names(NoteSection.pinned, none), ['C']);
     // Any letter case.
     expect(
       names(
-        const NoteFilter.tag('work'),
+        const NoteSection.tag('work'),
         (id) => id == d.id ? const ['Work'] : const [],
       ),
       ['D'],

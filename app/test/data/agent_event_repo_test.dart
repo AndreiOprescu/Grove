@@ -129,7 +129,9 @@ void main() {
     var db = Database.open(path);
     Repos(db).tasks.save(TaskItem(id: 'T1', title: 'Plan'));
     // Take the database back to what the agent build makes: no chat
-    // columns, no lines, and a job that needs its task.
+    // columns, no lines, and a job that needs its task. The notebooks
+    // (shared 14, sync 8) came later, so they go.
+    rewindNotebooks(db);
     final sql = db
         .queryOne(
           "SELECT sql FROM sqlite_master WHERE name = 'agent_jobs'",
@@ -179,8 +181,8 @@ void main() {
 
     db = Database.open(path);
     addTearDown(db.close);
-    expect(db.userVersion, 13);
-    expect(db.syncVersion, 7);
+    expect(db.userVersion, 14);
+    expect(db.syncVersion, 8);
     expect(required(db), isFalse);
     final r = Repos(db);
     final j = r.agentJobs.get('J1')!;

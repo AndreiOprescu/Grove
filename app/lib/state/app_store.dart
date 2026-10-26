@@ -19,6 +19,7 @@ import '../core/model/goal_subtask.dart';
 import '../core/model/ids.dart';
 import '../core/model/link.dart';
 import '../core/model/note.dart';
+import '../core/model/notebook.dart';
 import '../core/model/recurrence.dart';
 import '../core/model/task.dart';
 import '../core/model/task_color.dart';
@@ -90,6 +91,7 @@ part 'store_goals.dart';
 part 'store_meeting.dart';
 part 'store_menu_bar.dart';
 part 'store_navigation.dart';
+part 'store_notebooks.dart';
 part 'store_note_tasks.dart';
 part 'store_notes.dart';
 part 'store_palette.dart';
@@ -527,10 +529,11 @@ class AppStore extends ChangeNotifier {
     _changed();
   }
 
-  NoteFilter _noteFilter = NoteFilter.all;
-  NoteFilter get noteFilter => _noteFilter;
-  set noteFilter(NoteFilter v) {
-    _noteFilter = v;
+  /// The section of the notes sidebar that the list shows.
+  NoteSection _noteSection = NoteSection.all;
+  NoteSection get noteSection => _noteSection;
+  set noteSection(NoteSection v) {
+    _noteSection = v;
     _changed();
   }
 
@@ -606,7 +609,7 @@ class AppStore extends ChangeNotifier {
     _selectedGoalBlockId = null;
     _goalToEdit = null;
     _selectedNoteId = null;
-    _noteFilter = NoteFilter.all;
+    _noteSection = NoteSection.all;
     _noteQuery = '';
     _editingEvent = null;
     _editingBlockSubtasks = null;
@@ -791,9 +794,26 @@ class AppStore extends ChangeNotifier {
           final x = target(b);
           if (x != null) repos.blockSubtasks.save(x);
         }
+        // Before the notes: a note needs its notebook and its section.
+        for (final b in m.notebooks) {
+          final x = target(b);
+          if (x != null) repos.notebooks.save(x, touch: false);
+        }
+        for (final s in m.notebookSections) {
+          final x = target(s);
+          if (x != null) repos.notebooks.saveSection(x, touch: false);
+        }
         for (final n in m.notes) {
           final x = target(n);
-          if (x != null) _saveNote(x);
+          if (x == null) continue;
+          // A move or an archive keeps the edit time: the text did not
+          // change.
+          final y = source(n);
+          if (y != null && _onlyPlaceChanged(y, x)) {
+            repos.notes.save(x, touch: false);
+          } else {
+            _saveNote(x);
+          }
         }
         for (final g in m.goals) {
           final x = target(g);
@@ -856,6 +876,18 @@ class AppStore extends ChangeNotifier {
         for (final n in m.notes) {
           final id = source(n)?.id;
           if (target(n) == null && id != null) repos.notes.delete(id);
+        }
+        // After the notes, sections before notebooks. The notes of a gone
+        // section or notebook are in the change, so the pointers are empty.
+        for (final s in m.notebookSections) {
+          final id = source(s)?.id;
+          if (target(s) == null && id != null) {
+            repos.notebooks.deleteSection(id);
+          }
+        }
+        for (final b in m.notebooks) {
+          final id = source(b)?.id;
+          if (target(b) == null && id != null) repos.notebooks.delete(id);
         }
         for (final s in m.goalSubtasks) {
           final id = source(s)?.id;
