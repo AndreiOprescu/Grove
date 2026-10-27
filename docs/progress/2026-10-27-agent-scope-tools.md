@@ -12,7 +12,7 @@ Resume rule: continue from the first open box. Commit after each box.
 
 ## Boxes
 - [x] 1. Tests first: agent_scope_test, mcp_tool_rules_test, agent_policy_test (modes L/S, never Bash, never bare Glob/Grep allow, WebFetch off in S), runner tests (cwd = chat folder, kept, env cut, stdout cap), settings-guard test.
-- [ ] 2. `app/lib/core/agent/agent_scope.dart` (root `<dataDir>/Agent workspace/<jobId>/`, uuid ids, isInside, audit: drop symlinks, 500 files / 200 MB caps) + fix `_agentFiles` traversal in `store_agent.dart`.
+- [x] 2. `app/lib/core/agent/agent_scope.dart` (root `<dataDir>/Agent workspace/<jobId>/`, uuid ids, isInside, audit: drop symlinks, 500 files / 200 MB caps) + fix `_agentFiles` traversal in `store_agent.dart`.
 - [ ] 3. Runner: cwd = chat folder, inputs/ copy, env cut (HOME USER LOGNAME PATH LANG TMPDIR SHELL), stdout cap 20 MB, folder kept.
 - [ ] 4. Policy args: Mode L / Mode S; user-settings guard; prompts say the folder rule.
 - [ ] 5. Services: `McpToolRules.isReadTool`, `listServices()` probe parsing init, prefs `agent.services`, old `agent.email` → Gmail on.

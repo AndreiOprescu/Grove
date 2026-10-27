@@ -294,6 +294,34 @@ void main() {
       expect(call.stdin, contains('cannot read them: far.pdf'));
     });
 
+    test('a link whose id is not a uuid never reaches a file outside the '
+        'agent files folder', () async {
+      final data = Directory.systemTemp.createTempSync('grove-agent-files-');
+      addTearDown(() => data.deleteSync(recursive: true));
+      File('${data.path}/secret.txt').writeAsStringSync('Secret');
+      final runner = FakeAgentRunner()..output = answer({'summary': 'ok'});
+      final s = await open(runner, dataDir: data.path);
+      // The device of this computer.
+      final device = (await s.linkAgentFile('${data.path}/secret.txt'))!.device;
+      expect(device, isNotNull);
+      // A link made on another device (links sync) that claims this one.
+      s.startAgentChat(
+        'Read it',
+        links: [
+          AgentLink(
+            kind: AgentLinkKind.file,
+            id: '..',
+            name: 'secret.txt',
+            device: device,
+          ),
+        ],
+      );
+      await s.agentWork;
+      final call = runner.calls.single;
+      expect(call.files, isEmpty);
+      expect(call.stdin, contains('cannot read them: secret.txt'));
+    });
+
     test('a phone cannot link files', () async {
       final s = await open(null, dataDir: Directory.systemTemp.path);
       expect(s.canLinkAgentFiles, isFalse);

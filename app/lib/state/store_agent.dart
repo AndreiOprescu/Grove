@@ -703,7 +703,13 @@ extension AppStoreAgent on AppStore {
     for (final l in job.links) {
       if (l.kind != AgentLinkKind.file) continue;
       final path = '$dir$sep${l.id}$sep${AgentPolicy.safeName(l.name)}';
-      if (dir != null && l.device == device && File(path).existsSync()) {
+      // Links sync, so the id may come from anywhere: only a uuid, and a
+      // path inside the folder.
+      if (dir != null &&
+          AgentScope.isId(l.id) &&
+          AgentScope.isInside(dir, path, sep: sep) &&
+          l.device == device &&
+          File(path).existsSync()) {
         here.add(AgentFile(name: l.name, path: path));
       } else {
         elsewhere.add(l.name);
