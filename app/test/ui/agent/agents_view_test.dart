@@ -302,10 +302,11 @@ void main() {
       expect(opened, ['$folder${sep}notes.md']);
       expect(shown, isEmpty);
 
-      // A page is never opened: it could run. Its folder shows instead.
+      // A page is never opened: it could run. The folder of the chat shows
+      // instead; never a folder the agent named (a "x.app" would start).
       await tapKey(tester, 'agents-file-site/index.html');
       expect(opened, hasLength(1));
-      expect(shown, ['$folder${sep}site']);
+      expect(shown, [folder]);
 
       await tapKey(tester, 'agents-show-folder');
       expect(shown.last, folder);

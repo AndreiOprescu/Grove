@@ -91,8 +91,11 @@ Future<bool> openAgentFile(String path) async {
 }
 
 /// Shows a folder of the agent in Finder or Explorer. Only on a computer,
-/// and only a real folder, not a link. False otherwise.
+/// only a real folder, not a link, and never one with a dot in its name:
+/// the Mac opens a folder like "x.app" or "x.prefPane" as a program.
+/// False otherwise.
 Future<bool> showAgentFolder(String path) async {
+  if (path.split(Platform.pathSeparator).last.contains('.')) return false;
   switch (defaultTargetPlatform) {
     case TargetPlatform.macOS || TargetPlatform.windows || TargetPlatform.linux:
       break;

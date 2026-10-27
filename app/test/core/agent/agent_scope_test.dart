@@ -160,6 +160,34 @@ void main() {
       );
     });
 
+    test('an MCP tool in allow that is not a read tool is a problem: the '
+        'probe may not list it, so the run would not deny it', () {
+      for (final rule in [
+        'mcp__claude_ai_Gmail__send_message',
+        'mcp__notion__create_page',
+        'mcp__x__get_and_mark_read',
+      ]) {
+        final p = problem(
+          settings({
+            'permissions': {
+              'allow': [rule],
+            },
+          }),
+        );
+        expect(p, contains(rule), reason: rule);
+      }
+      expect(
+        problem(
+          settings({
+            'permissions': {
+              'allow': ['mcp__claude_ai_Gmail__search_threads'],
+            },
+          }),
+        ),
+        isNull,
+      );
+    });
+
     test('a file tool in allow is a problem', () {
       for (final rule in [
         'Read',

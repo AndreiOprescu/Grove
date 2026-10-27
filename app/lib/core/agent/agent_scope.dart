@@ -1,5 +1,7 @@
 import 'dart:convert';
 
+import 'mcp_tool_rules.dart';
+
 /// The folder of the agent (ADR 0008).
 ///
 /// - Each chat has its own folder, `<dataDir>/Agent workspace/<chat id>/`.
@@ -139,8 +141,10 @@ abstract final class AgentScope {
   /// Why the Claude Code settings file [name] with the text [text] (null:
   /// no file) must not load in a run with services, or null when it may.
   ///
-  /// It must not allow a file tool, a whole MCP server or a wildcard, add
-  /// folders, or turn on the MCP servers of a project folder. A file that
+  /// It must not allow a file tool, a whole MCP server, an MCP tool that is
+  /// not a read tool ([McpToolRules.isReadTool]; the probe may not list it,
+  /// so the run would not deny it) or a wildcard, add folders, or turn on
+  /// the MCP servers of a project folder. A file that
   /// does not read as settings is a problem too: better safe.
   static String? settingsProblem(String name, String? text) {
     if (text == null) return null;
@@ -167,7 +171,14 @@ abstract final class AgentScope {
           final server =
               tool.startsWith('mcp__') &&
               (!tool.substring(5).contains('__') || tool.endsWith('__'));
-          if (_fileTools.contains(tool) || tool.contains('*') || server) {
+          final writer =
+              tool.startsWith('mcp__') &&
+              !server &&
+              !McpToolRules.isReadTool(tool);
+          if (_fileTools.contains(tool) ||
+              tool.contains('*') ||
+              server ||
+              writer) {
             return problem('allows "${rule.trim()}"');
           }
         }

@@ -442,7 +442,8 @@ class _AgentsViewState extends State<AgentsView> {
 
   /// The files the agent saved in the folder of the chat (ADR 0008). On
   /// the computer that ran it: each one, a text file opens, any other file
-  /// shows its folder (Grove never runs a file of the agent). Elsewhere:
+  /// shows the folder of the chat (Grove never runs a file of the agent, and
+  /// never shows a folder the agent named: "x.app" would start). Elsewhere:
   /// the names of the newest result, as text. Null when there is none.
   Widget? _files(BuildContext context, String jobId, List<AgentEvent> events) {
     final theme = GroveTheme.of(context);
@@ -503,7 +504,7 @@ class _AgentsViewState extends State<AgentsView> {
     );
   }
 
-  /// Opens a text file the agent made, or shows the folder of any other.
+  /// Opens a text file the agent made, or shows the folder of the chat.
   Future<void> _openMade(
     String jobId,
     String name,
@@ -525,12 +526,8 @@ class _AgentsViewState extends State<AgentsView> {
       }
       return;
     }
-    if (show == null) return;
-    final cut = name.lastIndexOf('/');
-    final dir = cut < 0
-        ? _store.agentFolder(jobId)
-        : _store.agentFilePath(jobId, name.substring(0, cut));
-    if (dir != null) await _showPath(show, dir);
+    final folder = _store.agentFolder(jobId);
+    if (show != null && folder != null) await _showPath(show, folder);
   }
 
   Future<void> _showPath(AgentPathOpener show, String path) async {
