@@ -3,6 +3,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:grove/core/model/event.dart';
 import 'package:grove/core/model/link.dart';
 import 'package:grove/core/model/task.dart';
 import 'package:grove/core/planner/planner_math.dart';
@@ -10,6 +11,7 @@ import 'package:grove/state/state.dart' hide MotionRules;
 
 import '../editor/rich_text_field.dart';
 import '../persona/reward_editor.dart';
+import '../planner/kind_switch.dart';
 import '../theme/check_box.dart';
 import '../theme/grove_theme.dart';
 import '../theme/panel.dart';
@@ -303,7 +305,26 @@ class _TaskInspectorState extends State<TaskInspector> {
     final date = task.planDate ?? task.planWeek ?? _store.selectedDay;
     final dated =
         task.bucket == TaskBucket.day || task.bucket == TaskBucket.week;
+    // A task with one block on the planner can turn into an activity there.
+    final blocks = _store.blocksOfTask(task.id);
+    final block = blocks.length == 1 ? blocks.single.id : null;
+    final switchable =
+        block != null && _store.kindSwitch(block) == EventKind.activity;
     return _section(theme, 'Plan', [
+      if (switchable)
+        _row(
+          theme,
+          'Type',
+          KindChips(
+            keyPrefix: 'inspector-kind',
+            activity: false,
+            onPick: (activity) {
+              if (!activity) return;
+              _flush();
+              unawaited(turnBlockKind(context, _store, block));
+            },
+          ),
+        ),
       Segments<TaskBucket>(
         key: const ValueKey('inspector-plan'),
         value: task.bucket,

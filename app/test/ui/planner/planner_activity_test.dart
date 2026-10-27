@@ -163,7 +163,16 @@ void main() {
       expect(find.byType(EventEditor), findsOneWidget);
       expect(store.editingEvent?.item.id, block.id);
       expect(find.byKey(const ValueKey('event-deadline')), findsNothing);
-      expect(find.bySemanticsLabel('Activity'), findsOneWidget);
+      // The editor names itself. (Its "Activity" chip has the word too.)
+      expect(
+        find.byWidgetPredicate(
+          (w) =>
+              w is Semantics &&
+              w.properties.scopesRoute == true &&
+              w.properties.label == 'Activity',
+        ),
+        findsOneWidget,
+      );
     });
 
     testWidgets('the menu has "Edit Activity…" and no Mark Done', (

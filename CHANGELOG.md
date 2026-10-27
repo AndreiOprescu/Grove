@@ -8,7 +8,9 @@ makes the next version. Each line is one feature. The newest version is first.
 ## 1.3.0 · 2026-10-26
 
 - **Notebooks:** the Notes screen has a sidebar with All notes, Inbox, Daily, Weekly, Pinned, Meetings, With tasks and Archive, your own notebooks with sections and colours, and your tags. Drag a note to sort it, move it with "Move to notebook…", and archive notes you are done with.
-- **Reorganise rest of day:** a button next to "Timeline" on today's planner. Say how much of each open task and goal block you have done with a bar or a number, and Grove plans what is left from now until your sleep line: tasks with a deadline first, then goals, then other tasks. What does not fit goes back to today's list. One ⌘Z undoes it all.
+- **Reorganise rest of day:** a button next to "Timeline" on today's planner. Say how much of each open task and goal block you have done with a bar or a number, and Grove plans what is left from now until your sleep line: tasks with a deadline first, then goals, then other tasks. What does not fit goes back to today's list. One ⌘Z undoes it all. On today's timeline it takes the place of "Plan my day", which stays on other days, in the week view and in the day menu.
+- **Wake-up and sleep lines from the day menu:** the "+" above the schedule is gone. Right-click a day name (on a phone, press and hold) to add or remove the wake-up and sleep lines of that day. On Today, use the date at the top.
+- **Task or activity, any time:** turn a task block into an activity, or an activity into a task, from the block's menu, the task panel or the activity editor. The block stays where it is, and one ⌘Z undoes it.
 - **Notes panel removed from the dock:** the dock at the top left now has Tasks, Goals and Deadlines. Notes live on the Notes screen.
 
 ## 1.2.0 · 2026-10-21

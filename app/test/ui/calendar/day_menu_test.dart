@@ -38,6 +38,8 @@ void main() {
         'Open daily note',
         'Open weekly note',
         'Plan my day',
+        'Add wake-up line',
+        'Add sleep line',
       ]) {
         expect(line(text), findsOneWidget, reason: text);
       }
