@@ -86,6 +86,9 @@ extension AppStoreAgent on AppStore {
   /// At least one service is on for the agent on this runner (ADR 0008).
   bool get agentServicesOn => _agent.servicesOn.isNotEmpty;
 
+  /// The names of the services that are on, sorted.
+  List<String> get agentServicesOnNames => _agent.servicesOn.toList()..sort();
+
   /// The service [name] is on for the agent on this runner.
   bool agentServiceOn(String name) => _agent.servicesOn.contains(name);
 

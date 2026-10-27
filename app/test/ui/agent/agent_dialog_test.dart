@@ -169,8 +169,8 @@ List<String> watchClipboard(WidgetTester tester) {
 
 void main() {
   group('the form', () {
-    testWidgets('shows the task, the box, the email check box and the safety '
-        'line', (tester) async {
+    testWidgets('shows the task, the box, the services check box and the '
+        'safety line', (tester) async {
       final store = agentStore();
       addSam(store);
       await pumpAgentApp(tester, store);
@@ -179,22 +179,22 @@ void main() {
       expect(inDialog(find.text('Email Sam')), findsOneWidget);
       expect(inDialog(keyed('agent-instructions')), findsOneWidget);
       expect(
-        inDialog(find.text('Allow reading my email for this task')),
+        inDialog(find.text('Let the agent use my services for this task')),
         findsOneWidget,
       );
       expect(inDialog(find.text(AgentDialog.safety)), findsOneWidget);
-      // Email is off on this device: the window says who decides.
-      expect(inDialog(find.text(AgentDialog.emailOffHere)), findsOneWidget);
+      // Services are off on this device: the window says who decides.
+      expect(inDialog(find.text(AgentDialog.servicesOffHere)), findsOneWidget);
     });
 
-    testWidgets('no email hint when this device lets the agent read email', (
+    testWidgets('no services hint when this device lets the agent use them', (
       tester,
     ) async {
       final store = agentStore(emailOn: true);
       addSam(store);
       await pumpAgentApp(tester, store);
       await openAgent(tester);
-      expect(find.text(AgentDialog.emailOffHere), findsNothing);
+      expect(find.text(AgentDialog.servicesOffHere), findsNothing);
     });
 
     testWidgets('Start gives the task to the agent with the words and the '
@@ -211,7 +211,7 @@ void main() {
         ),
         'Use his work address.',
       );
-      await tapKey(tester, 'agent-email');
+      await tapKey(tester, 'agent-services');
       await tapKey(tester, 'agent-start');
 
       final job = store.agentJobFor('sam')!;
@@ -222,7 +222,7 @@ void main() {
       expect(inDialog(find.text(AgentDialog.waiting)), findsOneWidget);
     });
 
-    testWidgets('email stays off unless the box is ticked', (tester) async {
+    testWidgets('services stay off unless the box is ticked', (tester) async {
       final store = agentStore(emailOn: true);
       addSam(store);
       await pumpAgentApp(tester, store);

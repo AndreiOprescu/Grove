@@ -1,5 +1,6 @@
 // The Settings window (F10): how it opens, what each tab changes, and that
 // the screens follow. Swift: Settings/SettingsView.swift.
+import 'dart:convert';
 import 'dart:io';
 import 'dart:ui' show Tristate;
 
@@ -601,11 +602,7 @@ void main() {
 
     testWidgets('all off at first, with the safety text', (tester) async {
       await openSettings(tester, agentStore(), tab: SettingsTab.agent);
-      for (final key in [
-        'settings-agent',
-        'settings-agent-runner',
-        'settings-agent-email',
-      ]) {
+      for (final key in ['settings-agent', 'settings-agent-runner']) {
         expect(switchOn(tester, key), isFalse, reason: key);
       }
       for (final text in [
@@ -613,13 +610,15 @@ void main() {
         'This device runs agent tasks',
         // One runner: two could run the same job twice.
         'Turn this on on one computer only.',
-        'Let the agent read my email',
-        AgentSettings.gmailText,
+        AgentSettings.servicesText,
+        AgentSettings.refreshFirst,
         AgentSettings.safetyText,
         AgentSettings.needsText,
       ]) {
         expect(inSettings(find.text(text)), findsOneWidget, reason: text);
       }
+      // A phone has no agent folder.
+      expect(keyed('settings-agent-folder-path'), findsNothing);
     });
 
     testWidgets('"Use the agent" is kept on this device', (tester) async {
@@ -633,7 +632,7 @@ void main() {
       expect(store.agentEnabled, isFalse);
     });
 
-    testWidgets('a phone: the runner and email switches are grey, with help', (
+    testWidgets('a phone: the runner and services switches are grey, with help', (
       tester,
     ) async {
       final store = agentStore();
@@ -643,29 +642,141 @@ void main() {
         SettingsRules.agentNoRunner,
       );
       expect(greyed(tester, 'settings-agent-runner'), isTrue);
-      expect(greyed(tester, 'settings-agent-email'), isTrue);
+      expect(greyed(tester, 'settings-agent-refresh'), isTrue);
       await tester.tap(keyed('settings-agent-runner'), warnIfMissed: false);
       await tester.pumpAndSettle();
       expect(store.agentRunnerOn, isFalse);
     });
 
-    testWidgets('a computer with Claude Code: the runner switch, then email', (
-      tester,
-    ) async {
-      final store = agentStore(runner: FakeAgentRunner());
+    String initLine() => jsonEncode({
+      'type': 'system',
+      'subtype': 'init',
+      'tools': [
+        'mcp__claude_ai_Gmail__search_threads',
+        'mcp__claude_ai_Gmail__send_message',
+      ],
+      'mcp_servers': [
+        {'name': 'claude.ai Gmail', 'status': 'connected'},
+        {'name': 'claude.ai Drive', 'status': 'needs-auth'},
+      ],
+    });
+
+    testWidgets('a computer with Claude Code: the runner switch, then '
+        'Refresh lists the services, and one is turned on', (tester) async {
+      final store = agentStore(runner: FakeAgentRunner(initLine: initLine()));
       await openSettings(tester, store, tab: SettingsTab.agent);
       expect(keyed('settings-agent-help'), findsNothing);
       expect(greyed(tester, 'settings-agent-runner'), isFalse);
-      // Email waits for the runner switch.
-      expect(greyed(tester, 'settings-agent-email'), isTrue);
+      // The services wait for the runner switch.
+      expect(greyed(tester, 'settings-agent-refresh'), isTrue);
 
       await tapIn(tester, keyed('settings-agent-runner'));
       expect(store.agentRunnerOn, isTrue);
       expect(store.prefs.getBool('agent.runner'), isTrue);
-      expect(greyed(tester, 'settings-agent-email'), isFalse);
+      expect(greyed(tester, 'settings-agent-refresh'), isFalse);
 
-      await tapIn(tester, keyed('settings-agent-email'));
+      await tapIn(tester, keyed('settings-agent-refresh'));
+      expect(inSettings(find.text(AgentSettings.refreshFirst)), findsNothing);
+      expect(inSettings(find.text('claude.ai Gmail')), findsOneWidget);
+      expect(
+        inSettings(find.text('Connected · reads with: search_threads')),
+        findsOneWidget,
+      );
+      expect(inSettings(find.text('Needs sign-in')), findsOneWidget);
+      expect(inSettings(find.text(AgentSettings.refreshFirst)), findsNothing);
+      expect(
+        switchOn(tester, 'settings-agent-service-claude.ai Gmail'),
+        isFalse,
+      );
+
+      await tapIn(tester, keyed('settings-agent-service-claude.ai Gmail'));
       expect(store.agentServiceOn(AgentPolicy.gmailServer), isTrue);
+      expect(
+        switchOn(tester, 'settings-agent-service-claude.ai Gmail'),
+        isTrue,
+      );
+    });
+
+    testWidgets('a service that is on but not found yet still shows, so it '
+        'can be turned off', (tester) async {
+      final store = agentStore(
+        runner: FakeAgentRunner(),
+        prefs: const {'agent.runner': true, 'agent.email': true},
+      );
+      await openSettings(tester, store, tab: SettingsTab.agent);
+      expect(
+        switchOn(tester, 'settings-agent-service-claude.ai Gmail'),
+        isTrue,
+      );
+      expect(inSettings(find.text(AgentSettings.notFound)), findsOneWidget);
+      await tapIn(tester, keyed('settings-agent-service-claude.ai Gmail'));
+      expect(store.agentServicesOn, isFalse);
+    });
+
+    testWidgets('settings of the person that reach too far are shown', (
+      tester,
+    ) async {
+      final runner = FakeAgentRunner(initLine: initLine())..problem = 'Bad.';
+      final store = agentStore(
+        runner: runner,
+        prefs: const {'agent.runner': true},
+      );
+      await openSettings(tester, store, tab: SettingsTab.agent);
+      await tapIn(tester, keyed('settings-agent-refresh'));
+      expect(
+        tester.widget<Text>(keyed('settings-agent-settings-problem')).data,
+        'Bad.',
+      );
+    });
+
+    testWidgets('the agent folder: its path, Show in Finder, and Delete agent '
+        'files after a question', (tester) async {
+      final dir = Directory.systemTemp.createTempSync('grove-agent-folder-');
+      addTearDown(() => dir.deleteSync(recursive: true));
+      final store = makeStore(
+        prefs: MemoryPrefs({'appearance.motion': false}),
+        clock: WallTime(day: wednesday, minute: 10 * 60),
+        agentRunner: FakeAgentRunner(),
+        dataDir: dir.path,
+      );
+      store
+        ..newTimer = ManualTimers().start
+        ..screen = Screen.planner;
+      final root = store.agentFolderRoot!;
+      File('$root/0f8fad5b-d9cb-469f-a165-70867728950e/notes.md')
+        ..createSync(recursive: true)
+        ..writeAsStringSync('Hi');
+      final files = FakeFiles()..canShowFolder = true;
+      await openSettings(tester, store, tab: SettingsTab.agent, files: files);
+      expect(
+        tester.widget<Text>(keyed('settings-agent-folder-path')).data,
+        root,
+      );
+      await tapIn(tester, keyed('settings-agent-show-folder'));
+      expect(files.shown, [root]);
+
+      await tapIn(tester, keyed('settings-agent-delete-files'));
+      expect(find.text(AgentSettings.deleteQuestion), findsOneWidget);
+      await tester.tap(find.text('Cancel'));
+      await tester.pumpAndSettle();
+      expect(Directory(root).existsSync(), isTrue);
+
+      await tapIn(tester, keyed('settings-agent-delete-files'));
+      await tester.tap(find.text('Delete'));
+      await tester.pump();
+      // The folder is deleted on the disk, outside the test clock.
+      for (
+        var i = 0;
+        i < 20 && find.text(AgentSettings.deleted).evaluate().isEmpty;
+        i++
+      ) {
+        await tester.runAsync(
+          () => Future<void>.delayed(const Duration(milliseconds: 20)),
+        );
+        await tester.pump();
+      }
+      expect(Directory(root).existsSync(), isFalse);
+      expect(find.text(AgentSettings.deleted), findsOneWidget);
     });
 
     testWidgets('a computer with no Claude Code says so, and the switch can '

@@ -43,6 +43,8 @@ class StoreApp extends StatefulWidget {
     this.openLink,
     this.openDraft,
     this.pickAgentFile,
+    this.openAgentFile,
+    this.showAgentFolder,
   });
 
   /// The one who made the store closes it.
@@ -68,6 +70,14 @@ class StoreApp extends StatefulWidget {
   /// The window to pick a file for a chat of the agent. With null the
   /// Agents screen hides "Add a file…".
   final AgentFilePicker? pickAgentFile;
+
+  /// Opens a text file the agent made. With null a click on it shows its
+  /// folder.
+  final AgentPathOpener? openAgentFile;
+
+  /// Shows a folder of the agent in Finder or Explorer. With null the
+  /// Agents screen cannot open the files the agent made.
+  final AgentPathOpener? showAgentFolder;
 
   @override
   State<StoreApp> createState() => _StoreAppState();
@@ -205,6 +215,8 @@ class _StoreAppState extends State<StoreApp> {
   Widget build(BuildContext context) => AgentTools(
     openDraft: widget.openDraft,
     pickFile: widget.pickAgentFile,
+    openFile: widget.openAgentFile,
+    showFolder: widget.showAgentFolder,
     child: EditorTools(
       pickImages: widget.pickImages,
       openLink: widget.openLink,

@@ -26,14 +26,20 @@ bool isDraftLink(Uri url) => url.isScheme('mailto') || url.isScheme('sms');
 /// null when the person closed the window.
 typedef AgentFilePicker = Future<String?> Function();
 
-/// Gives the opener of Mail and Messages and the file window to the agent
-/// screens. The app gives the real ones (`main.dart`); a test gives fakes,
-/// or none.
+/// Opens a file or a folder of the agent folder of a chat (ADR 0008).
+/// False when the system could not.
+typedef AgentPathOpener = Future<bool> Function(String path);
+
+/// Gives the opener of Mail and Messages, the file window and the openers of
+/// the agent folder to the agent screens. The app gives the real ones
+/// (`main.dart`); a test gives fakes, or none.
 class AgentTools extends InheritedWidget {
   const AgentTools({
     super.key,
     this.openDraft,
     this.pickFile,
+    this.openFile,
+    this.showFolder,
     required super.child,
   });
 
@@ -43,12 +49,23 @@ class AgentTools extends InheritedWidget {
   /// With null the Agents screen hides "Add a file…".
   final AgentFilePicker? pickFile;
 
+  /// Opens a text file the agent made, in the app of the system for it.
+  /// With null a click on such a file shows its folder.
+  final AgentPathOpener? openFile;
+
+  /// Shows a folder in Finder or Explorer. With null the Agents screen
+  /// lists the files the agent made, without a way to open them.
+  final AgentPathOpener? showFolder;
+
   static AgentTools? maybeOf(BuildContext context) =>
       context.dependOnInheritedWidgetOfExactType<AgentTools>();
 
   @override
   bool updateShouldNotify(AgentTools oldWidget) =>
-      oldWidget.openDraft != openDraft || oldWidget.pickFile != pickFile;
+      oldWidget.openDraft != openDraft ||
+      oldWidget.pickFile != pickFile ||
+      oldWidget.openFile != openFile ||
+      oldWidget.showFolder != showFolder;
 }
 
 /// Shows the agent window of the task `taskId`. The future ends when the
@@ -81,9 +98,12 @@ class AgentDialog extends StatefulWidget {
   final String taskId;
   final DraftOpener? openDraft;
 
-  static const safety = 'The agent reads and drafts. It never sends.';
-  static const emailOffHere =
-      'Email is off on this device. The computer that runs the agent decides.';
+  static const safety =
+      'The agent reads and drafts. It never sends or runs commands. It can '
+      'only change files in its own folder.';
+  static const servicesOffHere =
+      'Services are off on this device. The computer that runs the agent '
+      'decides.';
   static const waiting = 'Waiting for your computer…';
   static const turnOnRunner =
       "Turn on 'This device runs agent tasks' on your Mac or PC.";
@@ -228,7 +248,7 @@ class _AgentDialogState extends State<AgentDialog> {
 
   List<Widget> _form(BuildContext context) {
     final theme = GroveTheme.of(context);
-    const label = 'Allow reading my email for this task';
+    const label = 'Let the agent use my services for this task';
     void flip() => setState(() => _email = !_email);
     return [
       GroveField(
@@ -251,7 +271,7 @@ class _AgentDialogState extends State<AgentDialog> {
         child: MouseRegion(
           cursor: SystemMouseCursors.click,
           child: GestureDetector(
-            key: const ValueKey('agent-email'),
+            key: const ValueKey('agent-services'),
             behavior: HitTestBehavior.opaque,
             onTap: flip,
             child: Row(
@@ -270,7 +290,7 @@ class _AgentDialogState extends State<AgentDialog> {
         ),
       ),
       if (!_store.agentServicesOn)
-        Text(AgentDialog.emailOffHere, style: _small(theme)),
+        Text(AgentDialog.servicesOffHere, style: _small(theme)),
       Text(AgentDialog.safety, style: _small(theme)),
       dialogButtons([
         DialogButton(

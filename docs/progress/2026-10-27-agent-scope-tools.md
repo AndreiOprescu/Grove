@@ -16,7 +16,7 @@ Resume rule: continue from the first open box. Commit after each box.
 - [x] 3. Runner: cwd = chat folder, inputs/ copy, env cut (HOME USER LOGNAME PATH LANG TMPDIR SHELL), stdout cap 20 MB, folder kept.
 - [x] 4. Policy args: Mode L / Mode S; user-settings guard; prompts say the folder rule.
 - [x] 5. Services: `McpToolRules.isReadTool`, `listServices()` probe parsing init, prefs `agent.services`, old `agent.email` → Gmail on.
-- [ ] 6. UI: Settings → Agent (Services list with switches + status + read tools, Refresh; Agent folder row: Show in Finder, Delete agent files). Agents screen: Files part, per-chat "Use my services" (email_access reused).
+- [x] 6. UI: Settings → Agent (Services list with switches + status + read tools, Refresh; Agent folder row: Show in Finder, Delete agent files). Agents screen: Files part, per-chat "Use my services" (email_access reused).
 - [ ] 7. Docs: ADR 0008 (0007 is notebooks), fix ADR 0004 drift, settings help text, docs/assumptions.md lines, CHANGELOG 1.3.0 lines, blog post in docs/blog/.
 - [ ] 8. `./scripts/flutter_test.sh` green; goldens regenerated + pixel-compared if UI pictures changed.
 - [ ] 9. Review (security lens) + fixes.

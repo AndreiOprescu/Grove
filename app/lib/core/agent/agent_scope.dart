@@ -112,8 +112,9 @@ abstract final class AgentScope {
   }
 
   /// The kinds of files Grove opens for the person: plain text only. Any
-  /// other file the agent made shows in the Finder, never runs.
-  static const _plain = {'md', 'markdown', 'txt', 'csv', 'tsv', 'json'};
+  /// other file the agent made shows in the Finder, never runs. Not a
+  /// table (csv): a spreadsheet app could run a formula in it.
+  static const _plain = {'md', 'markdown', 'txt', 'json'};
 
   static bool canOpen(String name) {
     final dot = name.lastIndexOf('.');

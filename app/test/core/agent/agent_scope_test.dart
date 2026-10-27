@@ -119,10 +119,20 @@ void main() {
     });
 
     test('only plain text files open from Grove; others show in Finder', () {
-      for (final ok in ['a.md', 'b.TXT', 'c.csv', 'd.json', 'e.markdown']) {
+      for (final ok in ['a.md', 'b.TXT', 'd.json', 'e.markdown']) {
         expect(AgentScope.canOpen(ok), isTrue, reason: ok);
       }
-      for (final no in ['run.command', 'x.app', 'y.html', 'z.sh', 'md', '']) {
+      // A table opens in a spreadsheet app, which could run a formula.
+      for (final no in [
+        'run.command',
+        'x.app',
+        'y.html',
+        'z.sh',
+        'c.csv',
+        'f.tsv',
+        'md',
+        '',
+      ]) {
         expect(AgentScope.canOpen(no), isFalse, reason: no);
       }
     });

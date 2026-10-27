@@ -723,24 +723,70 @@ class _NotificationSettingsState extends State<NotificationSettings> {
   }
 }
 
-// Agent (ADR 0004)
+// Agent (ADR 0004, ADR 0008)
 
-class AgentSettings extends StatelessWidget {
-  const AgentSettings({super.key, required this.store});
+class AgentSettings extends StatefulWidget {
+  const AgentSettings({super.key, required this.store, this.files});
 
   final AppStore store;
+
+  /// The window of folders, for "Show in Finder". Hidden when null.
+  final SettingsFiles? files;
 
   static const menusText = 'Shows "Ask the agent…" in the task menus.';
 
   /// Two runners could take the same job (docs/assumptions.md).
   static const oneRunnerText = 'Turn this on on one computer only.';
-  static const gmailText =
-      'Connect Gmail first in claude.ai ▸ Settings ▸ Connectors.';
+  static const servicesText =
+      'In a chat with "Services" on, the agent may read with the services '
+      'you turn on here. It only gets their tools that read. Connect a '
+      'service in claude.ai ▸ Settings ▸ Connectors, or in Claude Code.';
+  static const refreshFirst = 'Press Refresh to see your services.';
+  static const noServices = 'Claude Code has no services yet.';
+  static const notFound = 'Not found. Press Refresh.';
+  static const noReadTool = 'No tool that only reads';
+  static const clash =
+      'Another service has a name like this one, so Grove cannot tell their '
+      'tools apart';
+  static const folderText =
+      'Each chat has its own folder here. The agent can change files only in '
+      'the folder of its chat.';
+  static const deleteQuestion =
+      'Delete the folders of all chats, with everything the agent saved in '
+      'them?';
+  static const deleted = 'The agent files are deleted.';
+  static const notDeleted =
+      'Grove could not delete the agent files. Wait until the agent stops, '
+      'then try again.';
   static const safetyText =
-      'The agent reads and drafts. It never sends, runs commands or changes '
-      'files. You press Send yourself.';
+      'The agent reads and drafts. It never sends or runs commands. It can '
+      'only change files in its own folder. You press Send yourself.';
   static const needsText =
       'Needs Claude Code, logged in with your own Claude plan.';
+
+  /// What a service line says under its name.
+  static String serviceText(AgentService s) {
+    final status = AgentService.statusText(s.status);
+    if (s.status != 'connected') return status;
+    if (s.clash) return '$status · $clash';
+    if (s.readTools.isEmpty) return '$status · $noReadTool';
+    final prefix = '${McpToolRules.serverRule(s.name)}__';
+    final tools = [
+      for (final t in s.readTools)
+        t.startsWith(prefix) ? t.substring(prefix.length) : t,
+    ];
+    return '$status · reads with: ${tools.join(', ')}';
+  }
+
+  @override
+  State<AgentSettings> createState() => _AgentSettingsState();
+}
+
+class _AgentSettingsState extends State<AgentSettings> {
+  AppStore get store => widget.store;
+
+  /// The answer of the last "Delete agent files".
+  String? _message;
 
   /// A control that is grey and takes no taps when `on` is false.
   static Widget _greyed({required bool on, required Widget child}) =>
@@ -752,6 +798,126 @@ class AgentSettings extends StatelessWidget {
         ),
       );
 
+  Future<void> _delete() async {
+    final yes = await showDialog<bool>(
+      context: context,
+      builder: (context) {
+        final theme = GroveTheme.of(context);
+        return Dialog(
+          key: const ValueKey('settings-agent-delete-question'),
+          backgroundColor: theme.solidSurface,
+          insetPadding: const EdgeInsets.all(20),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(theme.radius),
+            side: BorderSide(color: theme.line),
+          ),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 400),
+            child: Padding(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                spacing: 12,
+                children: [
+                  Text(
+                    AgentSettings.deleteQuestion,
+                    style: theme.body(13).copyWith(color: theme.ink),
+                  ),
+                  Wrap(
+                    alignment: WrapAlignment.end,
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      DialogButton(
+                        label: 'Cancel',
+                        onTap: () => Navigator.of(context).pop(false),
+                      ),
+                      DialogButton(
+                        label: 'Delete',
+                        primary: true,
+                        onTap: () => Navigator.of(context).pop(true),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+    if (yes != true) return;
+    final ok = await store.deleteAgentFiles();
+    if (!mounted) return;
+    setState(
+      () => _message = ok ? AgentSettings.deleted : AgentSettings.notDeleted,
+    );
+  }
+
+  Future<void> _showFolder(SettingsFiles files, String path) async {
+    var shown = false;
+    try {
+      shown = await files.showFolder(path);
+    } on Object {
+      shown = false;
+    }
+    if (!shown && mounted) {
+      setState(
+        () => _message = 'Grove could not open the folder. Its path is above.',
+      );
+    }
+  }
+
+  List<Widget> _services(GroveTheme theme) {
+    final found = store.agentServices;
+    final names = [
+      for (final s in found?.servers ?? const <AgentService>[]) s.name,
+      ..._onNotFound(found),
+    ];
+    final problem = store.agentSettingsProblem;
+    return [
+      if (problem != null)
+        Text(
+          problem,
+          key: const ValueKey('settings-agent-settings-problem'),
+          style: theme.body(11).copyWith(color: TaskPalette.color('orange')),
+        ),
+      if (found == null && names.isEmpty)
+        const SettingsCaption(AgentSettings.refreshFirst)
+      else if (names.isEmpty)
+        const SettingsCaption(AgentSettings.noServices),
+      for (final name in names) ...[
+        SettingsSwitchRow(
+          switchKey: ValueKey('settings-agent-service-$name'),
+          label: name,
+          value: store.agentServiceOn(name),
+          onChanged: (on) => store.setAgentService(name, on),
+        ),
+        SettingsCaption(switch (found?.server(name)) {
+          final s? => AgentSettings.serviceText(s),
+          null => AgentSettings.notFound,
+        }),
+      ],
+      Align(
+        alignment: Alignment.centerLeft,
+        child: DialogButton(
+          key: const ValueKey('settings-agent-refresh'),
+          label: store.agentServicesBusy ? 'Looking…' : 'Refresh',
+          onTap: () => unawaited(store.refreshAgentServices()),
+        ),
+      ),
+    ];
+  }
+
+  /// The services that are on but that the last look did not find, sorted.
+  List<String> _onNotFound(AgentServices? found) {
+    return [
+      for (final n in store.agentServicesOnNames)
+        if (found?.server(n) == null) n,
+    ];
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = GroveTheme.of(context);
@@ -760,6 +926,9 @@ class AgentSettings extends StatelessWidget {
     final computer = store.agentRunner != null;
     final runnerOn = store.agentRunnerOn;
     final help = store.agentHelp;
+    final root = store.agentFolderRoot;
+    final files = widget.files;
+    final message = _message;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -772,7 +941,7 @@ class AgentSettings extends StatelessWidget {
               value: store.agentEnabled,
               onChanged: store.setAgentEnabled,
             ),
-            const SettingsCaption(menusText),
+            const SettingsCaption(AgentSettings.menusText),
           ],
         ),
         _gap,
@@ -788,7 +957,7 @@ class AgentSettings extends StatelessWidget {
                 onChanged: store.setAgentRunner,
               ),
             ),
-            const SettingsCaption(oneRunnerText),
+            const SettingsCaption(AgentSettings.oneRunnerText),
             if (help != null)
               Text(
                 help,
@@ -801,25 +970,69 @@ class AgentSettings extends StatelessWidget {
                           : theme.muted,
                     ),
               ),
-            _greyed(
-              on: computer && runnerOn,
-              child: SettingsSwitchRow(
-                switchKey: const ValueKey('settings-agent-email'),
-                label: 'Let the agent read my email',
-                value: store.agentServiceOn(AgentPolicy.gmailServer),
-                onChanged: (on) =>
-                    store.setAgentService(AgentPolicy.gmailServer, on),
-              ),
-            ),
-            const SettingsCaption(gmailText),
           ],
         ),
         _gap,
         SettingsSection(
+          title: 'Services the agent may read',
+          children: [
+            const SettingsCaption(AgentSettings.servicesText),
+            _greyed(
+              on: computer && runnerOn && store.canRunAgent,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                spacing: 10,
+                children: _services(theme),
+              ),
+            ),
+          ],
+        ),
+        if (root != null) ...[
+          _gap,
+          SettingsSection(
+            title: 'Agent folder',
+            children: [
+              Text(
+                root,
+                key: const ValueKey('settings-agent-folder-path'),
+                style: theme.body(12).copyWith(color: theme.ink),
+              ),
+              const SettingsCaption(AgentSettings.folderText),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  if (files != null && files.canShowFolder)
+                    DialogButton(
+                      key: const ValueKey('settings-agent-show-folder'),
+                      label: 'Show in Finder',
+                      onTap: () => unawaited(_showFolder(files, root)),
+                    ),
+                  DialogButton(
+                    key: const ValueKey('settings-agent-delete-files'),
+                    label: 'Delete agent files',
+                    onTap: () => unawaited(_delete()),
+                  ),
+                ],
+              ),
+              if (message != null)
+                Text(
+                  message,
+                  key: const ValueKey('settings-agent-folder-message'),
+                  style: theme.body(11).copyWith(color: theme.muted),
+                ),
+            ],
+          ),
+        ],
+        _gap,
+        SettingsSection(
           title: 'Safety',
           children: [
-            Text(safetyText, style: theme.body(13).copyWith(color: theme.ink)),
-            const SettingsCaption(needsText),
+            Text(
+              AgentSettings.safetyText,
+              style: theme.body(13).copyWith(color: theme.ink),
+            ),
+            const SettingsCaption(AgentSettings.needsText),
           ],
         ),
       ],
