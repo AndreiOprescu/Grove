@@ -697,7 +697,7 @@ void main() {
     testWidgets('are there again when the screen comes back', (tester) async {
       final store = plannerStore();
       await pumpPlanner(tester, store);
-      await pickFromAdd(tester, 'Add wake-up line');
+      await pickFromDayMenu(tester, 'Add wake-up line');
       await mouseDrag(
         tester,
         tester.getCenter(chip(DayMarkerKind.wake)),

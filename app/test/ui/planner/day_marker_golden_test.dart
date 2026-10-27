@@ -4,12 +4,9 @@
 //   cd app && flutter test --update-goldens test/ui/planner
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:grove/ui/planner/day_markers.dart';
-import 'package:grove/ui/planner/planner_grid.dart';
 import 'package:grove/ui/store_app.dart';
-import 'package:grove/ui/theme/grove_theme.dart';
 
 import '../tasks/tasks_support.dart' show textOffPixels;
 import 'planner_support.dart';

@@ -16,7 +16,8 @@ String dayMenuDate(DayKey day) =>
 
 /// Opens the day menu for [day] at [global]. [showInPlanner] adds "Show in
 /// Planner" (the Calendar). [planDay] adds "Plan my day" for today and later
-/// days (the Planner).
+/// days (the Planner). The menu adds or removes the wake-up line and the
+/// sleep line of the day; [onMarkerAdded] gets the minute of a new one.
 Future<void> showDayMenu(
   BuildContext context,
   Offset global, {
@@ -24,6 +25,7 @@ Future<void> showDayMenu(
   required DayKey day,
   VoidCallback? showInPlanner,
   VoidCallback? planDay,
+  ValueChanged<int>? onMarkerAdded,
 }) {
   final hasOpen = store.openTasks(TaskPlacement.day(day)).isNotEmpty;
   return showGroveMenu(context, global, [
@@ -39,6 +41,19 @@ Future<void> showDayMenu(
     if (showInPlanner != null) MenuLine('Show in Planner', showInPlanner),
     if (planDay != null && day >= store.clockToday)
       MenuLine('Plan my day', planDay),
+    // The time of a new line: `AppStore.newDayMarkerMinute`.
+    const MenuLine.divider(),
+    for (final kind in DayMarkerKind.values)
+      if (store.dayMarker(kind, day) == null)
+        MenuLine('Add ${kind.lineName}', () {
+          final minute = store.addDayMarker(kind, day);
+          if (minute != null) onMarkerAdded?.call(minute);
+        })
+      else
+        MenuLine(
+          'Remove ${kind.lineName}',
+          () => store.removeDayMarker(kind, day),
+        ),
     if (hasOpen) ...[
       const MenuLine.divider(),
       MenuLine('Move open tasks to…', () {

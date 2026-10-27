@@ -10,6 +10,7 @@ import 'package:flutter/material.dart';
 import 'package:grove/core/model/day_key.dart';
 import 'package:grove/state/state.dart' hide MotionRules;
 
+import '../calendar/day_menu.dart';
 import '../notes/note_editor_pane.dart';
 import '../planner/planner_kind.dart';
 import '../planner/planner_view.dart';
@@ -268,10 +269,34 @@ class SpreadHeader extends StatelessWidget {
     final day = store.todayScreenDay;
     final isToday = !store.showsTomorrow;
     final progress = store.plantProgress(day);
-    final heading = ThemedHeading(
-      NotesRules.longDay(day),
-      compact ? 22 : 28,
-      key: const ValueKey('spread-date'),
+    // A right click, or a long press, on the date opens the day menu, as
+    // on a day name of the planner. It adds the wake-up and the sleep line.
+    final heading = Builder(
+      builder: (context) {
+        void menu(Offset? at) {
+          final box = context.findRenderObject() as RenderBox?;
+          showDayMenu(
+            context,
+            at ?? box?.localToGlobal(Offset.zero) ?? Offset.zero,
+            store: store,
+            day: day,
+          );
+        }
+
+        return Semantics(
+          onLongPress: () => menu(null),
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onSecondaryTapUp: (d) => menu(d.globalPosition),
+            onLongPressStart: (d) => menu(d.globalPosition),
+            child: ThemedHeading(
+              NotesRules.longDay(day),
+              compact ? 22 : 28,
+              key: const ValueKey('spread-date'),
+            ),
+          ),
+        );
+      },
     );
     final words = Column(
       crossAxisAlignment: CrossAxisAlignment.start,

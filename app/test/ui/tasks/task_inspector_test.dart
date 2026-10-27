@@ -665,7 +665,7 @@ void main() {
       final handle = tester.ensureSemantics();
       expect(
         tester.getSemantics(byKey('inspector-kind-task')),
-        containsSemantics(label: 'Task', isSelected: true, isButton: true),
+        isSemantics(label: 'Task', isSelected: true, isButton: true),
       );
       handle.dispose();
 
