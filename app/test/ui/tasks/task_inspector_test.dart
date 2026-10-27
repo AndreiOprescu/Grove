@@ -640,6 +640,81 @@ void main() {
     });
   });
 
+  // Task or activity: a task with one block on the planner can turn into
+  // an activity there (owner, 2026-10-27).
+  group('task or activity', () {
+    /// Puts the task `report` on the planner, once or [times] times.
+    void onPlanner(AppStore store, {int times = 1}) {
+      final t = store.task('report')!;
+      for (var i = 0; i < times; i++) {
+        store.repos.events.save(
+          store.blockEvent(
+            t,
+            day: wednesday.adding(days: i),
+            start: 600,
+            end: 660,
+          ),
+        );
+      }
+    }
+
+    testWidgets('the chips show for a task with one block', (tester) async {
+      final store = await pumpInspector(tester, before: onPlanner);
+      expect(byKey('inspector-kind-task'), findsOneWidget);
+      expect(byKey('inspector-kind-activity'), findsOneWidget);
+      final handle = tester.ensureSemantics();
+      expect(
+        tester.getSemantics(byKey('inspector-kind-task')),
+        containsSemantics(label: 'Task', isSelected: true, isButton: true),
+      );
+      handle.dispose();
+
+      final block = store.blocksOfTask('report').single.id;
+      await tapKey(tester, 'inspector-kind-activity');
+
+      expect(store.task('report'), isNull);
+      expect(store.event(block)!.kind, EventKind.activity);
+      expect(store.undoName, 'Turn into Activity');
+      expect(find.text('closed'), findsOneWidget);
+    });
+
+    testWidgets('a tap on Task does nothing: it is a task', (tester) async {
+      final store = await pumpInspector(tester, before: onPlanner);
+      final before = store.undoName;
+      await tapKey(tester, 'inspector-kind-task');
+      expect(store.task('report'), isNotNull);
+      expect(store.undoName, before);
+    });
+
+    testWidgets('no chips with no block, or with two', (tester) async {
+      await pumpInspector(tester);
+      expect(byKey('inspector-kind-activity'), findsNothing);
+      await pumpInspector(tester, before: (s) => onPlanner(s, times: 2));
+      expect(byKey('inspector-kind-activity'), findsNothing);
+    });
+
+    testWidgets('a task with subtasks asks first', (tester) async {
+      final store = await pumpInspector(
+        tester,
+        before: (store) {
+          onPlanner(store);
+          store.addSubtask(to: 'report', title: 'Outline');
+        },
+      );
+      await tapKey(tester, 'inspector-kind-activity');
+      expect(byKey('kind-confirm'), findsOneWidget);
+      await tester.tap(byKey('kind-cancel'));
+      await tester.pumpAndSettle();
+      expect(store.task('report'), isNotNull);
+
+      await tapKey(tester, 'inspector-kind-activity');
+      await tester.tap(byKey('kind-confirm'));
+      await tester.pumpAndSettle();
+      expect(store.task('report'), isNull);
+      expect(store.repos.tasks.all(), isEmpty);
+    });
+  });
+
   testWidgets('the panel fits a phone', (tester) async {
     await pumpInspector(
       tester,

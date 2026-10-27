@@ -6,7 +6,7 @@ Owner answers 2026-10-27: remove the "+" fully; task → activity = the block st
 Resume rule: continue from the first open box. Commit after each box.
 
 ## Boxes
-- [ ] 1. Tests first: day menu wake/sleep items; no `day-marker-add` in either header; store `toggleKind` both ways (undo, same event id, multi-block, subtask/goal confirm, not offered for done / recurring / goal block / plain event, notes kept); widget tests for block menu, task inspector chips, activity editor chips.
+- [x] 1. Tests first: day menu wake/sleep items; no `day-marker-add` in either header; store `toggleKind` both ways (undo, same event id, multi-block, subtask/goal confirm, not offered for done / recurring / goal block / plain event, notes kept); widget tests for block menu, task inspector chips, activity editor chips.
 - [ ] 2. Remove the "+" (`planner_view.dart` `_showDayMarkers` + button in both headers; drop `showDayMarkerMenu` if unused). Add Add/Remove wake-up and sleep lines to the day menu (`app/lib/ui/calendar/day_menu.dart`), default time from `newDayMarkerMinute`. Check the phone opens the day menu.
 - [ ] 3. Store `toggleKind` in `app/lib/state/store_planner.dart` (one Mutation).
 - [ ] 4. UI: block menu lines, shared Task · Activity chip widget (from `_kindRow`), task inspector, event editor.

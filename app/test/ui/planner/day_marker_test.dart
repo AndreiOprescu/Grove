@@ -1,6 +1,6 @@
-// The wake-up line and the sleep line of a day in the planner: the "+"
-// above the schedule adds them, a drag moves them in steps of 15 minutes,
-// a menu takes them away.
+// The wake-up line and the sleep line of a day in the planner: the day menu
+// (a right click, or a long press, on the name of a day) adds them, a drag
+// moves them in steps of 15 minutes, a menu takes them away.
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/semantics.dart';
@@ -12,6 +12,7 @@ import 'package:grove/ui/planner/planner_view.dart';
 import '../tasks/tasks_support.dart' show pumpPane;
 import 'planner_support.dart';
 
+/// The "+" that was above the schedule. It is gone (owner, 2026-10-27).
 final addButton = find.byKey(const ValueKey('day-marker-add'));
 
 Finder chip(DayMarkerKind kind, [DayKey? day]) => find.byKey(
@@ -25,6 +26,12 @@ Finder lineOf(DayMarkerKind kind, [DayKey? day]) => find.byKey(
 Finder menuLine(String label) =>
     find.widgetWithText(PopupMenuItem<VoidCallback>, label);
 
+/// The name of [day] at the top of the planner week. On the Today screen
+/// ([today]) it is the date above the timeline.
+Finder dayName({DayKey? day, bool today = false}) => today
+    ? find.byKey(const ValueKey('spread-date'))
+    : find.byKey(ValueKey('day-header-${(day ?? wednesday).string}'));
+
 /// The time that the chip of a line shows.
 String shownTime(WidgetTester tester, DayMarkerKind kind, [DayKey? day]) {
   final texts = tester.widgetList<Text>(
@@ -33,10 +40,33 @@ String shownTime(WidgetTester tester, DayMarkerKind kind, [DayKey? day]) {
   return texts.map((t) => t.data).firstWhere((t) => t!.contains(':'))!;
 }
 
-/// Clicks "+" and then one line of its menu.
-Future<void> pickFromAdd(WidgetTester tester, String label) async {
-  await tester.tap(addButton);
-  await tester.pumpAndSettle();
+/// Opens the day menu of a day name: a right click, or a long press with
+/// [touch].
+Future<void> openDayMenu(
+  WidgetTester tester, {
+  DayKey? day,
+  bool today = false,
+  bool touch = false,
+}) async {
+  final name = dayName(day: day, today: today);
+  if (touch) {
+    await tester.longPress(name);
+    await tester.pumpAndSettle();
+  } else {
+    await rightClick(tester, tester.getCenter(name));
+    await endTapWindow(tester);
+  }
+}
+
+/// Opens the day menu and picks one line of it.
+Future<void> pickFromDayMenu(
+  WidgetTester tester,
+  String label, {
+  DayKey? day,
+  bool today = false,
+  bool touch = false,
+}) async {
+  await openDayMenu(tester, day: day, today: today, touch: touch);
   await tester.tap(menuLine(label));
   await tester.pumpAndSettle();
 }
@@ -52,17 +82,29 @@ Rect viewport(WidgetTester tester) => tester.getRect(
 );
 
 void main() {
-  group('the "+" above the schedule', () {
+  group('the day menu', () {
+    testWidgets('the planner has no "+" for the lines', (tester) async {
+      for (final screen in [Screen.planner, Screen.today, Screen.calendar]) {
+        for (final size in [desktopSize, phoneSize]) {
+          final store = plannerStore()..screen = screen;
+          await pumpPlanner(tester, store, size: size);
+          expect(addButton, findsNothing, reason: '$screen $size');
+          expect(
+            find.bySemanticsLabel('Add a wake-up or sleep line'),
+            findsNothing,
+          );
+        }
+      }
+    });
+
     testWidgets('adds the wake-up line: a line with its time, in view', (
       tester,
     ) async {
       final store = plannerStore();
       await pumpPlanner(tester, store);
-      expect(addButton, findsOneWidget);
       expect(chip(DayMarkerKind.wake), findsNothing);
 
-      await tester.tap(addButton);
-      await tester.pumpAndSettle();
+      await openDayMenu(tester);
       expect(menuLine('Add wake-up line'), findsOneWidget);
       expect(menuLine('Add sleep line'), findsOneWidget);
       await tester.tap(menuLine('Add wake-up line'));
@@ -92,7 +134,7 @@ void main() {
       final store = plannerStore();
       await pumpPlanner(tester, store);
 
-      await pickFromAdd(tester, 'Add sleep line');
+      await pickFromDayMenu(tester, 'Add sleep line');
 
       expect(store.dayMarker(DayMarkerKind.sleep, wednesday), 23 * 60);
       expect(shownTime(tester, DayMarkerKind.sleep), '23:00');
@@ -117,7 +159,7 @@ void main() {
       final before = gridScroll(tester);
 
       // The new line takes the time of the day before: 11:00, on the screen.
-      await pickFromAdd(tester, 'Add wake-up line');
+      await pickFromDayMenu(tester, 'Add wake-up line');
 
       expect(store.dayMarker(DayMarkerKind.wake, wednesday), 11 * 60);
       expect(gridScroll(tester), before);
@@ -130,8 +172,7 @@ void main() {
       store.addDayMarker(DayMarkerKind.wake, wednesday);
       await pumpPlanner(tester, store);
 
-      await tester.tap(addButton);
-      await tester.pumpAndSettle();
+      await openDayMenu(tester);
       expect(menuLine('Add wake-up line'), findsNothing);
       expect(menuLine('Add sleep line'), findsOneWidget);
 
@@ -140,19 +181,18 @@ void main() {
       expect(store.dayMarker(DayMarkerKind.wake, wednesday), isNull);
       expect(chip(DayMarkerKind.wake), findsNothing);
       expect(lineOf(DayMarkerKind.wake), findsNothing);
+      expect(store.undoName, 'Remove Wake-up Line');
     });
 
-    testWidgets('in the week it acts on the selected day and names it', (
+    testWidgets('in the week it acts on the day that was clicked', (
       tester,
     ) async {
       final store = plannerStore();
       final friday = wednesday.adding(days: 2);
-      store.selectedDay = friday;
       await pumpPlanner(tester, store);
 
-      await tester.tap(addButton);
-      await tester.pumpAndSettle();
-      expect(find.text('Fri 9 Oct'), findsOneWidget);
+      await openDayMenu(tester, day: friday);
+      expect(find.text('Friday 9 October'), findsOneWidget);
       await tester.tap(menuLine('Add wake-up line'));
       await tester.pumpAndSettle();
 
@@ -166,17 +206,35 @@ void main() {
       expect(line.right, column.right);
     });
 
-    testWidgets('the Today screen has it: the line is on today', (
+    testWidgets('the Calendar day menu has the lines too', (tester) async {
+      final store = plannerStore()..screen = Screen.calendar;
+      final friday = wednesday.adding(days: 2);
+      await pumpPlanner(tester, store);
+      await rightClick(
+        tester,
+        tester.getCenter(find.byKey(ValueKey('month-day-${friday.string}'))),
+      );
+      await endTapWindow(tester);
+      await tester.tap(menuLine('Add sleep line'));
+      await tester.pumpAndSettle();
+
+      expect(store.dayMarker(DayMarkerKind.sleep, friday), 23 * 60);
+      expect(store.screen, Screen.calendar);
+    });
+
+    testWidgets('the Today screen has it on its date: the line is on today', (
       tester,
     ) async {
       final store = plannerStore()..screen = Screen.today;
       // Another day is selected in the planner. Today shows today.
       store.selectedDay = wednesday.adding(days: 3);
       await pumpPlanner(tester, store);
-      expect(addButton, findsOneWidget);
 
-      await pickFromAdd(tester, 'Add wake-up line');
-      await pickFromAdd(tester, 'Add sleep line');
+      await openDayMenu(tester, today: true);
+      expect(find.text('Wednesday 7 October'), findsWidgets);
+      await tester.tap(menuLine('Add wake-up line'));
+      await tester.pumpAndSettle();
+      await pickFromDayMenu(tester, 'Add sleep line', today: true);
 
       expect(store.dayMarker(DayMarkerKind.wake, wednesday), 7 * 60);
       expect(store.dayMarker(DayMarkerKind.sleep, wednesday), 23 * 60);
@@ -185,12 +243,12 @@ void main() {
     });
 
     // The header of the Today screen has a switch "Today | Tomorrow".
-    for (final (name, size) in [
-      ('', desktopSize),
-      (' on a phone', phoneSize),
+    for (final (name, size, touch) in [
+      ('', desktopSize, false),
+      (' on a phone', phoneSize, true),
     ]) {
-      testWidgets('the Today screen on "Tomorrow"$name: the "+" and the lines '
-          'are those of tomorrow', (tester) async {
+      testWidgets('the Today screen on "Tomorrow"$name: the menu and the '
+          'lines are those of tomorrow', (tester) async {
         final store = plannerStore()..screen = Screen.today;
         final tomorrow = wednesday.adding(days: 1);
         store.addDayMarker(DayMarkerKind.sleep, wednesday);
@@ -200,7 +258,12 @@ void main() {
         expect(chip(DayMarkerKind.sleep), findsNothing);
         expect(chip(DayMarkerKind.sleep, tomorrow), findsNothing);
 
-        await pickFromAdd(tester, 'Add wake-up line');
+        await pickFromDayMenu(
+          tester,
+          'Add wake-up line',
+          today: true,
+          touch: touch,
+        );
 
         expect(store.dayMarker(DayMarkerKind.wake, tomorrow), 7 * 60);
         expect(store.dayMarker(DayMarkerKind.wake, wednesday), isNull);
@@ -216,12 +279,6 @@ void main() {
         expect(tester.takeException(), isNull);
       });
     }
-
-    testWidgets('the month has no "+"', (tester) async {
-      final store = plannerStore()..screen = Screen.calendar;
-      await pumpPlanner(tester, store);
-      expect(addButton, findsNothing);
-    });
   });
 
   group('a drag of a line', () {
@@ -740,11 +797,6 @@ void main() {
       act(SemanticsAction.decrease);
       await tester.pumpAndSettle();
       expect(store.dayMarker(DayMarkerKind.wake, wednesday), 9 * 60 + 30);
-
-      expect(
-        find.bySemanticsLabel('Add a wake-up or sleep line'),
-        findsOneWidget,
-      );
       handle.dispose();
     });
   });
@@ -760,7 +812,7 @@ void main() {
       await tester.pump();
       final scrolled = gridScroll(tester);
 
-      await tester.tap(addButton);
+      await rightClick(tester, tester.getCenter(dayName()));
       await tester.pumpAndSettle();
       await tester.tap(menuLine('Add wake-up line'));
       await tester.pump();
@@ -780,14 +832,14 @@ void main() {
   });
 
   group('on a phone', () {
-    testWidgets('"+" adds both lines, a finger moves one, a tap removes '
-        'it', (tester) async {
+    testWidgets('a long press on the day name adds both lines, a finger '
+        'moves one, a tap removes it', (tester) async {
       final store = plannerStore();
       await pumpPlanner(tester, store, size: phoneSize);
-      expect(addButton, findsOneWidget);
+      expect(addButton, findsNothing);
 
-      await pickFromAdd(tester, 'Add wake-up line');
-      await pickFromAdd(tester, 'Add sleep line');
+      await pickFromDayMenu(tester, 'Add wake-up line', touch: true);
+      await pickFromDayMenu(tester, 'Add sleep line', touch: true);
       expect(shownTime(tester, DayMarkerKind.sleep), '23:00');
       expect(store.dayMarker(DayMarkerKind.wake, wednesday), 7 * 60);
 
@@ -816,10 +868,15 @@ void main() {
       expect(tester.takeException(), isNull);
     });
 
-    testWidgets('the Today screen has "+" too', (tester) async {
+    testWidgets('the Today screen: a long press on the date', (tester) async {
       final store = plannerStore()..screen = Screen.today;
       await pumpPlanner(tester, store, size: phoneSize);
-      await pickFromAdd(tester, 'Add wake-up line');
+      await pickFromDayMenu(
+        tester,
+        'Add wake-up line',
+        today: true,
+        touch: true,
+      );
       expect(store.dayMarker(DayMarkerKind.wake, wednesday), 7 * 60);
       expect(chip(DayMarkerKind.wake), findsOneWidget);
       expect(tester.takeException(), isNull);
@@ -901,7 +958,7 @@ void main() {
 
   // The header of the week with the real fonts: day_marker_header_test.dart.
   group('the header of the timeline', () {
-    testWidgets('fits at each width with the "+" in it', (tester) async {
+    testWidgets('fits at each width', (tester) async {
       final store = plannerStore()..screen = Screen.today;
       for (var width = 240.0; width <= 520; width += 10) {
         await pumpPane(

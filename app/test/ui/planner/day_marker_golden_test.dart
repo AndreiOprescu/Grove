@@ -56,45 +56,6 @@ void main() {
     await loadIconFont();
   });
 
-  // Each system draws the soft edge of an icon in its own way. The "+" is
-  // in the picture of each screen with the planner, so it has no soft edge:
-  // two bars on whole pixels.
-  for (final (name, size, screen) in [
-    ('the planner', desktopSize, Screen.planner),
-    ('a phone', phoneSize, Screen.planner),
-    ('Today', desktopSize, Screen.today),
-  ]) {
-    testWidgets('the "+" has no soft edge on $name', (tester) async {
-      final store = plannerStore()..screen = screen;
-      await pumpPlanner(tester, store, size: size);
-      final theme = GroveTheme.of(tester.element(find.byType(PlannerGrid)));
-      final button = tester.getRect(
-        find.byKey(const ValueKey('day-marker-add')),
-      );
-      final root = find.byType(RepaintBoundary).first;
-      final origin = tester.getTopLeft(root);
-      final colours = <int>{};
-      await tester.runAsync(() async {
-        final image = await tester
-            .renderObject<RenderRepaintBoundary>(root)
-            .toImage();
-        final bytes = (await image.toByteData())!;
-        // The inside of the button, without its border.
-        final inside = button.shift(-origin).deflate(3);
-        for (var y = inside.top.toInt(); y < inside.bottom; y++) {
-          for (var x = inside.left.toInt(); x < inside.right; x++) {
-            colours.add(bytes.getUint32((y * image.width + x) * 4));
-          }
-        }
-        image.dispose();
-      });
-      int rgba(Color c) => c.toARGB32() << 8 & 0xFFFFFF00 | 0xFF;
-      // The wide header of the planner puts its buttons half a point down,
-      // and the bars are on whole pixels there too.
-      expect(colours, {rgba(theme.surface2), rgba(theme.ink)});
-    });
-  }
-
   for (final theme in ThemeId.values) {
     testWidgets('day lines desktop ${theme.name}', (tester) async {
       await withRealShadows(() async {
