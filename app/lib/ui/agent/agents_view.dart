@@ -412,7 +412,7 @@ class _AgentsViewState extends State<AgentsView> {
           item is List<AgentEvent>
               ? _steps(context, job, item)
               : _line(context, item as AgentEvent),
-        ?_files(context, job.id, events),
+        ?_files(context, job, events),
         if (!job.status.isFinished) ..._working(context, job),
         if (message != null)
           Text(message, key: const ValueKey('agents-message'), style: small),
@@ -443,26 +443,31 @@ class _AgentsViewState extends State<AgentsView> {
   /// The files the agent saved in the folder of the chat (ADR 0008). On
   /// the computer that ran it: each one, a text file opens, any other file
   /// shows the folder of the chat (Grove never runs a file of the agent, and
-  /// never shows a folder the agent named: "x.app" would start). Elsewhere:
-  /// the names of the newest result, as text. Null when there is none.
-  Widget? _files(BuildContext context, String jobId, List<AgentEvent> events) {
+  /// never shows a folder the agent named: "x.app" would start). On a phone,
+  /// or a computer with no file of it that did not run it: the names of the
+  /// newest result, as text. Null when there is none.
+  Widget? _files(BuildContext context, AgentJob job, List<AgentEvent> events) {
     final theme = GroveTheme.of(context);
     final small = theme.body(11).copyWith(color: theme.muted);
+    final jobId = job.id;
     final folder = _store.agentFolder(jobId);
-    if (folder == null) {
+    final names = folder == null
+        ? const <String>[]
+        : _store.agentFilesMade(jobId);
+    if (folder == null || names.isEmpty) {
+      // Its own files deleted on the computer that ran it: nothing to show.
+      if (folder != null && _store.agentRanHere(job)) return null;
       final results = events.where((e) => e.kind == AgentEventKind.result);
-      final names = results.isEmpty
+      final made = results.isEmpty
           ? const <String>[]
           : _store.agentEventFiles(results.last);
-      if (names.isEmpty) return null;
+      if (made.isEmpty) return null;
       return Text(
-        AgentsView.filesElsewhere(names),
+        AgentsView.filesElsewhere(made),
         key: const ValueKey('agents-files'),
         style: small,
       );
     }
-    final names = _store.agentFilesMade(jobId);
-    if (names.isEmpty) return null;
     final tools = AgentTools.maybeOf(context);
     final show = tools?.showFolder, open = tools?.openFile;
     return Column(

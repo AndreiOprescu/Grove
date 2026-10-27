@@ -413,6 +413,12 @@ extension AppStoreAgent on AppStore {
     return AgentScope.folder(dir, jobId, sep: Platform.pathSeparator);
   }
 
+  /// [job] last ran on this computer, so its folder is here.
+  bool agentRanHere(AgentJob job) {
+    final device = prefs.getString(_deviceKey);
+    return device != null && job.runnerDevice == device;
+  }
+
   /// The files the agent made in the folder of [jobId] on this computer,
   /// relative to it with `/`, sorted. Links, the linked files and the
   /// files Claude Code would load are left out. Empty when there is none.

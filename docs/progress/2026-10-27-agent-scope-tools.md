@@ -22,6 +22,6 @@ Resume rule: continue from the first open box. Commit after each box.
 - [x] 9. Review (security lens) + fixes.
 - [x] 10. Live check on Mac (done 2026-10-27: probe lists 9 services; locked run and run with Context7 both refuse a write and a read outside the folder and have no shell). Push and draft PR into feat/next-version: not done here, the workflow does not allow them.
 - [x] 11. Review 2, high: a run with services cannot write auto memory or agent memory files (`--settings` memory off, env `CLAUDE_CODE_DISABLE_AUTO_MEMORY=1`, deny `Write/Edit(~/.claude/**)`, guard refuses `autoMemoryDirectory`); live check logged in ADR 0008.
-- [ ] 12. Review 2: another computer shows the file names of the result when it did not run the chat.
+- [x] 12. Review 2: another computer shows the file names of the result when it did not run the chat.
 - [ ] 13. Review 2: a linked file named CLAUDE.md or CLAUDE.local.md gets another name in `inputs/`.
 - [ ] 14. Review 2: a bare verb (`query`, `fetch`) is not a read tool; `sql`, `url`, `http` are write words.

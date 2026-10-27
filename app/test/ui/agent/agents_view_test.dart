@@ -346,6 +346,45 @@ void main() {
       expect(keyed('agents-show-folder'), findsNothing);
     });
 
+    testWidgets('on another computer: no folder here, so the names from the '
+        'result, as plain text (review, 2026-10-27)', (tester) async {
+      final dir = Directory.systemTemp.createTempSync('grove-agents-ui-');
+      addTearDown(() => dir.deleteSync(recursive: true));
+      final store = agentsStore(
+        runner: FakeAgentRunner(exe: null),
+        dataDir: dir.path,
+      );
+      // The chat ran on "mac"; this computer is another one.
+      store.prefs.set('agent.device', 'pc');
+      addDone(store, files: ['notes.md', 'site/index.html']);
+      await pumpAgents(
+        tester,
+        store,
+        openFile: (_) async => true,
+        showFolder: (_) async => true,
+      );
+      expect(
+        find.text(AgentsView.filesElsewhere(['notes.md', 'site/index.html'])),
+        findsOneWidget,
+      );
+      expect(keyed('agents-file-notes.md'), findsNothing);
+      expect(keyed('agents-show-folder'), findsNothing);
+    });
+
+    testWidgets('on the computer that ran it, with its files deleted: no '
+        'Files part, it does not say they are elsewhere', (tester) async {
+      final dir = Directory.systemTemp.createTempSync('grove-agents-ui-');
+      addTearDown(() => dir.deleteSync(recursive: true));
+      final store = agentsStore(
+        runner: FakeAgentRunner(exe: null),
+        dataDir: dir.path,
+      );
+      store.prefs.set('agent.device', 'mac');
+      addDone(store, files: ['notes.md']);
+      await pumpAgents(tester, store, showFolder: (_) async => true);
+      expect(keyed('agents-files'), findsNothing);
+    });
+
     testWidgets('on a phone: the names, from the result, as plain text', (
       tester,
     ) async {
