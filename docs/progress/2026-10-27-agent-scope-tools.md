@@ -20,4 +20,4 @@ Resume rule: continue from the first open box. Commit after each box.
 - [x] 7. Docs: ADR 0008 (0007 is notebooks), fix ADR 0004 drift, settings help text, docs/assumptions.md lines, CHANGELOG 1.3.0 lines, blog post in docs/blog/.
 - [x] 8. `./scripts/flutter_test.sh` green; goldens regenerated + pixel-compared if UI pictures changed.
 - [x] 9. Review (security lens) + fixes.
-- [ ] 10. Live check on Mac; push; draft PR into feat/next-version.
+- [x] 10. Live check on Mac (done 2026-10-27: probe lists 9 services; locked run and run with Context7 both refuse a write and a read outside the folder and have no shell). Push and draft PR into feat/next-version: not done here, the workflow does not allow them.

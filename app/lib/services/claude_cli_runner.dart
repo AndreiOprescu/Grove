@@ -77,6 +77,17 @@ class ClaudeCliRunner extends AgentRunner {
     'PATH',
   ];
 
+  /// The names a run always gets, with their values (ADR 0008).
+  ///
+  /// `MCP_CONNECTION_NONBLOCKING=false`: `claude -p` 2.1.309 starts the
+  /// MCP servers in the background, so its first line (the `init` event
+  /// the probe reads) often lists none of them. With this it waits for
+  /// them (each one at most 30 seconds), so the probe lists them and a
+  /// run with services has their tools from the first turn. Live check,
+  /// 2026-10-27. A run without services loads no MCP server, so it waits
+  /// for nothing.
+  static const setNames = {'MCP_CONNECTION_NONBLOCKING': 'false'};
+
   /// The settings files an admin puts on a computer. Claude Code always
   /// loads them, so they are checked like the person's own.
   static List<String> _managedSettings() {
@@ -144,7 +155,7 @@ class ClaudeCliRunner extends AgentRunner {
 
   /// The environment of a run: only the [keptNames] of this app's
   /// ([keptWindowsNames] on Windows), with the folder of [exe] and the usual
-  /// system folders added to PATH.
+  /// system folders added to PATH, and the [setNames].
   Map<String, String> runEnvironment(String exe) {
     final sep = windows ? ';' : ':';
     final cut = exe.lastIndexOf(windows ? RegExp(r'[\\/]') : RegExp('/'));
@@ -171,6 +182,7 @@ class ClaudeCliRunner extends AgentRunner {
       for (final MapEntry(:key, :value) in environment.entries)
         if (kept.contains(windows ? key.toUpperCase() : key)) key: value,
       key: parts.join(sep),
+      ...setNames,
     };
   }
 

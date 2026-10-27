@@ -96,7 +96,24 @@ void main() {
         'PATH':
             '/Users/ann/.local/bin:/usr/bin:/custom:/bin:/usr/sbin:/sbin:'
             '/opt/homebrew/bin:/usr/local/bin',
+        'MCP_CONNECTION_NONBLOCKING': 'false',
       });
+    });
+
+    test('claude waits for the MCP servers before its first line, so the '
+        'probe lists them (live check, 2.1.309)', () {
+      final r = ClaudeCliRunner(
+        environment: {
+          'HOME': '/Users/ann',
+          'PATH': '/usr/bin',
+          'MCP_CONNECTION_NONBLOCKING': 'true',
+        },
+        windows: false,
+      );
+      expect(
+        r.runEnvironment('/usr/bin/claude')['MCP_CONNECTION_NONBLOCKING'],
+        'false',
+      );
     });
 
     test('Windows: the folders of the profile, and the folder of claude '
@@ -116,6 +133,7 @@ void main() {
         'APPDATA': r'C:\Users\ann\AppData\Roaming',
         'SystemRoot': r'C:\Windows',
         'Path': r'C:\Users\ann\.local\bin;C:\Windows',
+        'MCP_CONNECTION_NONBLOCKING': 'false',
       });
     });
 
@@ -141,7 +159,13 @@ void main() {
           if (l.contains('=')) l.substring(0, l.indexOf('=')),
       };
       expect(names, containsAll(['HOME', 'PATH']));
-      expect(names.difference(ClaudeCliRunner.keptNames.toSet()), isEmpty);
+      expect(
+        names.difference({
+          ...ClaudeCliRunner.keptNames,
+          ...ClaudeCliRunner.setNames.keys,
+        }),
+        isEmpty,
+      );
       expect(out.stdout, isNot(contains('secret')));
     }, skip: Platform.isWindows ? _posixOnly : null);
   });
