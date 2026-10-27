@@ -13,7 +13,7 @@ Resume rule: continue from the first open box. Commit after each box.
 - [x] 5. Docs: docs/assumptions.md (update line about "no menu line"), CHANGELOG 1.3.0 lines, blog post if docs/blog/ exists.
 - [x] 6. `./scripts/flutter_test.sh` green; goldens regenerated and pixel-compared.
 - [x] 7. Review (correctness + UI) + fixes.
-- [ ] 8. Push; draft PR into feat/next-version ("merge #50 first").
+- [x] 8. Pushed; draft PR #52 into feat/next-version ("merge #50 first").
 
 ## Goldens (box 6)
 33 goldens regenerated (goals, error, palette, planner, day_lines, focus_done, linked_note, subtasks). Pixel compare old vs new (>12/255): every change is in the header band (desktop y40-70, phone y88-115, Today timeline row y96-119): the "+" is gone and the buttons close up. Nothing else moved. `./scripts/flutter_test.sh`: +3762, all passed.
