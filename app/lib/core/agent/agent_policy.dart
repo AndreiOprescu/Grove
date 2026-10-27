@@ -251,7 +251,16 @@ abstract final class AgentPolicy {
 
   // The arguments.
 
-  static const _hooksOff = '{"disableAllHooks":true}';
+  /// The settings of a run with services and of the probe: no hook of the
+  /// person, and no memory of Claude Code (it loads into each run, and
+  /// without `--restricted` claude 2.1.309 lets the agent write it).
+  static const _settings = '{"disableAllHooks":true,"autoMemoryEnabled":false}';
+
+  /// Denied in every run with services: the folder of Claude Code. Without
+  /// `--restricted`, claude 2.1.309 allows writes to its memory files
+  /// (`~/.claude/projects/<folder>/memory/`, `~/.claude/agent-memory/`)
+  /// before any allow rule, even with memory off. A deny comes first.
+  static const _memoryRules = ['Write(~/.claude/**)', 'Edit(~/.claude/**)'];
 
   /// The file tools, allowed only in the folder of the run (the current
   /// folder). Glob and Grep are in `--tools` but never allowed by name:
@@ -274,7 +283,8 @@ abstract final class AgentPolicy {
   ///   allow rule or MCP server of the person loads. The file tools in the
   ///   folder, web search, and WebFetch unless [files] are linked (a file
   ///   must not make it send data to a web address).
-  /// - Services on: the user settings load with the hooks off, so the
+  /// - Services on: the user settings load with the hooks and the memory
+  ///   off, so the
   ///   claude.ai connectors and the MCP servers of the person do. Only the
   ///   read tools ([McpToolRules.isReadTool]) of the servers in [on] that
   ///   are [AgentService.usable] are allowed. Their other tools are denied,
@@ -335,18 +345,19 @@ abstract final class AgentPolicy {
     }
     denied.addAll(services.strayTools);
     // A deny beats an allow, so a tool in both is denied.
-    final deny = {...denied}.toList();
+    final deny = {...denied, ..._memoryRules}.toList();
     return [
       ...base,
       '--tools',
       '$_fileTools,WebSearch,TodoWrite',
       '--allowedTools',
       [..._fileRules, 'WebSearch', 'TodoWrite', ...allowed].join(','),
-      if (deny.isNotEmpty) ...['--disallowedTools', deny.join(',')],
+      '--disallowedTools',
+      deny.join(','),
       '--setting-sources',
       'user',
       '--settings',
-      _hooksOff,
+      _settings,
     ];
   }
 
@@ -363,7 +374,7 @@ abstract final class AgentPolicy {
     '--setting-sources',
     'user',
     '--settings',
-    _hooksOff,
+    _settings,
     '--max-turns',
     '1',
     '--no-session-persistence',

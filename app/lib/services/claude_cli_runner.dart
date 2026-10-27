@@ -86,7 +86,15 @@ class ClaudeCliRunner extends AgentRunner {
   /// run with services has their tools from the first turn. Live check,
   /// 2026-10-27. A run without services loads no MCP server, so it waits
   /// for nothing.
-  static const setNames = {'MCP_CONNECTION_NONBLOCKING': 'false'};
+  ///
+  /// `CLAUDE_CODE_DISABLE_AUTO_MEMORY=1`: no memory of Claude Code, in any
+  /// run, whatever the settings of the person say. A run with services
+  /// could otherwise write it, and it loads into the next run (review,
+  /// 2026-10-27; `AgentPolicy.args` also denies its folder).
+  static const setNames = {
+    'MCP_CONNECTION_NONBLOCKING': 'false',
+    'CLAUDE_CODE_DISABLE_AUTO_MEMORY': '1',
+  };
 
   /// The settings files an admin puts on a computer. Claude Code always
   /// loads them, so they are checked like the person's own.

@@ -415,6 +415,8 @@ void main() {
         unorderedEquals([
           'mcp__claude_ai_Gmail__send_message',
           'mcp__claude_ai_Drive',
+          'Write(~/.claude/**)',
+          'Edit(~/.claude/**)',
         ]),
       );
       expect(args.join(' '), isNot(contains('WebFetch')));

@@ -255,6 +255,18 @@ void main() {
       );
     });
 
+    test('a memory folder of Claude Code is a problem: claude 2.1.309 lets '
+        'a run with services write .md files there, outside the folder '
+        'of the chat (review, 2026-10-27)', () {
+      expect(
+        problem(settings({'autoMemoryDirectory': '~/Documents/memory'})),
+        contains('~/Documents/memory'),
+      );
+      // Memory itself is off in every run (the env and --settings), so
+      // the switch alone is fine.
+      expect(problem(settings({'autoMemoryEnabled': true})), isNull);
+    });
+
     test('a file Grove cannot read is a problem: better safe', () {
       expect(problem('{broken'), contains('could not read'));
       expect(problem('[1]'), contains('could not read'));

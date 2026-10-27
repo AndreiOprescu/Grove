@@ -97,6 +97,7 @@ void main() {
             '/Users/ann/.local/bin:/usr/bin:/custom:/bin:/usr/sbin:/sbin:'
             '/opt/homebrew/bin:/usr/local/bin',
         'MCP_CONNECTION_NONBLOCKING': 'false',
+        'CLAUDE_CODE_DISABLE_AUTO_MEMORY': '1',
       });
     });
 
@@ -113,6 +114,22 @@ void main() {
       expect(
         r.runEnvironment('/usr/bin/claude')['MCP_CONNECTION_NONBLOCKING'],
         'false',
+      );
+    });
+
+    test('claude never uses its memory files: a run with services would '
+        'otherwise read and write them (review, 2026-10-27)', () {
+      final r = ClaudeCliRunner(
+        environment: {
+          'HOME': '/Users/ann',
+          'PATH': '/usr/bin',
+          'CLAUDE_CODE_DISABLE_AUTO_MEMORY': '0',
+        },
+        windows: false,
+      );
+      expect(
+        r.runEnvironment('/usr/bin/claude')['CLAUDE_CODE_DISABLE_AUTO_MEMORY'],
+        '1',
       );
     });
 
@@ -134,6 +151,7 @@ void main() {
         'SystemRoot': r'C:\Windows',
         'Path': r'C:\Users\ann\.local\bin;C:\Windows',
         'MCP_CONNECTION_NONBLOCKING': 'false',
+        'CLAUDE_CODE_DISABLE_AUTO_MEMORY': '1',
       });
     });
 

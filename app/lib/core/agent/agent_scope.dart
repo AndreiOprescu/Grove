@@ -144,7 +144,8 @@ abstract final class AgentScope {
   /// It must not allow a file tool, a whole MCP server, an MCP tool that is
   /// not a read tool ([McpToolRules.isReadTool]; the probe may not list it,
   /// so the run would not deny it) or a wildcard, add folders, or turn on
-  /// the MCP servers of a project folder. A file that
+  /// the MCP servers of a project folder, or move the memory folder of
+  /// Claude Code (`autoMemoryDirectory`). A file that
   /// does not read as settings is a problem too: better safe.
   static String? settingsProblem(String name, String? text) {
     if (text == null) return null;
@@ -187,6 +188,11 @@ abstract final class AgentScope {
           when dirs.isNotEmpty) {
         return problem('adds the folders ${dirs.join(', ')}');
       }
+    }
+    // Claude Code lets a run with services write .md files in its memory
+    // folder; the run denies only the default one (~/.claude).
+    if (json['autoMemoryDirectory'] case final Object dir) {
+      return problem('moves the memory of Claude Code to $dir');
     }
     if (json['enableAllProjectMcpServers'] == true) {
       return problem('turns on the MCP servers of every folder');

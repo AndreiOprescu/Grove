@@ -164,6 +164,7 @@ void main() {
       expect(valueOf(args, '--setting-sources'), 'user');
       expect(jsonDecode(valueOf(args, '--settings')), {
         'disableAllHooks': true,
+        'autoMemoryEnabled': false,
       });
       expect(args.any((a) => a.contains('WebFetch')), isFalse);
       expect(
@@ -191,8 +192,40 @@ void main() {
           'mcp__my-files',
           // A tool of no server.
           'mcp__stray__get_x',
+          // The folder of Claude Code: its memory files.
+          'Write(~/.claude/**)',
+          'Edit(~/.claude/**)',
         ]),
       );
+    });
+
+    test('with services: no memory file of Claude Code can be written. '
+        'Without --restricted, claude 2.1.309 allows writes to its memory '
+        'files before any rule of Grove (review, 2026-10-27)', () {
+      final args = withServices;
+      expect(
+        (jsonDecode(valueOf(args, '--settings')) as Map)['autoMemoryEnabled'],
+        isFalse,
+      );
+      final deny = valueOf(args, '--disallowedTools').split(',');
+      expect(deny, containsAll(['Write(~/.claude/**)', 'Edit(~/.claude/**)']));
+      // Even with no other tool to deny.
+      final none = AgentPolicy.args(
+        services: const AgentServices(
+          servers: [
+            AgentService(
+              name: 'claude.ai Gmail',
+              status: 'connected',
+              readTools: ['${gmail}search_threads'],
+            ),
+          ],
+        ),
+        on: const {'claude.ai Gmail'},
+      );
+      expect(valueOf(none, '--disallowedTools').split(','), [
+        'Write(~/.claude/**)',
+        'Edit(~/.claude/**)',
+      ]);
     });
 
     test('a server that is on but not connected is denied as a whole', () {
@@ -206,7 +239,10 @@ void main() {
       )!;
       final args = AgentPolicy.args(services: s, on: const {'claude.ai Gmail'});
       expect(valueOf(args, '--allowedTools'), isNot(contains('mcp__')));
-      expect(valueOf(args, '--disallowedTools'), 'mcp__claude_ai_Gmail');
+      expect(
+        valueOf(args, '--disallowedTools').split(','),
+        contains('mcp__claude_ai_Gmail'),
+      );
       expect(AgentPolicy.usable(s, const {'claude.ai Gmail'}), isEmpty);
     });
 
@@ -225,7 +261,10 @@ void main() {
         valueOf(args, '--allowedTools'),
         endsWith('TodoWrite,${gmail}search_threads'),
       );
-      expect(valueOf(args, '--disallowedTools'), '${gmail}send_message');
+      expect(
+        valueOf(args, '--disallowedTools').split(','),
+        contains('${gmail}send_message'),
+      );
     });
 
     test('the usable services: on, connected, with a read tool', () {
@@ -253,6 +292,7 @@ void main() {
       expect(valueOf(args, '--permission-mode'), 'dontAsk');
       expect(jsonDecode(valueOf(args, '--settings')), {
         'disableAllHooks': true,
+        'autoMemoryEnabled': false,
       });
     });
   });
