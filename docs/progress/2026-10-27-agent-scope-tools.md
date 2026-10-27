@@ -11,7 +11,7 @@ Resume rule: continue from the first open box. Commit after each box.
 - init event (`type: system, subtype: init`) gives `tools` (names, MCP as `mcp__<server>__<tool>`) and `mcp_servers` [{name, status: connected|needs-auth|...}]. Server names look like `claude.ai Gmail`; tool prefix `mcp__claude_ai_Gmail__`.
 
 ## Boxes
-- [ ] 1. Tests first: agent_scope_test, mcp_tool_rules_test, agent_policy_test (modes L/S, never Bash, never bare Glob/Grep allow, WebFetch off in S), runner tests (cwd = chat folder, kept, env cut, stdout cap), settings-guard test.
+- [x] 1. Tests first: agent_scope_test, mcp_tool_rules_test, agent_policy_test (modes L/S, never Bash, never bare Glob/Grep allow, WebFetch off in S), runner tests (cwd = chat folder, kept, env cut, stdout cap), settings-guard test.
 - [ ] 2. `app/lib/core/agent/agent_scope.dart` (root `<dataDir>/Agent workspace/<jobId>/`, uuid ids, isInside, audit: drop symlinks, 500 files / 200 MB caps) + fix `_agentFiles` traversal in `store_agent.dart`.
 - [ ] 3. Runner: cwd = chat folder, inputs/ copy, env cut (HOME USER LOGNAME PATH LANG TMPDIR SHELL), stdout cap 20 MB, folder kept.
 - [ ] 4. Policy args: Mode L / Mode S; user-settings guard; prompts say the folder rule.

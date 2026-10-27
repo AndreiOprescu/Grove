@@ -75,27 +75,75 @@ void main() {
   });
 
   group('the environment of a run', () {
-    test('PATH gets the folder of claude and the system folders', () {
+    test('only the few names a program needs; PATH gets the folder of '
+        'claude and the system folders', () {
       final r = ClaudeCliRunner(
-        environment: {'HOME': '/Users/ann', 'PATH': '/usr/bin:/custom'},
+        environment: {
+          'HOME': '/Users/ann',
+          'USER': 'ann',
+          'LANG': 'en_GB.UTF-8',
+          'PATH': '/usr/bin:/custom',
+          'ANTHROPIC_API_KEY': 'secret',
+          'AWS_SECRET_ACCESS_KEY': 'secret',
+          'GITHUB_TOKEN': 'secret',
+        },
         windows: false,
       );
       expect(r.runEnvironment('/Users/ann/.local/bin/claude'), {
+        'HOME': '/Users/ann',
+        'USER': 'ann',
+        'LANG': 'en_GB.UTF-8',
         'PATH':
             '/Users/ann/.local/bin:/usr/bin:/custom:/bin:/usr/sbin:/sbin:'
             '/opt/homebrew/bin:/usr/local/bin',
       });
     });
 
-    test('Windows: the folder of claude goes first, with ;', () {
+    test('Windows: the folders of the profile, and the folder of claude '
+        'first in the path, with ;', () {
       final r = ClaudeCliRunner(
-        environment: {'Path': r'C:\Windows'},
+        environment: {
+          'Path': r'C:\Windows',
+          'USERPROFILE': r'C:\Users\ann',
+          'APPDATA': r'C:\Users\ann\AppData\Roaming',
+          'SystemRoot': r'C:\Windows',
+          'GITHUB_TOKEN': 'secret',
+        },
         windows: true,
       );
       expect(r.runEnvironment(r'C:\Users\ann\.local\bin\claude.exe'), {
+        'USERPROFILE': r'C:\Users\ann',
+        'APPDATA': r'C:\Users\ann\AppData\Roaming',
+        'SystemRoot': r'C:\Windows',
         'Path': r'C:\Users\ann\.local\bin;C:\Windows',
       });
     });
+
+    test('the process gets that and nothing of this app', () async {
+      final r = ClaudeCliRunner(
+        environment: {
+          'HOME': '/tmp',
+          'PATH': '/usr/bin',
+          'GROVE_SECRET': 'secret',
+        },
+        windows: false,
+      );
+      final out = await r
+          .start(
+            '/usr/bin/env',
+            const [],
+            stdin: '',
+            timeout: const Duration(seconds: 20),
+          )
+          .done;
+      final names = {
+        for (final l in out.stdout.split('\n'))
+          if (l.contains('=')) l.substring(0, l.indexOf('=')),
+      };
+      expect(names, containsAll(['HOME', 'PATH']));
+      expect(names.difference(ClaudeCliRunner.keptNames.toSet()), isEmpty);
+      expect(out.stdout, isNot(contains('secret')));
+    }, skip: Platform.isWindows ? _posixOnly : null);
   });
 
   group('start', () {
@@ -114,6 +162,95 @@ void main() {
       expect(out.stdout, 'Héllo agent\nline two');
       expect(out.timedOut, isFalse);
       expect(out.cancelled, isFalse);
+    });
+
+    test('runs in the folder of the chat, made when missing, and keeps '
+        'it', () async {
+      final root = tempDir('grove-ws-');
+      final folder = '${root.path}/chat';
+      final out = await runner
+          .start(
+            '/bin/pwd',
+            const [],
+            stdin: 'ignored',
+            timeout: const Duration(seconds: 20),
+            folder: folder,
+          )
+          .done;
+      expect(out.stdout.trim(), Directory(folder).resolveSymbolicLinksSync());
+      expect(Directory(folder).existsSync(), isTrue);
+      expect(out.files, isEmpty);
+      expect(out.folderProblem, isNull);
+    });
+
+    test('the linked files go to inputs/; the files the agent made are '
+        'listed', () async {
+      final root = tempDir('grove-ws-');
+      final folder = '${root.path}/chat';
+      final linked = File('${root.path}/plan.txt')..writeAsStringSync('plan');
+      final out = await runner
+          .start(
+            '/bin/sh',
+            const [
+              '-c',
+              'cat inputs/plan.txt > notes.md; mkdir d; echo x > d/b.txt',
+            ],
+            stdin: '',
+            timeout: const Duration(seconds: 20),
+            folder: folder,
+            files: [AgentFile(path: linked.path, name: 'plan.txt')],
+          )
+          .done;
+      expect(out.exitCode, 0);
+      expect(File('$folder/inputs/plan.txt').readAsStringSync(), 'plan');
+      expect(File('$folder/notes.md').readAsStringSync(), 'plan');
+      expect(out.files, ['d/b.txt', 'notes.md']);
+    });
+
+    test('links and files Claude Code would load are removed, before the run '
+        'and after it', () async {
+      final root = tempDir('grove-ws-');
+      final folder = Directory('${root.path}/chat')..createSync();
+      File('${folder.path}/.mcp.json').writeAsStringSync('{}');
+      Link('${folder.path}/home').createSync(root.path);
+      final out = await runner
+          .start(
+            '/bin/sh',
+            const [
+              '-c',
+              'ls -a; ln -s / root; mkdir .claude; echo x > CLAUDE.md; '
+                  'echo ok > ok.md',
+            ],
+            stdin: '',
+            timeout: const Duration(seconds: 20),
+            folder: folder.path,
+          )
+          .done;
+      // The run did not see them.
+      expect(out.stdout, isNot(contains('.mcp.json')));
+      expect(out.stdout, isNot(contains('home')));
+      final left = [for (final e in folder.listSync()) e.path.split('/').last];
+      expect(left, ['ok.md']);
+      expect(out.files, ['ok.md']);
+      // The link was removed, not what it points to.
+      expect(root.existsSync(), isTrue);
+    });
+
+    test('too much output stops the run', () async {
+      final small = ClaudeCliRunner(
+        killWait: const Duration(milliseconds: 300),
+        maxOutput: 100000,
+      );
+      final out = await small
+          .start(
+            '/usr/bin/yes',
+            const [],
+            stdin: '',
+            timeout: const Duration(seconds: 20),
+          )
+          .done;
+      expect(out.overflow, isTrue);
+      expect(out.stdout.length, lessThanOrEqualTo(100000));
     });
 
     test('runs in a new empty temp folder, deleted at the end', () async {
@@ -233,8 +370,46 @@ void main() {
       expect(await quick.probeInit('/no/such/claude', const []), isNull);
     });
 
-    test('the null runner has no claude', () async {
+    test('the null runner has no claude, no services and no problem', () async {
+      expect(await NullAgentRunner().settingsProblem(), isNull);
+      expect(await NullAgentRunner().listServices('/no/claude'), isNull);
       expect(await NullAgentRunner().locate(), isNull);
     });
   }, skip: Platform.isWindows ? _posixOnly : null);
+
+  group('the Claude Code settings of the person', () {
+    late Directory home;
+    late ClaudeCliRunner runner;
+
+    setUp(() {
+      home = tempDir('grove-home-');
+      Directory('${home.path}/.claude').createSync();
+      runner = ClaudeCliRunner(
+        environment: {'HOME': home.path, 'USERPROFILE': home.path},
+      );
+    });
+
+    test('no settings files: fine', () async {
+      Directory('${home.path}/.claude').deleteSync();
+      expect(await runner.settingsProblem(), isNull);
+    });
+
+    test('rules that do not reach files: fine', () async {
+      File('${home.path}/.claude/settings.json')
+          .writeAsStringSync('{"permissions": {"allow": ["WebSearch"]}}');
+      expect(await runner.settingsProblem(), isNull);
+    });
+
+    test('a file tool allowed in settings.json or settings.local.json is a '
+        'problem that names the file', () async {
+      File(
+        '${home.path}/.claude/settings.local.json',
+      ).writeAsStringSync('{"permissions": {"allow": ["Read(//Users/**)"]}}');
+      expect(await runner.settingsProblem(), contains('settings.local.json'));
+      File(
+        '${home.path}/.claude/settings.json',
+      ).writeAsStringSync('{"permissions": {"additionalDirectories": ["/"]}}');
+      expect(await runner.settingsProblem(), contains('settings.json'));
+    });
+  });
 }
