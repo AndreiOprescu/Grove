@@ -5,6 +5,11 @@ makes the next version. Each line is one feature. The newest version is first.
 
 `scripts/github_release.sh` puts the lines of the version on its GitHub release.
 
+## 1.3.0 · 2026-10-27
+
+- **Agent folder:** each agent chat has its own folder on the computer that runs the agent. The agent can save files there, like notes or a draft page, and it cannot change files anywhere else. The chat lists the files it saved. Settings ▸ Agent shows the folder and can delete all agent files.
+- **Agent services:** turn on the services of your Claude Code (Gmail, Google Drive, Notion and more) one by one in Settings ▸ Agent. The agent only gets their tools that read, and never runs commands. The "Email" switch of a chat is now "Services".
+
 ## 1.2.0 · 2026-10-21
 
 - **Notebooks:** the Notes screen has a sidebar with All notes, Inbox, Daily, Weekly, Pinned, Meetings, With tasks and Archive, your own notebooks with sections and colours, and your tags. Drag a note to sort it, move it with "Move to notebook…", and archive notes you are done with.

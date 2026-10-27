@@ -161,12 +161,14 @@ Soft light drifts in the background. Motion can be turned off, and Grove follows
 the *Reduce motion* setting of your system.
 
 ### Agent — hand a task off (optional) 🤖
-Right-click a task and pick **Ask the agent…**. An AI agent works on it for you:
-it can write a document, read your email (only if you allow it), and draft an email
-or a text message. The results come back as notes linked to the task, on all your devices.
+Right-click a task and pick **Ask the agent…**, or open the **Agents** screen. An AI agent
+works on it for you: it can write a document, read with your services (only the ones you
+turn on), and draft an email or a text message. The results come back as notes linked to
+the task, on all your devices.
 
 **It reads and drafts. It never sends.** You open a draft in Mail or Messages and press
-Send yourself. It cannot run commands or change files on your computer.
+Send yourself. It cannot run commands. It can only save files in its own folder: each chat
+has one, in the Grove data folder, and the chat lists what the agent saved there.
 
 You need [Claude Code](https://claude.com/claude-code) on a Mac or Windows PC, logged in
 with your own Claude plan. That computer runs the jobs. You can ask from any device,
@@ -178,10 +180,12 @@ The agent is **off at first**. Turn it on in **Settings ▸ Agent**:
 |---|---|
 | **Use the agent** | Shows *Ask the agent…* in the task menus. |
 | **This device runs agent tasks** | This computer runs the jobs. Needs Claude Code. |
-| **Let the agent read my email** | The agent may search and read Gmail, read-only. Connect Gmail first in claude.ai ▸ Settings ▸ Connectors. |
+| **Services the agent may read** | One switch per service of your Claude Code (Gmail, Google Drive, Notion…). The agent only gets their tools that read. Press **Refresh** to find them. Connect a service first in claude.ai ▸ Settings ▸ Connectors, or in Claude Code. A chat uses them only when its **Services** switch is on. |
+| **Agent folder** | Where the agent saves its work. **Show in Finder**, or **Delete agent files**. |
 
 No Claude Code? Leave it off. Nothing else in Grove changes.
-Why it works this way: [ADR 0004](docs/adr/0004-agent-delegation.md).
+Why it works this way: [ADR 0004](docs/adr/0004-agent-delegation.md) and
+[ADR 0008](docs/adr/0008-agent-folder-and-services.md).
 
 ### Small things that feel good
 - **Command palette** (`⌘ K`) to find and do anything.
