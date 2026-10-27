@@ -3,7 +3,19 @@ part of 'app_store.dart';
 class _AgentState {
   bool enabled = false;
   bool runner = false;
-  bool email = false;
+
+  /// The names of the services the agent may read with on this runner.
+  Set<String> servicesOn = {};
+
+  /// The services the last probe found, or null before the first one.
+  AgentServices? services;
+
+  /// A look for the services runs now.
+  bool servicesBusy = false;
+
+  /// Why the settings of the person stop a run with services, from the
+  /// last look. Null: no problem.
+  String? settingsProblem;
 
   /// True after the first look for `claude` ended.
   bool looked = false;
@@ -44,7 +56,12 @@ class _AgentState {
 extension AppStoreAgent on AppStore {
   static const _enabledKey = 'agent.enabled';
   static const _runnerKey = 'agent.runner';
-  static const _emailKey = 'agent.email';
+  static const _servicesOnKey = 'agent.servicesOn';
+  static const _servicesKey = 'agent.services';
+
+  /// The old "Let the agent read my email" switch. Read once: on, it turns
+  /// on Gmail (ADR 0008).
+  static const _oldEmailKey = 'agent.email';
 
   /// The id of this device in `runner_device`. Made the first time this
   /// device takes a job; kept in the prefs of this device.
@@ -66,8 +83,25 @@ extension AppStoreAgent on AppStore {
   /// "This device runs agent tasks".
   bool get agentRunnerOn => _agent.runner;
 
-  /// "Let the agent read my email" on this runner.
-  bool get agentEmailOn => _agent.email;
+  /// At least one service is on for the agent on this runner (ADR 0008).
+  bool get agentServicesOn => _agent.servicesOn.isNotEmpty;
+
+  /// The names of the services that are on, sorted.
+  List<String> get agentServicesOnNames => _agent.servicesOn.toList()..sort();
+
+  /// The service [name] is on for the agent on this runner.
+  bool agentServiceOn(String name) => _agent.servicesOn.contains(name);
+
+  /// The services of the person the last look found, or null before the
+  /// first look.
+  AgentServices? get agentServices => _agent.services;
+
+  /// A look for the services runs now.
+  bool get agentServicesBusy => _agent.servicesBusy;
+
+  /// Why the Claude Code settings of the person stop a run with services,
+  /// from the last look. Null: no problem.
+  String? get agentSettingsProblem => _agent.settingsProblem;
 
   /// This device has the `claude` command, so it can run agent tasks.
   bool get canRunAgent => agentRunner != null && _agent.exe != null;
@@ -130,10 +164,39 @@ extension AppStoreAgent on AppStore {
     }
   }
 
-  void setAgentEmail(bool on) {
-    _agent.email = on;
-    prefs.set(_emailKey, on);
+  void setAgentService(String name, bool on) {
+    final names = {..._agent.servicesOn};
+    on ? names.add(name) : names.remove(name);
+    _agent.servicesOn = names;
+    prefs.set(_servicesOnKey, jsonEncode(names.toList()..sort()));
     _changed();
+  }
+
+  /// Looks again for the services of the person and checks their Claude
+  /// Code settings. Nothing happens on a device with no `claude`.
+  Future<void> refreshAgentServices() async {
+    final runner = agentRunner;
+    final exe = _agent.exe;
+    if (runner == null || exe == null || _agent.servicesBusy) return;
+    _agent.servicesBusy = true;
+    _changed();
+    try {
+      final problem = await runner.settingsProblem();
+      final found = await runner.listServices(exe);
+      if (_disposed) return;
+      _agent.settingsProblem = problem;
+      if (found != null) _agentKeepServices(found);
+    } on Exception {
+      // The list stays as it was.
+    } finally {
+      _agent.servicesBusy = false;
+      if (!_disposed) _changed();
+    }
+  }
+
+  void _agentKeepServices(AgentServices found) {
+    _agent.services = found;
+    prefs.set(_servicesKey, jsonEncode(found.toJson()));
   }
 
   // Jobs
@@ -178,6 +241,21 @@ extension AppStoreAgent on AppStore {
 
   static const _docKey = 'grove_document_note';
   static const _noteKey = 'grove_result_note';
+  static const _filesKey = 'grove_files';
+
+  /// The files the agent had made in its folder when the run of a result
+  /// line ended (ADR 0008).
+  List<String> agentEventFiles(AgentEvent event) {
+    if (event.kind != AgentEventKind.result) return const [];
+    return _try(() {
+          final json = jsonDecode(event.body);
+          return json is Map<String, Object?> &&
+                  json[_filesKey] is List<Object?>
+              ? (json[_filesKey] as List<Object?>).whereType<String>().toList()
+              : null;
+        }) ??
+        const [];
+  }
 
   String? _agentEventId(AgentEvent event, String key) {
     if (event.kind != AgentEventKind.result) return null;
@@ -318,6 +396,95 @@ extension AppStoreAgent on AppStore {
 
   /// This device can link files: it is a computer with a data folder.
   bool get canLinkAgentFiles => _agentFilesDir != null;
+
+  /// The folder of all the agent folders on this computer (ADR 0008), or
+  /// null on a phone.
+  String? get agentFolderRoot {
+    final dir = dataDir;
+    if (dir == null || agentRunner == null) return null;
+    return AgentScope.root(dir, sep: Platform.pathSeparator);
+  }
+
+  /// The folder of the chat [jobId] on this computer: where the agent runs
+  /// and saves its work. Null on a phone, or for an id that is not a uuid.
+  String? agentFolder(String jobId) {
+    final dir = dataDir;
+    if (dir == null || agentRunner == null) return null;
+    return AgentScope.folder(dir, jobId, sep: Platform.pathSeparator);
+  }
+
+  /// [job] last ran on this computer, so its folder is here.
+  bool agentRanHere(AgentJob job) {
+    final device = prefs.getString(_deviceKey);
+    return device != null && job.runnerDevice == device;
+  }
+
+  /// The files the agent made in the folder of [jobId] on this computer,
+  /// relative to it with `/`, sorted. Links, the linked files and the
+  /// files Claude Code would load are left out. Empty when there is none.
+  List<String> agentFilesMade(String jobId) {
+    final folder = agentFolder(jobId);
+    if (folder == null) return const [];
+    final dir = Directory(folder);
+    final sep = Platform.pathSeparator;
+    final entries = <AgentEntry>[];
+    try {
+      if (!dir.existsSync() || FileSystemEntity.isLinkSync(folder)) {
+        return const [];
+      }
+      for (final e in dir.listSync(recursive: true, followLinks: false)) {
+        if (entries.length > AgentScope.maxFiles * 2) break;
+        final rel = e.path.substring(folder.length + 1).replaceAll(sep, '/');
+        entries.add(switch (FileSystemEntity.typeSync(
+          e.path,
+          followLinks: false,
+        )) {
+          FileSystemEntityType.file => AgentEntry(rel, AgentEntryKind.file),
+          FileSystemEntityType.directory => AgentEntry(
+            rel,
+            AgentEntryKind.folder,
+          ),
+          FileSystemEntityType.link => AgentEntry(rel, AgentEntryKind.link),
+          _ => AgentEntry(rel, AgentEntryKind.other),
+        });
+      }
+    } on FileSystemException {
+      return const [];
+    }
+    entries.sort((a, b) => a.path.compareTo(b.path));
+    return AgentScope.audit(entries).files;
+  }
+
+  /// The full path of the file [name] (from [agentFilesMade]) of the chat
+  /// [jobId], or null when it would be outside the folder.
+  String? agentFilePath(String jobId, String name) {
+    final folder = agentFolder(jobId);
+    if (folder == null) return null;
+    final sep = Platform.pathSeparator;
+    final path = '$folder$sep${name.replaceAll('/', sep)}';
+    return AgentScope.isInside(folder, path, sep: sep) ? path : null;
+  }
+
+  /// Deletes every agent folder on this computer. Refused (false) while a
+  /// job runs here.
+  Future<bool> deleteAgentFiles() async {
+    final root = agentFolderRoot;
+    if (root == null || _agent.liveJob != null) return false;
+    try {
+      final type = await FileSystemEntity.type(root, followLinks: false);
+      if (type == FileSystemEntityType.link) {
+        await Link(root).delete();
+      } else if (type != FileSystemEntityType.notFound) {
+        await Directory(root).delete(recursive: true);
+      }
+    } on FileSystemException catch (e) {
+      errorMessage = 'Could not delete the agent files: ${e.message}';
+      _changed();
+      return false;
+    }
+    _changed();
+    return true;
+  }
 
   /// Copies the file at [path] into the agent files folder of this computer
   /// and gives the link for a chat. Files do not sync: only this computer
@@ -480,10 +647,36 @@ extension AppStoreAgent on AppStore {
     _agent
       ..enabled = p.getBool(_enabledKey) ?? false
       ..runner = p.getBool(_runnerKey) ?? false
-      ..email = p.getBool(_emailKey) ?? false;
+      ..servicesOn = _agentReadServicesOn()
+      ..services = _try(() {
+        final text = p.getString(_servicesKey);
+        return text == null ? null : AgentServices.fromJson(jsonDecode(text));
+      });
     if (agentRunner == null) return;
     _agentRecover();
     _agentThen(_agentLook);
+  }
+
+  /// The services that are on. The old email switch, when on, becomes
+  /// Gmail, once.
+  Set<String> _agentReadServicesOn() {
+    final p = prefs;
+    final old = p.getBool(_oldEmailKey);
+    if (old != null) {
+      p.remove(_oldEmailKey);
+      if (old && p.getString(_servicesOnKey) == null) {
+        p.set(_servicesOnKey, jsonEncode([AgentPolicy.gmailServer]));
+      }
+    }
+    final text = p.getString(_servicesOnKey);
+    if (text == null) return {};
+    return _try(() {
+          final json = jsonDecode(text);
+          return json is List<Object?>
+              ? json.whereType<String>().toSet()
+              : null;
+        }) ??
+        {};
   }
 
   void _stopAgent() {
@@ -582,7 +775,8 @@ extension AppStoreAgent on AppStore {
   /// The most step lines of one run. Later steps are not saved.
   static const maxAgentSteps = 300;
 
-  /// Runs one job: claim, (probe for Gmail), `claude`, then the notes.
+  /// Runs one job: claim, (check the settings and probe for the services),
+  /// `claude`, then the notes.
   Future<void> _agentRun(AgentJob job) async {
     final runner = agentRunner;
     final exe = _agent.exe;
@@ -597,37 +791,42 @@ extension AppStoreAgent on AppStore {
       if (taskId != null && task == null) {
         return _agentFail(job.id, AgentNote.taskGone);
       }
-      final email = job.emailAccess && agentEmailOn;
+      // "Use my services" of the chat, and a service on, on this runner.
+      final useServices = job.emailAccess && agentServicesOn;
       final files = _agentFiles(job);
+      var services = const <String>[];
       final List<String> args;
-      if (email) {
-        final line = await runner.probeInit(exe, AgentPolicy.probeArgs());
+      if (useServices) {
+        final problem = await runner.settingsProblem();
         if (_disposed) return;
-        final init = line == null ? null : AgentPolicy.parseInit(line);
+        _agent.settingsProblem = problem;
+        if (problem != null) return _agentFail(job.id, problem);
+        final found = await runner.listServices(exe);
+        if (_disposed) return;
+        if (found != null) _agentKeepServices(found);
         // A connection that still starts may bring tools the probe did not
         // see.
-        if (init != null && !init.ready) {
+        if (found != null && !found.ready) {
           return _agentFail(job.id, AgentPolicy.connectionsStarting);
         }
-        if (init == null || !init.gmailReady) {
-          return _agentFail(job.id, AgentPolicy.gmailNotReady);
+        services = AgentPolicy.usable(found, _agent.servicesOn);
+        if (found == null || services.isEmpty) {
+          return _agentFail(job.id, AgentPolicy.servicesNotReady);
         }
         args = AgentPolicy.args(
-          email: true,
-          gmailReadTools: init.gmailReadTools,
-          otherConnectorTools: init.denied,
-          otherServers: init.otherServers,
+          services: found,
+          on: _agent.servicesOn,
           files: files.here.isNotEmpty,
         );
       } else {
-        args = AgentPolicy.args(email: false, files: files.here.isNotEmpty);
+        args = AgentPolicy.args(files: files.here.isNotEmpty);
       }
       // A cancel during the probe.
       if (_try(() => jobs.get(job.id))?.status != AgentStatus.running) {
         return _agentCancelled(job.id);
       }
       final stdin = AgentPolicy.chatPrompt(
-        _agentBrief(job, task, email: email, files: files),
+        _agentBrief(job, task, services: services, files: files),
       );
       var steps = 0;
       final process = _agent.live = runner.start(
@@ -635,6 +834,7 @@ extension AppStoreAgent on AppStore {
         args,
         stdin: stdin,
         timeout: AgentPolicy.timeout,
+        folder: agentFolder(job.id),
         files: files.here,
         onLine: (line) {
           if (_disposed) return;
@@ -658,6 +858,10 @@ extension AppStoreAgent on AppStore {
         return _agentCancelled(job.id);
       }
       if (out.timedOut) return _agentFail(job.id, AgentNote.timedOut);
+      if (out.overflow) return _agentFail(job.id, AgentNote.tooMuchOutput);
+      if (out.folderProblem case final problem?) {
+        return _agentFail(job.id, problem);
+      }
       if (out.stdout.trim().isEmpty) {
         return _agentFail(job.id, AgentNote.noAnswer(out.stderr));
       }
@@ -676,12 +880,13 @@ extension AppStoreAgent on AppStore {
               textDraft: result.textDraft,
               questions: [
                 ...result.questions,
-                if (job.emailAccess && !email) AgentNote.emailNotAllowed,
+                if (job.emailAccess && !useServices) AgentNote.servicesOff,
               ],
               sources: result.sources,
               planChanges: job.planAccess ? result.planChanges : const [],
               newTasks: job.planAccess ? result.newTasks : const [],
             ),
+            files: out.files,
           );
       }
     } on Exception catch (e) {
@@ -703,7 +908,13 @@ extension AppStoreAgent on AppStore {
     for (final l in job.links) {
       if (l.kind != AgentLinkKind.file) continue;
       final path = '$dir$sep${l.id}$sep${AgentPolicy.safeName(l.name)}';
-      if (dir != null && l.device == device && File(path).existsSync()) {
+      // Links sync, so the id may come from anywhere: only a uuid, and a
+      // path inside the folder.
+      if (dir != null &&
+          AgentScope.isId(l.id) &&
+          AgentScope.isInside(dir, path, sep: sep) &&
+          l.device == device &&
+          File(path).existsSync()) {
         here.add(AgentFile(name: l.name, path: path));
       } else {
         elsewhere.add(l.name);
@@ -717,7 +928,7 @@ extension AppStoreAgent on AppStore {
   AgentBrief _agentBrief(
     AgentJob job,
     TaskItem? task, {
-    required bool email,
+    required List<String> services,
     required ({List<AgentFile> here, List<String> elsewhere}) files,
   }) {
     final turns = <AgentTurn>[];
@@ -769,7 +980,7 @@ extension AppStoreAgent on AppStore {
     }
     return AgentBrief(
       turns: turns,
-      emailAccess: email,
+      services: services,
       taskTitle: task?.title,
       taskNotes: task == null
           ? ''
@@ -895,7 +1106,12 @@ extension AppStoreAgent on AppStore {
   /// Saves the result: a document note (when there is one), and for a job
   /// of a task the result note, both linked to the task. Then the result
   /// line, and the job is done.
-  void _agentDone(AgentJob job, TaskItem? task, AgentResult result) {
+  void _agentDone(
+    AgentJob job,
+    TaskItem? task,
+    AgentResult result, {
+    List<String> files = const [],
+  }) {
     final stamp = clockStamp();
     final doc = result.document;
     final docNote = doc == null
@@ -950,6 +1166,7 @@ extension AppStoreAgent on AppStore {
         ...result.toJson(),
         _docKey: ?docNote?.id,
         _noteKey: ?note?.id,
+        if (files.isNotEmpty) _filesKey: files,
       }),
     );
   }

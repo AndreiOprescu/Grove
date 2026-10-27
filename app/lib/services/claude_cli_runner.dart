@@ -4,13 +4,18 @@ import 'dart:io';
 
 import '../core/agent/agent_policy.dart';
 import '../core/agent/agent_runner.dart';
+import '../core/agent/agent_scope.dart';
 
 /// The real door to the `claude` command on a computer (ADR 0004).
 ///
 /// - `claude` is looked for only in known places, never on the PATH.
-/// - It starts with no shell, in a new temp folder, which is deleted at the
-///   end. The folder is empty but for copies of the files the person linked
-///   (ADR 0005).
+/// - It starts with no shell, in the folder of the chat (ADR 0008), with
+///   copies of the files the person linked in its `inputs` folder
+///   (ADR 0005). The folder stays. Before and after the run, links and the
+///   files Claude Code would load are removed from it.
+/// - It gets only a few names of this app's environment ([keptNames]), so
+///   no key or token of the app reaches it.
+/// - Its output is kept up to [maxOutput]; more stops it.
 /// - Cancel and the time limit stop it and the processes it started (its
 ///   MCP servers, found with `pgrep -P`): SIGTERM, then SIGKILL after
 ///   [killWait]. On Windows `taskkill /T /F` stops it and its children.
@@ -21,7 +26,10 @@ class ClaudeCliRunner extends AgentRunner {
     List<String>? systemPaths,
     this.killWait = const Duration(seconds: 3),
     this.probeTimeout = const Duration(seconds: 60),
+    this.maxOutput = 20 * 1024 * 1024,
+    List<String>? managedSettings,
   }) : environment = environment ?? Platform.environment,
+       managedSettings = managedSettings ?? _managedSettings(),
        windows = windows ?? Platform.isWindows,
        systemPaths =
            systemPaths ??
@@ -44,7 +52,65 @@ class ClaudeCliRunner extends AgentRunner {
     '/usr/local/bin',
   ];
 
-  /// The environment of this app: HOME, USERPROFILE and PATH are read from it.
+  /// The names of the environment a run gets, on a Mac or Linux.
+  static const keptNames = [
+    'HOME',
+    'USER',
+    'LOGNAME',
+    'PATH',
+    'LANG',
+    'TMPDIR',
+    'SHELL',
+  ];
+
+  /// The names of the environment a run gets on Windows (in any case).
+  static const keptWindowsNames = [
+    'USERPROFILE',
+    'APPDATA',
+    'LOCALAPPDATA',
+    'SystemRoot',
+    'TEMP',
+    'TMP',
+    'HOMEDRIVE',
+    'HOMEPATH',
+    'USERNAME',
+    'PATH',
+  ];
+
+  /// The names a run always gets, with their values (ADR 0008).
+  ///
+  /// `MCP_CONNECTION_NONBLOCKING=false`: `claude -p` 2.1.309 starts the
+  /// MCP servers in the background, so its first line (the `init` event
+  /// the probe reads) often lists none of them. With this it waits for
+  /// them (each one at most 30 seconds), so the probe lists them and a
+  /// run with services has their tools from the first turn. Live check,
+  /// 2026-10-27. A run without services loads no MCP server, so it waits
+  /// for nothing.
+  ///
+  /// `CLAUDE_CODE_DISABLE_AUTO_MEMORY=1`: no memory of Claude Code, in any
+  /// run, whatever the settings of the person say. A run with services
+  /// could otherwise write it, and it loads into the next run (review,
+  /// 2026-10-27; `AgentPolicy.args` also denies its folder).
+  static const setNames = {
+    'MCP_CONNECTION_NONBLOCKING': 'false',
+    'CLAUDE_CODE_DISABLE_AUTO_MEMORY': '1',
+  };
+
+  /// The settings files an admin puts on a computer. Claude Code always
+  /// loads them, so they are checked like the person's own.
+  static List<String> _managedSettings() {
+    if (Platform.isMacOS) {
+      return const [
+        '/Library/Application Support/ClaudeCode/managed-settings.json',
+      ];
+    }
+    if (Platform.isWindows) {
+      return const [r'C:\Program Files\ClaudeCode\managed-settings.json'];
+    }
+    return const ['/etc/claude-code/managed-settings.json'];
+  }
+
+  /// The environment of this app: the [keptNames] are read from it.
   final Map<String, String> environment;
   final bool windows;
   final List<String> systemPaths;
@@ -54,6 +120,12 @@ class ClaudeCliRunner extends AgentRunner {
 
   /// How long the probe waits for its first line.
   final Duration probeTimeout;
+
+  /// The most output a run may print. More stops it.
+  final int maxOutput;
+
+  /// The settings files of an admin, read by [settingsProblem] too.
+  final List<String> managedSettings;
 
   /// The places where `claude` may be, the first one first. On Windows only
   /// `claude.exe`: a `.cmd` file needs a shell.
@@ -89,8 +161,9 @@ class ClaudeCliRunner extends AgentRunner {
     return null;
   }
 
-  /// The environment of a run: this app's, with the folder of [exe] and the
-  /// usual system folders added to PATH.
+  /// The environment of a run: only the [keptNames] of this app's
+  /// ([keptWindowsNames] on Windows), with the folder of [exe] and the usual
+  /// system folders added to PATH, and the [setNames].
   Map<String, String> runEnvironment(String exe) {
     final sep = windows ? ';' : ':';
     final cut = exe.lastIndexOf(windows ? RegExp(r'[\\/]') : RegExp('/'));
@@ -109,7 +182,46 @@ class ClaudeCliRunner extends AgentRunner {
     ]) {
       if (p.isNotEmpty && !parts.contains(p)) parts.add(p);
     }
-    return {key: parts.join(sep)};
+    final kept = {
+      for (final n in windows ? keptWindowsNames : keptNames)
+        if (n.toUpperCase() != 'PATH') windows ? n.toUpperCase() : n,
+    };
+    return {
+      for (final MapEntry(:key, :value) in environment.entries)
+        if (kept.contains(windows ? key.toUpperCase() : key)) key: value,
+      key: parts.join(sep),
+      ...setNames,
+    };
+  }
+
+  /// The home folder: where `.claude` is.
+  String? get _home {
+    final home = environment[windows ? 'USERPROFILE' : 'HOME'];
+    return home == null || home.isEmpty ? null : home;
+  }
+
+  @override
+  Future<String?> settingsProblem() async {
+    final home = _home;
+    final sep = windows ? r'\' : '/';
+    final files = [
+      if (home != null)
+        for (final name in ['settings.json', 'settings.local.json'])
+          ('~$sep.claude$sep$name', '$home$sep.claude$sep$name'),
+      for (final m in managedSettings) (m, m),
+    ];
+    for (final (name, path) in files) {
+      final String? text;
+      try {
+        final f = File(path);
+        text = await f.exists() ? await f.readAsString() : null;
+      } on FileSystemException {
+        return 'Grove could not read $name. Fix that file, or turn off "Use '
+            'my services".';
+      }
+      if (AgentScope.settingsProblem(name, text) case final p?) return p;
+    }
+    return null;
   }
 
   @override
@@ -118,24 +230,102 @@ class ClaudeCliRunner extends AgentRunner {
     List<String> args, {
     required String stdin,
     required Duration timeout,
+    String? folder,
     List<AgentFile> files = const [],
     void Function(String line)? onLine,
-  }) => _CliProcess(this, exe, args, stdin, timeout, files, onLine).._run();
+  }) =>
+      _CliProcess(this, exe, args, stdin, timeout, folder, files, onLine)
+        .._run();
 
-  /// Copies [files] into [dir], with the names of
-  /// [AgentPolicy.fileNames], the ones the prompt gives. A file that is gone
-  /// is left out.
+  /// Puts [files] in the `inputs` folder of [dir], with the names of
+  /// [AgentPolicy.fileNames], the ones the prompt gives. The folder is made
+  /// new each run. A file that is gone is left out.
   static Future<void> _copyFiles(Directory dir, List<AgentFile> files) async {
+    final sep = Platform.pathSeparator;
+    final inputs = Directory('${dir.path}$sep${AgentScope.inputs}');
+    if (await FileSystemEntity.type(inputs.path, followLinks: false) !=
+        FileSystemEntityType.notFound) {
+      await _remove(inputs.path);
+    }
+    if (files.isEmpty) return;
+    await inputs.create();
     final names = AgentPolicy.fileNames([for (final f in files) f.name]);
     for (final (i, f) in files.indexed) {
-      final name = names[i];
       try {
-        await File(f.path).copy('${dir.path}${Platform.pathSeparator}$name');
+        await File(f.path).copy('${inputs.path}$sep${names[i]}');
       } on FileSystemException {
         // Gone: the agent is told the names it can read, and this one is
         // not there.
       }
     }
+  }
+
+  /// The most entries a check looks at. A folder with more is too big.
+  static const _maxEntries = AgentScope.maxFiles * 10;
+
+  /// Checks [dir] (`AgentScope.audit`): removes the links, odd entries and
+  /// files Claude Code would load, and gives what is left. Null when the
+  /// folder has too many entries to look at.
+  static Future<AgentAudit?> _check(Directory dir) async {
+    final sep = Platform.pathSeparator;
+    final base = dir.path.endsWith(sep) ? dir.path : '${dir.path}$sep';
+    final entries = <AgentEntry>[];
+    final kinds = <String, FileSystemEntityType>{};
+    await for (final e in dir.list(recursive: true, followLinks: false)) {
+      if (entries.length >= _maxEntries) return null;
+      if (!e.path.startsWith(base)) continue;
+      final rel = e.path.substring(base.length).replaceAll(sep, '/');
+      final type = await FileSystemEntity.type(e.path, followLinks: false);
+      kinds[rel] = type;
+      entries.add(switch (type) {
+        FileSystemEntityType.file => AgentEntry(
+          rel,
+          AgentEntryKind.file,
+          await File(e.path).length(),
+        ),
+        FileSystemEntityType.directory => AgentEntry(
+          rel,
+          AgentEntryKind.folder,
+        ),
+        FileSystemEntityType.link => AgentEntry(rel, AgentEntryKind.link),
+        _ => AgentEntry(rel, AgentEntryKind.other),
+      });
+    }
+    // A folder before what is in it, as the audit needs.
+    entries.sort((a, b) => a.path.compareTo(b.path));
+    final audit = AgentScope.audit(entries);
+    for (final rel in audit.remove) {
+      await _remove('$base${rel.replaceAll('/', sep)}');
+    }
+    return audit;
+  }
+
+  /// Removes the entry at [path]: a link itself, never what it points to.
+  static Future<void> _remove(String path) async {
+    try {
+      switch (await FileSystemEntity.type(path, followLinks: false)) {
+        case FileSystemEntityType.directory:
+          await Directory(path).delete(recursive: true);
+        case FileSystemEntityType.link:
+          await Link(path).delete();
+        case FileSystemEntityType.notFound:
+          break;
+        default:
+          await File(path).delete();
+      }
+    } on FileSystemException {
+      // Checked again before the next run.
+    }
+  }
+
+  /// The folder of a run: [path] made when missing. A link in its place is
+  /// removed first.
+  static Future<Directory> _folder(String path) async {
+    if (await FileSystemEntity.type(path, followLinks: false) ==
+        FileSystemEntityType.link) {
+      await Link(path).delete();
+    }
+    return Directory(path).create(recursive: true);
   }
 
   @override
@@ -149,6 +339,7 @@ class ClaudeCliRunner extends AgentRunner {
         args,
         workingDirectory: tmp.path,
         environment: runEnvironment(exe),
+        includeParentEnvironment: false,
         runInShell: false,
       );
       p.stderr.listen((_) {}, onError: (_) {});
@@ -267,6 +458,7 @@ class _CliProcess implements AgentProcess {
     this.args,
     this.stdin,
     this.timeout,
+    this.folder,
     this.files,
     this.onLine,
   );
@@ -276,6 +468,7 @@ class _CliProcess implements AgentProcess {
   final List<String> args;
   final String stdin;
   final Duration timeout;
+  final String? folder;
   final List<AgentFile> files;
   final void Function(String line)? onLine;
 
@@ -285,6 +478,9 @@ class _CliProcess implements AgentProcess {
   bool _stopping = false;
   bool _cancelled = false;
   bool _timedOut = false;
+  bool _overflow = false;
+  List<String> _files = const [];
+  String? _folderProblem;
 
   /// How long the output may still come after the process ended. A child of
   /// `claude` that keeps the pipe open must not hold the job.
@@ -308,18 +504,32 @@ class _CliProcess implements AgentProcess {
   }
 
   Future<void> _run() async {
-    Directory? tmp;
+    Directory? tmp, dir;
     final out = StringBuffer(), err = StringBuffer();
     var result = const AgentRunOutput(exitCode: -1, stdout: '', stderr: '');
     try {
-      tmp = await Directory.systemTemp.createTemp('grove-agent-');
-      await ClaudeCliRunner._copyFiles(tmp, files);
+      final d = dir = switch (folder) {
+        final f? => await ClaudeCliRunner._folder(f),
+        null => tmp = await Directory.systemTemp.createTemp('grove-agent-'),
+      };
+      final before = await ClaudeCliRunner._check(d);
+      if (before == null || before.overCap) {
+        _folderProblem = AgentScope.tooBig;
+        result = const AgentRunOutput(
+          exitCode: -1,
+          stdout: '',
+          stderr: AgentScope.tooBig,
+        );
+        return;
+      }
+      await ClaudeCliRunner._copyFiles(d, files);
       if (_cancelled) return;
       final p = _process = await Process.start(
         exe,
         args,
-        workingDirectory: tmp.path,
+        workingDirectory: d.path,
         environment: runner.runEnvironment(exe),
+        includeParentEnvironment: false,
         runInShell: false,
       );
       if (_cancelled) _stopNow();
@@ -342,7 +552,16 @@ class _CliProcess implements AgentProcess {
 
       final outDone = p.stdout
           .transform(utf8.decoder)
-          .listen((chunk) {
+          .listen((all) {
+            if (_overflow) return;
+            var chunk = all;
+            final room = runner.maxOutput - out.length;
+            if (chunk.length > room) {
+              // More than the runner keeps: stop the run.
+              chunk = chunk.substring(0, room);
+              _overflow = true;
+              _stopNow();
+            }
             out.write(chunk);
             final lines = '$rest$chunk'.split('\n');
             rest = lines.removeLast();
@@ -353,7 +572,9 @@ class _CliProcess implements AgentProcess {
           .catchError((_) {});
       final errDone = p.stderr
           .transform(utf8.decoder)
-          .listen(err.write, onError: (_) {})
+          .listen((chunk) {
+            if (err.length < runner.maxOutput) err.write(chunk);
+          }, onError: (_) {})
           .asFuture<void>()
           .catchError((_) {});
       ClaudeCliRunner._writeStdin(p, stdin);
@@ -373,7 +594,18 @@ class _CliProcess implements AgentProcess {
       );
     } finally {
       _limit?.cancel();
-      // The folder is gone before the run counts as done.
+      // The folder is checked, or gone, before the run counts as done.
+      if (dir != null && tmp == null && _folderProblem == null) {
+        try {
+          final after = await ClaudeCliRunner._check(dir);
+          if (after == null || after.overCap) {
+            _folderProblem = AgentScope.tooBig;
+          }
+          _files = after?.files ?? const [];
+        } on FileSystemException {
+          // The folder is checked again before the next run.
+        }
+      }
       await ClaudeCliRunner._delete(tmp);
       _finish(result);
     }
@@ -388,6 +620,9 @@ class _CliProcess implements AgentProcess {
         stderr: o.stderr,
         timedOut: _timedOut,
         cancelled: _cancelled && !_timedOut,
+        files: _files,
+        folderProblem: _folderProblem,
+        overflow: _overflow,
       ),
     );
   }

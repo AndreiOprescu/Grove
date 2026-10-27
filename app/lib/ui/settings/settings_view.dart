@@ -140,7 +140,10 @@ class _SettingsViewState extends State<SettingsView> {
                     store: store,
                     files: widget.files,
                   ),
-                  SettingsTab.agent => AgentSettings(store: store),
+                  SettingsTab.agent => AgentSettings(
+                    store: store,
+                    files: widget.files,
+                  ),
                 },
               ),
             ),

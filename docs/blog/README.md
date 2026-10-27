@@ -5,6 +5,7 @@ The newest post is first.
 
 | Date | Post |
 |---|---|
+| 2026-10-27 | [The agent gets a desk, and reads with your services](2026-10-27-agent-folder-and-services.md) |
 | 2026-10-26 | [Reorganise the rest of your day](2026-10-26-reorganise-day.md) |
 | 2026-10-26 | [Notebooks for your notes](2026-10-26-notebooks.md) |
 | 2026-10-22 | [A home for your agents](2026-10-22-agents-screen.md) |

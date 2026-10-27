@@ -1,13 +1,15 @@
 // The real windows of the system: the file windows (the package
 // `file_selector`, Q-15 and Q-18 of `docs/questions.md`), the browser
 // (the package `url_launcher`, Q-16), and Mail and Messages for a draft of
-// the agent (ADR 0004). Only `main.dart` uses this file. A
+// the agent (ADR 0004), and the files the agent made (ADR 0008). Only
+// `main.dart` uses this file. A
 // test gives fakes to `StoreApp`, so no test opens a real window.
 import 'dart:convert';
 import 'dart:io';
 
 import 'package:file_selector/file_selector.dart';
 import 'package:flutter/foundation.dart';
+import 'package:grove/state/state.dart' show AgentScope;
 import 'package:url_launcher/url_launcher.dart';
 
 import '../agent/agent_dialog.dart';
@@ -65,6 +67,47 @@ Future<bool> openDraftApp(Uri url) async {
   if (!isDraftLink(url)) return false;
   try {
     return await launchUrl(url);
+  } on Object {
+    return false;
+  }
+}
+
+/// Opens a file the agent made in the app of the system for it. Only a
+/// plain text file ([AgentScope.canOpen]) that is a real file, not a link:
+/// Grove never runs a file of the agent. False otherwise, and when the
+/// system cannot.
+Future<bool> openAgentFile(String path) async {
+  final name = path.split(Platform.pathSeparator).last;
+  if (!AgentScope.canOpen(name)) return false;
+  try {
+    if (FileSystemEntity.typeSync(path, followLinks: false) !=
+        FileSystemEntityType.file) {
+      return false;
+    }
+    return await launchUrl(Uri.file(path));
+  } on Object {
+    return false;
+  }
+}
+
+/// Shows a folder of the agent in Finder or Explorer. Only on a computer,
+/// only a real folder, not a link, and never one with a dot in its name:
+/// the Mac opens a folder like "x.app" or "x.prefPane" as a program.
+/// False otherwise.
+Future<bool> showAgentFolder(String path) async {
+  if (path.split(Platform.pathSeparator).last.contains('.')) return false;
+  switch (defaultTargetPlatform) {
+    case TargetPlatform.macOS || TargetPlatform.windows || TargetPlatform.linux:
+      break;
+    default:
+      return false;
+  }
+  try {
+    if (FileSystemEntity.typeSync(path, followLinks: false) !=
+        FileSystemEntityType.directory) {
+      return false;
+    }
+    return await launchUrl(Uri.directory(path));
   } on Object {
     return false;
   }
