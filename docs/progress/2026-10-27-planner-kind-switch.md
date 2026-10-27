@@ -12,8 +12,15 @@ Resume rule: continue from the first open box. Commit after each box.
 - [x] 4. UI: block menu lines, shared Task · Activity chip widget (from `_kindRow`), task inspector, event editor.
 - [x] 5. Docs: docs/assumptions.md (update line about "no menu line"), CHANGELOG 1.3.0 lines, blog post if docs/blog/ exists.
 - [x] 6. `./scripts/flutter_test.sh` green; goldens regenerated and pixel-compared.
-- [ ] 7. Review (correctness + UI) + fixes.
+- [x] 7. Review (correctness + UI) + fixes.
 - [ ] 8. Push; draft PR into feat/next-version ("merge #50 first").
 
 ## Goldens (box 6)
 33 goldens regenerated (goals, error, palette, planner, day_lines, focus_done, linked_note, subtasks). Pixel compare old vs new (>12/255): every change is in the header band (desktop y40-70, phone y88-115, Today timeline row y96-119): the "+" is gone and the buttons close up. Nothing else moved. `./scripts/flutter_test.sh`: +3762, all passed.
+
+## Review (box 7)
+- Fixed: an activity with block subtasks no longer offers the switch (they would be hidden on a task block).
+- Fixed: the editor message covers repeat, all day and past midnight; test for a draft made all day just before the switch.
+- Fixed in box 6: the switch line sits below the linked note line, so the note line stays right after "Split in Two".
+- `./scripts/flutter_test.sh`: +3764, all passed.
+- Box 8 (push, draft PR) is not done here: this job may not push or open PRs.

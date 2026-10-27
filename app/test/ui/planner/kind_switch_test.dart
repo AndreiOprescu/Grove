@@ -171,6 +171,30 @@ void main() {
       expect(store.task(e.taskId!)!.title, 'Lunch with Ana');
     });
 
+    testWidgets('all day, not saved yet: it is saved, and nothing switches', (
+      tester,
+    ) async {
+      final store = plannerStore();
+      final block = addActivity(store, 'Lunch');
+      await pumpPlanner(tester, store);
+      await tester.tap(blockFinder(block.id));
+      await tester.pumpAndSettle();
+      await tester.tap(key('event-all-day'));
+      await tester.pump();
+
+      await tester.tap(key('event-kind-task'));
+      await tester.pumpAndSettle();
+
+      final e = store.event(block.id)!;
+      expect(e.allDay, isTrue);
+      expect(e.kind, EventKind.activity);
+      expect(store.repos.tasks.all(), isEmpty);
+      expect(find.byType(EventEditor), findsNothing);
+      expect(store.toast, contains('cannot be a task'));
+      // The toast goes away by itself.
+      await tester.pump(const Duration(seconds: 3));
+    });
+
     testWidgets('a plain event has no chips', (tester) async {
       final store = plannerStore();
       store.createFromDraft(

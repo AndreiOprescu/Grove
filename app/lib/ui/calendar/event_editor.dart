@@ -338,7 +338,10 @@ class _EventEditorState extends State<EventEditor> {
     if (_isDirty && original != null) _store.saveEvent(_draft, from: original);
     if (_store.kindSwitch(id) != EventKind.block) {
       _store.closeEditor();
-      _store.showToast('A repeating or all-day activity cannot be a task.');
+      _store.showToast(
+        'This activity cannot be a task: it repeats, is all day or goes past '
+        'midnight.',
+      );
       return;
     }
     _store.toggleKind(id);

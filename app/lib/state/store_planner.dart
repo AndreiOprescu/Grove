@@ -653,7 +653,8 @@ extension AppStorePlanner on AppStore {
   /// What the block [eventId] can turn into: [EventKind.activity] for the
   /// block of an open task, [EventKind.block] for an activity. Null for
   /// anything else: a plain event, a goal block, a deadline, an all-day or
-  /// repeating event, a block that is done, a done or repeating task.
+  /// repeating event, a block that is done, a done or repeating task, an
+  /// activity that still has block subtasks.
   EventKind? kindSwitch(String eventId) {
     if (OccurrenceId.parse(eventId) != null) return null;
     final e = event(eventId);
@@ -669,6 +670,9 @@ extension AppStorePlanner on AppStore {
     }
     switch (e.kind) {
       case EventKind.activity:
+        // Block subtasks (of a goal block whose goal was deleted) would be
+        // hidden on a task block, which shows the subtasks of its task.
+        if (blockSubtasks(eventId).isNotEmpty) return null;
         return EventKind.block;
       case EventKind.block:
         final taskId = e.taskId;

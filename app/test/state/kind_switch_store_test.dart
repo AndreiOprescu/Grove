@@ -105,6 +105,17 @@ void main() {
       }
     });
 
+    test('not an activity that still has block subtasks', () {
+      // It was a goal block and its goal was deleted: a task block would
+      // hide those subtasks.
+      final s = makeStore();
+      final a = activity(s);
+      s.repos.blockSubtasks.save(
+        BlockSubtaskItem(eventId: a.id, title: 'Warm up'),
+      );
+      expect(s.kindSwitch(a.id), isNull);
+    });
+
     test('not the block of a done task, nor of a repeating task', () {
       final s = makeStore();
       final done = taskBlock(s, title: 'Done one');
