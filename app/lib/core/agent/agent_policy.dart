@@ -222,14 +222,17 @@ abstract final class AgentPolicy {
   static final _notNameChar = RegExp(r'[^A-Za-z0-9 ._()\-]');
 
   /// A name that stays inside the folder of the run: no folder part, only
-  /// safe characters, no leading dot. "file" when nothing is left.
+  /// safe characters, no leading dot. "file" when nothing is left. A name
+  /// Claude Code would load as rules ([AgentScope.isLoaded], like
+  /// `CLAUDE.md`) gets "file " in front: a linked file is data.
   static String safeName(String name) {
     final base = name.split(RegExp(r'[\\/]')).last;
     final clean = base
         .replaceAll(_notNameChar, '_')
         .replaceFirst(RegExp(r'^\.+'), '')
         .trim();
-    return clean.isEmpty ? 'file' : clean;
+    if (clean.isEmpty) return 'file';
+    return AgentScope.isLoaded(clean) ? 'file $clean' : clean;
   }
 
   /// The names the files get in the folder of a run, in order: each one

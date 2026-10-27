@@ -89,6 +89,10 @@ abstract final class AgentScope {
     'claude.local.md',
   };
 
+  /// [name] is a name Claude Code loads from a folder ([audit] removes it,
+  /// `AgentPolicy.safeName` never gives it).
+  static bool isLoaded(String name) => _loaded.contains(name.toLowerCase());
+
   /// What to remove from a folder, and what it has: [entries] are its
   /// entries, with paths relative to it and `/` between parts, each folder
   /// before what is in it.
@@ -100,7 +104,7 @@ abstract final class AgentScope {
       final name = e.path.split('/').last;
       if (e.kind == AgentEntryKind.link ||
           e.kind == AgentEntryKind.other ||
-          _loaded.contains(name.toLowerCase())) {
+          isLoaded(name)) {
         remove.add(e.path);
         continue;
       }

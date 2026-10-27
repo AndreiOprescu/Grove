@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:grove/core/agent/agent_context.dart';
 import 'package:grove/core/agent/agent_models.dart';
 import 'package:grove/core/agent/agent_policy.dart';
+import 'package:grove/core/agent/agent_scope.dart';
 import 'package:grove/core/model/day_key.dart';
 import 'package:grove/core/model/event.dart';
 import 'package:grove/core/model/task.dart';
@@ -134,6 +135,42 @@ void main() {
       expect(AgentPolicy.safeName('../../.env'), 'env');
       expect(AgentPolicy.safeName('café;rm.txt'), 'caf__rm.txt');
       expect(AgentPolicy.safeName('...'), 'file');
+    });
+
+    test('a name Claude Code loads as rules gets another name, in any case: '
+        'a linked file is data, never rules (review, 2026-10-27)', () {
+      for (final name in [
+        'CLAUDE.md',
+        'claude.md',
+        'Claude.Md',
+        'CLAUDE.local.md',
+        'claude.LOCAL.md',
+        '/Users/a/Downloads/CLAUDE.md',
+      ]) {
+        final safe = AgentPolicy.safeName(name);
+        expect(AgentScope.isLoaded(safe), isFalse, reason: name);
+        expect(safe, startsWith('file '), reason: name);
+      }
+      expect(AgentPolicy.safeName('CLAUDE.md'), 'file CLAUDE.md');
+      // Names that only look like it stay.
+      expect(AgentPolicy.safeName('CLAUDE.md.txt'), 'CLAUDE.md.txt');
+      expect(AgentPolicy.safeName('my claude.md'), 'my claude.md');
+      expect(AgentPolicy.fileNames(['CLAUDE.md', 'claude.md']), [
+        'file CLAUDE.md',
+        'file claude.md',
+      ]);
+    });
+
+    test('the names Claude Code loads, in any case', () {
+      for (final name in [
+        'CLAUDE.md',
+        'claude.local.md',
+        '.mcp.json',
+        '.Claude',
+      ]) {
+        expect(AgentScope.isLoaded(name), isTrue, reason: name);
+      }
+      expect(AgentScope.isLoaded('notes.md'), isFalse);
     });
 
     test('the same name twice gets a number', () {
