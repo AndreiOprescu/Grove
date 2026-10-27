@@ -248,7 +248,7 @@ B) One time for all days — you set the two lines once and each day shows them;
 If no answer: nothing is built until you answer; the storage is not the same for A and B.
 Answer (owner, 2026-10-12): A. Each day has its own lines.
 
-## Q-58 · OPEN · DEFAULT · blocks feat/agent-scope-tools · 2026-10-27
+## Q-58 · ANSWERED A (owner, 2026-10-27) · DEFAULT · blocks feat/agent-scope-tools · 2026-10-27
 In a chat with services on, may the agent still search the web?
 A) Keep web search on — the agent can look things up for the task; an email it reads could put private words into a search query, which leaves the computer.   ← my pick: it is in the plan you approved, web pages stay off, and searching is most of what "get a task ready" needs.
 B) Turn web search off in a chat with services — nothing it reads can leave by a search; the agent cannot look anything up in those chats.
