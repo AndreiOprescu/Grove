@@ -233,6 +233,77 @@ void main() {
 
       expect(s.meetingNote(s.event(b.id)!)?.id, note.id);
     });
+
+    test('a task renamed after it was planned keeps its meeting note', () {
+      // The block event keeps the first name; the note takes the name of the
+      // activity in the same undo step.
+      final s = makeStore();
+      final b = taskBlock(s, title: 'Old name');
+      s.editTask(
+        b.taskId!,
+        name: 'Rename',
+        (t) => t.copyWith(title: 'New name'),
+      );
+      final note = s.createMeetingNote(s.event(b.id)!)!;
+
+      s.toggleKind(b.id);
+
+      final e = s.event(b.id)!;
+      expect(e.title, 'New name');
+      expect(s.meetingNote(e)?.id, note.id);
+      expect(s.note(note.id)!.title, MeetingNote.title(e));
+      expect(s.withMeetingNote([e]), {e.id});
+
+      s.undo();
+      expect(s.note(note.id)!.title, note.title);
+      expect(s.meetingNote(s.event(b.id)!)?.id, note.id);
+    });
+
+    test('the activity keeps the colour of the task', () {
+      final s = makeStore();
+      final b = taskBlock(s);
+      s.setTaskColor(b.taskId!, 'red');
+      expect(s.blocks(DayRange.single(day)).single.color, 'red');
+
+      s.toggleKind(b.id);
+
+      expect(s.event(b.id)!.color, 'red');
+      expect(s.blocks(DayRange.single(day)).single.color, 'red');
+    });
+
+    test('a task with no colour keeps the colour of its block', () {
+      final s = makeStore();
+      final b = taskBlock(s);
+      s.toggleKind(b.id);
+      expect(s.event(b.id)!.color, b.color);
+    });
+
+    test('not the only block of a task the agent works on', () {
+      // The job and its chat would go with the task, and undo cannot bring
+      // them back.
+      final s = makeStore();
+      final b = taskBlock(s);
+      final t = s.task(b.taskId!)!;
+      s.repos.agentJobs.insert(AgentJob(taskId: t.id, instructions: 'Draft'));
+      expect(s.agentJobFor(t.id), isNotNull);
+      expect(s.kindSwitch(b.id), isNull);
+      s.toggleKind(b.id);
+      expect(s.event(b.id)!.kind, EventKind.block);
+      expect(s.agentJobFor(t.id), isNotNull);
+
+      // With another block the task stays, and so does its job.
+      final other = s.blockEvent(
+        t,
+        day: day.adding(days: 1),
+        start: 600,
+        end: 660,
+      );
+      s.repos.events.save(other);
+      expect(s.kindSwitch(b.id), EventKind.activity);
+      s.toggleKind(b.id);
+      expect(s.event(b.id)!.kind, EventKind.activity);
+      expect(s.agentJobFor(t.id), isNotNull);
+    });
   });
 
   group('an activity turns into a task', () {
@@ -278,6 +349,33 @@ void main() {
       expect(s.meetingNote(s.event(a.id)!)?.id, note.id);
       s.toggleKind(a.id);
       expect(s.repos.tasks.all().length, 1);
+    });
+
+    test('the links of the notes move to the task, not twice', () {
+      final s = makeStore();
+      final target = Note(
+        title: 'Some note',
+        body: '',
+        createdAt: s.clockStamp(),
+      );
+      s.commit(Mutation('New')..notes.add((before: null, after: target)));
+      final a = activity(s);
+      final old = s.event(a.id)!;
+      s.commit(
+        Mutation('Notes')
+          ..events.add((
+            before: old,
+            after: old.copyWith(notes: '[[Some note]]'),
+          )),
+      );
+      final ref = ItemRef(ItemType.note, target.id);
+      expect(s.linkedItems(ref).map((i) => i.ref.type), [ItemType.event]);
+
+      s.toggleKind(a.id);
+      expect(s.linkedItems(ref).map((i) => i.ref.type), [ItemType.task]);
+
+      s.undo();
+      expect(s.linkedItems(ref).map((i) => i.ref.type), [ItemType.event]);
     });
 
     test('a block that cannot switch is left alone', () {

@@ -942,8 +942,12 @@ class AppStore extends ChangeNotifier {
       if (now.kind == EventKind.block) {
         // A task block or a goal block holds no text. But a note can link to
         // it (its meeting note): a block that was brought back gets the link
-        // again.
+        // again. An activity that turned into a task block gives its text to
+        // the task, so the links of that text go.
         if (was == null) repos.refs.rebuildIncoming(ref);
+        if (was != null && was.notes != now.notes) {
+          repos.refs.reindex(ref, now.notes);
+        }
         continue;
       }
       if (was == null || was.notes != now.notes) {

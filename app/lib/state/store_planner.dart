@@ -653,8 +653,10 @@ extension AppStorePlanner on AppStore {
   /// What the block [eventId] can turn into: [EventKind.activity] for the
   /// block of an open task, [EventKind.block] for an activity. Null for
   /// anything else: a plain event, a goal block, a deadline, an all-day or
-  /// repeating event, a block that is done, a done or repeating task, an
-  /// activity that still has block subtasks.
+  /// repeating event, a block that is done, a done or repeating task, the
+  /// only block of a task the agent works on (its job and chat would go with
+  /// the task, and undo cannot bring them back), an activity that still has
+  /// block subtasks.
   EventKind? kindSwitch(String eventId) {
     if (OccurrenceId.parse(eventId) != null) return null;
     final e = event(eventId);
@@ -679,6 +681,9 @@ extension AppStorePlanner on AppStore {
         final t = taskId == null ? null : task(taskId);
         if (t == null || t.status != TaskStatus.open) return null;
         if (t.recurrence != null) return null;
+        if (blocksOfTask(t.id).length <= 1 && agentJobFor(t.id) != null) {
+          return null;
+        }
         return EventKind.activity;
       case EventKind.event:
         return null;
@@ -720,10 +725,12 @@ extension AppStorePlanner on AppStore {
     if (to == EventKind.activity) {
       final t = task(e.taskId!)!;
       final alone = blocksOfTask(t.id).length <= 1;
+      // The block showed the colour of its task, so the activity takes it.
       final after = e.copyWith(
         kind: EventKind.activity,
         taskId: null,
         title: t.title,
+        color: t.color.isNotEmpty ? t.color : e.color,
         notes: alone
             ? [
                 e.notes,
@@ -746,6 +753,15 @@ extension AppStorePlanner on AppStore {
       } else {
         m = Mutation('Turn into Activity')
           ..events.add((before: e, after: after));
+      }
+      // The meeting note has the name of the event, which is the name the
+      // task had when it was planned. It takes the name of the activity.
+      final note = meetingNote(e);
+      if (note != null && note.title != MeetingNote.title(after)) {
+        m.notes.add((
+          before: note,
+          after: note.copyWith(title: MeetingNote.title(after)),
+        ));
       }
       final gone = {for (final c in m.tasks) ?c.before?.id};
       if (!commit(m)) return;

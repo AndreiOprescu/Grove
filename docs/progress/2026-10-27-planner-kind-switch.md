@@ -24,3 +24,9 @@ Resume rule: continue from the first open box. Commit after each box.
 - Fixed in box 6: the switch line sits below the linked note line, so the note line stays right after "Split in Two".
 - `./scripts/flutter_test.sh`: +3764, all passed.
 - Box 8 (push, draft PR) is not done here: this job may not push or open PRs.
+
+## Review round 2 (2026-10-27)
+- [x] Meeting note of a renamed task stays linked after the switch (note renamed in the same undo step).
+- [x] Activity keeps the colour of the task.
+- [x] Only block of a task with an agent job does not switch (job and chat would be lost).
+- [x] Activity to task drops the links of the activity notes (no double backlink).
