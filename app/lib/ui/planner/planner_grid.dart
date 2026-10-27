@@ -1115,10 +1115,6 @@ class PlannerGridState extends State<PlannerGrid> {
       const PopupMenuDivider(),
       _item('Duplicate', () => store.duplicate(blockIds: ids)),
       _item('Split in Two', () => store.split(blockId: block.id)),
-      // A task block turns into an activity in place, and back (the block
-      // under the pointer only).
-      if (kindSwitchLine(store, block.id) case final line?)
-        _item(line, () => unawaited(turnBlockKind(context, store, block.id))),
       // The linked note of a block is its meeting note (card Q-35). The line
       // is for the block under the pointer, also when more are selected.
       _item(block.hasNote ? 'Open Linked Note' : 'Create Linked Note', () {
@@ -1162,6 +1158,11 @@ class PlannerGridState extends State<PlannerGrid> {
           ),
         ],
       ],
+      // A task block turns into an activity in place, and back (the block
+      // under the pointer only). Last of its group, so the linked note stays
+      // right after "Split in Two".
+      if (kindSwitchLine(store, block.id) case final line?)
+        _item(line, () => unawaited(turnBlockKind(context, store, block.id))),
       const PopupMenuDivider(),
       if (block.isTaskBlock) ...[
         _item('Unschedule', () => store.deleteBlocks(ids, name: 'Unschedule')),
