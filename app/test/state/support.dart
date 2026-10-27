@@ -271,6 +271,7 @@ class AgentCall {
     this.args,
     this.stdin,
     this.timeout, {
+    this.folder,
     this.files = const [],
   });
 
@@ -278,6 +279,7 @@ class AgentCall {
   final List<String> args;
   final String stdin;
   final Duration timeout;
+  final String? folder;
   final List<AgentFile> files;
 }
 
@@ -334,6 +336,9 @@ class FakeAgentRunner extends AgentRunner {
   /// [output].
   List<String> lines = const [];
 
+  /// What [settingsProblem] says.
+  String? problem;
+
   int locates = 0;
   final List<List<String>> probes = [];
   final List<AgentCall> calls = [];
@@ -352,15 +357,21 @@ class FakeAgentRunner extends AgentRunner {
   }
 
   @override
+  Future<String?> settingsProblem() async => problem;
+
+  @override
   AgentProcess start(
     String exe,
     List<String> args, {
     required String stdin,
     required Duration timeout,
+    String? folder,
     List<AgentFile> files = const [],
     void Function(String line)? onLine,
   }) {
-    calls.add(AgentCall(exe, args, stdin, timeout, files: files));
+    calls.add(
+      AgentCall(exe, args, stdin, timeout, folder: folder, files: files),
+    );
     final p = FakeAgentProcess()..onLine = onLine;
     processes.add(p);
     final out = output;

@@ -386,7 +386,14 @@ void main() {
       Directory('${home.path}/.claude').createSync();
       runner = ClaudeCliRunner(
         environment: {'HOME': home.path, 'USERPROFILE': home.path},
+        managedSettings: ['${home.path}/managed-settings.json'],
       );
+    });
+
+    test('the settings of an admin are checked too', () async {
+      File('${home.path}/managed-settings.json')
+          .writeAsStringSync('{"permissions": {"allow": ["Glob"]}}');
+      expect(await runner.settingsProblem(), contains('managed-settings.json'));
     });
 
     test('no settings files: fine', () async {

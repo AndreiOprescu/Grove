@@ -337,6 +337,107 @@ void main() {
     });
   });
 
+  group('the folder of a chat', () {
+    late Directory data;
+    late String sep;
+
+    setUp(() {
+      data = Directory.systemTemp.createTempSync('grove-agent-ws-');
+      addTearDown(() => data.deleteSync(recursive: true));
+      sep = Platform.pathSeparator;
+    });
+
+    test('the run gets the folder of the chat; the result line names the '
+        'files the agent made', () async {
+      final runner = FakeAgentRunner()
+        ..output = AgentRunOutput(
+          exitCode: 0,
+          stdout: answer({'summary': 'ok'}).stdout,
+          stderr: '',
+          files: const ['notes.md'],
+        );
+      final s = await open(runner, dataDir: data.path);
+      final id = s.startAgentChat('Write it down');
+      await s.agentWork;
+      final folder = '${data.path}${sep}Agent workspace$sep$id';
+      expect(s.agentFolderRoot, '${data.path}${sep}Agent workspace');
+      expect(s.agentFolder(id), folder);
+      expect(runner.calls.single.folder, folder);
+      final result = s.agentEvents(id).last;
+      expect(result.kind, AgentEventKind.result);
+      expect(s.agentEventFiles(result), ['notes.md']);
+    });
+
+    test('a phone, or an id that is not a uuid, has no folder', () async {
+      final phone = await open(null, dataDir: data.path);
+      expect(phone.agentFolderRoot, isNull);
+      expect(phone.agentFolder('0F8FAD5B-D9CB-469F-A165-70867728950E'), isNull);
+      final mac = await open(FakeAgentRunner(), dataDir: data.path);
+      expect(mac.agentFolder('../x'), isNull);
+    });
+
+    test('the files on disk: made by the agent, not the inputs, not '
+        'links', () async {
+      final s = await open(FakeAgentRunner(), dataDir: data.path);
+      const id = '0F8FAD5B-D9CB-469F-A165-70867728950E';
+      final folder = s.agentFolder(id)!;
+      Directory('$folder${sep}inputs').createSync(recursive: true);
+      File('$folder${sep}inputs${sep}a.txt').writeAsStringSync('a');
+      File('$folder${sep}notes.md').writeAsStringSync('n');
+      Link('$folder${sep}home').createSync(data.path);
+      expect(s.agentFilesMade(id), ['notes.md']);
+      expect(s.agentFilePath(id, 'notes.md'), '$folder${sep}notes.md');
+      expect(s.agentFilePath(id, '../../x'), isNull);
+      expect(s.agentFilesMade('0F8FAD5B-D9CB-469F-A165-70867728950F'), isEmpty);
+    });
+
+    test(
+      'too much output, or a folder that is too big, fails the job',
+      () async {
+        final runner = FakeAgentRunner()
+          ..output = const AgentRunOutput(
+            exitCode: -1,
+            stdout: '{"type":"assistant"}',
+            stderr: '',
+            overflow: true,
+          );
+        final s = await open(runner, dataDir: data.path);
+        final id = s.startAgentChat('Go');
+        await s.agentWork;
+        expect(s.agentJob(id)!.status, AgentStatus.failed);
+        expect(s.agentJob(id)!.error, AgentNote.tooMuchOutput);
+        runner.output = AgentRunOutput(
+          exitCode: 0,
+          stdout: answer({'summary': 'ok'}).stdout,
+          stderr: '',
+          folderProblem: AgentScope.tooBig,
+        );
+        final id2 = s.startAgentChat('Go again');
+        await s.agentWork;
+        expect(s.agentJob(id2)!.error, AgentScope.tooBig);
+      },
+    );
+
+    test('Delete agent files removes every folder, but not while a job '
+        'runs', () async {
+      final runner = FakeAgentRunner();
+      final s = await open(runner, dataDir: data.path);
+      final id = s.startAgentChat('Go');
+      await Future<void>.delayed(Duration.zero);
+      final folder = Directory(s.agentFolder(id)!)..createSync(recursive: true);
+      File('${folder.path}${sep}x.md').writeAsStringSync('x');
+      expect(runner.processes, hasLength(1));
+      expect(await s.deleteAgentFiles(), isFalse);
+      expect(folder.existsSync(), isTrue);
+      runner.processes.single.finish(answer({'summary': 'ok'}));
+      await s.agentWork;
+      expect(await s.deleteAgentFiles(), isTrue);
+      expect(Directory(s.agentFolderRoot!).existsSync(), isFalse);
+      // The data next to it stays.
+      expect(data.existsSync(), isTrue);
+    });
+  });
+
   group('proposals', () {
     AgentRunOutput proposals() => answer({
       'summary': 'A plan.',

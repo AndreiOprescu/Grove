@@ -178,6 +178,21 @@ extension AppStoreAgent on AppStore {
 
   static const _docKey = 'grove_document_note';
   static const _noteKey = 'grove_result_note';
+  static const _filesKey = 'grove_files';
+
+  /// The files the agent had made in its folder when the run of a result
+  /// line ended (ADR 0008).
+  List<String> agentEventFiles(AgentEvent event) {
+    if (event.kind != AgentEventKind.result) return const [];
+    return _try(() {
+          final json = jsonDecode(event.body);
+          return json is Map<String, Object?> &&
+                  json[_filesKey] is List<Object?>
+              ? (json[_filesKey] as List<Object?>).whereType<String>().toList()
+              : null;
+        }) ??
+        const [];
+  }
 
   String? _agentEventId(AgentEvent event, String key) {
     if (event.kind != AgentEventKind.result) return null;
@@ -318,6 +333,89 @@ extension AppStoreAgent on AppStore {
 
   /// This device can link files: it is a computer with a data folder.
   bool get canLinkAgentFiles => _agentFilesDir != null;
+
+  /// The folder of all the agent folders on this computer (ADR 0008), or
+  /// null on a phone.
+  String? get agentFolderRoot {
+    final dir = dataDir;
+    if (dir == null || agentRunner == null) return null;
+    return AgentScope.root(dir, sep: Platform.pathSeparator);
+  }
+
+  /// The folder of the chat [jobId] on this computer: where the agent runs
+  /// and saves its work. Null on a phone, or for an id that is not a uuid.
+  String? agentFolder(String jobId) {
+    final dir = dataDir;
+    if (dir == null || agentRunner == null) return null;
+    return AgentScope.folder(dir, jobId, sep: Platform.pathSeparator);
+  }
+
+  /// The files the agent made in the folder of [jobId] on this computer,
+  /// relative to it with `/`, sorted. Links, the linked files and the
+  /// files Claude Code would load are left out. Empty when there is none.
+  List<String> agentFilesMade(String jobId) {
+    final folder = agentFolder(jobId);
+    if (folder == null) return const [];
+    final dir = Directory(folder);
+    final sep = Platform.pathSeparator;
+    final entries = <AgentEntry>[];
+    try {
+      if (!dir.existsSync() || FileSystemEntity.isLinkSync(folder)) {
+        return const [];
+      }
+      for (final e in dir.listSync(recursive: true, followLinks: false)) {
+        if (entries.length > AgentScope.maxFiles * 2) break;
+        final rel = e.path.substring(folder.length + 1).replaceAll(sep, '/');
+        entries.add(switch (FileSystemEntity.typeSync(
+          e.path,
+          followLinks: false,
+        )) {
+          FileSystemEntityType.file => AgentEntry(rel, AgentEntryKind.file),
+          FileSystemEntityType.directory => AgentEntry(
+            rel,
+            AgentEntryKind.folder,
+          ),
+          FileSystemEntityType.link => AgentEntry(rel, AgentEntryKind.link),
+          _ => AgentEntry(rel, AgentEntryKind.other),
+        });
+      }
+    } on FileSystemException {
+      return const [];
+    }
+    entries.sort((a, b) => a.path.compareTo(b.path));
+    return AgentScope.audit(entries).files;
+  }
+
+  /// The full path of the file [name] (from [agentFilesMade]) of the chat
+  /// [jobId], or null when it would be outside the folder.
+  String? agentFilePath(String jobId, String name) {
+    final folder = agentFolder(jobId);
+    if (folder == null) return null;
+    final sep = Platform.pathSeparator;
+    final path = '$folder$sep${name.replaceAll('/', sep)}';
+    return AgentScope.isInside(folder, path, sep: sep) ? path : null;
+  }
+
+  /// Deletes every agent folder on this computer. Refused (false) while a
+  /// job runs here.
+  Future<bool> deleteAgentFiles() async {
+    final root = agentFolderRoot;
+    if (root == null || _agent.liveJob != null) return false;
+    try {
+      final type = await FileSystemEntity.type(root, followLinks: false);
+      if (type == FileSystemEntityType.link) {
+        await Link(root).delete();
+      } else if (type != FileSystemEntityType.notFound) {
+        await Directory(root).delete(recursive: true);
+      }
+    } on FileSystemException catch (e) {
+      errorMessage = 'Could not delete the agent files: ${e.message}';
+      _changed();
+      return false;
+    }
+    _changed();
+    return true;
+  }
 
   /// Copies the file at [path] into the agent files folder of this computer
   /// and gives the link for a chat. Files do not sync: only this computer
@@ -635,6 +733,7 @@ extension AppStoreAgent on AppStore {
         args,
         stdin: stdin,
         timeout: AgentPolicy.timeout,
+        folder: agentFolder(job.id),
         files: files.here,
         onLine: (line) {
           if (_disposed) return;
@@ -658,6 +757,10 @@ extension AppStoreAgent on AppStore {
         return _agentCancelled(job.id);
       }
       if (out.timedOut) return _agentFail(job.id, AgentNote.timedOut);
+      if (out.overflow) return _agentFail(job.id, AgentNote.tooMuchOutput);
+      if (out.folderProblem case final problem?) {
+        return _agentFail(job.id, problem);
+      }
       if (out.stdout.trim().isEmpty) {
         return _agentFail(job.id, AgentNote.noAnswer(out.stderr));
       }
@@ -682,6 +785,7 @@ extension AppStoreAgent on AppStore {
               planChanges: job.planAccess ? result.planChanges : const [],
               newTasks: job.planAccess ? result.newTasks : const [],
             ),
+            files: out.files,
           );
       }
     } on Exception catch (e) {
@@ -901,7 +1005,12 @@ extension AppStoreAgent on AppStore {
   /// Saves the result: a document note (when there is one), and for a job
   /// of a task the result note, both linked to the task. Then the result
   /// line, and the job is done.
-  void _agentDone(AgentJob job, TaskItem? task, AgentResult result) {
+  void _agentDone(
+    AgentJob job,
+    TaskItem? task,
+    AgentResult result, {
+    List<String> files = const [],
+  }) {
     final stamp = clockStamp();
     final doc = result.document;
     final docNote = doc == null
@@ -956,6 +1065,7 @@ extension AppStoreAgent on AppStore {
         ...result.toJson(),
         _docKey: ?docNote?.id,
         _noteKey: ?note?.id,
+        if (files.isNotEmpty) _filesKey: files,
       }),
     );
   }

@@ -20,6 +20,8 @@ abstract final class AgentNote {
   static const taskGone = 'The task is gone.';
   static const notSaved = 'Grove could not save the result of the agent.';
   static const _noAnswer = 'The agent stopped before it answered.';
+  static const tooMuchOutput =
+      'The agent wrote too much output and was stopped.';
 
   /// The first message of a job of a task when the person typed nothing.
   static const workOnTask = 'Work on this task.';
