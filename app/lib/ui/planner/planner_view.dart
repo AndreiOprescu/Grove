@@ -507,7 +507,8 @@ class _PlannerViewState extends State<PlannerView> {
   }
 
   /// The small header of the one-day timeline: a title, the day's numbers,
-  /// "Reorganise rest of day" (today only), "Plan my day" and the zoom.
+  /// "Reorganise rest of day" on today or "Plan my day" on another day, and
+  /// the zoom.
   Widget _columnHeader(BuildContext context, GroveTheme theme) => Column(
     crossAxisAlignment: CrossAxisAlignment.stretch,
     mainAxisSize: MainAxisSize.min,
@@ -525,8 +526,9 @@ class _PlannerViewState extends State<PlannerView> {
               icon: symbolIcon('arrow.triangle.2.circlepath'),
               small: true,
               onTap: _showReplan,
-            ),
-          _planButton(compact: true, small: true),
+            )
+          else
+            _planButton(compact: true, small: true),
           ..._zoomButtons(small: true),
         ],
       ),
