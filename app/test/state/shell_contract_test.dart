@@ -22,7 +22,7 @@ void main() {
       s.screen = Screen.today;
       var calls = 0;
       s.addListener(() => calls += 1);
-      s.toggleLeftPane(LeftPane.notes);
+      s.toggleLeftPane(LeftPane.tasks);
       expect(calls, greaterThan(0));
       expect(s.screen, Screen.today);
     });

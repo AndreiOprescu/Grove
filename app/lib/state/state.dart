@@ -35,6 +35,7 @@ export 'rules/mood.dart';
 export 'rules/notes_rules.dart';
 export 'rules/now_next.dart';
 export 'rules/planner_block.dart';
+export 'rules/replan_rules.dart';
 export 'rules/plant_math.dart';
 export 'rules/settings_rules.dart';
 export 'rules/subtask_rules.dart';

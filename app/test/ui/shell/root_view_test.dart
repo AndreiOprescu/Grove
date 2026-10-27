@@ -122,12 +122,12 @@ void main() {
     });
 
     testWidgets('an open panel does not show on the Calendar', (tester) async {
-      final m = still(screen: Screen.calendar, leftPane: LeftPane.notes);
+      final m = still(screen: Screen.calendar, leftPane: LeftPane.deadlines);
       await pumpApp(tester, m, size: desktopSize);
-      expect(pane(LeftPane.notes), findsNothing);
+      expect(pane(LeftPane.deadlines), findsNothing);
       m.screen = Screen.today;
       await tester.pumpAndSettle();
-      expect(pane(LeftPane.notes), findsOneWidget);
+      expect(pane(LeftPane.deadlines), findsOneWidget);
     });
 
     testWidgets('the buttons say what they are', (tester) async {
@@ -150,7 +150,8 @@ void main() {
         isSemantics(label: 'Goals', isButton: true, isSelected: true),
       );
       expect(find.byTooltip('Hide goals'), findsOneWidget);
-      expect(find.byTooltip('Show notes'), findsOneWidget);
+      expect(find.byTooltip('Show tasks'), findsOneWidget);
+      expect(find.byTooltip('Show notes'), findsNothing);
       handle.dispose();
     });
   });
@@ -184,11 +185,11 @@ void main() {
       final m = still(screen: Screen.planner);
       await pumpApp(tester, m, size: phoneSize);
       expect(content(Screen.planner), findsOneWidget);
-      await tester.tap(dockButton(LeftPane.notes));
+      await tester.tap(dockButton(LeftPane.goals));
       await tester.pumpAndSettle();
-      expect(pane(LeftPane.notes), findsOneWidget);
+      expect(pane(LeftPane.goals), findsOneWidget);
       expect(content(Screen.planner), findsNothing);
-      await tester.tap(dockButton(LeftPane.notes));
+      await tester.tap(dockButton(LeftPane.goals));
       await tester.pumpAndSettle();
       expect(content(Screen.planner), findsOneWidget);
     });

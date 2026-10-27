@@ -27,7 +27,6 @@ Widget? storePane(BuildContext context, AppStore store, LeftPane pane) =>
         store: store,
         child: DeadlinesPane(store: store),
       ),
-      LeftPane.notes => null,
     };
 
 /// The panel at the right: the panel of the chosen task, or the goal

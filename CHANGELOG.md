@@ -7,12 +7,14 @@ makes the next version. Each line is one feature. The newest version is first.
 
 ## 1.3.0 · 2026-10-27
 
+- **Notebooks:** the Notes screen has a sidebar with All notes, Inbox, Daily, Weekly, Pinned, Meetings, With tasks and Archive, your own notebooks with sections and colours, and your tags. Drag a note to sort it, move it with "Move to notebook…", and archive notes you are done with.
+- **Reorganise rest of day:** a button next to "Timeline" on today's planner. Say how much of each open task and goal block you have done with a bar or a number, and Grove plans what is left from now until your sleep line: tasks with a deadline first, then goals, then other tasks. What does not fit goes back to today's list. One ⌘Z undoes it all.
+- **Notes panel removed from the dock:** the dock at the top left now has Tasks, Goals and Deadlines. Notes live on the Notes screen.
 - **Agent folder:** each agent chat has its own folder on the computer that runs the agent. The agent can save files there, like notes or a draft page, and it cannot change files anywhere else. The chat lists the files it saved. Settings ▸ Agent shows the folder and can delete all agent files.
 - **Agent services:** turn on the services of your Claude Code (Gmail, Google Drive, Notion and more) one by one in Settings ▸ Agent. The agent only gets their tools that read, and never runs commands. The "Email" switch of a chat is now "Services".
 
 ## 1.2.0 · 2026-10-21
 
-- **Notebooks:** the Notes screen has a sidebar with All notes, Inbox, Daily, Weekly, Pinned, Meetings, With tasks and Archive, your own notebooks with sections and colours, and your tags. Drag a note to sort it, move it with "Move to notebook…", and archive notes you are done with.
 - **Plan tomorrow:** Grove learns when you usually fall asleep from when you stop using your phone and Mac, and reminds you to plan tomorrow before bed. On the Mac, closing the window keeps Grove in the menu bar, and it opens at login.
 - **No empty day notes:** Grove no longer makes a note for a day by itself. Press "Start a note" to make one. A day note you leave empty is deleted.
 - **Weather low and high:** each day shows its lowest and highest temperature.

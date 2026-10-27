@@ -207,7 +207,6 @@ List<ShellMenu> shellMenus(ShellModel model, ShellCommands commands) => [
       key: LogicalKeyboardKey.digit1,
     ),
     ShellEntry('Tasks', model.showTasks, key: LogicalKeyboardKey.digit2),
-    ShellEntry('Notes Panel', () => model.showLeftPane(LeftPane.notes)),
     ShellEntry('Goals Panel', () => model.showLeftPane(LeftPane.goals)),
     ShellEntry('Deadlines Panel', () => model.showLeftPane(LeftPane.deadlines)),
     ShellEntry(

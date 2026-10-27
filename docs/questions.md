@@ -46,6 +46,7 @@ The reminder code needs one type from the package `timezone`. That package is al
 A) Yes, name it (`timezone: ^0.11.1`) — no new code comes into the app; only one line in `app/pubspec.yaml`.   ← my pick: it is the clean way to use a package that is already there.
 B) No — the line goes out and the import gets a "skip this warning" comment. The app works the same.
 If no answer: A stays. It is built.
+Answer (owner, 2026-10-26): A. The task stays on today with no time.
 Answer (owner, 2026-10-11): A. The built default stays: `timezone` is named in `app/pubspec.yaml`.
 
 ## Q-6 · ANSWERED A · DEFAULT · blocks F10-services (reminders) · 2026-10-10
@@ -247,6 +248,30 @@ A) Each day has its own lines — you set them for the day you look at; a new li
 B) One time for all days — you set the two lines once and each day shows them; a change on one day changes all days, also the past ones.
 If no answer: nothing is built until you answer; the storage is not the same for A and B.
 Answer (owner, 2026-10-12): A. Each day has its own lines.
+
+## Q-53 · OPEN · DEFAULT · blocks feat/reorganise-day · 2026-10-26
+When you set a task to 100 % in "Reorganise rest of day", should its later blocks today be freed?
+A) Keep all its blocks — the task is ticked, like the checkbox; a block later today stays on the timeline as a done block.   ← my pick: it is what the checkbox does now, and one rule is easier to trust.
+B) Free its blocks that start after now — the time shows as free and other items can be placed there.
+If no answer: A stays. It is built.
+
+## Q-54 · OPEN · DEFAULT · blocks feat/reorganise-day · 2026-10-26
+Should blocks of a repeating task or a repeating goal be offered in "Reorganise rest of day"?
+A) No — they stay where they are and count as busy time.   ← my pick: moving one day of a series needs its own rules (does it break off from the series?), and a mistake there changes other days.
+B) Yes — Grove moves only today's copy, which then breaks off from the series.
+If no answer: A stays. It is built.
+
+## Q-55 · OPEN · DEFAULT · blocks feat/reorganise-day · 2026-10-26
+The Notes panel was the only place to drag a note onto the planner. Should that drag come back somewhere?
+A) Not now — notes stay on the Notes screen, and the drag can come back later.   ← my pick: you asked for the panel to go, and no other screen shows a list of notes next to the planner.
+B) Yes — add the drag to another place that shows notes next to the planner; you say where.
+If no answer: A stays. No note can be dragged onto the planner.
+
+## Q-56 · ANSWERED A · DEFAULT · blocks feat/reorganise-day · 2026-10-26
+In "Reorganise rest of day", a task that does not fit today: where should it go?
+A) Today's list — it keeps today as its day, loses its block, and shows as a sticky note under today on the timeline.   ← my pick: you can still do it today if time frees up, and Plan my day and the next Reorganise see it.
+B) The "Unscheduled" list of the Tasks panel — it loses today as its day and goes to the inbox.
+If no answer: A stays. It is built.
 
 ## Q-58 · ANSWERED A (owner, 2026-10-27) · DEFAULT · blocks feat/agent-scope-tools · 2026-10-27
 In a chat with services on, may the agent still search the web?

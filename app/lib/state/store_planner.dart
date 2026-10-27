@@ -6,6 +6,18 @@ typedef PlanStep = ({TaskItem task, int start});
 /// A day of a repeating event before and after an edit.
 typedef OccurrenceEdit = ({EventItem old, EventItem changed});
 
+/// What "Reorganise rest of day" reads: the input of the rule and the
+/// stored items behind it. [tasks] are the open tasks, [taskBlocks] their
+/// open blocks today (by task id), [goalBlocks] the open goal blocks (by
+/// event id), [events] every timed event of the day.
+typedef _ReplanSources = ({
+  ReplanInput input,
+  Map<String, TaskItem> tasks,
+  Map<String, List<EventItem>> taskBlocks,
+  Map<String, EventItem> goalBlocks,
+  List<EventItem> events,
+});
+
 /// Highest priority first, then the order of the list.
 int _byPriority(TaskItem a, TaskItem b) => a.priority != b.priority
     ? b.priority.compareTo(a.priority)
@@ -203,12 +215,15 @@ extension AppStorePlanner on AppStore {
     return out;
   }
 
-  /// Which task has a block on which day, for the days in the range.
+  /// Which task has a block on which day, for the days in the range. A
+  /// worked record of "Reorganise rest of day" (a task block with `doneAt`)
+  /// does not count: the rest of that task is still to plan.
   List<({DayKey day, String task})> _blockedTaskIds(DayRange days) =>
       _try(
         () => repos.db.query(
           'SELECT DISTINCT substr(start, 1, 10), task_id FROM events '
-          'WHERE task_id IS NOT NULL AND start >= ? AND start < ?',
+          'WHERE task_id IS NOT NULL AND start >= ? AND start < ? '
+          'AND (done_at IS NULL OR goal_id IS NOT NULL OR is_deadline = 1)',
           [
             '${days.first.string}T00:00',
             '${days.last.adding(days: 1).string}T00:00',
@@ -645,4 +660,267 @@ extension AppStorePlanner on AppStore {
     until: 1440,
     step: step,
   );
+
+  // Reorganise rest of day
+
+  /// The open tasks and goal blocks of today for "Reorganise rest of day",
+  /// with the time that is taken, now and the sleep line.
+  /// [now] is the minute to plan from (by default the clock).
+  ReplanInput replanInput({int? now}) => _replanSources(now: now).input;
+
+  _ReplanSources _replanSources({int? now}) {
+    final day = clockToday;
+    final events = <EventItem>[];
+    final fixed = <Span>[];
+    for (final e in eventItems(DayRange.single(day))) {
+      if (e.allDay) continue;
+      if (e.start.day == day) {
+        events.add(e);
+      } else if (e.start.day < day) {
+        // It began on an earlier day and still runs today: busy, not moved.
+        final end = e.end.day == day ? e.end.minute : PlannerMath.dayEnd;
+        if (end > 0) fixed.add(Span(id: e.id, start: 0, end: end));
+      }
+    }
+    final found = <String, TaskItem?>{};
+    final tasks = <String, TaskItem>{};
+    final taskBlocks = <String, List<EventItem>>{};
+    final goalBlocks = <String, EventItem>{};
+    for (final e in events) {
+      final open =
+          e.doneAt == null &&
+          !e.isDeadline &&
+          e.seriesId == null &&
+          e.recurrence == null &&
+          OccurrenceId.parse(e.id) == null;
+      final tid = e.taskId;
+      if (open && tid != null) {
+        final t = found.putIfAbsent(tid, () => task(tid));
+        if (t != null && t.status == TaskStatus.open) {
+          tasks[tid] = t;
+          (taskBlocks[tid] ??= []).add(e);
+          continue;
+        }
+      } else if (open && e.goalId != null) {
+        goalBlocks[e.id] = e;
+        continue;
+      }
+      fixed.add(_daySpan(e, day));
+    }
+    for (final t in timeless([day])[day] ?? const <TaskItem>[]) {
+      tasks.putIfAbsent(t.id, () => t);
+    }
+    final items = [
+      for (final t in tasks.values)
+        _replanTaskItem(t, [
+          for (final e in taskBlocks[t.id] ?? const <EventItem>[])
+            _daySpan(e, day),
+        ]),
+      for (final e in goalBlocks.values)
+        ReplanItem(
+          id: e.id,
+          // The time tells two blocks of one goal apart.
+          title:
+              '${goal(e.goalId!)?.title ?? e.title} · '
+              '${PlannerMath.clock(e.start.minute)}',
+          group: ReplanGroup.goal,
+          base: _daySpan(e, day).length,
+          blocks: [_daySpan(e, day)],
+        ),
+    ];
+    return (
+      input: ReplanInput(
+        day: day,
+        items: items,
+        fixed: fixed,
+        now: now ?? nowMinute(),
+        until: dayMarker(DayMarkerKind.sleep, day) ?? PlannerMath.dayEnd,
+      ),
+      tasks: tasks,
+      taskBlocks: taskBlocks,
+      goalBlocks: goalBlocks,
+      events: events,
+    );
+  }
+
+  /// The minutes of [e] on [day]: an event that runs past midnight ends at
+  /// the end of the day.
+  Span _daySpan(EventItem e, DayKey day) => Span(
+    id: e.id,
+    start: e.start.minute,
+    end: e.end.day == day ? e.end.minute : PlannerMath.dayEnd,
+  );
+
+  /// A task with its open blocks of today. With no block, its estimate is
+  /// the length.
+  ReplanItem _replanTaskItem(TaskItem t, List<Span> blocks) => ReplanItem(
+    id: t.id,
+    title: t.title,
+    group: (t.due ?? '').isEmpty ? ReplanGroup.task : ReplanGroup.deadline,
+    base: blocks.isEmpty
+        ? t.estimateMin
+        : blocks.fold(0, (sum, b) => sum + b.length),
+    blocks: blocks,
+  );
+
+  /// Puts the open tasks and goal blocks of today after now (see
+  /// [ReplanRules.plan]). [pct] is how much of each is done, by item id. A
+  /// task at 100% is checked off, a goal block at 100% ticked. A part done
+  /// keeps its worked part as a done record and gets a block for the rest.
+  /// What does not fit before the sleep line goes back to today's list. One
+  /// undo step. [now] is the minute the sheet planned from, so Apply does
+  /// what the sheet showed (by default the clock).
+  void applyReplan(Map<String, int> pct, {int? now}) {
+    final src = _replanSources(now: now);
+    if (src.input.from >= PlannerMath.dayEnd) return;
+    final steps = ReplanRules.plan(src.input, pct);
+    if (steps.isEmpty) return;
+    final day = src.input.day;
+    final stamp = clockStamp();
+    final m = Mutation('Reorganise Day');
+    final gone = <String>{};
+    WallTime wall(int minute) => WallTime(day: day, minute: minute);
+    void put(EventItem old, EventItem? after) {
+      if (after == old) return;
+      m.events.add((before: old, after: after));
+      if (after == null) gone.add(old.id);
+    }
+
+    for (final s in steps) {
+      final at = s.placedAt;
+      final kept = {for (final k in s.kept) k.id: k};
+      if (s.item.isGoal) {
+        final e = src.goalBlocks[s.item.id]!;
+        if (s.done) {
+          put(e, e.copyWith(doneAt: stamp));
+          continue;
+        }
+        final worked = kept[e.id];
+        if (worked == null) {
+          // Nothing done: the block moves, or goes when it does not fit.
+          put(
+            e,
+            at == null
+                ? null
+                : e.copyWith(start: wall(at), end: wall(at + s.remaining)),
+          );
+          continue;
+        }
+        // The block becomes the done record of the worked part. Its open
+        // subtasks go with the rest, or back to the goal.
+        put(
+          e,
+          e.copyWith(
+            start: wall(worked.start),
+            end: wall(worked.end),
+            doneAt: stamp,
+          ),
+        );
+        final rest = at == null
+            ? null
+            : e.copyWith(
+                id: newId(),
+                doneAt: null,
+                start: wall(at),
+                end: wall(at + s.remaining),
+              );
+        if (rest != null) m.events.add((before: null, after: rest));
+        for (final sub in plannedGoalSubtasks(e.id)) {
+          if (sub.isDone) continue;
+          m.goalSubtasks.add((
+            before: sub,
+            after: sub.copyWith(eventId: rest?.id),
+          ));
+        }
+        if (rest == null) continue;
+        for (final sub in blockSubtasks(e.id)) {
+          if (sub.isDone) continue;
+          m.blockSubtasks.add((
+            before: sub,
+            after: sub.copyWith(eventId: rest.id),
+          ));
+        }
+        continue;
+      }
+
+      final t = src.tasks[s.item.id]!;
+      final open = src.taskBlocks[t.id] ?? const <EventItem>[];
+      if (s.done) {
+        _completeTaskInto(t, m);
+        continue;
+      }
+      var next = planned(t, on: day);
+      if (s.pct > 0) next = next.copyWith(estimateMin: s.remaining);
+      if (next != t) m.tasks.add((before: t, after: next));
+      if (at == null) {
+        // Back to today's list: no block today, worked ones too. A day of
+        // a repeating event stays.
+        for (final e in src.events) {
+          if (e.taskId == t.id &&
+              e.seriesId == null &&
+              OccurrenceId.parse(e.id) == null) {
+            put(e, null);
+          }
+        }
+        continue;
+      }
+      if (kept.isEmpty) {
+        // The first block moves and takes the length of the rest.
+        final first = open.firstOrNull;
+        if (first == null) {
+          m.events.add((
+            before: null,
+            after: blockEvent(t, day: day, start: at, end: at + s.remaining),
+          ));
+        } else {
+          put(
+            first,
+            first.copyWith(start: wall(at), end: wall(at + s.remaining)),
+          );
+        }
+        for (final e in open.skip(1)) {
+          put(e, null);
+        }
+        continue;
+      }
+      // The worked part stays as a done record (the task stays open), and a
+      // new block of the task holds the rest.
+      for (final e in open) {
+        final k = kept[e.id];
+        put(
+          e,
+          k == null
+              ? null
+              : e.copyWith(
+                  start: wall(k.start),
+                  end: wall(k.end),
+                  doneAt: stamp,
+                ),
+        );
+      }
+      m.events.add((
+        before: null,
+        after: blockEvent(
+          t,
+          day: day,
+          start: at,
+          end: at + s.remaining,
+        ).copyWith(color: open.first.color),
+      ));
+    }
+
+    if (commit(m) && gone.isNotEmpty) {
+      selection = _selection.difference(gone);
+    }
+    final placed = steps.where((s) => s.placedAt != null).length;
+    final done = steps.where((s) => s.done).length;
+    final missed = steps.where((s) => s.overflow).length;
+    showToast(
+      [
+        if (placed > 0) 'Placed $placed',
+        if (done > 0) '$done done',
+        if (missed > 0) '$missed did not fit',
+      ].join(' · '),
+    );
+  }
 }

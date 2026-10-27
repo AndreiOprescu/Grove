@@ -26,6 +26,7 @@ import 'planner_dialogs.dart';
 import 'planner_geometry.dart';
 import 'planner_grid.dart';
 import 'planner_kind.dart';
+import 'replan_dialog.dart';
 import 'sticky_strip.dart';
 import 'weather_label.dart';
 import 'workload.dart';
@@ -174,6 +175,27 @@ class _PlannerViewState extends State<PlannerView> {
     final apply = await showPlanSheet(context, plan);
     _windowOpen = false;
     if (apply) _store.applyPlan(plan, day: day);
+    _openWindows();
+  }
+
+  /// "Reorganise rest of day": the open tasks and goal blocks of today go
+  /// after now, each with how much of it is done.
+  Future<void> _showReplan() async {
+    if (_windowOpen) return;
+    final input = _store.replanInput();
+    if (input.from >= PlannerMath.dayEnd) {
+      _store.showToast('Nothing left of today to plan.');
+      return;
+    }
+    if (input.items.isEmpty) {
+      _store.showToast('Nothing to reorganise.');
+      return;
+    }
+    _windowOpen = true;
+    final pct = await showReplanSheet(context, input);
+    _windowOpen = false;
+    // Plan from the same minute as the sheet, so Apply does what it showed.
+    if (pct != null) _store.applyReplan(pct, now: input.now);
     _openWindows();
   }
 
@@ -487,7 +509,7 @@ class _PlannerViewState extends State<PlannerView> {
   }
 
   /// The small header of the one-day timeline: a title, the day's numbers,
-  /// "Plan my day" and the zoom.
+  /// "Reorganise rest of day" (today only), "Plan my day" and the zoom.
   Widget _columnHeader(BuildContext context, GroveTheme theme) => Column(
     crossAxisAlignment: CrossAxisAlignment.stretch,
     mainAxisSize: MainAxisSize.min,
@@ -497,6 +519,15 @@ class _PlannerViewState extends State<PlannerView> {
         spacing: 8,
         children: [
           const Expanded(child: ThemedHeading('Timeline', 20)),
+          if ((widget.day ?? _store.clockToday) == _store.clockToday)
+            _HeaderButton(
+              key: const ValueKey('replan-day'),
+              label: 'Reorganise rest of day',
+              tooltip: 'Reorganise rest of day',
+              icon: symbolIcon('arrow.triangle.2.circlepath'),
+              small: true,
+              onTap: _showReplan,
+            ),
           _planButton(compact: true, small: true),
           ..._zoomButtons(small: true),
         ],

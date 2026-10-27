@@ -67,9 +67,8 @@ void main() {
   });
 
   group('the left panels', () {
-    test('four panels, in the order of the buttons', () {
+    test('three panels, in the order of the buttons', () {
       expect(LeftPane.values.map((p) => p.name), [
-        'notes',
         'tasks',
         'goals',
         'deadlines',
@@ -92,7 +91,7 @@ void main() {
 
     test('a click on another panel replaces the open one', () {
       expect(
-        LeftPane.toggled(current: LeftPane.notes, tapped: LeftPane.goals),
+        LeftPane.toggled(current: LeftPane.deadlines, tapped: LeftPane.goals),
         LeftPane.goals,
       );
       expect(
@@ -100,15 +99,15 @@ void main() {
         LeftPane.tasks,
       );
       expect(
-        LeftPane.toggled(current: LeftPane.tasks, tapped: LeftPane.notes),
-        LeftPane.notes,
+        LeftPane.toggled(current: LeftPane.tasks, tapped: LeftPane.deadlines),
+        LeftPane.deadlines,
       );
     });
 
     test('the saved text names the panel; empty or unknown is closed', () {
-      expect(LeftPane.fromSaved('notes'), LeftPane.notes);
       expect(LeftPane.fromSaved('tasks'), LeftPane.tasks);
       expect(LeftPane.fromSaved('goals'), LeftPane.goals);
+      expect(LeftPane.fromSaved('notes'), isNull);
       expect(LeftPane.fromSaved(''), isNull);
       expect(LeftPane.fromSaved('inbox'), isNull);
       expect(LeftPane.savedText(null), '');
@@ -126,20 +125,19 @@ void main() {
 
     test('every panel has a title and a tooltip that names the next click', () {
       expect(LeftPane.values.map((p) => p.title), [
-        'Notes',
         'Tasks',
         'Goals',
         'Deadlines',
       ]);
-      expect(LeftPane.notes.tooltip(isOpen: false), 'Show notes');
-      expect(LeftPane.notes.tooltip(isOpen: true), 'Hide notes');
+      expect(LeftPane.tasks.tooltip(isOpen: false), 'Show tasks');
+      expect(LeftPane.tasks.tooltip(isOpen: true), 'Hide tasks');
     });
 
     test('the model toggles the panel like the buttons', () {
       final m = LocalShellModel();
       expect(m.leftPane, isNull);
-      m.toggleLeftPane(LeftPane.notes);
-      expect(m.leftPane, LeftPane.notes);
+      m.toggleLeftPane(LeftPane.tasks);
+      expect(m.leftPane, LeftPane.tasks);
       m.toggleLeftPane(LeftPane.goals);
       expect(m.leftPane, LeftPane.goals);
       m.toggleLeftPane(LeftPane.goals);
@@ -149,8 +147,8 @@ void main() {
     test('show a panel: stays on Today and the Planner, else goes to the '
         'Planner', () {
       final m = LocalShellModel();
-      m.showLeftPane(LeftPane.notes);
-      expect((m.screen, m.leftPane), (Screen.today, LeftPane.notes));
+      m.showLeftPane(LeftPane.deadlines);
+      expect((m.screen, m.leftPane), (Screen.today, LeftPane.deadlines));
       m.screen = Screen.garden;
       m.showLeftPane(LeftPane.goals);
       expect((m.screen, m.leftPane), (Screen.planner, LeftPane.goals));

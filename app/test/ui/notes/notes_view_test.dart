@@ -9,7 +9,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:grove/ui/editor/markdown_controller.dart';
 import 'package:grove/ui/notes/day_panel.dart';
 import 'package:grove/ui/notes/note_editor_pane.dart';
-import 'package:grove/ui/notes/notes_pane.dart';
 import 'package:grove/ui/notes/notes_view.dart';
 import 'package:grove/ui/settings/settings_tabs.dart' show saveSetting;
 
@@ -1265,54 +1264,5 @@ void main() {
     await tapKey(tester, 'notes-today');
     expect(tester.takeException(), isNull);
     expect(find.byType(DayPanel), findsOneWidget);
-  });
-
-  testWidgets('the notes in the left panel: a click opens a note', (
-    tester,
-  ) async {
-    final store = plannerStore();
-    final a = store.newNote(title: 'Alpha');
-    store.newNote(title: 'Beta');
-    store
-      ..screen = Screen.planner
-      ..leftPane = LeftPane.notes;
-    await pumpPlanner(tester, store);
-    expect(find.byType(NotesPane), findsOneWidget);
-    expect(find.text('2 notes'), findsOneWidget);
-    expect(NotesPane.count(0), 'No notes');
-    expect(NotesPane.count(1), '1 note');
-
-    await tester.tap(key('pane-note-${a.id}'));
-    await tester.pumpAndSettle();
-    expect(store.screen, Screen.notes);
-    expect(store.selectedNoteId, a.id);
-  });
-
-  testWidgets('a note dragged from the left panel onto the planner gets a '
-      'time', (tester) async {
-    final store = plannerStore();
-    final a = store.newNote(title: 'Alpha');
-    store
-      ..screen = Screen.planner
-      ..leftPane = LeftPane.notes;
-    await pumpPlanner(tester, store);
-    final from = tester.getCenter(key('pane-note-${a.id}'));
-    final to = pointAt(tester, wednesday, 9 * 60);
-    final gesture = await tester.startGesture(
-      from,
-      kind: PointerDeviceKind.mouse,
-    );
-    await tester.pump();
-    for (var i = 1; i <= 8; i++) {
-      await gesture.moveTo(Offset.lerp(from, to, i / 8)!);
-      await tester.pump(const Duration(milliseconds: 16));
-    }
-    await gesture.up();
-    await tester.pumpAndSettle();
-    final block = blockNamed(store, '📝 Alpha');
-    expect(block.day, wednesday);
-    expect(block.startMinute, 9 * 60);
-    // the drag did not open the note
-    expect(store.screen, Screen.planner);
   });
 }

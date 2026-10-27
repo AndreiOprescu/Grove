@@ -68,6 +68,7 @@ import 'rules/notes_rules.dart';
 import 'rules/now_next.dart';
 import 'rules/plant_math.dart';
 import 'rules/planner_block.dart';
+import 'rules/replan_rules.dart';
 import 'rules/settings_rules.dart';
 import 'rules/subtask_rules.dart';
 import 'rules/task_placement.dart';
