@@ -61,6 +61,7 @@ void main() {
         '${drive}query_sheet',
         'mcp__notion__get_settings',
         'mcp__notion__get_address',
+        'mcp__claude_ai_Context7__query-docs',
       ]) {
         expect(McpToolRules.isReadTool(name), isTrue, reason: name);
       }
@@ -75,8 +76,16 @@ void main() {
         isTrue,
       );
       expect(
-        McpToolRules.isReadTool('mcp__Notion__notion-search', server: 'Notion'),
+        McpToolRules.isReadTool(
+          'mcp__Notion__notion-get-users',
+          server: 'Notion',
+        ),
         isTrue,
+      );
+      // The verb alone after the server name: not sure what it reaches.
+      expect(
+        McpToolRules.isReadTool('mcp__Notion__notion-search', server: 'Notion'),
+        isFalse,
       );
       // Without the server, the first word is not a verb.
       expect(McpToolRules.isReadTool('${gmail}gmail_search_messages'), isFalse);
@@ -114,6 +123,40 @@ void main() {
         'mcp__cal__modify_page',
         'mcp__cal__run_query',
         'mcp__cal__do_it',
+      ]) {
+        expect(McpToolRules.isReadTool(name), isFalse, reason: name);
+      }
+    });
+
+    test('a verb alone is not a read tool: `query` of a database runs any '
+        'SQL, `fetch` reaches any web address (review, 2026-10-27)', () {
+      for (final name in [
+        'mcp__postgres__query',
+        'mcp__mysql__Query',
+        'mcp__web__fetch',
+        'mcp__x__search',
+        'mcp__x__get',
+      ]) {
+        expect(McpToolRules.isReadTool(name), isFalse, reason: name);
+      }
+      expect(
+        McpToolRules.isReadTool('mcp__web__fetch', server: 'web'),
+        isFalse,
+      );
+    });
+
+    test('a web address or SQL in the name is not a read tool: it would '
+        'work as WebFetch, or run any query (review, 2026-10-27)', () {
+      for (final name in [
+        'mcp__web__fetch_url',
+        'mcp__web__fetchUrl',
+        'mcp__web__get_URL',
+        'mcp__web__read_urls',
+        'mcp__web__get_http',
+        'mcp__web__fetch_https_page',
+        'mcp__db__query_sql',
+        'mcp__db__run_sql',
+        'mcp__db__get_sql_result',
       ]) {
         expect(McpToolRules.isReadTool(name), isFalse, reason: name);
       }

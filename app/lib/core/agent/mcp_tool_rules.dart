@@ -3,9 +3,11 @@
 /// Grove allows the agent only the tools whose names say they read. A name
 /// is cut into words at `_`, `-` and a capital letter (`getMessage`). The
 /// first word, after the words of the server name, must be a read verb
-/// ("get", "list", "search"...), and no word may be a write word ("send",
-/// "update", "draft"...) or join two actions ("and", "then"). A name Grove
-/// is not sure of is not a read tool: better safe.
+/// ("get", "list", "search"...) with a word after it (what it reads: a
+/// bare `query` of a database runs any SQL), and no word may be a write
+/// word ("send", "update", "draft"...), name a web address or SQL ("url",
+/// "http", "sql") or join two actions ("and", "then"). A name Grove is
+/// not sure of is not a read tool: better safe.
 abstract final class McpToolRules {
   static final _notRuleChar = RegExp('[^A-Za-z0-9_-]');
 
@@ -58,6 +60,9 @@ abstract final class McpToolRules {
     'authorize', 'notify', 'remind', 'react', 'vote', 'generate',
     'convert', 'print', 'install', 'uninstall', 'register', 'unregister',
     'sign', 'confirm', 'transition', 'make', 'perform', 'and', 'then',
+    // A web address or SQL: the tool would work as WebFetch (off in a run
+    // with services), or run any query.
+    'url', 'http', 'sql',
   };
 
   /// [writeWords] and their forms: s, es, d, ed, ing, er, ers, and with
@@ -103,7 +108,7 @@ abstract final class McpToolRules {
     final all = words(tool);
     if (all.any(_writeForms.contains)) return false;
     final skip = server == null ? const <String>{} : words(server).toSet();
-    final verb = all.skipWhile(skip.contains).firstOrNull;
-    return verb != null && readVerbs.contains(verb);
+    final rest = all.skipWhile(skip.contains).toList();
+    return rest.length > 1 && readVerbs.contains(rest.first);
   }
 }
