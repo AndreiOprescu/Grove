@@ -544,6 +544,20 @@ Use `.focusable()` + `.onKeyPress`.
   (today) or from the working-hours start (other days). Animate the block growing in.
 - **Plan my day** button: fits all of today's unscheduled tasks in priority order into free
   working-hours slots, as one undo step. Shows a preview sheet with Apply / Cancel.
+- **Reorganise rest of day** button (owner request, 2026-10-26): next to the "Timeline"
+  heading, on today only. It takes today's open task blocks, today's tasks with no block
+  and today's open goal blocks. A sheet has one row per item with a bar and a number for
+  how much is done (0–100 %, all start at 0). 100 % ticks it (like the checkbox). A part
+  done keeps the worked part (the share that is done, before now) as a record and places
+  the rest as a new block of the same task; the rest is rounded up to 15 minutes (60 min
+  at 80 % → 15 min).
+  0 % moves the whole block. Order: tasks with a deadline, then goal blocks, then other
+  tasks; in a group, least time left first. Blocks go in the first free slots from now
+  (on the 15-minute grid) to the sleep line (midnight when there is none). A task that
+  does not fit goes back to today's list; a goal block that does not fit is removed;
+  when part of it is done, the worked part stays as a done record and only the rest is
+  removed.
+  The sheet shows where each item goes as you drag. Apply is one undo step.
 - **Day totals** in the header: "4h 30m planned · 2h 10m free · 3/6 done".
 - **End of day roll-over**: on first launch of a new day, if yesterday has open task
   blocks, show a gentle card "3 things from yesterday — Move to today / Leave". Move
@@ -567,6 +581,8 @@ Use `.focusable()` + `.onKeyPress`.
   not listed. Dropping a task on the planner moves it: it keeps one block, at the new time,
   and the old date and time are removed. The **Today** page shows only today's tasks (no
   tabs). A new task is kept when the user clicks away without pressing Enter.
+  **Superseded 2026-10-26:** the dock is Tasks, Goals, Deadlines; the Notes panel is gone
+  (owner). Notes live on the Notes screen.
 - **Week view of tasks** (used by Layout C and the "This Week" sidebar item): 7 day columns
   + "Anytime this week" column. Drag tasks between columns (changes `plan_date`; to the
   "anytime" column sets bucket `week`).

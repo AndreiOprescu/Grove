@@ -5,8 +5,8 @@ import 'package:flutter/material.dart' hide Row;
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:grove/ui/goals/goals_pane.dart';
 import 'package:grove/ui/notes/note_editor_pane.dart';
-import 'package:grove/ui/notes/notes_pane.dart';
 import 'package:grove/ui/planner/inline_title_field.dart';
 import 'package:grove/ui/planner/planner_grid.dart';
 import 'package:grove/ui/shell/shell_layout.dart';
@@ -246,14 +246,12 @@ void main() {
   testWidgets('an open left panel stands in the place of the task list', (
     tester,
   ) async {
-    final store = spreadStore();
-    store.newNote(title: 'Alpha');
-    store
+    final store = spreadStore()
       ..screen = Screen.today
-      ..leftPane = LeftPane.notes;
+      ..leftPane = LeftPane.goals;
     await pumpPlanner(tester, store, size: wide);
     expect(tester.takeException(), isNull);
-    expect(find.byType(NotesPane), findsOneWidget);
+    expect(find.byType(GoalsPane), findsOneWidget);
     expect(key('spread-tasks'), findsNothing);
     expect(key('spread-handle'), findsNothing);
     expect(key('spread-timeline'), findsOneWidget);

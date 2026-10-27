@@ -193,14 +193,23 @@ extension AppStoreTasks on AppStore {
     final old = task(taskId);
     if (old == null) return;
     if (linger && !old.isDone) _holdInList(taskId);
-    final t = old.isDone
-        ? old.copyWith(status: TaskStatus.open, completedAt: null)
-        : old.copyWith(status: TaskStatus.done, completedAt: clockStamp());
-    final m = Mutation(t.isDone ? 'Complete Task' : 'Reopen Task');
+    if (old.isDone) {
+      final t = old.copyWith(status: TaskStatus.open, completedAt: null);
+      commit(Mutation('Reopen Task')..tasks.add((before: old, after: t)));
+      return;
+    }
+    final m = Mutation('Complete Task');
+    _completeTaskInto(old, m);
+    commit(m);
+  }
+
+  /// Adds the tick of an open task to [m]: done now, and the next copy of a
+  /// repeating task.
+  void _completeTaskInto(TaskItem old, Mutation m) {
+    final t = old.copyWith(status: TaskStatus.done, completedAt: clockStamp());
     m.tasks.add((before: old, after: t));
     final rule = old.recurrence;
-    if (t.isDone && rule != null) _appendNextInstance(old, rule, m);
-    commit(m);
+    if (rule != null) _appendNextInstance(old, rule, m);
   }
 
   void _holdInList(String id) {

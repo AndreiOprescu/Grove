@@ -4,11 +4,11 @@ import 'package:flutter_test/flutter_test.dart';
 import 'support.dart';
 
 void main() {
-  group('the four left panels', () {
+  group('the three left panels', () {
     test('the names are what is saved in the setting', () {
       expect(
         [for (final p in LeftPane.values) p.name],
-        ['notes', 'tasks', 'goals', 'deadlines'],
+        ['tasks', 'goals', 'deadlines'],
       );
       expect(LeftPane.storageKey, 'shell.leftPane');
     });
@@ -27,7 +27,7 @@ void main() {
 
     test('a tap on another panel switches to it', () {
       expect(
-        LeftPane.toggled(current: LeftPane.notes, tapped: LeftPane.goals),
+        LeftPane.toggled(current: LeftPane.deadlines, tapped: LeftPane.goals),
         LeftPane.goals,
       );
       expect(
@@ -35,15 +35,15 @@ void main() {
         LeftPane.tasks,
       );
       expect(
-        LeftPane.toggled(current: LeftPane.tasks, tapped: LeftPane.notes),
-        LeftPane.notes,
+        LeftPane.toggled(current: LeftPane.tasks, tapped: LeftPane.deadlines),
+        LeftPane.deadlines,
       );
     });
 
     test('saved text becomes a panel; empty or unknown text means closed', () {
-      expect(LeftPane.fromSaved('notes'), LeftPane.notes);
       expect(LeftPane.fromSaved('tasks'), LeftPane.tasks);
       expect(LeftPane.fromSaved('goals'), LeftPane.goals);
+      expect(LeftPane.fromSaved('deadlines'), LeftPane.deadlines);
       expect(LeftPane.fromSaved(''), isNull);
       expect(LeftPane.fromSaved('inbox'), isNull);
       expect(LeftPane.savedText(null), '');
@@ -62,11 +62,11 @@ void main() {
     test('every panel has a title, a symbol and a help text', () {
       expect(
         [for (final p in LeftPane.values) p.icon],
-        ['note.text', 'checklist', 'target', 'flag'],
+        ['checklist', 'target', 'flag'],
       );
       expect(
         [for (final p in LeftPane.values) p.title],
-        ['Notes', 'Tasks', 'Goals', 'Deadlines'],
+        ['Tasks', 'Goals', 'Deadlines'],
       );
       for (final pane in LeftPane.values) {
         expect(pane.help, isNotEmpty);
@@ -75,12 +75,18 @@ void main() {
   });
 
   group('the left panel in the store', () {
+    test('a saved Notes panel, which is gone, opens closed', () {
+      final s = makeStore(prefs: MemoryPrefs({LeftPane.storageKey: 'notes'}));
+      expect(LeftPane.fromSaved('notes'), isNull);
+      expect(s.leftPane, isNull);
+    });
+
     test('the store reads and writes the saved panel', () {
       final prefs = MemoryPrefs();
       final s = makeStore(prefs: prefs);
-      s.leftPane = LeftPane.notes;
-      expect(prefs.getString(LeftPane.storageKey), 'notes');
-      expect(s.leftPane, LeftPane.notes);
+      s.leftPane = LeftPane.tasks;
+      expect(prefs.getString(LeftPane.storageKey), 'tasks');
+      expect(s.leftPane, LeftPane.tasks);
       s.leftPane = null;
       expect(prefs.getString(LeftPane.storageKey), '');
       expect(s.leftPane, isNull);
@@ -89,9 +95,9 @@ void main() {
     test('the View menu opens a panel; other screens move to the Planner', () {
       final s = makeStore(prefs: MemoryPrefs({LeftPane.storageKey: ''}));
       s.screen = Screen.today;
-      s.showLeftPane(LeftPane.notes);
+      s.showLeftPane(LeftPane.deadlines);
       expect(s.screen, Screen.today);
-      expect(s.leftPane, LeftPane.notes);
+      expect(s.leftPane, LeftPane.deadlines);
       s.screen = Screen.garden;
       s.showLeftPane(LeftPane.goals);
       expect(s.screen, Screen.planner);

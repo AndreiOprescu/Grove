@@ -4,7 +4,6 @@ import '../screen.dart';
 /// at a time. The choice is saved as text in `shell.leftPane`; empty text
 /// means closed.
 enum LeftPane {
-  notes('Notes', 'note.text'),
   tasks('Tasks', 'checklist'),
   goals('Goals', 'target'),
   deadlines('Deadlines', 'flag');
@@ -36,7 +35,8 @@ enum LeftPane {
     required LeftPane tapped,
   }) => current == tapped ? null : tapped;
 
-  /// The panel for saved text. Null for empty or unknown text.
+  /// The panel for saved text. Null for empty or unknown text, and for
+  /// `notes`, the old Notes panel, which is gone.
   static LeftPane? fromSaved(String? saved) {
     for (final p in values) {
       if (p.name == saved) return p;

@@ -5,9 +5,14 @@ makes the next version. Each line is one feature. The newest version is first.
 
 `scripts/github_release.sh` puts the lines of the version on its GitHub release.
 
-## 1.2.0 · 2026-10-21
+## 1.3.0 · 2026-10-26
 
 - **Notebooks:** the Notes screen has a sidebar with All notes, Inbox, Daily, Weekly, Pinned, Meetings, With tasks and Archive, your own notebooks with sections and colours, and your tags. Drag a note to sort it, move it with "Move to notebook…", and archive notes you are done with.
+- **Reorganise rest of day:** a button next to "Timeline" on today's planner. Say how much of each open task and goal block you have done with a bar or a number, and Grove plans what is left from now until your sleep line: tasks with a deadline first, then goals, then other tasks. What does not fit goes back to today's list. One ⌘Z undoes it all.
+- **Notes panel removed from the dock:** the dock at the top left now has Tasks, Goals and Deadlines. Notes live on the Notes screen.
+
+## 1.2.0 · 2026-10-21
+
 - **Plan tomorrow:** Grove learns when you usually fall asleep from when you stop using your phone and Mac, and reminds you to plan tomorrow before bed. On the Mac, closing the window keeps Grove in the menu bar, and it opens at login.
 - **No empty day notes:** Grove no longer makes a note for a day by itself. Press "Start a note" to make one. A day note you leave empty is deleted.
 - **Weather low and high:** each day shows its lowest and highest temperature.
