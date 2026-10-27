@@ -632,21 +632,22 @@ void main() {
       expect(store.agentEnabled, isFalse);
     });
 
-    testWidgets('a phone: the runner and services switches are grey, with help', (
-      tester,
-    ) async {
-      final store = agentStore();
-      await openSettings(tester, store, tab: SettingsTab.agent);
-      expect(
-        tester.widget<Text>(keyed('settings-agent-help')).data,
-        SettingsRules.agentNoRunner,
-      );
-      expect(greyed(tester, 'settings-agent-runner'), isTrue);
-      expect(greyed(tester, 'settings-agent-refresh'), isTrue);
-      await tester.tap(keyed('settings-agent-runner'), warnIfMissed: false);
-      await tester.pumpAndSettle();
-      expect(store.agentRunnerOn, isFalse);
-    });
+    testWidgets(
+      'a phone: the runner and services switches are grey, with help',
+      (tester) async {
+        final store = agentStore();
+        await openSettings(tester, store, tab: SettingsTab.agent);
+        expect(
+          tester.widget<Text>(keyed('settings-agent-help')).data,
+          SettingsRules.agentNoRunner,
+        );
+        expect(greyed(tester, 'settings-agent-runner'), isTrue);
+        expect(greyed(tester, 'settings-agent-refresh'), isTrue);
+        await tester.tap(keyed('settings-agent-runner'), warnIfMissed: false);
+        await tester.pumpAndSettle();
+        expect(store.agentRunnerOn, isFalse);
+      },
+    );
 
     String initLine() => jsonEncode({
       'type': 'system',

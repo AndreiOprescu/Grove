@@ -18,6 +18,6 @@ Resume rule: continue from the first open box. Commit after each box.
 - [x] 5. Services: `McpToolRules.isReadTool`, `listServices()` probe parsing init, prefs `agent.services`, old `agent.email` → Gmail on.
 - [x] 6. UI: Settings → Agent (Services list with switches + status + read tools, Refresh; Agent folder row: Show in Finder, Delete agent files). Agents screen: Files part, per-chat "Use my services" (email_access reused).
 - [x] 7. Docs: ADR 0008 (0007 is notebooks), fix ADR 0004 drift, settings help text, docs/assumptions.md lines, CHANGELOG 1.3.0 lines, blog post in docs/blog/.
-- [ ] 8. `./scripts/flutter_test.sh` green; goldens regenerated + pixel-compared if UI pictures changed.
+- [x] 8. `./scripts/flutter_test.sh` green; goldens regenerated + pixel-compared if UI pictures changed.
 - [ ] 9. Review (security lens) + fixes.
 - [ ] 10. Live check on Mac; push; draft PR into feat/next-version.
