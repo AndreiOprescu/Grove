@@ -301,11 +301,11 @@ void main() {
     ) async {
       final store = agentStore();
       addSam(store);
-      addJob(store, AgentStatus.failed, error: AgentPolicy.gmailNotReady);
+      addJob(store, AgentStatus.failed, error: AgentPolicy.servicesNotReady);
       await pumpAgentApp(tester, store);
       await openAgent(tester);
 
-      expect(inDialog(find.text(AgentPolicy.gmailNotReady)), findsOneWidget);
+      expect(inDialog(find.text(AgentPolicy.servicesNotReady)), findsOneWidget);
       await tapKey(tester, 'agent-try-again');
       expect(inDialog(keyed('agent-instructions')), findsOneWidget);
       await tapKey(tester, 'agent-start');

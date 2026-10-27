@@ -39,12 +39,12 @@ abstract final class AgentNote {
         : first;
   }
 
-  /// The extra question when the job asked for email and this computer does
-  /// not allow it.
-  static const emailNotAllowed =
-      'Email was not allowed on this computer, so the agent did not read '
-      'your email. Turn on "Let the agent read my email" in Settings on the '
-      'computer that runs agent tasks.';
+  /// The extra question when the chat asked for the services of the person
+  /// and none is on, on the computer that runs it.
+  static const servicesOff =
+      'No service is on for the agent on the computer that runs it, so the '
+      'agent did not use your services. Turn one on in Settings → Agent on '
+      'that computer.';
 
   /// The longest error text of `claude` that is shown.
   static const _maxError = 300;

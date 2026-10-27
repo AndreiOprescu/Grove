@@ -75,11 +75,12 @@ void main() {
   AgentJob job(AppStore s, String id) => s.repos.agentJobs.get(id)!;
 
   group('the switches', () {
-    test('all three are off at first, also on a computer', () async {
+    test('all are off at first, also on a computer', () async {
       final s = await open(FakeAgentRunner(), prefs: const {});
       expect(s.agentEnabled, isFalse);
       expect(s.agentRunnerOn, isFalse);
-      expect(s.agentEmailOn, isFalse);
+      expect(s.agentServicesOn, isFalse);
+      expect(s.agentServices, isNull);
     });
 
     test('they are saved in the prefs of this device', () async {
@@ -88,14 +89,62 @@ void main() {
       s
         ..setAgentEnabled(true)
         ..setAgentRunner(true)
-        ..setAgentEmail(true);
+        ..setAgentService('Notion', true)
+        ..setAgentService('claude.ai Gmail', true)
+        ..setAgentService('Notion', false);
       expect(prefs.getBool('agent.enabled'), isTrue);
       expect(prefs.getBool('agent.runner'), isTrue);
-      expect(prefs.getBool('agent.email'), isTrue);
+      expect(jsonDecode(prefs.getString('agent.servicesOn')!), [
+        'claude.ai Gmail',
+      ]);
       final again = makeStore(prefs: prefs);
       expect(again.agentEnabled, isTrue);
       expect(again.agentRunnerOn, isTrue);
-      expect(again.agentEmailOn, isTrue);
+      expect(again.agentServicesOn, isTrue);
+      expect(again.agentServiceOn('claude.ai Gmail'), isTrue);
+      expect(again.agentServiceOn('Notion'), isFalse);
+    });
+
+    test('the old "read my email" switch turns on Gmail', () async {
+      final prefs = MemoryPrefs({'agent.email': true});
+      final s = makeStore(prefs: prefs);
+      expect(s.agentServiceOn(AgentPolicy.gmailServer), isTrue);
+      expect(prefs.getBool('agent.email'), isNull);
+      expect(jsonDecode(prefs.getString('agent.servicesOn')!), [
+        AgentPolicy.gmailServer,
+      ]);
+      final off = makeStore(prefs: MemoryPrefs({'agent.email': false}));
+      expect(off.agentServicesOn, isFalse);
+    });
+
+    test(
+      'Refresh lists the services of the person, and they are kept',
+      () async {
+        final runner = FakeAgentRunner(initLine: initLine());
+        final prefs = MemoryPrefs({'agent.runner': true});
+        final s = makeStore(agentRunner: runner, prefs: prefs);
+        s.newTimer = timers.start;
+        await s.agentWork;
+        expect(s.agentServices, isNull);
+        await s.refreshAgentServices();
+        expect(runner.probes.single, AgentPolicy.probeArgs());
+        final gmail = s.agentServices!.server('claude.ai Gmail')!;
+        expect(gmail.usable, isTrue);
+        expect(gmail.readTools, ['mcp__claude_ai_Gmail__search_threads']);
+        expect(s.agentServicesBusy, isFalse);
+        final again = makeStore(prefs: prefs);
+        expect(again.agentServices, s.agentServices);
+      },
+    );
+
+    test('Refresh shows a settings problem of the person', () async {
+      final runner = FakeAgentRunner(initLine: initLine())..problem = 'Bad.';
+      final s = await open(runner);
+      await s.refreshAgentServices();
+      expect(s.agentSettingsProblem, 'Bad.');
+      runner.problem = null;
+      await s.refreshAgentServices();
+      expect(s.agentSettingsProblem, isNull);
     });
 
     test('a phone has no runner: it cannot run, and says why', () async {
@@ -216,7 +265,7 @@ void main() {
       final call = runner.calls.single;
       expect(call.exe, '/fake/claude');
       expect(call.timeout, AgentPolicy.timeout);
-      expect(call.args, AgentPolicy.args(email: false));
+      expect(call.args, AgentPolicy.args());
       expect(call.stdin, contains('Write the plan'));
       expect(call.stdin, contains('For the trip'));
       expect(call.stdin, contains('One page'));
@@ -317,8 +366,8 @@ void main() {
       expect(job(s, id).error, AgentNote.timedOut);
     });
 
-    test('a job with email on a computer where email is off runs without '
-        'Gmail, and says so', () async {
+    test('a job with services on a computer where they are off runs '
+        'locked, and says so', () async {
       final runner = FakeAgentRunner(
         initLine: initLine(),
         output: answer(plainResult),
@@ -328,65 +377,84 @@ void main() {
       await s.agentWork;
       expect(runner.probes, isEmpty);
       final args = runner.calls.single.args;
-      expect(args, AgentPolicy.args(email: false));
+      expect(args, AgentPolicy.args());
+      expect(args, contains('--restricted'));
       expect(args.join(' '), isNot(contains('Gmail')));
-      expect(runner.calls.single.stdin, contains('cannot read email'));
+      expect(
+        runner.calls.single.stdin,
+        contains('You cannot use the services of the person'),
+      );
       final j = job(s, id);
       expect(j.status, AgentStatus.done);
-      expect(s.agentResult(j)!.questions, [AgentNote.emailNotAllowed]);
-      expect(
-        s.note(j.resultNoteId!)!.body,
-        contains(AgentNote.emailNotAllowed),
+      expect(s.agentResult(j)!.questions, [AgentNote.servicesOff]);
+      expect(s.note(j.resultNoteId!)!.body, contains(AgentNote.servicesOff));
+    });
+
+    const gmailOn = {
+      'agent.runner': true,
+      'agent.servicesOn': '["claude.ai Gmail"]',
+    };
+
+    test('a job with services, and Gmail on: only the read tools of Gmail, '
+        'every other service denied', () async {
+      final runner = FakeAgentRunner(
+        initLine: initLine(),
+        output: answer(plainResult),
       );
+      final s = await open(runner, prefs: gmailOn);
+      final id = s.delegateToAgent(addTask(s, 'Reply to Ann').id, email: true);
+      await s.agentWork;
+      expect(runner.probes.single, AgentPolicy.probeArgs());
+      final args = runner.calls.single.args;
+      expect(
+        flagValue(args, '--allowedTools'),
+        endsWith('TodoWrite,mcp__claude_ai_Gmail__search_threads'),
+      );
+      expect(
+        flagValue(args, '--disallowedTools')!.split(','),
+        unorderedEquals([
+          'mcp__claude_ai_Gmail__send_message',
+          'mcp__claude_ai_Drive',
+        ]),
+      );
+      expect(args.join(' '), isNot(contains('WebFetch')));
+      expect(args, isNot(contains('--restricted')));
+      expect(
+        runner.calls.single.stdin,
+        contains(
+          'You may read with these services of the person: claude.ai '
+          'Gmail.',
+        ),
+      );
+      expect(job(s, id).status, AgentStatus.done);
+      expect(s.agentResult(job(s, id))!.questions, isEmpty);
+      // The probe of the run also updates the list in Settings.
+      expect(s.agentServices!.server('claude.ai Drive'), isNotNull);
+    });
+
+    test('settings of the person that reach more than the folder: the job '
+        'fails with why, and nothing runs', () async {
+      final runner = FakeAgentRunner(
+        initLine: initLine(),
+        output: answer(plainResult),
+      )..problem = 'The settings allow Read.';
+      final s = await open(runner, prefs: gmailOn);
+      final id = s.delegateToAgent(addTask(s, 'Reply to Ann').id, email: true);
+      await s.agentWork;
+      expect(runner.probes, isEmpty);
+      expect(runner.calls, isEmpty);
+      expect(job(s, id).status, AgentStatus.failed);
+      expect(job(s, id).error, 'The settings allow Read.');
     });
 
     test(
-      'a job with email, and email on: only the read tools of Gmail',
-      () async {
-        final runner = FakeAgentRunner(
-          initLine: initLine(),
-          output: answer(plainResult),
-        );
-        final s = await open(
-          runner,
-          prefs: const {'agent.runner': true, 'agent.email': true},
-        );
-        final id = s.delegateToAgent(
-          addTask(s, 'Reply to Ann').id,
-          email: true,
-        );
-        await s.agentWork;
-        expect(runner.probes.single, AgentPolicy.probeArgs());
-        final args = runner.calls.single.args;
-        expect(
-          flagValue(args, '--allowedTools'),
-          'WebSearch,mcp__claude_ai_Gmail__search_threads',
-        );
-        expect(
-          flagValue(args, '--disallowedTools')!.split(','),
-          unorderedEquals([
-            'mcp__claude_ai_Gmail__send_message',
-            'mcp__claude_ai_Drive__list_files',
-            'mcp__claude_ai_Drive',
-          ]),
-        );
-        expect(args, isNot(contains('WebFetch')));
-        expect(job(s, id).status, AgentStatus.done);
-        expect(s.agentResult(job(s, id))!.questions, isEmpty);
-      },
-    );
-
-    test(
-      'Gmail that needs a login: the job fails and says how to fix it',
+      'Gmail that needs a sign-in: the job fails and says how to fix it',
       () async {
         final runner = FakeAgentRunner(
           initLine: initLine(status: 'needs-auth', tools: const ['WebSearch']),
           output: answer(plainResult),
         );
-        final s = await open(
-          runner,
-          prefs: const {'agent.runner': true, 'agent.email': true},
-        );
+        final s = await open(runner, prefs: gmailOn);
         final id = s.delegateToAgent(
           addTask(s, 'Reply to Ann').id,
           email: true,
@@ -394,7 +462,7 @@ void main() {
         await s.agentWork;
         expect(runner.calls, isEmpty);
         expect(job(s, id).status, AgentStatus.failed);
-        expect(job(s, id).error, AgentPolicy.gmailNotReady);
+        expect(job(s, id).error, AgentPolicy.servicesNotReady);
       },
     );
 
@@ -405,10 +473,7 @@ void main() {
           initLine: initLine(driveStatus: 'pending'),
           output: answer(plainResult),
         );
-        final s = await open(
-          runner,
-          prefs: const {'agent.runner': true, 'agent.email': true},
-        );
+        final s = await open(runner, prefs: gmailOn);
         final id = s.delegateToAgent(
           addTask(s, 'Reply to Ann').id,
           email: true,

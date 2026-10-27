@@ -269,7 +269,7 @@ class _AgentDialogState extends State<AgentDialog> {
           ),
         ),
       ),
-      if (!_store.agentEmailOn)
+      if (!_store.agentServicesOn)
         Text(AgentDialog.emailOffHere, style: _small(theme)),
       Text(AgentDialog.safety, style: _small(theme)),
       dialogButtons([

@@ -971,7 +971,7 @@ class _AgentComposerState extends State<AgentComposer> {
             ),
           ),
         ),
-        if (_email && !_store.agentEmailOn)
+        if (_email && !_store.agentServicesOn)
           Text(AgentDialog.emailOffHere, style: small),
         if (widget.helpers.isNotEmpty)
           Wrap(

@@ -806,8 +806,9 @@ class AgentSettings extends StatelessWidget {
               child: SettingsSwitchRow(
                 switchKey: const ValueKey('settings-agent-email'),
                 label: 'Let the agent read my email',
-                value: store.agentEmailOn,
-                onChanged: store.setAgentEmail,
+                value: store.agentServiceOn(AgentPolicy.gmailServer),
+                onChanged: (on) =>
+                    store.setAgentService(AgentPolicy.gmailServer, on),
               ),
             ),
             const SettingsCaption(gmailText),

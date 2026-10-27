@@ -665,8 +665,7 @@ void main() {
       expect(greyed(tester, 'settings-agent-email'), isFalse);
 
       await tapIn(tester, keyed('settings-agent-email'));
-      expect(store.agentEmailOn, isTrue);
-      expect(store.prefs.getBool('agent.email'), isTrue);
+      expect(store.agentServiceOn(AgentPolicy.gmailServer), isTrue);
     });
 
     testWidgets('a computer with no Claude Code says so, and the switch can '
