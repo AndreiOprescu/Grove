@@ -14,7 +14,9 @@ import '../core/agent/agent_runner.dart';
 import '../core/model/block_subtask.dart';
 import '../core/model/day_key.dart';
 import '../core/model/event.dart';
+import '../core/goals/goal_graph.dart';
 import '../core/model/goal.dart';
+import '../core/model/goal_square.dart';
 import '../core/model/goal_subtask.dart';
 import '../core/model/ids.dart';
 import '../core/model/link.dart';
@@ -86,6 +88,7 @@ part 'store_deadlines.dart';
 part 'store_editor.dart';
 part 'store_events.dart';
 part 'store_focus.dart';
+part 'store_goal_map.dart';
 part 'store_goal_panel.dart';
 part 'store_goal_subtasks.dart';
 part 'store_goals.dart';
@@ -176,6 +179,7 @@ class AppStore extends ChangeNotifier {
     this.notifier.onOpenPlanner = openPlannerFromNotification;
     _welcomeVisible = FirstRun.welcomeVisible(repos);
     _adoptBlockSubtasks();
+    _healGoalMaps();
     _startSync();
     _startAgent();
     _watchActivity();
@@ -496,6 +500,9 @@ class AppStore extends ChangeNotifier {
     _changed();
   }
 
+  /// The goal that the user picked on the Goals screen. Not saved.
+  String? _shownMapGoalId;
+
   /// Which screen fills the window. The Today screen shows its own day, today
   /// or tomorrow, so coming to it picks that day.
   Screen _screen = Screen.today;
@@ -619,6 +626,7 @@ class AppStore extends ChangeNotifier {
     _lingering = {};
     stopFocus();
     _adoptBlockSubtasks();
+    _healGoalMaps();
     _welcomeVisible = FirstRun.welcomeVisible(repos);
     _bump();
     scheduleReminderRefresh();
@@ -635,6 +643,7 @@ class AppStore extends ChangeNotifier {
     _addSubtasksOfDeletedBlocks(m);
     _addSubtasksOfDeletedGoals(m);
     _unplanSubtasksOfDeletedBlocks(m);
+    _addMapRowsOfDeletions(m);
     _addRewardsOfDeletedOwners(m);
     _addEarnings(m);
     final days = _plannedDays(m);
@@ -825,6 +834,27 @@ class AppStore extends ChangeNotifier {
           final x = target(s);
           if (x != null) repos.goalSubtasks.save(x);
         }
+        // After the goals and the events: a square needs its goal, and a
+        // block row needs its square and its event. Links before the deletes
+        // below, so a gone square has no rows left.
+        for (final s in m.squares) {
+          final x = target(s);
+          if (x != null) repos.goalSquares.save(x);
+        }
+        for (final c in forward ? m.squareLinks : m.squareLinks.reversed) {
+          if (c.add == forward) {
+            repos.goalSquares.addLink(c.link);
+          } else {
+            repos.goalSquares.removeLink(c.link);
+          }
+        }
+        for (final c in forward ? m.squareBlocks : m.squareBlocks.reversed) {
+          if (c.add == forward) {
+            repos.goalSquares.addBlock(c.block.squareId, c.block.eventId);
+          } else {
+            repos.goalSquares.removeBlock(c.block.squareId, c.block.eventId);
+          }
+        }
         // After the tasks and goals: a reward needs its owner and its skill.
         for (final s in m.skills) {
           final x = target(s);
@@ -869,6 +899,10 @@ class AppStore extends ChangeNotifier {
         for (final b in m.blockSubtasks) {
           final id = source(b)?.id;
           if (target(b) == null && id != null) repos.blockSubtasks.delete(id);
+        }
+        for (final s in m.squares) {
+          final id = source(s)?.id;
+          if (target(s) == null && id != null) repos.goalSquares.delete(id);
         }
         for (final e in m.events) {
           final id = source(e)?.id;

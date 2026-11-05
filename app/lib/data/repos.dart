@@ -15,6 +15,7 @@ import 'agent_event_repo.dart';
 import 'agent_job_repo.dart';
 import 'attachment_repo.dart';
 import 'database.dart';
+import 'goal_square_repo.dart';
 import 'notebook_repo.dart';
 import 'persona_repo.dart';
 import 'reference_indexer.dart';
@@ -448,6 +449,11 @@ class GoalRepo {
     'updated_at',
     'kind',
     'target_count',
+    'type',
+    'done_when',
+    'work_minutes',
+    'due_day',
+    'why',
   ];
   static final _select = 'SELECT ${_cols.join(',')} FROM goals';
   static final _upsert = _upsertSql('goals', _cols);
@@ -464,6 +470,11 @@ class GoalRepo {
     updatedAt: r.text(8),
     kind: _enumOr(GoalKind.values, r.text(9), GoalKind.hours),
     targetCount: r.asInt(10),
+    type: _enumOr(GoalType.values, r.optText(11) ?? '', GoalType.habit),
+    doneWhen: r.optText(12) ?? '',
+    workMinutes: r.optInt(13),
+    dueDay: _day(r.optText(14)),
+    why: r.optText(15) ?? '',
   );
 
   /// Insert or update. Refreshes `updatedAt`.
@@ -481,6 +492,11 @@ class GoalRepo {
       g.updatedAt,
       g.kind.name,
       g.targetCount,
+      g.type.name,
+      g.doneWhen,
+      g.workMinutes,
+      g.dueDay?.string,
+      g.why,
     ]);
   }
 
@@ -517,6 +533,24 @@ class GoalRepo {
   }) {
     var sum = 0;
     for (final (s, e) in _blockTimes(goalId, from, to, doneOnly)) {
+      final start = WallTime.parse(s), end = WallTime.parse(e);
+      if (start == null || end == null) continue;
+      sum += EventItem(title: '', start: start, end: end).durationMinutes;
+    }
+    return sum;
+  }
+
+  /// The minutes of all the goal's blocks, on any day. [doneOnly] counts only
+  /// the blocks that are ticked done.
+  int totalMinutes(String goalId, {bool doneOnly = false}) {
+    final rows = db.query(
+      'SELECT start, end FROM events WHERE goal_id = ?'
+      '${doneOnly ? ' AND done_at IS NOT NULL' : ''}',
+      [goalId],
+      (r) => (r.text(0), r.text(1)),
+    );
+    var sum = 0;
+    for (final (s, e) in rows) {
       final start = WallTime.parse(s), end = WallTime.parse(e);
       if (start == null || end == null) continue;
       sum += EventItem(title: '', start: start, end: end).durationMinutes;
@@ -1163,7 +1197,8 @@ class Repos {
       earnings = EarningRepo(db),
       agentJobs = AgentJobRepo(db),
       agentEvents = AgentEventRepo(db),
-      notebooks = NotebookRepo(db) {
+      notebooks = NotebookRepo(db),
+      goalSquares = GoalSquareRepo(db) {
     tasks = TaskRepo(db, search);
     events = EventRepo(db, search);
     notes = NoteRepo(db, search);
@@ -1185,6 +1220,7 @@ class Repos {
   final GoalRepo goals;
   final BlockSubtaskRepo blockSubtasks;
   final GoalSubtaskRepo goalSubtasks;
+  final GoalSquareRepo goalSquares;
   final ListRepo lists;
   final TagRepo tags;
   final LinkRepo links;

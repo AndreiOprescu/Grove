@@ -153,9 +153,7 @@ void main() {
 
     db = Database.open(path);
     addTearDown(db.close);
-    expect(db.userVersion, 14);
     expect(db.userVersion, Migrations.all.length);
-    expect(db.syncVersion, 8);
     expect(db.syncVersion, SyncMigrations.all.length);
     final cols = db.query(
       'PRAGMA table_info(agent_jobs)',

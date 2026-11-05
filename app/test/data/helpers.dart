@@ -31,6 +31,64 @@ String oldDatabase(Directory dir, int version, String seed) {
   return path;
 }
 
+/// The columns that shared migration 15 put on `goals`.
+const goalMapGoalColumns = [
+  'type',
+  'done_when',
+  'work_minutes',
+  'due_day',
+  'why',
+];
+
+const _goalMapTables = ['square_blocks', 'square_links', 'goal_squares'];
+
+/// Takes the database back from shared schema 15 and sync schema 9: no goal
+/// map tables and no project columns on `goals`.
+void rewindGoalMap(Database db) {
+  final trigger = db.queryOne(
+    "SELECT sql FROM sqlite_master WHERE name = 'sync_goals_update'",
+    const [],
+    (r) => r.text(0),
+  );
+  db.executeScript('''
+    DROP TRIGGER IF EXISTS sync_goals_update;
+    ${[for (final t in _goalMapTables) 'DROP TABLE $t;'].join('\n')}
+    ${[for (final c in goalMapGoalColumns) 'ALTER TABLE goals DROP COLUMN $c;'].join('\n')}
+  ''');
+  if (trigger != null) {
+    var old = trigger;
+    for (final c in goalMapGoalColumns) {
+      old = old.replaceAll(' OR OLD.$c IS NOT NEW.$c', '');
+    }
+    db.executeScript('$old;');
+  }
+  final saved = db.queryOne(
+    "SELECT value FROM sync_meta WHERE key = 'triggers'",
+    const [],
+    (r) => r.text(0),
+  );
+  if (saved != null) {
+    var old = saved;
+    for (final t in _goalMapTables) {
+      old = old.replaceAll(RegExp(';$t:[^;]*'), '');
+    }
+    old = old.replaceAll(',${goalMapGoalColumns.join(',')}', '');
+    db.execute("UPDATE sync_meta SET value = ? WHERE key = 'triggers'", [old]);
+  }
+  final hasOutbox = db.queryOne(
+    "SELECT 1 FROM sqlite_master WHERE name = 'outbox'",
+    const [],
+    (r) => r.asInt(0),
+  );
+  if (hasOutbox != null) {
+    db.execute(
+      "DELETE FROM outbox WHERE tbl IN ('goal_squares', 'square_links', "
+      "'square_blocks')",
+    );
+    db.execute("UPDATE sync_meta SET value = '8' WHERE key = 'schema'");
+  }
+}
+
 /// The columns that shared migration 14 put on `notes`.
 const notebookNoteColumns = [
   'notebook_id',
@@ -44,6 +102,7 @@ const notebookNoteColumns = [
 /// update trigger of `notes` and the saved trigger list of before. A test
 /// that takes a database back to an older build calls this first.
 void rewindNotebooks(Database db) {
+  rewindGoalMap(db);
   final trigger = db.queryOne(
     "SELECT sql FROM sqlite_master WHERE name = 'sync_notes_update'",
     const [],

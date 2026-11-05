@@ -229,6 +229,12 @@ List<ShellMenu> shellMenus(ShellModel model, ShellCommands commands) => [
       () => model.screen = Screen.persona,
       key: LogicalKeyboardKey.digit6,
     ),
+    // Its own key at the end, so the old keys stay.
+    ShellEntry(
+      'Goals',
+      () => model.screen = Screen.goals,
+      key: LogicalKeyboardKey.digit8,
+    ),
     if (model.screens.contains(Screen.agents))
       ShellEntry(
         'Agents',

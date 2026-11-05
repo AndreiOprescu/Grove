@@ -262,7 +262,7 @@ void main() {
       db = Database.open(path);
       expect(db.userVersion, Migrations.all.length);
       expect(db.syncVersion, SyncMigrations.all.length);
-      expect(db.syncVersion, 8);
+      expect(db.syncVersion, SyncMigrations.all.length);
       expect(columns(db, 'goal_subtasks'), containsAll(['deleted', 'user_id']));
       expect(Repos(db).goals.get(g.id)?.title, 'Read');
       expect(Outbox(db).count, 0);

@@ -68,11 +68,16 @@ void fill(Device d) {
   r.notes.save(note);
   r.goals.upsert(goal);
   r.goalSubtasks.save(GoalSubtaskItem(goalId: goal.id, title: 'Chapter 4'));
+  r.goalSquares
+    ..save(GoalSquare(id: 'sq-root', goalId: goal.id, title: 'Root'))
+    ..save(GoalSquare(id: 'sq-step', goalId: goal.id, title: 'Step'))
+    ..addLink(const SquareLink(childId: 'sq-step', parentId: 'sq-root'));
   r.tasks.save(task);
   r.tasks.save(sub);
   r.events.save(event);
   r.events.save(block);
   r.events.save(goalBlock);
+  r.goalSquares.addBlock('sq-step', goalBlock.id);
   r.blockSubtasks.save(
     BlockSubtaskItem(eventId: goalBlock.id, title: 'Chapter 3'),
   );

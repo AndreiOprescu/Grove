@@ -765,7 +765,7 @@ A goal is a recurring item with **no date** and a **weekly target** of one of tw
   `hours`) and `target_count` (default 3). Events get `goal_id` and `done_at` (migration 5).
 - The **Goals** panel (left dock) lists goals with "2.5 / 5 h done" or "3 / 5 sessions done",
   a bar (solid = done, lighter = planned) and "4 h planned", for the week of the chosen day.
-  A goal is never marked done in the panel: it stays there every week. Add a goal with a name, Hours or Sessions, and a weekly target
+  A Habit is never marked done in the panel: it stays there every week (a Project can finish, see below). Add a goal with a name, Hours or Sessions, and a weekly target
   (Hours: 0.5 h steps, 5 h at first; Sessions: steps of 1, 1–99, 3 at first).
 - Click a goal to open its editor in place: name, Hours | Sessions, target per week, colour.
   Click again, press Escape or open another goal to close it. Right-click ▸ Edit… does the same.
@@ -777,6 +777,16 @@ A goal is a recurring item with **no date** and a **weekly target** of one of tw
   target ("7 / 5 h done"). Progress is worked out from the blocks of the planner week; it is never stored, so
   a new week starts at zero. The goal stays, so more blocks can be added in the same week.
 - Deleting a goal keeps its blocks as plain blocks. Goals are in export, import and backup.
+- **Habit and Project (2026-11-05, `docs/adr/0008-goal-map.md`).** All of the above is a **Habit**, and all older goals are Habits. A **Project** can finish. You pick the kind when you make the goal. "Make it a Project" turns a Habit into a Project, one way: its subtasks become squares under the root, and its blocks and points stay.
+  - Project form, all fields optional: title, what is it (`notes`), how do I know it is done (`done_when`), how much work in hours (`work_minutes`), by when (`due_day`), why it matters (`why`). Worked hours come from ticked blocks and are never stored.
+  - **Goals screen** (`Screen.goals`, ⌘8): the map fills the screen, and a list of goals is at the bottom. Same on Mac and phone. A dark tool bar on the left has add square, link and fit.
+  - **Goal map:** squares joined by lines, left to right, with the root square on the right. A child must be done before its parent, and a square can have many parents. Grove places the squares; there is no hand placement. Ticking the root finishes the Project. If steps are still open, Grove asks first. Squares and blocks stay, and removing the root tick opens the Project again.
+  - **Ready and not ready:** a square with no open children is Ready. A square that is not ready is dim, not locked: you can still plan it and tick it. Color shows the state: Ready = the goal's color, Waiting = orange, Done = green, Not ready = dim gray, Root = strong color. A small label says the state too.
+  - **Wait:** a length in days on a square. "Start waiting" starts a countdown. When the time ends, the square shows "1 day over", on the map only, with no notification. Only your tick ends the square.
+  - **Delete a square:** its children join to its parents. The root cannot be deleted.
+  - **Goals panel:** the target button stays. A Project row lists its Ready squares, then a closed "Later steps" part. A waiting square shows dimmed with "waiting, 2 days". Drag a square onto a day to make a block that holds it. A Project row itself cannot be dragged.
+  - **Block tick:** if the block holds open squares, Grove asks for each: Done, Start waiting or Not yet. All of it is one undo step.
+  - **Deadlines panel:** a Project with a by-when date shows in it. A tap opens the map.
 
 ### 5.10 Persona (owner request, 2026-10-15)
 

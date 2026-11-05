@@ -1,5 +1,7 @@
 // Only this app: the panel of one goal block, at the right of the planner
 // and of Today (CONTEXT.md, "Goal panel"; ADR 0002).
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:grove/core/model/event.dart';
@@ -8,6 +10,7 @@ import 'package:grove/core/planner/planner_math.dart';
 import 'package:grove/core/recurrence/recurrence_engine.dart';
 import 'package:grove/state/state.dart' hide MotionRules;
 
+import '../goal_map/block_tick_question.dart';
 import '../persona/reward_editor.dart';
 import '../planner/planner_dialogs.dart';
 import '../planner/subtask_lines.dart';
@@ -63,7 +66,11 @@ class _GoalPanelState extends State<GoalPanel> {
   }
 
   void _add() {
-    if (_store.addGoalSubtaskToBlock(_id, title: _newText.text) != null) {
+    final isProject = _store.goal(_goalId)?.isProject ?? false;
+    final added = isProject
+        ? _store.addSquareInBlock(_id, title: _newText.text) != null
+        : _store.addGoalSubtaskToBlock(_id, title: _newText.text) != null;
+    if (added) {
       _newText.clear();
     }
   }
@@ -98,7 +105,7 @@ class _GoalPanelState extends State<GoalPanel> {
       ),
       Expanded(
         child: Text(
-          goal.title,
+          GoalRules.titleOf(goal),
           key: const ValueKey('goal-panel-title'),
           maxLines: 3,
           overflow: TextOverflow.ellipsis,
@@ -109,9 +116,13 @@ class _GoalPanelState extends State<GoalPanel> {
       ),
       IconTap(
         key: const ValueKey('goal-panel-edit'),
-        icon: Icons.edit_outlined,
-        label: 'Edit goal',
-        tip: 'Edit the goal in the Goals panel',
+        icon: goal.isProject
+            ? Icons.account_tree_outlined
+            : Icons.edit_outlined,
+        label: goal.isProject ? 'Open the map' : 'Edit goal',
+        tip: goal.isProject
+            ? 'Open the map of the project'
+            : 'Edit the goal in the Goals panel',
         color: theme.muted,
         onTap: () => _store.editGoalFromPanel(goal.id),
       ),
@@ -178,10 +189,129 @@ class _GoalPanelState extends State<GoalPanel> {
     ]);
   }
 
+  /// A project has no week: all its blocks count, on any day.
+  Widget _project(GroveTheme theme, GoalItem goal) {
+    final progress = _store.projectProgress(goal);
+    return _section(theme, 'Project', [
+      Row(
+        children: [
+          Expanded(
+            child: Text(
+              GoalRules.projectStepsText(progress),
+              style: theme.body(11).copyWith(color: theme.muted),
+            ),
+          ),
+          Text(
+            GoalRules.projectHoursText(progress),
+            key: const ValueKey('goal-panel-progress'),
+            style: theme
+                .number(11, weight: FontWeight.w600)
+                .copyWith(color: theme.muted),
+          ),
+        ],
+      ),
+      GoalBar(
+        parts: (
+          done: GoalRules.projectBar(progress),
+          planned: GoalRules.projectBar(progress),
+        ),
+        tint: theme.color(GoalRules.blockColor(goal)),
+      ),
+    ]);
+  }
+
+  Widget _addLine(GroveTheme theme, String text, String label) => Row(
+    spacing: 8,
+    children: [
+      SizedBox.square(
+        dimension: SubtaskLine.target,
+        child: Icon(Icons.add, size: 16, color: theme.muted),
+      ),
+      Expanded(
+        child: GroveField(
+          key: const ValueKey('goal-panel-add'),
+          controller: _newText,
+          placeholder: text,
+          label: label,
+          style: theme.body(13).copyWith(color: theme.ink),
+          keepFocus: true,
+          onSubmitted: (_) => _add(),
+        ),
+      ),
+    ],
+  );
+
+  /// The squares that the block holds. A tick here is the same tick as on
+  /// the map.
+  Widget _plannedSquares(GroveTheme theme, String blockId) {
+    final held = _store.squaresOfBlock(blockId);
+    return _section(theme, 'In this block', [
+      if (held.isEmpty)
+        Text(
+          'Nothing planned here yet. Add a step, or take one from the map '
+          'below.',
+          style: theme.body(12).copyWith(color: theme.muted),
+        ),
+      Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        mainAxisSize: MainAxisSize.min,
+        spacing: 2,
+        children: [
+          for (final square in held)
+            SubtaskLine(
+              key: ValueKey('goal-panel-sub-${square.id}'),
+              nameKey: ValueKey('goal-panel-sub-name-${square.id}'),
+              checkKey: ValueKey('goal-panel-sub-check-${square.id}'),
+              backKey: ValueKey('goal-panel-sub-unplan-${square.id}'),
+              title: square.title,
+              isDone: square.isDone,
+              saved: () => _store.goalSquare(square.id)?.title,
+              onToggle: () => unawaited(tickSquare(context, _store, square.id)),
+              onRename: (name) => _store.renameSquare(square.id, name),
+              onBack: () => _store.removeSquareFromBlock(
+                squareId: square.id,
+                eventId: blockId,
+              ),
+              backLabel: 'Remove ${square.title} from this block',
+              backTip: 'Remove from this block. It stays on the map.',
+            ),
+          _addLine(
+            theme,
+            'Add a step',
+            'Add a step to the map and to this block',
+          ),
+        ],
+      ),
+    ]);
+  }
+
+  Widget? _freeSquares(GroveTheme theme, String blockId) {
+    final free = _store.freeSquares(blockId);
+    if (free.isEmpty) return null;
+    return _section(theme, 'Add from map', [
+      Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        mainAxisSize: MainAxisSize.min,
+        spacing: 2,
+        children: [
+          for (final square in free)
+            FreeSubtaskLine(
+              key: ValueKey('goal-panel-free-${square.id}'),
+              title: square.title,
+              label: 'Add ${square.title} to this block',
+              onTap: () => _store.addSquareToBlock(
+                squareId: square.id,
+                eventId: blockId,
+              ),
+            ),
+        ],
+      ),
+    ]);
+  }
+
   Widget _planned(GroveTheme theme, String blockId) {
     final planned = _store.plannedGoalSubtasks(blockId);
     final small = theme.body(12).copyWith(color: theme.muted);
-    final field = theme.body(13).copyWith(color: theme.ink);
     return _section(theme, 'In this block', [
       if (planned.isEmpty)
         Text(
@@ -209,25 +339,10 @@ class _GoalPanelState extends State<GoalPanel> {
               backLabel: 'Remove ${sub.title} from the planner',
               backTip: 'Remove from the planner. It stays in the goal.',
             ),
-          Row(
-            spacing: 8,
-            children: [
-              SizedBox.square(
-                dimension: SubtaskLine.target,
-                child: Icon(Icons.add, size: 16, color: theme.muted),
-              ),
-              Expanded(
-                child: GroveField(
-                  key: const ValueKey('goal-panel-add'),
-                  controller: _newText,
-                  placeholder: 'Add a subtask',
-                  label: 'Add a subtask to the goal and to this block',
-                  style: field,
-                  keepFocus: true,
-                  onSubmitted: (_) => _add(),
-                ),
-              ),
-            ],
+          _addLine(
+            theme,
+            'Add a subtask',
+            'Add a subtask to the goal and to this block',
           ),
         ],
       ),
@@ -246,7 +361,7 @@ class _GoalPanelState extends State<GoalPanel> {
           for (final sub in free)
             FreeSubtaskLine(
               key: ValueKey('goal-panel-free-${sub.id}'),
-              sub: sub,
+              title: sub.title,
               label: 'Add ${sub.title} to this block',
               onTap: () => _store.assignGoalSubtask(sub.id, to: blockId),
             ),
@@ -315,7 +430,7 @@ class _GoalPanelState extends State<GoalPanel> {
             key: const ValueKey('goal-panel-done'),
             label: block.doneAt == null ? 'Mark done' : 'Mark not done',
             primary: block.doneAt == null,
-            onTap: () => _store.toggleGoalBlockDone(eventId: _id),
+            onTap: () => unawaited(tickGoalBlock(context, _store, _id)),
           ),
       ],
     );
@@ -344,14 +459,22 @@ class _GoalPanelState extends State<GoalPanel> {
             children: [
               _header(theme, goal),
               _time(theme, block),
-              _week(theme, goal, block),
+              if (goal.isProject)
+                _project(theme, goal)
+              else
+                _week(theme, goal, block),
               RewardEditor.goal(
                 store: _store,
                 ownerId: goal.id,
                 blockMinutes: block.durationMinutes,
               ),
-              _planned(theme, _id),
-              ?_free(theme, _id),
+              if (goal.isProject) ...[
+                _plannedSquares(theme, _id),
+                ?_freeSquares(theme, _id),
+              ] else ...[
+                _planned(theme, _id),
+                ?_free(theme, _id),
+              ],
               _note(theme, block),
               _actions(block),
             ],

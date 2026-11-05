@@ -17,8 +17,13 @@ extension AppStoreGoalPanel on AppStore {
   /// "Edit goal": the panel closes and the Goals panel opens the editor of
   /// the goal.
   void editGoalFromPanel(String goalId) {
-    if (goal(goalId) == null) return;
+    final g = goal(goalId);
+    if (g == null) return;
     closeGoalPanel();
+    if (g.isProject) {
+      openGoalMap(goalId);
+      return;
+    }
     showLeftPane(LeftPane.goals);
     goalToEdit = goalId;
   }

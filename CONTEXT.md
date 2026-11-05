@@ -7,14 +7,40 @@ Grove is a personal day planner. Tasks, goals and events go on a timeline, and f
 ### Goals
 
 **Goal**:
-Something the user wants to put time into each week, with a target in hours or in sessions.
+Something the user works toward. A goal is either a habit or a project; the user picks one when making it.
+
+**Habit**:
+A goal the user puts time into each week, with a target in hours or in sessions. It never ends.
+
+**Project**:
+A goal that can finish. It has a goal map, and its finish line is its root square.
+_Avoid_: Big goal, one-off goal
+
+**Goal map**:
+The connected squares of one project. Each project has exactly one.
+_Avoid_: Tree, tree map, treemap (a square can have more than one parent)
+
+**Square**:
+One thing that must happen on a goal map. A square's children must be done before the square itself; one square can be a child of many.
+_Avoid_: Node, card, goal subtask
+
+**Root square**:
+The square that stands for the project's result. Ticking it finishes the project.
+
+**Ready square**:
+A square whose children are all done, or that has no children. A square that is not ready looks dim, but the user can still plan it and tick it.
+_Avoid_: Unlocked, locked
+
+**Wait**:
+A length of time on a square for something the user does not control, such as a reply. It starts when the user presses "Start waiting"; only the user's tick ends the square, even when the time runs out.
+_Avoid_: Delay, timer
 
 **Goal block**:
 A slot of time on the planner set aside for one goal.
 _Avoid_: Goal instance, goal session
 
 **Goal subtask**:
-A step that belongs to a goal and lives in that goal's own list. It is **planned** when it sits in one goal block of the same goal; a goal block can hold many.
+A step that belongs to a habit and lives in that habit's own list. A project has squares instead. It is **planned** when it sits in one goal block of the same goal; a goal block can hold many.
 _Avoid_: Goal step
 
 **Block subtask**:

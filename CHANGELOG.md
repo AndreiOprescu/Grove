@@ -7,6 +7,7 @@ makes the next version. Each line is one feature. The newest version is first.
 
 ## 1.3.0 · 2026-10-26
 
+- **Goal map:** a goal is now a Habit or a Project. A Project has a short description, a by-when date in the Deadlines panel, and a map of squares on the new Goals screen: each square shows what must be done first, and it can wait for a reply with a countdown. Drag a Ready square from the Goals panel onto a day to plan it.
 - **Notebooks:** the Notes screen has a sidebar with All notes, Inbox, Daily, Weekly, Pinned, Meetings, With tasks and Archive, your own notebooks with sections and colours, and your tags. Drag a note to sort it, move it with "Move to notebook…", and archive notes you are done with.
 - **Reorganise rest of day:** a button next to "Timeline" on today's planner. Say how much of each open task and goal block you have done with a bar or a number, and Grove plans what is left from now until your sleep line: tasks with a deadline first, then goals, then other tasks. What does not fit goes back to today's list. One ⌘Z undoes it all.
 - **Notes panel removed from the dock:** the dock at the top left now has Tasks, Goals and Deadlines. Notes live on the Notes screen.

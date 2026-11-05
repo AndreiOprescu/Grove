@@ -286,6 +286,41 @@ abstract final class Migrations {
     ALTER TABLE notes ADD COLUMN archived_at TEXT;
     CREATE INDEX notes_notebook ON notes(notebook_id);
     ''',
+    // 15 — projects and their goal maps (ADR 0008). The new `goals` columns
+    // may be empty: rows on the server from before them have no value, and a
+    // pull writes them as they are. An empty `type` reads as a habit. The
+    // link tables are like `task_tags`: a row is a fact, and it goes when
+    // either end goes. Not in the Mac app.
+    '''
+    ALTER TABLE goals ADD COLUMN type TEXT;
+    ALTER TABLE goals ADD COLUMN done_when TEXT;
+    ALTER TABLE goals ADD COLUMN work_minutes INTEGER;
+    ALTER TABLE goals ADD COLUMN due_day TEXT;
+    ALTER TABLE goals ADD COLUMN why TEXT;
+    CREATE TABLE goal_squares (
+      id TEXT PRIMARY KEY,
+      goal_id TEXT NOT NULL REFERENCES goals(id) ON DELETE CASCADE,
+      title TEXT NOT NULL,
+      done_at TEXT,
+      wait_minutes INTEGER,
+      wait_started_at TEXT,
+      sort REAL NOT NULL DEFAULT 0,
+      created_at TEXT NOT NULL, updated_at TEXT NOT NULL
+    );
+    CREATE INDEX goal_squares_goal ON goal_squares(goal_id);
+    CREATE TABLE square_links (
+      child_id TEXT REFERENCES goal_squares(id) ON DELETE CASCADE,
+      parent_id TEXT REFERENCES goal_squares(id) ON DELETE CASCADE,
+      PRIMARY KEY (child_id, parent_id)
+    );
+    CREATE INDEX square_links_parent ON square_links(parent_id);
+    CREATE TABLE square_blocks (
+      square_id TEXT REFERENCES goal_squares(id) ON DELETE CASCADE,
+      event_id TEXT REFERENCES events(id) ON DELETE CASCADE,
+      PRIMARY KEY (square_id, event_id)
+    );
+    CREATE INDEX square_blocks_event ON square_blocks(event_id);
+    ''',
   ];
 
   /// Steps in Dart that run right before the migration at the same index,
@@ -348,6 +383,8 @@ abstract final class SyncMigrations {
   /// The tables the sync columns go on. The same list as `DataExport.tables`.
   /// A table comes after the tables it points at: the sync sends them in
   /// this order. `goal_subtasks` points at `goals` and at `events`;
+  /// `goal_squares` at `goals`; `square_links` at `goal_squares`;
+  /// `square_blocks` at `goal_squares` and at `events`;
   /// `agent_jobs` at `tasks` and at `notes`; `agent_events` at
   /// `agent_jobs`; `notes` at `notebooks` and at `notebook_sections`.
   static const syncedTables = [
@@ -360,6 +397,9 @@ abstract final class SyncMigrations {
     'events',
     'block_subtasks',
     'goal_subtasks',
+    'goal_squares',
+    'square_links',
+    'square_blocks',
     'skills',
     'rewards',
     'earnings',
@@ -384,6 +424,7 @@ abstract final class SyncMigrations {
     'events',
     'block_subtasks',
     'goal_subtasks',
+    'goal_squares',
     'skills',
     'agent_jobs',
     'agent_events',
@@ -440,6 +481,13 @@ abstract final class SyncMigrations {
     // the triggers are made again when the columns change.
     (db) {
       for (final t in const ['notebooks', 'notebook_sections']) {
+        SyncSchema.addTable(db, t);
+      }
+    },
+    // 9 — the goal map tables (shared migration 15) join the sync, in the
+    // same way.
+    (db) {
+      for (final t in const ['goal_squares', 'square_links', 'square_blocks']) {
         SyncSchema.addTable(db, t);
       }
     },

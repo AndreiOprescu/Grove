@@ -4,16 +4,20 @@ import 'package:flutter/scheduler.dart';
 import 'package:grove/core/model/goal.dart';
 import 'package:grove/state/state.dart' hide MotionRules;
 
+import '../goal_map/project_form.dart';
 import '../planner/inline_title_field.dart' show BlurAction, InlineTitleRules;
+import '../shell/shell_layout.dart';
 import '../tasks/task_widgets.dart';
 import '../theme/grove_theme.dart';
 import '../theme/panel.dart';
 import 'goal_row.dart';
+import 'project_row.dart';
 
-/// The Goals panel: recurring work with a weekly target of hours or
-/// sessions, and no date. Drag a goal into a day to plan a block of it.
-/// Every block in the week is planned time; a block ticked done in the
-/// planner is done time. A goal is never done: it stays every week. The
+/// The Goals panel: habits and projects. A habit is recurring work with a
+/// weekly target of hours or sessions, and no date. Drag a habit into a day to
+/// plan a block of it. Every block in the week is planned time; a block ticked
+/// done in the planner is done time. A habit is never done: it stays every
+/// week. A project lists its squares ([ProjectRow]). The
 /// numbers are for the week that holds the selected day, the week the
 /// Planner shows. A goal has subtasks under it; every block of the goal has
 /// that one list. One goal at a time can be open: it shows all its
@@ -131,6 +135,7 @@ class _GoalsPaneState extends State<GoalsPane> {
                 ],
               ),
               GoalAddRow(store: _store),
+              _NewProjectLine(store: _store),
               Expanded(
                 child: goals.isEmpty
                     ? _emptyState(theme)
@@ -145,22 +150,29 @@ class _GoalsPaneState extends State<GoalsPane> {
                             spacing: 6,
                             children: [
                               for (final goal in goals)
-                                GoalRow(
-                                  key: ValueKey('goal-row-${goal.id}'),
-                                  store: _store,
-                                  goal: goal,
-                                  progress: _store.goalProgress(
-                                    goal.id,
-                                    weekOf: day,
-                                    sundayFirst: sundayFirst,
+                                if (goal.isProject)
+                                  ProjectRow(
+                                    key: ValueKey('goal-row-${goal.id}'),
+                                    store: _store,
+                                    goal: goal,
+                                  )
+                                else
+                                  GoalRow(
+                                    key: ValueKey('goal-row-${goal.id}'),
+                                    store: _store,
+                                    goal: goal,
+                                    progress: _store.goalProgress(
+                                      goal.id,
+                                      weekOf: day,
+                                      sundayFirst: sundayFirst,
+                                    ),
+                                    subtasks: subtasks[goal.id] ?? const [],
+                                    subtaskMarks: marks,
+                                    isOpen: _openGoal == goal.id,
+                                    isEditing: _openGoal == goal.id && _editing,
+                                    onToggle: () => _toggle(goal.id),
+                                    onEdit: () => _edit(goal.id),
                                   ),
-                                  subtasks: subtasks[goal.id] ?? const [],
-                                  subtaskMarks: marks,
-                                  isOpen: _openGoal == goal.id,
-                                  isEditing: _openGoal == goal.id && _editing,
-                                  onToggle: () => _toggle(goal.id),
-                                  onEdit: () => _edit(goal.id),
-                                ),
                             ],
                           ),
                         ),
@@ -172,6 +184,60 @@ class _GoalsPaneState extends State<GoalsPane> {
       );
     },
   );
+}
+
+/// Opens the form of a new project, and then its map.
+class _NewProjectLine extends StatelessWidget {
+  const _NewProjectLine({required this.store});
+
+  final AppStore store;
+
+  Future<void> _open(BuildContext context) async {
+    final phone =
+        ShellRules.layoutFor(MediaQuery.sizeOf(context).width) ==
+        ShellLayout.phone;
+    final goal = await showNewGoalForm(context, store, project: true);
+    if (goal == null) return;
+    if (phone) store.leftPane = null;
+    store.openGoalMap(goal.id);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = GroveTheme.of(context);
+    return Semantics(
+      container: true,
+      button: true,
+      label: 'New project',
+      onTap: () => _open(context),
+      excludeSemantics: true,
+      child: MouseRegion(
+        cursor: SystemMouseCursors.click,
+        child: GestureDetector(
+          key: const ValueKey('goal-new-project'),
+          behavior: HitTestBehavior.opaque,
+          onTap: () => _open(context),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+            child: Row(
+              spacing: 6,
+              children: [
+                Icon(
+                  Icons.account_tree_outlined,
+                  size: 14,
+                  color: theme.accent,
+                ),
+                Text(
+                  'New project…',
+                  style: theme.body(12).copyWith(color: theme.accent),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 /// One line to add a goal: a name, Hours or Sessions, and the target per

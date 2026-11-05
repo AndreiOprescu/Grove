@@ -1024,3 +1024,23 @@ Format: date · decision · why · how to undo
 - 2026-10-26 · Reorganise sheet: rows keep the order of the plan at 0 % and do not re-sort while you drag; the plan uses the order from your numbers; the slider has no divisions (`SettingsSlider` has none) and rounds to a whole percent; the footer says "1 will not fit and goes back…" for one · a row must not jump away from the finger · `replan_dialog.dart`
 - 2026-10-26 · Dock: the Notes panel and `NotesPane` are deleted; a saved `shell.leftPane = 'notes'` opens with the panel closed; a note can no longer be dragged from a panel onto the planner · the owner asked for the dock without Notes; it was the only source of that drag · see Q-55; `LeftPane` in `rules/left_pane.dart`
 - 2026-10-26 · Goldens: the dock losing a button and the new header button change 28 goldens (shell, goals, tasks, f9, planner, day lines); they are regenerated and pixel-checked before the PR · the Mac passes small changes that CI on Linux and Windows fails · `flutter test --update-goldens` on the listed files
+- 2026-11-05 · Goal map: a wait is set in whole days and stored in minutes · the owner's example is "3 days"; minutes leave room for hours later · `GoalSquare.waitMinutes`
+- 2026-11-05 · Goal map: a waiting square can still be dragged onto a day · the owner chose "dim, not locked" for all squares · `DragPayload.square`
+- 2026-11-05 · Goal map: squares pay no points; a project's blocks pay as goal blocks do now · goal subtasks pay nothing today (PLAN §5.10) · `_addEarnings`
+- 2026-11-05 · Goal map: the work hours of a project come from its ticked blocks and are never stored · same rule as goal progress (PLAN §5.9) · `GoalRules`
+- 2026-11-05 · Goal map: a project cannot go back to a habit · nothing can hold its map then · "Make it a Project"
+- 2026-11-05 · Goal map: the agent does not see squares yet · the agent has no goal tools today · `core/agent`
+- 2026-11-05 · Goal map: the progress count on a project leaves out the root square · the root is the result, not a step · `GoalGraph.openCount`
+- 2026-11-05 · Goal map: a block made from a square takes the square's title; the root or an empty square gives the goal's title · the block must say what the time is for · `store_goal_map.dart`
+- 2026-11-05 · Goal map: a finished project shows as finished in the Goals panel, and it does not leave the panel · the owner can remove the root tick to open it again, so it must stay easy to reach · `project_row.dart`
+- 2026-11-05 · Goal map: the block tick question starts on Done for each square · the user ticked the block, so Done is the likely answer · `block_tick_question.dart`
+- 2026-11-05 · Goal map: on the Mac, Enter adds a step next to the selected square and Tab adds a child · same keys as in outline tools · `goals_screen.dart`
+- 2026-11-05 · Goal map: project rows have their own section on top of the Deadlines panel; events stay as they are · a project has a day, not a time, so it does not fit the event rows · `deadlines_pane.dart`
+- 2026-11-05 · Goal map: the drag handle on a square is for a mouse only; a phone uses the Link button · one finger on a square pans the map · `goal_map_view.dart`
+- 2026-11-05 · Goal map: Link and the link drag make the selected square a child of the target · the arrow reads "do this first, then that" · `goals_screen.dart`
+- 2026-11-05 · Goal map: the add row in the Goals panel still adds Habits; a "New project…" line opens the form · a Project needs the form, and quick add of a Habit stays as it was · `goals_pane.dart`
+- 2026-11-05 · Goal map: the Goals menu entry is ⌘8, listed after Persona; old shortcuts stay · users know the old keys · `app_menus.dart`
+- 2026-11-05 · Goal map: a map too big to read whole first opens at the next Ready square at scale 0.6; the Fit button shows the whole map · on a phone a whole map has text too small to read · `goal_map_view.dart`
+- 2026-11-05 · Goal map: a selected square moves out from under the panels by the shortest way · the sheet must not hide what it edits · `goal_map_view.dart`
+- 2026-11-05 · Goal map: right click on a project row gives Open Map, Edit… and Delete Goal… · same as a habit row, with the map added · `project_row.dart`
+- 2026-11-05 · Goal map: while the keyboard is up on a phone with the sheet open, the header, tool bar and goal list hide · the keyboard takes half the screen, and the square and its "+" must stay free · `goals_screen.dart`

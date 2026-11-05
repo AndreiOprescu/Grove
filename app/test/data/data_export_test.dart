@@ -229,6 +229,24 @@ void main() {
             [null, null, 0, null],
           );
         }
+        // Goal maps are in this app only: a goal from a Mac file has empty
+        // project fields, which read as a habit.
+        expect(b.remove('goal_squares'), isEmpty);
+        expect(b.remove('square_links'), isEmpty);
+        expect(b.remove('square_blocks'), isEmpty);
+        for (final g in b['goals'] as List) {
+          final m = g as Map;
+          expect(
+            [
+              m.remove('type'),
+              m.remove('done_when'),
+              m.remove('work_minutes'),
+              m.remove('due_day'),
+              m.remove('why'),
+            ],
+            [null, null, null, null, null],
+          );
+        }
         expect(b.keys.toSet(), a.keys.toSet());
         for (final name in a.keys) {
           final macRows = a[name] as List;
