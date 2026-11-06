@@ -274,7 +274,11 @@ void main() {
       final s = store();
       final (g, blockId) = addGoalBlock(s, 600, 120);
       final open = s.addGoalSubtaskToBlock(blockId, title: 'Open')!;
-      final done = s.addGoalSubtaskToBlock(blockId, title: 'Done')!;
+      // An old block, from before one step per block, holds two.
+      final done = s.addGoalSubtask(to: g.id, title: 'Done')!;
+      s.repos.goalSubtasks.save(
+        s.repos.goalSubtasks.get(done)!.copyWith(eventId: blockId),
+      );
       s.toggleGoalSubtask(done);
       final mine = s.addBlockSubtask(to: blockId, title: 'Mine')!;
       final ticked = s.addBlockSubtask(to: blockId, title: 'Ticked')!;
@@ -293,6 +297,8 @@ void main() {
       expect(at(rest), (630, 690));
       expect(rest.doneAt, isNull);
       expect(s.repos.goalSubtasks.get(open)!.eventId, rest.id);
+      // The step left is as long as the rest of the work.
+      expect(s.repos.goalSubtasks.get(open)!.lengthMinutes, 60);
       expect(s.repos.goalSubtasks.get(done)!.eventId, blockId);
       expect(s.repos.blockSubtasks.get(mine)!.eventId, rest.id);
       expect(s.repos.blockSubtasks.get(ticked)!.eventId, blockId);

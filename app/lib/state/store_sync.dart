@@ -467,6 +467,8 @@ extension AppStoreSync on AppStore {
     };
     // Another device can still add block subtasks to a goal block.
     _adoptBlockSubtasks();
+    // Two devices can leave a project in a state that neither made.
+    _healGoalMaps();
     final block = _selectedGoalBlockId;
     if (block != null && event(block)?.goalId == null) {
       _selectedGoalBlockId = null;

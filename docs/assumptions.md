@@ -1024,3 +1024,37 @@ Format: date · decision · why · how to undo
 - 2026-10-26 · Reorganise sheet: rows keep the order of the plan at 0 % and do not re-sort while you drag; the plan uses the order from your numbers; the slider has no divisions (`SettingsSlider` has none) and rounds to a whole percent; the footer says "1 will not fit and goes back…" for one · a row must not jump away from the finger · `replan_dialog.dart`
 - 2026-10-26 · Dock: the Notes panel and `NotesPane` are deleted; a saved `shell.leftPane = 'notes'` opens with the panel closed; a note can no longer be dragged from a panel onto the planner · the owner asked for the dock without Notes; it was the only source of that drag · see Q-55; `LeftPane` in `rules/left_pane.dart`
 - 2026-10-26 · Goldens: the dock losing a button and the new header button change 28 goldens (shell, goals, tasks, f9, planner, day lines); they are regenerated and pixel-checked before the PR · the Mac passes small changes that CI on Linux and Windows fails · `flutter test --update-goldens` on the listed files
+- 2026-11-05 · Goal map: a wait is set in whole days and stored in minutes · the owner's example is "3 days"; minutes leave room for hours later · `GoalSquare.waitMinutes`
+- 2026-11-05 · Goal map: a waiting square can still be dragged onto a day · the owner chose "dim, not locked" for all squares · `DragPayload.square`
+- 2026-11-05 · Goal map: squares pay no points; a project's blocks pay as goal blocks do now · goal subtasks pay nothing today (PLAN §5.10) · `_addEarnings`
+- 2026-11-05 · Goal map: the work hours of a project come from its ticked blocks and are never stored · same rule as goal progress (PLAN §5.9) · `GoalRules`
+- 2026-11-05 · Goal map: a project cannot go back to a habit · nothing can hold its map then · "Make it a Project"
+- 2026-11-05 · Goal map: the agent does not see squares yet · the agent has no goal tools today · `core/agent`
+- 2026-11-05 · Goal map: the progress count on a project leaves out the root square · the root is the result, not a step · `GoalGraph.openCount`
+- 2026-11-05 · Goal map: a block made from a square takes the square's title; the root or an empty square gives the goal's title · the block must say what the time is for · `store_goal_map.dart`
+- 2026-11-05 · Goal map: a finished project shows as finished in the Goals panel, and it does not leave the panel · the owner can remove the root tick to open it again, so it must stay easy to reach · `project_row.dart`
+- 2026-11-05 · Goal map: the block tick question starts on Done for each square · the user ticked the block, so Done is the likely answer · `block_tick_question.dart`
+- 2026-11-05 · Goal map: on the Mac, Enter adds a step next to the selected square and Tab adds a child · same keys as in outline tools · `goals_screen.dart`
+- 2026-11-05 · Goal map: project rows have their own section on top of the Deadlines panel; events stay as they are · a project has a day, not a time, so it does not fit the event rows · `deadlines_pane.dart`
+- 2026-11-05 · Goal map: the drag handle on a square is for a mouse only; a phone uses the Link button · one finger on a square pans the map · `goal_map_view.dart`
+- 2026-11-05 · Goal map: Link and the link drag make the selected square a child of the target · the arrow reads "do this first, then that" · `goals_screen.dart`
+- 2026-11-05 · Goal map: the add row in the Goals panel still adds Habits; a "New project…" line opens the form · a Project needs the form, and quick add of a Habit stays as it was · `goals_pane.dart`
+- 2026-11-05 · Goal map: the Goals menu entry is ⌘8, listed after Persona; old shortcuts stay · users know the old keys · `app_menus.dart`
+- 2026-11-05 · Goal map: a map too big to read whole first opens at the next Ready square at scale 0.6; the Fit button shows the whole map · on a phone a whole map has text too small to read · `goal_map_view.dart`
+- 2026-11-05 · Goal map: a selected square moves out from under the panels by the shortest way · the sheet must not hide what it edits · `goal_map_view.dart`
+- 2026-11-05 · Goal map: right click on a project row gives Open Map, Edit… and Delete Goal… · same as a habit row, with the map added · `project_row.dart`
+- 2026-11-05 · Goal map: while the keyboard is up on a phone with the sheet open, the header, tool bar and goal list hide · the keyboard takes half the screen, and the square and its "+" must stay free · `goals_screen.dart`
+- 2026-11-06 · Goal map (owner): a new step does not join the root by itself. With nothing selected, "+" makes a loose step; a step added from a planner block is loose too. "+" on a selected square still makes its child · owner asked · `store_goal_map.dart`
+- 2026-11-06 · Goal map (owner): loose steps sit in a group on the far left of the map and do not stop the finish; they are not in the open-step count. A Habit made into a Project keeps its steps joined to the root · owner chose "Loose, on the left" · `goal_graph.dart`
+- 2026-11-06 · Goal map: when a square with no parents is deleted, its children become loose · same rule as "children join the parents", with no parents · `store_goal_map.dart`
+- 2026-11-06 · Goal steps (owner): each square and each goal subtask has a length. Time done = ticked blocks + the length of each ticked step that no ticked block holds · owner chose "Block time wins", so no time counts twice · `goal_rules.dart`
+- 2026-11-06 · Goal steps: a new step has no length; a step without a length adds nothing · a default would add time the user never set · `goal_square.dart`
+- 2026-11-06 · Goal steps: for a Habit, a step's length counts in the week it was ticked, for hours targets only; step time gives no points · sessions are blocks, and points come from blocks · `goal_rules.dart`
+- 2026-11-06 · Goal steps (owner): a block holds at most 1 step, and a step sits on at most 1 block, as a task does. Dragging a planned step again moves its block · owner said "only 1 step on the planner" · `store_goal_map.dart`
+- 2026-11-06 · Goal steps (owner): a step's length and its block's length stay the same, both ways · owner asked · `store_goal_map.dart`
+- 2026-11-06 · Goal steps: old blocks that already hold 2 or more steps keep them, and their length is not linked · no data is deleted · `store_goal_map.dart`
+- 2026-11-06 · Goal steps: the length columns go into the unreleased migration 15 and the same SQL file · the owner then runs one SQL file, not two · `migrations.dart`
+- 2026-11-06 · Goal steps: a length is picked from a menu: none, the block lengths (15 min to 4 h), and the length it has now · the same choices as the block duration menu · `ui/goals/step_length.dart`
+- 2026-11-06 · Goal steps: a square shows its length after its state ("Ready · 45m"); a Habit subtask row shows it as a small chip, or a clock when it has none · `square_tile.dart`, `goal_subtasks.dart`
+- 2026-11-06 · Goal steps: a reorganised block gives its open step the length of the work that is left, as a task gets · `store_planner.dart`
+- 2026-11-06 · Goal steps: a planner block that holds a step hides its add line and its list of steps to add · a block holds one · `goal_panel.dart`

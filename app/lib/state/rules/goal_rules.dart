@@ -59,6 +59,54 @@ abstract final class GoalRules {
 
   static int clampCount(int count) => max(minCount, min(maxCount, count));
 
+  /// What a goal shows when it has no name: a project needs none.
+  static String titleOf(GoalItem goal) => goal.title.isNotEmpty
+      ? goal.title
+      : (goal.isProject ? 'Untitled project' : 'Untitled goal');
+
+  /// "2 / 5 steps", "Finished", or "No steps yet".
+  static String projectStepsText(ProjectProgress p) {
+    if (p.isFinished) return 'Finished';
+    if (p.steps == 0) return 'No steps yet';
+    return '${p.stepsDone} / ${p.steps} ${p.steps == 1 ? 'step' : 'steps'}';
+  }
+
+  /// "2.5 / 10 h done", or "2.5 h done" for a project with no amount of work.
+  /// All blocks of the project count, on any day. Empty with nothing to say.
+  static String projectHoursText(ProjectProgress p) {
+    final work = p.workMinutes;
+    if (work != null) return '${hours(p.doneMinutes)} / ${hours(work)} h done';
+    return p.doneMinutes > 0 ? '${hours(p.doneMinutes)} h done' : '';
+  }
+
+  /// How far the steps of a project are, from 0 to 1. The bar of a finished
+  /// project is full, even with steps that stay open.
+  static double projectBar(ProjectProgress p) {
+    if (p.isFinished) return 1;
+    return p.steps == 0 ? 0 : p.stepsDone / p.steps;
+  }
+
+  /// Minutes from what the user typed as hours: "2.5" or "2,5". Null for
+  /// nothing, for no number, or for 0 or less.
+  static int? parseHours(String text) {
+    final value = double.tryParse(text.trim().replaceAll(',', '.'));
+    if (value == null || value <= 0 || !value.isFinite) return null;
+    return (value * 60).round();
+  }
+
+  /// "3 days", or "1 day", for a wait.
+  static String waitDaysText(int days) => days == 1 ? '1 day' : '$days days';
+
+  /// How much of a project's by-when date is left: "Today", "In 3 days",
+  /// "2 days late".
+  static String dueDayText(DayKey due, {required DayKey today}) {
+    final left = today.daysUntil(due);
+    if (left == 0) return 'Today';
+    if (left == 1) return 'Tomorrow';
+    if (left > 0) return 'In $left days';
+    return left == -1 ? '1 day late' : '${-left} days late';
+  }
+
   /// The goal's weekly target in its own unit: minutes for hours, a count for sessions.
   static int target(GoalItem goal) =>
       goal.kind == GoalKind.hours ? goal.targetMin : goal.targetCount;
@@ -178,4 +226,25 @@ abstract final class GoalRules {
   /// One sentence for a screen reader: "Read, 2.5 / 5 h done, 4 h planned".
   static String accessibilityText(String title, GoalProgress p) =>
       '$title, ${progressText(p)}, ${plannedText(p)}';
+}
+
+/// How far a project is. Nothing here is stored: the blocks and the squares
+/// say it all.
+class ProjectProgress {
+  const ProjectProgress({
+    required this.steps,
+    required this.stepsDone,
+    required this.doneMinutes,
+    required this.isFinished,
+    this.workMinutes,
+  });
+
+  /// The squares of the map, without the root.
+  final int steps;
+  final int stepsDone;
+
+  /// The minutes of the ticked blocks of the project, on any day.
+  final int doneMinutes;
+  final int? workMinutes;
+  final bool isFinished;
 }

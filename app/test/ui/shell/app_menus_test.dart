@@ -106,6 +106,7 @@ void main() {
         'Notes ⌘4',
         'Garden ⌘5',
         'Persona ⌘6',
+        'Goals ⌘8',
         '-',
         'Zoom In ⌘=',
         'Zoom Out ⌘-',
@@ -588,6 +589,7 @@ void main() {
             'Notes',
             'Garden',
             'Persona',
+            'Goals',
             'Zoom In',
             'Zoom Out',
             for (final spec in ThemeSpec.all)

@@ -64,10 +64,11 @@ extension AppStoreGoalSubtasks on AppStore {
       _try(() => repos.goalSubtasks.forEvents([eventId]))?[eventId] ?? const [];
 
   /// The subtasks that this block can take from its goal: the open ones
-  /// that are in no block. Empty for a block with no goal.
+  /// that are in no block. Empty for a block with no goal, and for a block
+  /// that holds a step already (a block holds one).
   List<GoalSubtaskItem> freeGoalSubtasks(String eventId) {
     final goalId = event(eventId)?.goalId;
-    if (goalId == null) return const [];
+    if (goalId == null || !blockCanTakeStep(eventId)) return const [];
     return [
       for (final s in goalSubtasks(goalId))
         if (!s.isDone && !s.isPlanned) s,
@@ -80,7 +81,9 @@ extension AppStoreGoalSubtasks on AppStore {
     final sub = _try(() => repos.goalSubtasks.get(id));
     if (sub == null || sub.isDone || sub.eventId == blockId) return null;
     final block = event(blockId);
-    return block != null && block.goalId == sub.goalId ? sub : null;
+    if (block == null || block.goalId != sub.goalId) return null;
+    // A block holds one step at most.
+    return blockCanTakeStep(blockId, subtaskId: id) ? sub : null;
   }
 
   /// Plans an open subtask in a block of its goal. A subtask is in one block

@@ -2,6 +2,7 @@ import '../core/model/block_subtask.dart';
 import '../core/model/day_key.dart';
 import '../core/model/event.dart';
 import '../core/model/goal.dart';
+import '../core/model/goal_square.dart';
 import '../core/model/goal_subtask.dart';
 import '../core/model/note.dart';
 import '../core/model/notebook.dart';
@@ -21,6 +22,12 @@ typedef TagChange = ({String taskId, List<String> before, List<String> after});
 /// One row of the settings table before and after. Null means "no row".
 typedef SettingChange = ({String key, String? before, String? after});
 
+/// A link of a goal map that is made (`add`) or taken away.
+typedef SquareLinkChange = ({SquareLink link, bool add});
+
+/// A square put in a block (`add`) or taken out of it.
+typedef SquareBlockChange = ({SquareBlock block, bool add});
+
 /// One undoable change. Holds the before and after state of every item it touches.
 class Mutation {
   Mutation(this.name, {this.mergeKey, DateTime? at})
@@ -37,6 +44,15 @@ class Mutation {
 
   /// Subtasks of goals.
   final List<Change<GoalSubtaskItem>> goalSubtasks = [];
+
+  /// Squares of goal maps.
+  final List<Change<GoalSquare>> squares = [];
+
+  /// Links between squares. Undo does the opposite, in reverse order.
+  final List<SquareLinkChange> squareLinks = [];
+
+  /// Squares in blocks. Undo does the opposite, in reverse order.
+  final List<SquareBlockChange> squareBlocks = [];
 
   /// Undo does the opposite, in reverse order.
   final List<ExdateChange> exdates = [];
@@ -76,6 +92,9 @@ class Mutation {
       goals.isEmpty &&
       blockSubtasks.isEmpty &&
       goalSubtasks.isEmpty &&
+      squares.isEmpty &&
+      squareLinks.isEmpty &&
+      squareBlocks.isEmpty &&
       tags.isEmpty &&
       exdates.isEmpty &&
       settings.isEmpty &&
@@ -102,6 +121,12 @@ class Mutation {
         next.blockSubtasks.isNotEmpty ||
         goalSubtasks.isNotEmpty ||
         next.goalSubtasks.isNotEmpty ||
+        squares.isNotEmpty ||
+        next.squares.isNotEmpty ||
+        squareLinks.isNotEmpty ||
+        next.squareLinks.isNotEmpty ||
+        squareBlocks.isNotEmpty ||
+        next.squareBlocks.isNotEmpty ||
         tags.isNotEmpty ||
         next.tags.isNotEmpty ||
         exdates.isNotEmpty ||
@@ -148,6 +173,9 @@ class Mutation {
     goals.addAll(other.goals);
     blockSubtasks.addAll(other.blockSubtasks);
     goalSubtasks.addAll(other.goalSubtasks);
+    squares.addAll(other.squares);
+    squareLinks.addAll(other.squareLinks);
+    squareBlocks.addAll(other.squareBlocks);
     tags.addAll(other.tags);
     exdates.addAll(other.exdates);
     settings.addAll(other.settings);

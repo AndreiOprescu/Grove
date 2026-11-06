@@ -29,4 +29,16 @@ abstract final class DragPayload {
       raw.startsWith(goalSubtaskPrefix) && raw.length > goalSubtaskPrefix.length
       ? raw.substring(goalSubtaskPrefix.length)
       : null;
+
+  /// A square of a goal map. Its text starts with no other prefix, so a place
+  /// that takes a goal or a subtask does not take it.
+  static const squarePrefix = 'grove-square:';
+  static String square(String id) => squarePrefix + id;
+
+  /// The id in a dragged square, or null when the text is something else (or
+  /// has no id).
+  static String? squareId(String raw) =>
+      raw.startsWith(squarePrefix) && raw.length > squarePrefix.length
+      ? raw.substring(squarePrefix.length)
+      : null;
 }

@@ -83,6 +83,15 @@ extension AppStorePlanner on AppStore {
           ]),
         ) ??
         const <String, List<GoalSubtaskItem>>{};
+    // Squares of a goal map that a block holds.
+    final squares =
+        _try(
+          () => repos.goalSquares.forEvents([
+            for (final e in events)
+              if (e.goalId != null && !e.allDay) e.id,
+          ]),
+        ) ??
+        const <String, List<GoalSquare>>{};
     // The blocks with a linked note (their meeting note), in one query.
     final noted = withMeetingNote(events.where((e) => !e.allDay));
     for (final e in events) {
@@ -103,6 +112,13 @@ extension AppStorePlanner on AppStore {
           : [
               // The ones from the goal first, in the order of the goal.
               for (final s in goalSubs[e.id] ?? const <GoalSubtaskItem>[])
+                BlockSubtask(
+                  id: s.id,
+                  title: s.title,
+                  isDone: s.isDone,
+                  fromGoal: true,
+                ),
+              for (final s in squares[e.id] ?? const <GoalSquare>[])
                 BlockSubtask(
                   id: s.id,
                   title: s.title,
@@ -829,8 +845,30 @@ extension AppStorePlanner on AppStore {
           if (sub.isDone) continue;
           m.goalSubtasks.add((
             before: sub,
-            after: sub.copyWith(eventId: rest?.id),
+            after: sub.copyWith(
+              eventId: rest?.id,
+              lengthMinutes: rest == null ? keep : s.remaining,
+            ),
           ));
+        }
+        // An open square goes on with the rest of the work.
+        for (final square in squaresOfBlock(e.id)) {
+          if (square.isDone) continue;
+          m.squareBlocks.add((
+            block: SquareBlock(squareId: square.id, eventId: e.id),
+            add: false,
+          ));
+          if (rest != null) {
+            m.squareBlocks.add((
+              block: SquareBlock(squareId: square.id, eventId: rest.id),
+              add: true,
+            ));
+            // The step is as long as the work that is left, as a task is.
+            m.squares.add((
+              before: square,
+              after: square.copyWith(lengthMinutes: s.remaining),
+            ));
+          }
         }
         if (rest == null) continue;
         for (final sub in blockSubtasks(e.id)) {

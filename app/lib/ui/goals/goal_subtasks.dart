@@ -11,6 +11,7 @@ import '../planner/payload_drag.dart';
 import '../tasks/task_widgets.dart';
 import '../theme/check_box.dart';
 import '../theme/grove_theme.dart';
+import 'step_length.dart';
 
 /// The side of a place to click or tap, and the height of a line, in
 /// points. The same as in the subtask window of a block.
@@ -377,6 +378,13 @@ class _OpenRowState extends State<_OpenRow> {
                 },
               ),
             ),
+          ),
+          StepLengthChip(
+            key: ValueKey('goal-subtask-length-${sub.id}'),
+            minutes: sub.lengthMinutes,
+            name: sub.title,
+            side: goalSubtaskTarget,
+            onPick: (m) => widget.store.setGoalSubtaskLength(sub.id, m),
           ),
           if (widget.mark case final mark?)
             _Mark(key: ValueKey('goal-subtask-mark-${sub.id}'), text: mark),

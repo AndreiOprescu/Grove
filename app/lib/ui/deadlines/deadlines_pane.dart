@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:grove/core/model/event.dart';
+import 'package:grove/core/model/goal.dart';
 import 'package:grove/state/state.dart' hide MotionRules;
 
 import '../shell/shell_layout.dart';
+import '../tasks/task_format.dart';
 import '../tasks/task_widgets.dart';
 import '../theme/check_box.dart';
 import '../theme/grove_theme.dart';
@@ -37,6 +39,16 @@ class _DeadlinesPaneState extends State<DeadlinesPane> {
     _store.editEvent(e);
   }
 
+  /// Opens the map of a project. On a phone the panel closes first, as for
+  /// a card.
+  void _openProject(GoalItem g) {
+    final phone =
+        ShellRules.layoutFor(MediaQuery.sizeOf(context).width) ==
+        ShellLayout.phone;
+    if (phone) _store.leftPane = null;
+    _store.openGoalMap(g.id);
+  }
+
   @override
   Widget build(BuildContext context) => StoreBuilder(
     store: _store,
@@ -44,7 +56,8 @@ class _DeadlinesPaneState extends State<DeadlinesPane> {
       final theme = GroveTheme.of(context);
       final s = _store.deadlineSections;
       final now = _store.clockNow();
-      final open = s.missed.length + s.coming.length;
+      final projects = _store.dueProjects;
+      final open = s.missed.length + s.coming.length + projects.length;
       return Panel(
         child: Padding(
           padding: const EdgeInsets.all(12),
@@ -66,12 +79,13 @@ class _DeadlinesPaneState extends State<DeadlinesPane> {
               Expanded(
                 child: ListView(
                   children: [
-                    if (s.isEmpty)
+                    if (s.isEmpty && projects.isEmpty)
                       Text(
                         'No deadlines. Open an event and turn on "Deadline".',
                         key: const ValueKey('deadlines-empty'),
                         style: theme.body(12).copyWith(color: theme.muted),
                       ),
+                    if (projects.isNotEmpty) ..._projects(theme, projects),
                     if (s.missed.isNotEmpty)
                       ..._section(
                         theme,
@@ -92,6 +106,81 @@ class _DeadlinesPaneState extends State<DeadlinesPane> {
       );
     },
   );
+
+  List<Widget> _projects(GroveTheme theme, List<GoalItem> rows) => [
+    Padding(
+      padding: const EdgeInsets.only(top: 6, bottom: 4),
+      child: ThemedHeading(
+        'Projects · ${rows.length}',
+        12,
+        weight: FontWeight.w700,
+        color: theme.muted,
+      ),
+    ),
+    for (final g in rows) _projectRow(theme, g),
+  ];
+
+  Widget _projectRow(GroveTheme theme, GoalItem g) {
+    final due = g.dueDay!;
+    final today = _store.clockToday;
+    final title = GoalRules.titleOf(g);
+    final when =
+        '${TaskFormat.dateLabel(due)} · '
+        '${GoalRules.dueDayText(due, today: today)}';
+    return Semantics(
+      container: true,
+      button: true,
+      label: '$title, $when',
+      hint: 'Opens the map',
+      onTap: () => _openProject(g),
+      excludeSemantics: true,
+      child: MouseRegion(
+        cursor: SystemMouseCursors.click,
+        child: GestureDetector(
+          key: ValueKey('deadline-project-${g.id}'),
+          behavior: HitTestBehavior.opaque,
+          onTap: () => _openProject(g),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 5),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              spacing: 2,
+              children: [
+                Row(
+                  spacing: 6,
+                  children: [
+                    Icon(
+                      Icons.account_tree_outlined,
+                      size: 12,
+                      color: theme.color(GoalRules.blockColor(g)),
+                    ),
+                    Expanded(
+                      child: Text(
+                        title,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: theme
+                            .body(13, weight: FontWeight.w600)
+                            .copyWith(color: theme.ink),
+                      ),
+                    ),
+                  ],
+                ),
+                Text(
+                  when,
+                  style: theme
+                      .body(11)
+                      .copyWith(
+                        color: due < today ? theme.accent2 : theme.muted,
+                      ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 
   List<Widget> _section(
     GroveTheme theme,

@@ -15,6 +15,7 @@ class GoalSubtaskItem {
     this.doneAt,
     this.sort = 0,
     this.eventId,
+    this.lengthMinutes,
     String? createdAt,
     String? updatedAt,
   }) : id = id ?? newId(),
@@ -33,6 +34,10 @@ class GoalSubtaskItem {
 
   /// The block of the goal that this subtask is planned in, or null.
   final String? eventId;
+
+  /// How long it takes, or null when the user did not say. When it is
+  /// planned alone in its block, the block is this long.
+  final int? lengthMinutes;
   final String createdAt;
   final String updatedAt;
 
@@ -48,6 +53,7 @@ class GoalSubtaskItem {
     Object? doneAt = keep,
     double? sort,
     Object? eventId = keep,
+    Object? lengthMinutes = keep,
     String? createdAt,
     String? updatedAt,
   }) => GoalSubtaskItem(
@@ -57,6 +63,9 @@ class GoalSubtaskItem {
     doneAt: identical(doneAt, keep) ? this.doneAt : doneAt as String?,
     sort: sort ?? this.sort,
     eventId: identical(eventId, keep) ? this.eventId : eventId as String?,
+    lengthMinutes: identical(lengthMinutes, keep)
+        ? this.lengthMinutes
+        : lengthMinutes as int?,
     createdAt: createdAt ?? this.createdAt,
     updatedAt: updatedAt ?? this.updatedAt,
   );
@@ -68,6 +77,7 @@ class GoalSubtaskItem {
     doneAt,
     sort,
     eventId,
+    lengthMinutes,
     createdAt,
     updatedAt,
   ];

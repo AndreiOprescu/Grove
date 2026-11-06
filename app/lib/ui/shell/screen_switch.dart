@@ -1,5 +1,7 @@
 // Port of Sources/Grove/Layouts/ScreenSwitch.swift, and the same choice as
 // a bar at the bottom of a phone.
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 
 import '../theme/grove_theme.dart';
@@ -12,6 +14,7 @@ IconData screenIcon(Screen screen) => switch (screen) {
   Screen.today => Icons.wb_sunny_outlined,
   Screen.planner => Icons.view_timeline_outlined,
   Screen.calendar => Icons.calendar_month_outlined,
+  Screen.goals => Icons.account_tree_outlined,
   Screen.notes => Icons.sticky_note_2_outlined,
   Screen.garden => Icons.eco_outlined,
   Screen.persona => Icons.person_outline,
@@ -117,29 +120,67 @@ class PhoneNavBar extends StatelessWidget {
 
   final ShellModel model;
 
+  /// True when the widest word of the bar fits in a tab. If it does not,
+  /// only the selected tab shows its word, and it may be clipped there.
+  static bool wordsFit(
+    GroveTheme theme,
+    TextScaler scaler,
+    List<Screen> screens,
+    double width,
+  ) {
+    if (screens.isEmpty) return true;
+    var widest = 0.0;
+    for (final screen in screens) {
+      final text = TextPainter(
+        text: TextSpan(
+          text: screen.title,
+          style: theme.body(10, weight: FontWeight.w600).copyWith(height: 1.2),
+        ),
+        textDirection: TextDirection.ltr,
+        textScaler: scaler,
+      )..layout();
+      widest = math.max(widest, text.width);
+      text.dispose();
+    }
+    return widest <= width / screens.length - 2;
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = GroveTheme.of(context);
     return SizedBox(
       height: ShellRules.phoneNavBar,
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          for (final screen in model.screens)
-            Expanded(
-              child: ShellButton(
-                key: ValueKey('screen-${screen.name}'),
-                label: screen.title,
-                selected: model.screen == screen,
-                onTap: () => model.screen = screen,
-                child: _NavItem(
-                  screen: screen,
-                  color: model.screen == screen ? theme.accent : theme.muted,
-                  selected: model.screen == screen,
+      child: LayoutBuilder(
+        builder: (context, box) {
+          final fit = wordsFit(
+            theme,
+            MediaQuery.textScalerOf(context),
+            model.screens,
+            box.maxWidth,
+          );
+          return Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              for (final screen in model.screens)
+                Expanded(
+                  child: ShellButton(
+                    key: ValueKey('screen-${screen.name}'),
+                    label: screen.title,
+                    selected: model.screen == screen,
+                    onTap: () => model.screen = screen,
+                    child: _NavItem(
+                      screen: screen,
+                      color: model.screen == screen
+                          ? theme.accent
+                          : theme.muted,
+                      selected: model.screen == screen,
+                      showWord: fit || model.screen == screen,
+                    ),
+                  ),
                 ),
-              ),
-            ),
-        ],
+            ],
+          );
+        },
       ),
     );
   }
@@ -150,11 +191,13 @@ class _NavItem extends StatelessWidget {
     required this.screen,
     required this.color,
     required this.selected,
+    required this.showWord,
   });
 
   final Screen screen;
   final Color color;
   final bool selected;
+  final bool showWord;
 
   @override
   Widget build(BuildContext context) {
@@ -164,15 +207,16 @@ class _NavItem extends StatelessWidget {
       spacing: 3,
       children: [
         Icon(screenIcon(screen), size: 22, color: color),
-        Text(
-          screen.title,
-          maxLines: 1,
-          overflow: TextOverflow.clip,
-          softWrap: false,
-          style: theme
-              .body(10, weight: selected ? FontWeight.w600 : FontWeight.w400)
-              .copyWith(color: color, height: 1.2),
-        ),
+        if (showWord)
+          Text(
+            screen.title,
+            maxLines: 1,
+            overflow: TextOverflow.clip,
+            softWrap: false,
+            style: theme
+                .body(10, weight: selected ? FontWeight.w600 : FontWeight.w400)
+                .copyWith(color: color, height: 1.2),
+          ),
       ],
     );
   }

@@ -3,7 +3,6 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:grove/core/model/goal_subtask.dart';
 import 'package:grove/state/state.dart' hide MotionRules;
 
 import '../theme/check_box.dart';
@@ -185,12 +184,12 @@ class _SubtaskLineState extends State<SubtaskLine> {
 class FreeSubtaskLine extends StatelessWidget {
   const FreeSubtaskLine({
     super.key,
-    required this.sub,
+    required this.title,
     required this.onTap,
     this.label,
   });
 
-  final GoalSubtaskItem sub;
+  final String title;
   final VoidCallback onTap;
 
   /// What the line says to a screen reader. "Put … in this block" when
@@ -204,7 +203,7 @@ class FreeSubtaskLine extends StatelessWidget {
       container: true,
       excludeSemantics: true,
       button: true,
-      label: label ?? 'Put ${sub.title} in this block',
+      label: label ?? 'Put $title in this block',
       onTap: onTap,
       child: MouseRegion(
         cursor: SystemMouseCursors.click,
@@ -222,7 +221,7 @@ class FreeSubtaskLine extends StatelessWidget {
                 ),
                 Expanded(
                   child: Text(
-                    sub.title,
+                    title,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: theme.body(13).copyWith(color: theme.ink),
