@@ -5,6 +5,7 @@ The newest post is first.
 
 | Date | Post |
 |---|---|
+| 2026-10-27 | [Task or activity, and the day lines in the day menu](2026-10-27-planner-kind-switch.md) |
 | 2026-10-26 | [Reorganise the rest of your day](2026-10-26-reorganise-day.md) |
 | 2026-10-26 | [Notebooks for your notes](2026-10-26-notebooks.md) |
 | 2026-10-22 | [A home for your agents](2026-10-22-agents-screen.md) |

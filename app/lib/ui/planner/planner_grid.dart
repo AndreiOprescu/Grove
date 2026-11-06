@@ -17,11 +17,11 @@ import 'package:grove/state/state.dart' hide MotionRules;
 import '../agent/agent_dialog.dart';
 import '../theme/grove_theme.dart';
 import '../theme/named_colors.dart';
-import '../theme/symbols.dart';
 import '../theme/theme_math.dart';
 import 'block_view.dart';
 import 'day_markers.dart';
 import 'inline_title_field.dart';
+import 'kind_switch.dart';
 import 'planner_geometry.dart';
 
 /// A move or a resize that runs now. Nothing is saved until it ends.
@@ -1158,6 +1158,11 @@ class PlannerGridState extends State<PlannerGrid> {
           ),
         ],
       ],
+      // A task block turns into an activity in place, and back (the block
+      // under the pointer only). Last of its group, so the linked note stays
+      // right after "Split in Two".
+      if (kindSwitchLine(store, block.id) case final line?)
+        _item(line, () => unawaited(turnBlockKind(context, store, block.id))),
       const PopupMenuDivider(),
       if (block.isTaskBlock) ...[
         _item('Unschedule', () => store.deleteBlocks(ids, name: 'Unschedule')),
@@ -1627,25 +1632,10 @@ class PlannerGridState extends State<PlannerGrid> {
     });
     return TextFieldTapRegion(
       child: ExcludeFocus(
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          spacing: 4,
-          children: [
-            _KindChip(
-              key: const ValueKey('draft-task'),
-              icon: symbolIcon('square'),
-              label: 'Task',
-              on: !d.asActivity && !d.asEvent,
-              onTap: () => pick(false),
-            ),
-            _KindChip(
-              key: const ValueKey('draft-activity'),
-              icon: symbolIcon('cup.and.saucer'),
-              label: 'Activity',
-              on: d.asActivity,
-              onTap: () => pick(true),
-            ),
-          ],
+        child: KindChips(
+          keyPrefix: 'draft',
+          activity: d.asEvent ? null : d.asActivity,
+          onPick: pick,
         ),
       ),
     );
@@ -2091,61 +2081,6 @@ class _NowLineState extends State<_NowLine> with WidgetsBindingObserver {
             ),
           ),
         ],
-      ),
-    );
-  }
-}
-
-/// One choice of the row under the draft: an icon and a word.
-class _KindChip extends StatelessWidget {
-  const _KindChip({
-    super.key,
-    required this.icon,
-    required this.label,
-    required this.on,
-    required this.onTap,
-  });
-
-  final IconData icon;
-  final String label;
-  final bool on;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = GroveTheme.of(context);
-    final color = on ? theme.accent : theme.muted;
-    return Semantics(
-      button: true,
-      selected: on,
-      label: label,
-      excludeSemantics: true,
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTap: onTap,
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
-          decoration: BoxDecoration(
-            color: on
-                ? theme.accent.withValues(alpha: 0.14)
-                : theme.solidSurface,
-            borderRadius: BorderRadius.circular(6),
-            border: Border.all(color: on ? theme.accent : theme.line),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            spacing: 4,
-            children: [
-              Icon(icon, size: 12, color: color),
-              Text(
-                label,
-                style: theme
-                    .body(10, weight: FontWeight.w700)
-                    .copyWith(color: color),
-              ),
-            ],
-          ),
-        ),
       ),
     );
   }
