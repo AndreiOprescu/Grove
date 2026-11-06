@@ -166,7 +166,7 @@ void main() {
   });
 
   group('the tool bar', () {
-    testWidgets('add with nothing selected adds under the root, selects the '
+    testWidgets('add with nothing selected adds a loose step, selects the '
         'new step and asks for its name', (tester) async {
       late GoalItem goal;
       final store = await pumpGoals(
@@ -180,7 +180,11 @@ void main() {
       await tester.pumpAndSettle();
 
       final graph = store.goalGraph(goal.id)!;
-      expect(graph.stepCount, 1);
+      // The new step has no line yet, so it does not count as a step.
+      expect(graph.ids, hasLength(2));
+      expect(graph.stepCount, 0);
+      final made = graph.ids.firstWhere((i) => i != graph.rootId);
+      expect(graph.isLoose(made), isTrue);
       expect(byKey('square-sheet'), findsOneWidget);
       await tester.enterText(byKey('square-name'), 'Book');
       await tester.testTextInput.receiveAction(TextInputAction.done);
@@ -266,7 +270,7 @@ void main() {
       expect(store.goalSquare(book)!.isDone, isTrue);
     });
 
-    testWidgets('a link can go, but a step keeps a way to the root', (
+    testWidgets('a link can go, and the last one leaves the step loose', (
       tester,
     ) async {
       late GoalItem goal;
@@ -274,8 +278,6 @@ void main() {
       final root = GoalSquare.rootIdOf(goal.id);
       final book = idOf(store, goal, 'Book');
       final pack = idOf(store, goal, 'Pack');
-      await tapSquare(tester, pack);
-      expect(byKey('square-unlink-$pack-$root'), findsNothing);
 
       store.linkSquares(child: book, parent: pack);
       await tester.pumpAndSettle();
@@ -284,6 +286,13 @@ void main() {
       await tester.tap(byKey('square-unlink-$book-$pack'));
       await tester.pumpAndSettle();
       expect(store.goalGraph(goal.id)!.parentsOf(book), [root]);
+
+      // The last link can go too. The step then has no line.
+      await tester.tap(byKey('square-unlink-$book-$root'));
+      await tester.pumpAndSettle();
+      final graph = store.goalGraph(goal.id)!;
+      expect(graph.parentsOf(book), isEmpty);
+      expect(graph.isLoose(book), isTrue);
       expect(byKey('square-unlink-$book-$root'), findsNothing);
     });
 

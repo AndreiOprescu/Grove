@@ -12,6 +12,8 @@ The owner must run `supabase/migrations/20261105000000_grove_sync_goal_map.sql` 
 | Loops and orphans from a sync merge do not crash | `test/core/goals/` (random graphs), `test/sync/goal_map_sync_test.dart` |
 | Ready, wait state, link rules, delete joins children to parents | `test/core/goals/`, `test/state/goal_map_store_test.dart` |
 | Layout does not depend on input order | `test/core/goals/` |
+| Loose steps: no line, far left, not in the count | `test/core/goals/goal_graph_test.dart`, `test/core/goals/goal_map_layout_test.dart` |
+| Step length and block length stay the same both ways; one step per block; time done adds ticked steps once | `test/state/step_length_store_test.dart` |
 | Map draws, glides, keeps the camera steady, opens readable on a phone | `test/ui/goal_map/goal_map_view_test.dart` |
 | Goals screen, form, sheet, tool bar, keys | `test/ui/goal_map/goals_screen_test.dart` |
 | Block tick question, finish early | `test/ui/goal_map/block_tick_question_test.dart` |
@@ -36,3 +38,7 @@ Use a copy of "Delft AI Hub work".
 - [ ] See the date in the Deadlines panel. Tap it.
 - [ ] Sync between Mac and phone.
 - [ ] Try reduce motion.
+- [ ] Add a step with nothing selected. See it at the far left, with no line.
+- [ ] Give a square a length in its sheet. Drag it onto a day. See the block as long. Resize the block. See the length in the sheet change.
+- [ ] Drag the same square again. See its block move, not a second block.
+- [ ] Tick a step with a length and no block. See the time done grow.

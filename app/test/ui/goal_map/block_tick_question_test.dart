@@ -21,7 +21,8 @@ class Scene {
       length: 60,
     );
     block = store.selection.single;
-    store.addSquareToBlock(squareId: pack, eventId: block);
+    // An old block, from before one step per block, holds two.
+    store.repos.goalSquares.addBlock(pack, block);
   }
 
   final AppStore store;
@@ -160,7 +161,8 @@ void main() {
   ) async {
     final s = await pumpScene(tester);
     final root = GoalSquare.rootIdOf(s.goal.id);
-    s.store.addSquareToBlock(squareId: root, eventId: s.block);
+    // The old block holds the root too.
+    s.store.repos.goalSquares.addBlock(root, s.block);
     await tester.tap(byKey('tick'));
     await tester.pumpAndSettle();
     expect(byKey('tick-answer-$root-startWaiting'), findsNothing);

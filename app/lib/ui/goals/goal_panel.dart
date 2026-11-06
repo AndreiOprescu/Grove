@@ -275,11 +275,13 @@ class _GoalPanelState extends State<GoalPanel> {
               backLabel: 'Remove ${square.title} from this block',
               backTip: 'Remove from this block. It stays on the map.',
             ),
-          _addLine(
-            theme,
-            'Add a step',
-            'Add a step to the map and to this block',
-          ),
+          // A block holds one step.
+          if (held.isEmpty)
+            _addLine(
+              theme,
+              'Add a step',
+              'Add a step to the map and to this block',
+            ),
         ],
       ),
     ]);
@@ -339,11 +341,13 @@ class _GoalPanelState extends State<GoalPanel> {
               backLabel: 'Remove ${sub.title} from the planner',
               backTip: 'Remove from the planner. It stays in the goal.',
             ),
-          _addLine(
-            theme,
-            'Add a subtask',
-            'Add a subtask to the goal and to this block',
-          ),
+          // A block holds one step.
+          if (planned.isEmpty)
+            _addLine(
+              theme,
+              'Add a subtask',
+              'Add a subtask to the goal and to this block',
+            ),
         ],
       ),
     ]);

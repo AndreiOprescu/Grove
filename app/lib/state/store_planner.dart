@@ -845,7 +845,10 @@ extension AppStorePlanner on AppStore {
           if (sub.isDone) continue;
           m.goalSubtasks.add((
             before: sub,
-            after: sub.copyWith(eventId: rest?.id),
+            after: sub.copyWith(
+              eventId: rest?.id,
+              lengthMinutes: rest == null ? keep : s.remaining,
+            ),
           ));
         }
         // An open square goes on with the rest of the work.
@@ -859,6 +862,11 @@ extension AppStorePlanner on AppStore {
             m.squareBlocks.add((
               block: SquareBlock(squareId: square.id, eventId: rest.id),
               add: true,
+            ));
+            // The step is as long as the work that is left, as a task is.
+            m.squares.add((
+              before: square,
+              after: square.copyWith(lengthMinutes: s.remaining),
             ));
           }
         }

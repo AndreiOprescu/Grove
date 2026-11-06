@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'goal_graph.dart';
 
 /// A place on the map. The map has no Flutter types: this is pure Dart.
@@ -24,7 +26,8 @@ class MapEdge {
 /// The places of all squares, worked out from the graph. Nothing is stored,
 /// so no device can disagree (ADR 0008).
 ///
-/// The method is a layered drawing: a layer per longest path to the root,
+/// The method is a layered drawing: a layer per longest path to the root
+/// (loose squares on the left, see [_columns]),
 /// hidden points where a link skips a layer, the order in a layer from the
 /// average place of the neighbours, then each height from the same average.
 class GoalMapLayout {
@@ -48,7 +51,7 @@ class GoalMapLayout {
   Iterable<String> get ids => _places.keys;
 
   factory GoalMapLayout.of(GoalGraph graph) {
-    final ranks = graph.ranks;
+    final ranks = _columns(graph);
     final maxRank = ranks.values.fold(0, (a, b) => a > b ? a : b);
 
     int bySort(String a, String b) {
@@ -56,7 +59,8 @@ class GoalMapLayout {
       return s != 0 ? s : a.compareTo(b);
     }
 
-    // Layers, in the order of a walk from the root.
+    // Layers, in the order of a walk from the root, then from each loose
+    // square with no parent.
     final layers = [for (var r = 0; r <= maxRank; r++) <_Item>[]];
     final items = <String, _Item>{};
     void visit(String id) {
@@ -69,6 +73,11 @@ class GoalMapLayout {
     }
 
     visit(graph.rootId);
+    final tops = [
+      for (final id in graph.ids)
+        if (graph.parentsOf(id).isEmpty && id != graph.rootId) id,
+    ]..sort(bySort);
+    tops.forEach(visit);
 
     // Hidden points on links that skip a layer.
     final parentIds = graph.ids.toList()..sort();
@@ -133,6 +142,43 @@ class GoalMapLayout {
     }
 
     return GoalMapLayout._(places, edges, xOf(0) + squareWidth, bottom - top);
+  }
+
+  /// The column of each square, counted from the right. A linked square
+  /// sits by its longest path to the root. A loose square sits one column
+  /// right of its nearest child, and one with no child sits in the column
+  /// left of all linked squares, so a new loose square is on the far left.
+  static Map<String, int> _columns(GoalGraph graph) {
+    final out = <String, int>{graph.rootId: 0};
+    int linked(String id) {
+      final known = out[id];
+      if (known != null) return known;
+      var rank = 0;
+      for (final p in graph.parentsOf(id)) {
+        if (!graph.isLoose(p)) rank = max(rank, linked(p) + 1);
+      }
+      return out[id] = rank;
+    }
+
+    for (final id in graph.ids) {
+      if (!graph.isLoose(id)) linked(id);
+    }
+    final left = out.values.fold(0, max) + 1;
+    int loose(String id) {
+      final known = out[id];
+      if (known != null) return known;
+      final children = graph.childrenOf(id);
+      return out[id] = children.isEmpty
+          ? left
+          : children.map(loose).reduce(min) - 1;
+    }
+
+    for (final id in graph.ids) {
+      loose(id);
+    }
+    // A loose square over a linked child can land right of the root.
+    final shift = out.values.fold(0, min);
+    return {for (final e in out.entries) e.key: e.value - shift};
   }
 
   static void _order(List<List<_Item>> layers) {

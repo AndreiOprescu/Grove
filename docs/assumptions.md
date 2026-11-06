@@ -1044,3 +1044,17 @@ Format: date · decision · why · how to undo
 - 2026-11-05 · Goal map: a selected square moves out from under the panels by the shortest way · the sheet must not hide what it edits · `goal_map_view.dart`
 - 2026-11-05 · Goal map: right click on a project row gives Open Map, Edit… and Delete Goal… · same as a habit row, with the map added · `project_row.dart`
 - 2026-11-05 · Goal map: while the keyboard is up on a phone with the sheet open, the header, tool bar and goal list hide · the keyboard takes half the screen, and the square and its "+" must stay free · `goals_screen.dart`
+- 2026-11-06 · Goal map (owner): a new step does not join the root by itself. With nothing selected, "+" makes a loose step; a step added from a planner block is loose too. "+" on a selected square still makes its child · owner asked · `store_goal_map.dart`
+- 2026-11-06 · Goal map (owner): loose steps sit in a group on the far left of the map and do not stop the finish; they are not in the open-step count. A Habit made into a Project keeps its steps joined to the root · owner chose "Loose, on the left" · `goal_graph.dart`
+- 2026-11-06 · Goal map: when a square with no parents is deleted, its children become loose · same rule as "children join the parents", with no parents · `store_goal_map.dart`
+- 2026-11-06 · Goal steps (owner): each square and each goal subtask has a length. Time done = ticked blocks + the length of each ticked step that no ticked block holds · owner chose "Block time wins", so no time counts twice · `goal_rules.dart`
+- 2026-11-06 · Goal steps: a new step has no length; a step without a length adds nothing · a default would add time the user never set · `goal_square.dart`
+- 2026-11-06 · Goal steps: for a Habit, a step's length counts in the week it was ticked, for hours targets only; step time gives no points · sessions are blocks, and points come from blocks · `goal_rules.dart`
+- 2026-11-06 · Goal steps (owner): a block holds at most 1 step, and a step sits on at most 1 block, as a task does. Dragging a planned step again moves its block · owner said "only 1 step on the planner" · `store_goal_map.dart`
+- 2026-11-06 · Goal steps (owner): a step's length and its block's length stay the same, both ways · owner asked · `store_goal_map.dart`
+- 2026-11-06 · Goal steps: old blocks that already hold 2 or more steps keep them, and their length is not linked · no data is deleted · `store_goal_map.dart`
+- 2026-11-06 · Goal steps: the length columns go into the unreleased migration 15 and the same SQL file · the owner then runs one SQL file, not two · `migrations.dart`
+- 2026-11-06 · Goal steps: a length is picked from a menu: none, the block lengths (15 min to 4 h), and the length it has now · the same choices as the block duration menu · `ui/goals/step_length.dart`
+- 2026-11-06 · Goal steps: a square shows its length after its state ("Ready · 45m"); a Habit subtask row shows it as a small chip, or a clock when it has none · `square_tile.dart`, `goal_subtasks.dart`
+- 2026-11-06 · Goal steps: a reorganised block gives its open step the length of the work that is left, as a task gets · `store_planner.dart`
+- 2026-11-06 · Goal steps: a planner block that holds a step hides its add line and its list of steps to add · a block holds one · `goal_panel.dart`

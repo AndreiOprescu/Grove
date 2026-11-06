@@ -16,12 +16,12 @@ class GraphEdit {
 
 /// The goal map as the rules and the layout read it.
 ///
-/// Each device keeps the map right, but a sync merge can make a loop or
-/// leave a square with no parent. So the rows are only an input. This class
-/// ignores links that cannot stand, drops the link that closes a loop and
-/// joins a lost square to the root. Every square then has a path to the root
-/// and no path goes in a circle (ADR 0008). The same rows give the same graph
-/// on every device, in any order.
+/// Each device keeps the map right, but a sync merge can make a loop. So the
+/// rows are only an input. This class ignores links that cannot stand and
+/// drops the link that closes a loop, so no path goes in a circle (ADR 0008).
+/// A square with no path to the root is loose: it waits for the user to link
+/// it and does not hold up the finish. The same rows give the same graph on
+/// every device, in any order.
 class GoalGraph {
   GoalGraph._(
     this.goalId,
@@ -30,7 +30,7 @@ class GoalGraph {
     this._parents,
     this._children,
     this.droppedLinks,
-    this.addedLinks,
+    this._linked,
   ) {
     _ranks = {for (final id in _squares.keys) id: _rankOf(id)};
   }
@@ -54,7 +54,6 @@ class GoalGraph {
             : a.parentId.compareTo(b.parentId),
       );
     final dropped = <SquareLink>[];
-    final added = <SquareLink>[];
     final valid = <String, List<String>>{for (final id in byId.keys) id: []};
     final hasParent = <String>{};
     for (final l in sorted) {
@@ -92,21 +91,15 @@ class GoalGraph {
     }
 
     walk(rootId);
+    final linked = {...seen};
+    // The loose parts, from their squares with no parent, then a loop that
+    // no square outside it reaches.
     final ids = byId.keys.toList()..sort();
-    while (true) {
-      final left = ids.where((id) => !seen.contains(id)).toList();
-      if (left.isEmpty) break;
-      // A square with no parent at all goes first. Only a loop has none.
-      final lost = left.firstWhere(
-        (id) => !hasParent.contains(id),
-        orElse: () => left.first,
-      );
-      added.add(SquareLink(childId: lost, parentId: rootId));
-      children[rootId]!.add(lost);
-      parents[lost]!.add(rootId);
-      onPath.add(rootId);
-      walk(lost);
-      onPath.remove(rootId);
+    for (final id in ids) {
+      if (!seen.contains(id) && !hasParent.contains(id)) walk(id);
+    }
+    for (final id in ids) {
+      if (!seen.contains(id)) walk(id);
     }
 
     for (final list in children.values) {
@@ -116,7 +109,15 @@ class GoalGraph {
       list.sort();
     }
     dropped.sort((a, b) => a.toString().compareTo(b.toString()));
-    return GoalGraph._(goalId, rootId, byId, parents, children, dropped, added);
+    return GoalGraph._(
+      goalId,
+      rootId,
+      byId,
+      parents,
+      children,
+      dropped,
+      linked,
+    );
   }
 
   final String goalId;
@@ -128,8 +129,8 @@ class GoalGraph {
   /// Links in the rows that the graph does not use.
   final List<SquareLink> droppedLinks;
 
-  /// Links the graph uses that are not in the rows.
-  final List<SquareLink> addedLinks;
+  /// The squares with a path to the root, the root too.
+  final Set<String> _linked;
 
   late final Map<String, int> _ranks;
 
@@ -139,7 +140,9 @@ class GoalGraph {
   List<String> parentsOf(String id) => _parents[id] ?? const [];
   List<String> childrenOf(String id) => _children[id] ?? const [];
 
-  /// The longest path from each square to the root. The root is 0.
+  /// The longest path from each square to a square with no parent: the root,
+  /// or for a loose square the loose square at the end of its part. The
+  /// root is 0.
   Map<String, int> get ranks => _ranks;
 
   int _rankOf(String id) {
@@ -155,14 +158,14 @@ class GoalGraph {
 
   final Map<String, int> _rankMemo = {};
 
-  bool reachesRoot(String id) {
-    if (id == rootId) return true;
-    return parentsOf(id).any(reachesRoot);
-  }
+  bool reachesRoot(String id) => _linked.contains(id);
 
-  /// Links that the rows must gain or lose to match this graph. The next
-  /// edit on the map writes them; a pull does not.
-  GraphEdit get repairEdit => GraphEdit(add: addedLinks, remove: droppedLinks);
+  /// True for a square with no path to the root.
+  bool isLoose(String id) => contains(id) && !_linked.contains(id);
+
+  /// Links that the rows must lose to match this graph. The next edit on the
+  /// map writes them; a pull does not.
+  GraphEdit get repairEdit => GraphEdit(remove: droppedLinks);
 
   SquareState stateOf(String id) {
     final s = square(id);
@@ -191,12 +194,13 @@ class GoalGraph {
   /// Dim squares: they need something else first.
   List<String> get laterIds => _inState(SquareState.notReady);
 
-  /// All squares but the root: the root is the result, not a step.
-  int get stepCount => _squares.length - 1;
+  /// The linked squares but the root: the root is the result, not a step,
+  /// and a loose square does not hold up the finish.
+  int get stepCount => _linked.length - 1;
 
-  /// The steps that are not ticked yet.
+  /// The linked steps that are not ticked yet.
   int get openCount =>
-      ids.where((id) => id != rootId && !square(id).isDone).length;
+      _linked.where((id) => id != rootId && !square(id).isDone).length;
 
   /// True when [parent] may get [child] as one more thing to do first.
   bool canLink({required String child, required String parent}) {
@@ -232,18 +236,12 @@ class GoalGraph {
     );
   }
 
-  /// Taking away one link. A square that loses its last parent joins the
-  /// root. Null when there is no such link, or when it is the last link to
-  /// the root.
+  /// Taking away one link. A square that loses its last parent is loose.
+  /// Null when there is no such link.
   GraphEdit? unlinkEdit({required String child, required String parent}) {
-    final parents = parentsOf(child);
-    if (!parents.contains(parent)) return null;
-    final link = SquareLink(childId: child, parentId: parent);
-    if (parents.length > 1) return GraphEdit(remove: [link]);
-    if (parent == rootId) return null;
+    if (!parentsOf(child).contains(parent)) return null;
     return GraphEdit(
-      add: [SquareLink(childId: child, parentId: rootId)],
-      remove: [link],
+      remove: [SquareLink(childId: child, parentId: parent)],
     );
   }
 }

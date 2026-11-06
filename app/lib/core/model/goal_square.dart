@@ -27,6 +27,7 @@ class GoalSquare {
     this.waitMinutes,
     this.waitStartedAt,
     this.sort = 0,
+    this.lengthMinutes,
     String? createdAt,
     String? updatedAt,
   }) : id = id ?? newId(),
@@ -53,6 +54,10 @@ class GoalSquare {
   /// When the user pressed "Start waiting", or null.
   final String? waitStartedAt;
   final double sort;
+
+  /// How long the step takes, or null when the user did not say. When it is
+  /// alone in its block, the block is this long.
+  final int? lengthMinutes;
   final String createdAt;
   final String updatedAt;
 
@@ -98,6 +103,7 @@ class GoalSquare {
     Object? waitMinutes = keep,
     Object? waitStartedAt = keep,
     double? sort,
+    Object? lengthMinutes = keep,
     String? createdAt,
     String? updatedAt,
   }) => GoalSquare(
@@ -112,6 +118,9 @@ class GoalSquare {
         ? this.waitStartedAt
         : waitStartedAt as String?,
     sort: sort ?? this.sort,
+    lengthMinutes: identical(lengthMinutes, keep)
+        ? this.lengthMinutes
+        : lengthMinutes as int?,
     createdAt: createdAt ?? this.createdAt,
     updatedAt: updatedAt ?? this.updatedAt,
   );
@@ -124,6 +133,7 @@ class GoalSquare {
     waitMinutes,
     waitStartedAt,
     sort,
+    lengthMinutes,
     createdAt,
     updatedAt,
   ];

@@ -199,7 +199,7 @@ void main() {
       );
       expect(graph.childrenOf(graph.rootId), ['sq:s1', 'sq:s2']);
       expect(graph.droppedLinks, isEmpty);
-      expect(graph.addedLinks, isEmpty);
+      expect(graph.repairEdit.isEmpty, isTrue);
       expect(graph.square(graph.rootId).title, 'Delft');
       expect(graph.square('sq:s1').doneAt, '2026-11-01T10:00:00');
       expect(r.goalSquares.blocksOf('sq:s2'), [e.id]);

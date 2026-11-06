@@ -141,6 +141,7 @@ void main() {
         'created_at',
         'updated_at',
         'event_id',
+        'length_minutes',
       ]);
     });
 
@@ -170,6 +171,9 @@ void main() {
       // columns stay. The persona (shared schema 10, sync schema 5),
       // deadlines (shared schema 11) and the agent (shared schema 12, sync
       // schema 6) came later, so they go.
+      // The notebooks and the goal map (shared schema 14 and 15) go first,
+      // so the trigger read next is the one of before the step length.
+      rewindNotebooks(db);
       const watch = ' OR OLD.event_id IS NOT NEW.event_id';
       final trigger = db.queryOne(
         "SELECT sql FROM sqlite_master WHERE name = 'sync_goal_subtasks_update'",
@@ -184,8 +188,6 @@ void main() {
         (r) => r.text(0),
       )!;
       expect(eventTrigger, contains(deadlineWatch));
-      // The notebooks (shared schema 14, sync schema 8) go too.
-      rewindNotebooks(db);
       db.executeScript('''
         DROP TRIGGER sync_events_update;
         ALTER TABLE events DROP COLUMN is_deadline;

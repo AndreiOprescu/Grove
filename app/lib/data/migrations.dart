@@ -290,9 +290,11 @@ abstract final class Migrations {
     // may be empty: rows on the server from before them have no value, and a
     // pull writes them as they are. An empty `type` reads as a habit. The
     // link tables are like `task_tags`: a row is a fact, and it goes when
-    // either end goes. Not in the Mac app.
+    // either end goes. A step's `length_minutes` is how long it takes; empty
+    // when the user did not say. Not in the Mac app.
     '''
     ALTER TABLE goals ADD COLUMN type TEXT;
+    ALTER TABLE goal_subtasks ADD COLUMN length_minutes INTEGER;
     ALTER TABLE goals ADD COLUMN done_when TEXT;
     ALTER TABLE goals ADD COLUMN work_minutes INTEGER;
     ALTER TABLE goals ADD COLUMN due_day TEXT;
@@ -305,7 +307,8 @@ abstract final class Migrations {
       wait_minutes INTEGER,
       wait_started_at TEXT,
       sort REAL NOT NULL DEFAULT 0,
-      created_at TEXT NOT NULL, updated_at TEXT NOT NULL
+      created_at TEXT NOT NULL, updated_at TEXT NOT NULL,
+      length_minutes INTEGER
     );
     CREATE INDEX goal_squares_goal ON goal_squares(goal_id);
     CREATE TABLE square_links (

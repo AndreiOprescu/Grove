@@ -41,6 +41,24 @@ void main() {
     expect(m.at('b').x, lessThan(m.at('a').x));
   });
 
+  test('a new loose square sits left of all linked squares', () {
+    final m = lay(
+      [sq(root), sq('a'), sq('b'), sq('x')],
+      [l('a', root), l('b', 'a')],
+    );
+    expect(m.at('x').x, lessThan(m.at('b').x));
+    expect(m.edges.where((e) => e.childId == 'x'), isEmpty);
+  });
+
+  test('a loose square stays right of its children', () {
+    final m = lay(
+      [sq(root), sq('a'), sq('b'), sq('x'), sq('y')],
+      [l('a', root), l('b', 'a'), l('b', 'x'), l('y', 'x')],
+    );
+    expect(m.at('b').x, lessThan(m.at('x').x));
+    expect(m.at('y').x, lessThan(m.at('x').x));
+  });
+
   test('a long link gets a path that goes around the layers between', () {
     final m = lay(
       [sq(root), sq('a'), sq('b')],
@@ -108,6 +126,10 @@ void main() {
                 (p.y - q.y).abs() >= GoalMapLayout.squareHeight;
             expect(apart, isTrue, reason: '${ids[i]} and ${ids[j]} overlap');
           }
+        }
+        // A child is always left of its parent, loose or not.
+        for (final e in a.edges) {
+          expect(a.at(e.childId).x, lessThan(a.at(e.parentId).x));
         }
         expect(a.width, greaterThanOrEqualTo(GoalMapLayout.squareWidth));
         expect(a.height, greaterThanOrEqualTo(GoalMapLayout.squareHeight));

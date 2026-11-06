@@ -29,7 +29,8 @@ extension AppStoreGoalPanel on AppStore {
   }
 
   /// A subtask of a goal dragged onto empty time. A new block of the goal,
-  /// one hour long, holds it. A subtask that was in another block moves.
+  /// as long as the subtask (or one hour), holds it. A subtask alone in its
+  /// block moves with the block; one in an old block with others moves out.
   /// One undo step. False when the text is not an open subtask.
   bool dropGoalSubtaskOnPlanner({
     required String raw,
@@ -45,11 +46,16 @@ extension AppStoreGoalPanel on AppStore {
     }
     final g = goal(sub.goalId);
     if (g == null) return false;
+    final own = _ownBlockOfStep((square: false, id: sub.id));
+    if (own != null) {
+      _moveStepBlock(own, day: day, start: minute, name: 'Move Subtask');
+      return true;
+    }
     final block = _newGoalBlock(
       g,
       day: day,
       start: minute,
-      length: GoalRules.defaultBlockLength,
+      length: sub.lengthMinutes ?? GoalRules.defaultBlockLength,
     );
     final m = Mutation('Plan Subtask')
       ..events.add((before: null, after: block))
@@ -66,6 +72,7 @@ extension AppStoreGoalPanel on AppStore {
     if (name.isEmpty) return null;
     final goalId = event(blockId)?.goalId;
     if (goalId == null || goal(goalId) == null) return null;
+    if (_stepsOfBlock(blockId, Mutation('')).isNotEmpty) return null;
     final split = _ownBlock(blockId, name: 'New Subtask');
     if (split == null) return null;
     final last = goalSubtasks(goalId).fold<double>(0, (m, s) => max(m, s.sort));

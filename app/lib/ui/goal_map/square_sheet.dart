@@ -9,6 +9,7 @@ import 'package:grove/core/model/goal_square.dart';
 import 'package:grove/state/state.dart' hide MotionRules;
 
 import '../goals/project_row.dart' show squareNameOf;
+import '../goals/step_length.dart';
 import '../planner/planner_dialogs.dart';
 import '../tasks/task_widgets.dart';
 import '../theme/grove_theme.dart';
@@ -254,6 +255,14 @@ class _SquareSheetState extends State<SquareSheet> {
               primary: !square.isDone,
               onTap: () => unawaited(tickSquare(context, _store, square.id)),
             ),
+            if (!square.isRoot) ...[
+              _heading(theme, 'How long it takes'),
+              StepLengthPick(
+                key: const ValueKey('square-length'),
+                minutes: square.lengthMinutes,
+                onPick: (m) => _store.setSquareLength(square.id, m),
+              ),
+            ],
             if (!square.isRoot && !square.isDone) ...[
               _heading(theme, 'Wait for a reply'),
               _wait(theme, square, now),

@@ -36,7 +36,7 @@ void main() {
       expect(g.childrenOf(root), ['a']);
       expect(g.parentsOf('a'), [root]);
       expect(g.droppedLinks, isEmpty);
-      expect(g.addedLinks, isEmpty);
+      expect(g.repairEdit.isEmpty, isTrue);
     });
 
     test('one square can have many parents', () {
@@ -87,23 +87,42 @@ void main() {
       expect(g.droppedLinks, [l('a', 'b')]);
     });
 
-    test('a square with no parent left joins the root', () {
+    test('a square with no parent is loose and gets no line', () {
       final g = graph([sq(root), sq('a'), sq('b')], [l('a', 'b')]);
-      expect(g.parentsOf('b'), [root]);
+      expect(g.parentsOf('b'), isEmpty);
       expect(g.parentsOf('a'), ['b']);
-      expect(g.addedLinks, [l('b', root)]);
+      expect(g.isLoose('a'), isTrue);
+      expect(g.isLoose('b'), isTrue);
+      expect(g.isLoose(root), isFalse);
+      expect(g.repairEdit.add, isEmpty);
     });
 
-    test('a loop cut off from the root joins it at one place', () {
+    test('a loop cut off from the root loses one link and stays loose', () {
       final g = graph([sq(root), sq('a'), sq('b')], [l('a', 'b'), l('b', 'a')]);
-      expect(g.addedLinks.length, 1);
       expect(g.droppedLinks.length, 1);
-      for (final id in ['a', 'b']) {
-        expect(g.parentsOf(id), hasLength(1));
-      }
+      expect(g.parentsOf('a').length + g.parentsOf('b').length, 1);
+      expect(g.isLoose('a'), isTrue);
+      expect(g.isLoose('b'), isTrue);
     });
 
-    test('any input gives every square a path to the root, with no loop', () {
+    test('a loose square can need a linked square', () {
+      final g = graph(
+        [sq(root), sq('a'), sq('x')],
+        [l('a', root), l('a', 'x')],
+      );
+      expect(g.isLoose('x'), isTrue);
+      expect(g.isLoose('a'), isFalse);
+      expect(g.parentsOf('a'), ['x', root]..sort());
+    });
+
+    test('loose squares do not count as steps of the finish', () {
+      final g = graph([sq(root), sq('a'), sq('x')], [l('a', root)]);
+      expect(g.stepCount, 1);
+      expect(g.openCount, 1);
+      expect(g.readyIds, contains('x'));
+    });
+
+    test('any input gives the same graph, with no loop', () {
       final rnd = Random(7);
       for (var run = 0; run < 300; run++) {
         final n = 2 + rnd.nextInt(25);
@@ -124,8 +143,8 @@ void main() {
             g.parentsOf(id),
             reason: 'same result',
           );
-          if (id != root) expect(g.parentsOf(id), isNotEmpty);
-          expect(g.reachesRoot(id), isTrue);
+          // Loose is the same as no path to the root.
+          expect(g.isLoose(id), id != root && !_reaches(g, id, root));
         }
         // Every square has a rank, which is only possible with no loop.
         expect(g.ranks.length, ids.length);
@@ -258,6 +277,13 @@ void main() {
       expect(e.remove, unorderedEquals([l('i', root), l('s', 'i')]));
     });
 
+    test('deleting a loose square makes its children loose', () {
+      final g = graph([sq(root), sq('x'), sq('c')], [l('c', 'x')]);
+      final e = g.deleteEdit('x')!;
+      expect(e.add, isEmpty);
+      expect(e.remove, [l('c', 'x')]);
+    });
+
     test('deleting does not repeat a link that is there', () {
       final g = graph(
         [sq(root), sq('i'), sq('s')],
@@ -294,14 +320,14 @@ void main() {
       expect(g.deleteEdit(root), isNull);
     });
 
-    test('removing the last parent joins the root', () {
+    test('removing the last parent makes the square loose', () {
       final g = graph(
         [sq(root), sq('a'), sq('b')],
         [l('a', root), l('b', 'a')],
       );
       final e = g.unlinkEdit(child: 'b', parent: 'a')!;
       expect(e.remove, [l('b', 'a')]);
-      expect(e.add, [l('b', root)]);
+      expect(e.add, isEmpty);
     });
 
     test('removing one of two parents adds nothing', () {
@@ -312,16 +338,22 @@ void main() {
       expect(g.unlinkEdit(child: 'b', parent: 'a')!.add, isEmpty);
     });
 
-    test('the last link to the root cannot be removed', () {
+    test('the last link to the root can go too', () {
       final g = graph([sq(root), sq('a')], [l('a', root)]);
-      expect(g.unlinkEdit(child: 'a', parent: root), isNull);
+      expect(g.unlinkEdit(child: 'a', parent: root)!.remove, [l('a', root)]);
     });
 
     test('repairs write what the effective graph worked out', () {
       final g = graph([sq(root), sq('a'), sq('b')], [l('a', 'a'), l('b', 'a')]);
       final r = g.repairEdit;
-      expect(r.add, [l('a', root)]);
+      expect(r.add, isEmpty);
       expect(r.remove, [l('a', 'a')]);
     });
   });
+}
+
+/// A walk by parents, so the test does not trust the class it tests.
+bool _reaches(GoalGraph g, String id, String root) {
+  if (id == root) return true;
+  return g.parentsOf(id).any((p) => _reaches(g, p, root));
 }

@@ -27,6 +27,14 @@ _Avoid_: Node, card, goal subtask
 **Root square**:
 The square that stands for the project's result. Ticking it finishes the project.
 
+**Loose square**:
+A square with no line to the root square, so it does not hold up the finish. It waits for the user to link it.
+_Avoid_: Orphan, unlinked node
+
+**Length**:
+How long a square or a goal subtask takes. When it is planned, its goal block is exactly that long.
+_Avoid_: Estimate, duration (estimate is for tasks)
+
 **Ready square**:
 A square whose children are all done, or that has no children. A square that is not ready looks dim, but the user can still plan it and tick it.
 _Avoid_: Unlocked, locked
@@ -40,7 +48,7 @@ A slot of time on the planner set aside for one goal.
 _Avoid_: Goal instance, goal session
 
 **Goal subtask**:
-A step that belongs to a habit and lives in that habit's own list. A project has squares instead. It is **planned** when it sits in one goal block of the same goal; a goal block can hold many.
+A step that belongs to a habit and lives in that habit's own list. A project has squares instead. It is **planned** when it sits in a goal block of the same goal; a goal block holds at most one.
 _Avoid_: Goal step
 
 **Block subtask**:

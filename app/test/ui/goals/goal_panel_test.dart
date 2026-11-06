@@ -209,21 +209,26 @@ void main() {
       await pumpPlanner(tester, store);
     }
 
-    testWidgets('"In this block" shows the planned ones, "Add from goal" the '
-        'open ones that are in no block', (tester) async {
+    testWidgets('"In this block" shows the planned one. An empty block shows '
+        '"Add from goal" with the open ones that are in no block', (
+      tester,
+    ) async {
       await withPanel(tester, planned: ['Chapter 1'], free: ['Chapter 2']);
       store.addGoalSubtask(to: readGoal(store).id, title: 'Chapter 3');
       store.toggleGoalSubtask(sub(store, 'Chapter 3').id);
       await tester.pumpAndSettle();
 
-      expect(
-        key('goal-panel-sub-${sub(store, 'Chapter 1').id}'),
-        findsOneWidget,
-      );
-      expect(
-        key('goal-panel-free-${sub(store, 'Chapter 2').id}'),
-        findsOneWidget,
-      );
+      final one = sub(store, 'Chapter 1').id;
+      final two = sub(store, 'Chapter 2').id;
+      expect(key('goal-panel-sub-$one'), findsOneWidget);
+      // A block holds one step, so this full block offers none.
+      expect(key('goal-panel-free-$two'), findsNothing);
+      expect(find.text('Add from goal'), findsNothing);
+
+      store.unassignGoalSubtask(one);
+      await tester.pumpAndSettle();
+      expect(key('goal-panel-free-$one'), findsOneWidget);
+      expect(key('goal-panel-free-$two'), findsOneWidget);
       // A done subtask is not offered.
       expect(
         key('goal-panel-free-${sub(store, 'Chapter 3').id}'),
@@ -287,7 +292,7 @@ void main() {
     });
 
     testWidgets('the add field makes a subtask of the goal, planned in the '
-        'block, and keeps the keys for the next one', (tester) async {
+        'block. Then the block is full, so the field goes', (tester) async {
       await withPanel(tester);
 
       await typeLine(tester, key('goal-panel-add'), 'Chapter 4');
@@ -296,12 +301,18 @@ void main() {
       expect(made.eventId, blockId);
       expect(key('goal-panel-sub-${made.id}'), findsOneWidget);
       expect(store.undoName, 'New Subtask');
+      // A block holds one step.
+      expect(key('goal-panel-add'), findsNothing);
+      expect(tester.takeException(), isNull);
+
+      store.undo();
+      await tester.pumpAndSettle();
       final field = find.descendant(
         of: key('goal-panel-add'),
         matching: find.byType(EditableText),
       );
       expect(tester.widget<EditableText>(field).controller.text, isEmpty);
-      expect(tester.widget<EditableText>(field).focusNode.hasFocus, isTrue);
+      await endToast(tester);
     });
 
     testWidgets('a day of a repeating goal block becomes its own block when '

@@ -540,6 +540,34 @@ class GoalRepo {
     return sum;
   }
 
+  /// The lengths of the goal's ticked steps (squares and goal subtasks) that
+  /// no ticked block holds: a ticked block counts that time already. With a
+  /// range, only steps ticked on a day of it.
+  int stepMinutes(String goalId, {DayKey? from, DayKey? to}) {
+    final rows = db.query(
+      'SELECT COALESCE(SUM(length_minutes), 0) FROM ('
+      ' SELECT s.length_minutes, s.done_at FROM goal_squares s'
+      ' WHERE s.goal_id = ? AND s.done_at IS NOT NULL'
+      " AND s.id <> 'root:' || s.goal_id AND NOT EXISTS ("
+      '  SELECT 1 FROM square_blocks b JOIN events e ON e.id = b.event_id'
+      '  WHERE b.square_id = s.id AND e.done_at IS NOT NULL)'
+      ' UNION ALL'
+      ' SELECT t.length_minutes, t.done_at FROM goal_subtasks t'
+      ' WHERE t.goal_id = ? AND t.done_at IS NOT NULL AND NOT EXISTS ('
+      '  SELECT 1 FROM events e WHERE e.id = t.event_id'
+      '  AND e.done_at IS NOT NULL)'
+      ') WHERE length_minutes IS NOT NULL AND done_at >= ? AND done_at < ?',
+      [
+        goalId,
+        goalId,
+        from == null ? '' : _dayStart(from),
+        to == null ? '~' : _dayStart(to.adding(days: 1)),
+      ],
+      (r) => r.optInt(0) ?? 0,
+    );
+    return rows.firstOrNull ?? 0;
+  }
+
   /// The minutes of all the goal's blocks, on any day. [doneOnly] counts only
   /// the blocks that are ticked done.
   int totalMinutes(String goalId, {bool doneOnly = false}) {
@@ -682,6 +710,7 @@ class GoalSubtaskRepo {
     'created_at',
     'updated_at',
     'event_id',
+    'length_minutes',
   ];
   static final _select = 'SELECT ${_cols.join(',')} FROM goal_subtasks';
   static const _order = 'ORDER BY sort, created_at, rowid';
@@ -696,6 +725,7 @@ class GoalSubtaskRepo {
     createdAt: r.text(5),
     updatedAt: r.text(6),
     eventId: r.optText(7),
+    lengthMinutes: r.optInt(8),
   );
 
   /// Insert or update. Refreshes `updatedAt`. Throws when the goal or the
@@ -711,6 +741,7 @@ class GoalSubtaskRepo {
       s.createdAt,
       s.updatedAt,
       s.eventId,
+      s.lengthMinutes,
     ]);
   }
 

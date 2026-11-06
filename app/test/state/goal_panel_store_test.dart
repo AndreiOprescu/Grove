@@ -150,7 +150,14 @@ void main() {
       expect(s.assignGoalSubtask(sub(s, g, 'Chapter 1').id, to: id), isTrue);
 
       expect(sub(s, g, 'Chapter 1').eventId, id);
-      expect([for (final x in s.freeGoalSubtasks(id)) x.title], ['Chapter 2']);
+      // A block holds one step, so this block takes no more. Another
+      // block of the goal can take the one that is left.
+      expect(s.freeGoalSubtasks(id), isEmpty);
+      final other = blockOf(s, g, day: tuesday);
+      expect(
+        [for (final x in s.freeGoalSubtasks(other)) x.title],
+        ['Chapter 2'],
+      );
     });
 
     test('a day of a repeating goal block becomes its own block, and the '
@@ -283,11 +290,36 @@ void main() {
       expect(sub(s, g, 'Chapter 1').eventId, isNull);
     });
 
-    test('a subtask that was in another block moves to the new one', () {
+    test('a subtask alone in its block takes the block with it', () {
       final s = makeStore();
       final g = goalWith(s, ['Chapter 1']);
       final first = blockOf(s, g);
       s.assignGoalSubtask(sub(s, g, 'Chapter 1').id, to: first);
+      final length = s.event(first)!.durationMinutes;
+
+      s.dropGoalSubtaskOnPlanner(
+        raw: DragPayload.goalSubtask(sub(s, g, 'Chapter 1').id),
+        day: tuesday,
+        minute: 9 * 60,
+      );
+
+      final moved = s.blocks(DayRange.single(tuesday)).single;
+      expect(moved.id, first);
+      expect(s.event(first)!.start, WallTime(day: tuesday, minute: 9 * 60));
+      expect(s.event(first)!.durationMinutes, length);
+      expect(sub(s, g, 'Chapter 1').eventId, first);
+      s.undo();
+      expect(s.blocks(DayRange.single(tuesday)), isEmpty);
+    });
+
+    test('a subtask in an old block with others moves out to a new block', () {
+      final s = makeStore();
+      final g = goalWith(s, ['Chapter 1', 'Chapter 2']);
+      final first = blockOf(s, g);
+      // An old block, from before one step per block, holds two.
+      for (final name in ['Chapter 1', 'Chapter 2']) {
+        s.repos.goalSubtasks.save(sub(s, g, name).copyWith(eventId: first));
+      }
 
       s.dropGoalSubtaskOnPlanner(
         raw: DragPayload.goalSubtask(sub(s, g, 'Chapter 1').id),
@@ -296,8 +328,12 @@ void main() {
       );
 
       final made = s.blocks(DayRange.single(tuesday)).single;
+      expect(made.id, isNot(first));
       expect(sub(s, g, 'Chapter 1').eventId, made.id);
-      expect(s.plannedGoalSubtasks(first), isEmpty);
+      expect(
+        [for (final x in s.plannedGoalSubtasks(first)) x.title],
+        ['Chapter 2'],
+      );
     });
 
     test('a done subtask, a gone subtask or other text adds nothing', () {

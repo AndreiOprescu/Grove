@@ -104,6 +104,7 @@ part 'store_planner.dart';
 part 'store_reminders.dart';
 part 'store_roll_over.dart';
 part 'store_sleep.dart';
+part 'store_step_length.dart';
 part 'store_sync.dart';
 part 'store_tasks.dart';
 part 'store_updates.dart';
@@ -640,6 +641,7 @@ class AppStore extends ChangeNotifier {
   /// Applies a change, saves it, and records it for undo.
   bool commit(Mutation m) {
     if (m.isEmpty) return false;
+    _linkStepLengths(m);
     _addSubtasksOfDeletedBlocks(m);
     _addSubtasksOfDeletedGoals(m);
     _unplanSubtasksOfDeletedBlocks(m);

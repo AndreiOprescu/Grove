@@ -511,8 +511,13 @@ void main() {
       final s = makeStore();
       final (g, a, _) = planned(s, ['One', 'Two', 'Three']);
       s.addBlockSubtask(to: a, title: 'Own');
-      s.assignGoalSubtask(subId(s, g, 'Three'), to: a);
-      s.assignGoalSubtask(subId(s, g, 'One'), to: a);
+      // An old block, from before one step per block, holds two.
+      for (final name in ['Three', 'One']) {
+        final id = subId(s, g, name);
+        s.repos.goalSubtasks.save(
+          s.repos.goalSubtasks.get(id)!.copyWith(eventId: a),
+        );
+      }
       expect(rowNames(rows(s, a)), ['One', 'Three', 'Own']);
       expect([for (final r in rows(s, a)) r.fromGoal], [true, true, false]);
       expect(names(s.plannedGoalSubtasks(a)), ['One', 'Three']);
@@ -539,10 +544,15 @@ void main() {
       final s = makeStore();
       final (g, a, b) = planned(s, ['One', 'Two', 'Three', 'Four']);
       s.assignGoalSubtask(subId(s, g, 'One'), to: a);
-      s.assignGoalSubtask(subId(s, g, 'Two'), to: b);
       s.toggleGoalSubtask(subId(s, g, 'Three'));
-      expect(names(s.freeGoalSubtasks(a)), ['Four']);
-      expect(names(s.freeGoalSubtasks(b)), ['Four']);
+      // An empty block takes the open ones that are in no block.
+      expect(names(s.freeGoalSubtasks(b)), ['Two', 'Four']);
+      s.assignGoalSubtask(subId(s, g, 'Two'), to: b);
+      // A block that holds a step takes no more: a block holds one.
+      expect(s.freeGoalSubtasks(a), isEmpty);
+      expect(s.freeGoalSubtasks(b), isEmpty);
+      s.scheduleGoal(goalId: g.id, day: monday, start: 900);
+      expect(names(s.freeGoalSubtasks(s.selection.single)), ['Four']);
       expect(s.freeGoalSubtasks('missing'), isEmpty);
       // A block with no goal has no list to take from.
       final lunch = EventItem(

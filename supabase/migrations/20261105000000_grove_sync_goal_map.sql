@@ -302,6 +302,7 @@ alter table public."goal_subtasks" add column if not exists "sort" double precis
 alter table public."goal_subtasks" add column if not exists "created_at" text;
 alter table public."goal_subtasks" add column if not exists "updated_at" text;
 alter table public."goal_subtasks" add column if not exists "event_id" text;
+alter table public."goal_subtasks" add column if not exists "length_minutes" bigint;
 create index if not exists "goal_subtasks_user_seq" on public."goal_subtasks" (user_id, seq);
 alter table public."goal_subtasks" enable row level security;
 revoke all on public."goal_subtasks" from public, anon, authenticated;
@@ -332,6 +333,7 @@ alter table public."goal_squares" add column if not exists "wait_started_at" tex
 alter table public."goal_squares" add column if not exists "sort" double precision;
 alter table public."goal_squares" add column if not exists "created_at" text;
 alter table public."goal_squares" add column if not exists "updated_at" text;
+alter table public."goal_squares" add column if not exists "length_minutes" bigint;
 create index if not exists "goal_squares_user_seq" on public."goal_squares" (user_id, seq);
 alter table public."goal_squares" enable row level security;
 revoke all on public."goal_squares" from public, anon, authenticated;
@@ -1038,7 +1040,7 @@ begin
     "seq" = excluded."seq"
   where t.stamp < excluded.stamp;
 
-  insert into public."goal_subtasks" as t ("user_id", "id", "goal_id", "title", "done_at", "sort", "created_at", "updated_at", "event_id", "stamp", "deleted", "seq")
+  insert into public."goal_subtasks" as t ("user_id", "id", "goal_id", "title", "done_at", "sort", "created_at", "updated_at", "event_id", "length_minutes", "stamp", "deleted", "seq")
   select v_user,
     split_part(c.item->>'key', chr(31), 1),
     r."goal_id",
@@ -1048,6 +1050,7 @@ begin
     r."created_at",
     r."updated_at",
     r."event_id",
+    r."length_minutes",
     (c.item->>'stamp')::bigint,
     coalesce((c.item->>'deleted')::boolean, false),
     v_seq + c.ord
@@ -1063,12 +1066,13 @@ begin
     "created_at" = excluded."created_at",
     "updated_at" = excluded."updated_at",
     "event_id" = excluded."event_id",
+    "length_minutes" = excluded."length_minutes",
     "stamp" = excluded."stamp",
     "deleted" = excluded."deleted",
     "seq" = excluded."seq"
   where t.stamp < excluded.stamp;
 
-  insert into public."goal_squares" as t ("user_id", "id", "goal_id", "title", "done_at", "wait_minutes", "wait_started_at", "sort", "created_at", "updated_at", "stamp", "deleted", "seq")
+  insert into public."goal_squares" as t ("user_id", "id", "goal_id", "title", "done_at", "wait_minutes", "wait_started_at", "sort", "created_at", "updated_at", "length_minutes", "stamp", "deleted", "seq")
   select v_user,
     split_part(c.item->>'key', chr(31), 1),
     r."goal_id",
@@ -1079,6 +1083,7 @@ begin
     r."sort",
     r."created_at",
     r."updated_at",
+    r."length_minutes",
     (c.item->>'stamp')::bigint,
     coalesce((c.item->>'deleted')::boolean, false),
     v_seq + c.ord
@@ -1095,6 +1100,7 @@ begin
     "sort" = excluded."sort",
     "created_at" = excluded."created_at",
     "updated_at" = excluded."updated_at",
+    "length_minutes" = excluded."length_minutes",
     "stamp" = excluded."stamp",
     "deleted" = excluded."deleted",
     "seq" = excluded."seq"

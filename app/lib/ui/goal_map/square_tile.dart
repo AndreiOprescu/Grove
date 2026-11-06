@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:grove/core/goals/goal_graph.dart';
 import 'package:grove/core/goals/goal_map_layout.dart';
 import 'package:grove/core/model/goal_square.dart';
+import 'package:grove/core/planner/planner_math.dart';
 
 import '../theme/grove_theme.dart';
 import '../theme/named_colors.dart';
@@ -155,7 +156,11 @@ class SquareTile extends StatelessWidget {
       isRoot: square.isRoot,
     );
     final duration = motion ? const Duration(milliseconds: 280) : Duration.zero;
-    final label = squareLabel(square, state, now);
+    final length = square.lengthMinutes;
+    final label = [
+      squareLabel(square, state, now),
+      if (length != null && !square.isRoot) PlannerMath.duration(length),
+    ].join(' · ');
     final radius = BorderRadius.circular(14);
     final focus = selected || linkTarget;
     return Semantics(

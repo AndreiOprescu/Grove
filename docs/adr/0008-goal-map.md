@@ -13,7 +13,8 @@ The owner wants a goal that can finish, with a short description and a map, on i
 - **One square, many blocks.** A report can take many sessions, and a block can hold many squares. So `square_blocks` is a link table, not a column like `goal_subtasks.event_id`.
 - **Stable ids.** The root square is `root:<goalId>`, and a converted subtask is `sq:<subtaskId>`, so two devices that convert the same goal reach the same rows.
 - **Finished is worked out.** A project is finished when its root square has `done_at`. There is no extra column to disagree with it.
-- **Sync can break the graph; the rules cannot.** Each device is right alone, but a merge can make a loop or leave a square with no parent. `GoalGraph` ignores bad links, drops the link that closes a loop and joins a lost square to the root. A pull never writes repairs. The next edit on that map does.
+- **Sync can break the graph; the rules cannot.** Each device is right alone, but a merge can make a loop. `GoalGraph` ignores bad links and drops the link that closes a loop. A pull never writes repairs. The next edit on that map does.
+- **A square can be loose.** A new square has no line until the user links it (owner, 2026-11-06). A square with no path to the root is loose: it shows on the left of the map and does not hold up the finish. Grove never adds a link to the root by itself.
 - **Grove places the squares.** No positions are stored, so no device can disagree about them. The layout is our own code, in layers from the root; there is no new package.
 
 ## Consequences

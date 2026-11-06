@@ -54,10 +54,11 @@ extension AppStoreGoalMap on AppStore {
   int blockCountOfSquare(String id) =>
       _try(() => repos.goalSquares.blocksOf(id))?.length ?? 0;
 
-  /// The minutes of all the blocks of a project, on any day. It is never
-  /// stored.
+  /// The minutes of all the blocks of a project, on any day, and the length
+  /// of each ticked step that no ticked block holds. It is never stored.
   int projectMinutes(String goalId, {bool doneOnly = false}) =>
-      _try(() => repos.goals.totalMinutes(goalId, doneOnly: doneOnly)) ?? 0;
+      (_try(() => repos.goals.totalMinutes(goalId, doneOnly: doneOnly)) ?? 0) +
+      (_try(() => repos.goals.stepMinutes(goalId)) ?? 0);
 
   /// How far a project is.
   ProjectProgress projectProgress(GoalItem g) {
@@ -71,12 +72,16 @@ extension AppStoreGoalMap on AppStore {
     );
   }
 
-  /// The open squares that a block of the project can take, Ready ones first.
+  /// The open squares that a block of the project can take, Ready ones first:
+  /// those on no block. None when the block holds a step already.
   List<GoalSquare> freeSquares(String eventId) {
     final goalId = event(eventId)?.goalId;
     final graph = goalId == null ? null : goalGraph(goalId);
-    if (graph == null) return const [];
-    final held = {for (final s in squaresOfBlock(eventId)) s.id};
+    if (graph == null || !blockCanTakeStep(eventId)) return const [];
+    final held = {
+      for (final id in graph.ids)
+        if (blockCountOfSquare(id) > 0) id,
+    };
     return [
       for (final id in [
         ...graph.readyIds,
@@ -213,6 +218,14 @@ extension AppStoreGoalMap on AppStore {
 
   /// A new square that must be done before [parentId]. Null when the parent
   /// is gone.
+  /// A new loose square on the map of [goalId]: no line yet (ADR 0008).
+  GoalSquare? addLooseSquare(String goalId, {String title = ''}) {
+    final graph = goalGraph(goalId);
+    if (graph == null) return null;
+    final m = _newSquare(graph, parentId: null, title: title);
+    return commit(m) ? m.squares.single.after : null;
+  }
+
   GoalSquare? addSquare({required String parentId, String title = ''}) {
     final parent = goalSquare(parentId);
     if (parent == null) return null;
@@ -224,7 +237,7 @@ extension AppStoreGoalMap on AppStore {
 
   Mutation _newSquare(
     GoalGraph graph, {
-    required String parentId,
+    required String? parentId,
     required String title,
   }) {
     final last = graph.ids.fold<double>(
@@ -236,12 +249,13 @@ extension AppStoreGoalMap on AppStore {
       title: title.trim(),
       sort: last + 1,
     );
-    final m = Mutation('New Step')
-      ..squares.add((before: null, after: square))
-      ..squareLinks.add((
+    final m = Mutation('New Step')..squares.add((before: null, after: square));
+    if (parentId != null) {
+      m.squareLinks.add((
         link: SquareLink(childId: square.id, parentId: parentId),
         add: true,
       ));
+    }
     _repairLinks(m, graph);
     return m;
   }
@@ -293,7 +307,7 @@ extension AppStoreGoalMap on AppStore {
     return commit(m);
   }
 
-  /// Takes a link away. A square that has no other parent joins the root.
+  /// Takes a link away. A square that has no other parent is loose.
   void unlinkSquares({required String child, required String parent}) {
     final square = goalSquare(child);
     if (square == null) return;
@@ -376,7 +390,9 @@ extension AppStoreGoalMap on AppStore {
   // Writing: blocks
 
   /// Puts a block that holds the square on the grid, and selects it. The block
-  /// has the name of the square, so the day says what the time is for.
+  /// has the name of the square, so the day says what the time is for, and
+  /// the length of the square. A square that is on the planner already
+  /// moves with its block: a step sits on one block at most.
   void scheduleSquare({
     required String squareId,
     required DayKey day,
@@ -386,13 +402,34 @@ extension AppStoreGoalMap on AppStore {
     final square = goalSquare(squareId);
     final g = square == null ? null : goal(square.goalId);
     if (square == null || g == null) return;
-    var e = _newGoalBlock(g, day: day, start: start, length: length);
+    final step = (square: true, id: squareId);
+    final own = _ownBlockOfStep(step);
+    if (own != null) {
+      _moveStepBlock(own, day: day, start: start, name: 'Move Step');
+      return;
+    }
+    final m = Mutation('Schedule Step');
+    // An old block that holds it with other steps lets it go.
+    for (final id
+        in _try(() => repos.goalSquares.blocksOf(squareId)) ??
+            const <String>[]) {
+      m.squareBlocks.add((
+        block: SquareBlock(squareId: squareId, eventId: id),
+        add: false,
+      ));
+    }
+    var e = _newGoalBlock(
+      g,
+      day: day,
+      start: start,
+      length: square.lengthMinutes ?? length,
+    );
     e = e.copyWith(
       title: square.isRoot || square.title.isEmpty
           ? GoalRules.titleOf(g)
           : square.title,
     );
-    final m = Mutation('Schedule Step')
+    m
       ..events.add((before: null, after: e))
       ..squareBlocks.add((
         block: SquareBlock(squareId: squareId, eventId: e.id),
@@ -423,24 +460,37 @@ extension AppStoreGoalMap on AppStore {
       return;
     }
     if (squaresOfBlock(eventId).any((s) => s.id == squareId)) return;
-    commit(
-      Mutation('Plan Step')
-        ..squareBlocks.add((
-          block: SquareBlock(squareId: squareId, eventId: eventId),
-          add: true,
-        )),
-    );
+    if (!blockCanTakeStep(eventId, squareId: squareId)) {
+      showToast('A block holds one step.');
+      return;
+    }
+    final m = Mutation('Plan Step');
+    // A step sits on one block at most: it leaves the one it was on.
+    for (final id
+        in _try(() => repos.goalSquares.blocksOf(squareId)) ??
+            const <String>[]) {
+      m.squareBlocks.add((
+        block: SquareBlock(squareId: squareId, eventId: id),
+        add: false,
+      ));
+    }
+    m.squareBlocks.add((
+      block: SquareBlock(squareId: squareId, eventId: eventId),
+      add: true,
+    ));
+    commit(m);
   }
 
-  /// A new step under the root, held by the block. Null with no name, or when
-  /// the block has no project.
+  /// A new loose step, held by the block. Null with no name, when the block
+  /// has no project, or when the block holds a step already.
   GoalSquare? addSquareInBlock(String eventId, {required String title}) {
     final name = title.trim();
     final goalId = event(eventId)?.goalId;
     if (name.isEmpty || goalId == null) return null;
+    if (!blockCanTakeStep(eventId)) return null;
     final graph = goalGraph(goalId);
     if (graph == null) return null;
-    final m = _newSquare(graph, parentId: graph.rootId, title: name);
+    final m = _newSquare(graph, parentId: null, title: name);
     final square = m.squares.single.after!;
     m.squareBlocks.add((
       block: SquareBlock(squareId: square.id, eventId: eventId),

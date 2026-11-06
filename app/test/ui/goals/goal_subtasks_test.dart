@@ -53,6 +53,7 @@ final anySubRow = find.byWidgetPredicate((w) {
       !key.value.startsWith('goal-subtask-delete-') &&
       !key.value.startsWith('goal-subtask-mark-') &&
       !key.value.startsWith('goal-subtask-grip-') &&
+      !key.value.startsWith('goal-subtask-length-') &&
       !key.value.startsWith('goal-subtask-add-');
 });
 

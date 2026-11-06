@@ -164,8 +164,8 @@ void main() {
       }
     });
 
-    test('a square edited after the other device deleted it comes back and '
-        'joins the root', () async {
+    test('a square edited after the other device deleted it comes back '
+        'loose', () async {
       project(a);
       square(a, 'mid');
       square(a, 'x', parent: 'mid');
@@ -181,8 +181,21 @@ void main() {
       for (final d in [a, b]) {
         final g = graphOf(d);
         expect(g.square('x').title, 'Edited');
-        expect(g.reachesRoot('x'), isTrue);
+        // Its link went with the delete, so it has no line now.
+        expect(g.isLoose('x'), isTrue);
       }
+    });
+
+    test('the length of a square reaches the other device', () async {
+      project(a);
+      square(a, 'x');
+      await settle([a, b]);
+      a.repos.goalSquares.save(
+        a.repos.goalSquares.get('x')!.copyWith(lengthMinutes: 45),
+      );
+      await settle([a, b]);
+      expectSame([a, b]);
+      expect(b.repos.goalSquares.get('x')!.lengthMinutes, 45);
     });
 
     test('two devices that make it a project reach the same rows', () async {

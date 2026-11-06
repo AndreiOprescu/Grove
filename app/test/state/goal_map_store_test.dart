@@ -121,13 +121,14 @@ void main() {
       expect(graphOf(s, g.id).parentsOf(b.id), [a.id]);
     });
 
-    test('removing the last link leaves the square on the root', () {
+    test('removing the last link leaves the square loose', () {
       final s = makeStore();
       final g = s.addProject(title: 'A')!;
       final a = s.addSquare(parentId: rootOf(g), title: 'a')!;
       final b = s.addSquare(parentId: a.id, title: 'b')!;
       s.unlinkSquares(child: b.id, parent: a.id);
-      expect(graphOf(s, g.id).parentsOf(b.id), [rootOf(g)]);
+      expect(graphOf(s, g.id).parentsOf(b.id), isEmpty);
+      expect(graphOf(s, g.id).isLoose(b.id), isTrue);
       s.undo();
       expect(graphOf(s, g.id).parentsOf(b.id), [a.id]);
     });
@@ -265,8 +266,9 @@ void main() {
       final c = s.addSquare(parentId: rootOf(g), title: 'c')!;
       s.scheduleSquare(squareId: a.id, day: monday, start: 600);
       final block = s.selection.single;
-      s.addSquareToBlock(squareId: b.id, eventId: block);
-      s.addSquareToBlock(squareId: c.id, eventId: block);
+      // An old block, from before one step per block, holds three.
+      s.repos.goalSquares.addBlock(b.id, block);
+      s.repos.goalSquares.addBlock(c.id, block);
       expect(s.openSquaresOfBlock(block), hasLength(3));
       s.answerBlockTick(
         eventId: block,
@@ -331,10 +333,11 @@ void main() {
     final s = makeStore();
     final g = s.addProject(title: 'A')!;
     final a = s.addSquare(parentId: rootOf(g), title: 'a')!;
+    final b = s.addSquare(parentId: rootOf(g), title: 'b')!;
     s.scheduleSquare(squareId: a.id, day: monday, start: 600, length: 60);
     final first = s.selection.single;
     s.scheduleSquare(
-      squareId: a.id,
+      squareId: b.id,
       day: monday.adding(days: 40),
       start: 600,
       length: 30,
@@ -352,7 +355,8 @@ void main() {
     final b = s.addSquare(parentId: rootOf(g), title: 'b')!;
     s.scheduleSquare(squareId: a.id, day: monday, start: 600, length: 120);
     final block = s.selection.single;
-    s.addSquareToBlock(squareId: b.id, eventId: block);
+    // An old block, from before one step per block, holds two.
+    s.repos.goalSquares.addBlock(b.id, block);
     s.toggleSquareDone(b.id);
     final steps = s.undoStack.length;
     s.applyReplan({block: 50});
@@ -362,6 +366,8 @@ void main() {
         .firstWhere((e) => e.id != block);
     expect(s.repos.goalSquares.blocksOf(a.id), [rest.id]);
     expect(s.repos.goalSquares.blocksOf(b.id), [block]);
+    // The step left is as long as the rest of the work.
+    expect(s.goalSquare(a.id)!.lengthMinutes, 60);
     s.undo();
     expect(s.repos.goalSquares.blocksOf(a.id), [block]);
   });

@@ -14,7 +14,7 @@ class GoalSquareRepo {
 
   static const _cols =
       'id, goal_id, title, done_at, wait_minutes, wait_started_at, sort, '
-      'created_at, updated_at';
+      'created_at, updated_at, length_minutes';
   static const _select = 'SELECT $_cols FROM goal_squares';
   static const _order = 'ORDER BY sort, created_at, rowid';
 
@@ -28,6 +28,7 @@ class GoalSquareRepo {
     sort: r.asDouble(6),
     createdAt: r.text(7),
     updatedAt: r.text(8),
+    lengthMinutes: r.optInt(9),
   );
 
   /// Insert or update. Refreshes `updatedAt`. It never deletes the row, so
@@ -36,12 +37,13 @@ class GoalSquareRepo {
   void save(GoalSquare square) {
     final s = square.copyWith(updatedAt: Stamp.now());
     db.execute(
-      'INSERT INTO goal_squares ($_cols) VALUES (?,?,?,?,?,?,?,?,?) '
+      'INSERT INTO goal_squares ($_cols) VALUES (?,?,?,?,?,?,?,?,?,?) '
       'ON CONFLICT(id) DO UPDATE SET goal_id=excluded.goal_id, '
       'title=excluded.title, done_at=excluded.done_at, '
       'wait_minutes=excluded.wait_minutes, '
       'wait_started_at=excluded.wait_started_at, sort=excluded.sort, '
-      'created_at=excluded.created_at, updated_at=excluded.updated_at',
+      'created_at=excluded.created_at, updated_at=excluded.updated_at, '
+      'length_minutes=excluded.length_minutes',
       [
         s.id,
         s.goalId,
@@ -52,6 +54,7 @@ class GoalSquareRepo {
         s.sort,
         s.createdAt,
         s.updatedAt,
+        s.lengthMinutes,
       ],
     );
   }
@@ -249,7 +252,7 @@ class GoalSquareRepo {
   GoalConversion conversionOf(String goalId) {
     final root = GoalSquare.rootIdOf(goalId);
     final subs = db.query(
-      'SELECT id, title, done_at, sort, created_at, event_id '
+      'SELECT id, title, done_at, sort, created_at, event_id, length_minutes '
       'FROM goal_subtasks WHERE goal_id = ? ORDER BY sort, created_at, rowid',
       [goalId],
       (r) => (
@@ -259,6 +262,7 @@ class GoalSquareRepo {
         sort: r.asDouble(3),
         createdAt: r.text(4),
         eventId: r.optText(5),
+        lengthMinutes: r.optInt(6),
       ),
     );
     final plan = GoalConversion();
@@ -272,6 +276,7 @@ class GoalSquareRepo {
             title: s.title,
             doneAt: s.doneAt,
             sort: s.sort,
+            lengthMinutes: s.lengthMinutes,
             createdAt: s.createdAt,
           ),
         );

@@ -73,8 +73,14 @@ class _GoalsScreenState extends State<GoalsScreen> {
     _select(id);
   }
 
-  void _addChild(String parentId) {
-    final square = _store.addSquare(parentId: parentId);
+  /// A new child of [parentId], or a loose square when it is null.
+  void _addChild(String? parentId) {
+    final goal = _store.shownMapGoal;
+    final square = parentId != null
+        ? _store.addSquare(parentId: parentId)
+        : goal == null
+        ? null
+        : _store.addLooseSquare(goal.id);
     if (square == null) return;
     setState(() {
       _selected = square.id;
@@ -86,7 +92,7 @@ class _GoalsScreenState extends State<GoalsScreen> {
   /// A new square with the same parent, for Enter.
   void _addBeside(GoalGraph graph, String id) {
     final parents = graph.parentsOf(id);
-    _addChild(parents.isEmpty ? id : parents.first);
+    _addChild(id == graph.rootId ? id : parents.firstOrNull);
   }
 
   void _delete(String id) {
@@ -179,8 +185,8 @@ class _GoalsScreenState extends State<GoalsScreen> {
           tool(
             'map-tool-add',
             Icons.add,
-            'Add a step that must come first',
-            () => _addChild(selected ?? graph.rootId),
+            selected == null ? 'Add a step' : 'Add a step that must come first',
+            () => _addChild(selected),
           ),
           tool(
             'map-tool-link',

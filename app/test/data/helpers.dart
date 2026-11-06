@@ -43,17 +43,25 @@ const goalMapGoalColumns = [
 const _goalMapTables = ['square_blocks', 'square_links', 'goal_squares'];
 
 /// Takes the database back from shared schema 15 and sync schema 9: no goal
-/// map tables and no project columns on `goals`.
+/// map tables, no project columns on `goals` and no step length on
+/// `goal_subtasks`.
 void rewindGoalMap(Database db) {
   final trigger = db.queryOne(
     "SELECT sql FROM sqlite_master WHERE name = 'sync_goals_update'",
     const [],
     (r) => r.text(0),
   );
+  final subTrigger = db.queryOne(
+    "SELECT sql FROM sqlite_master WHERE name = 'sync_goal_subtasks_update'",
+    const [],
+    (r) => r.text(0),
+  );
   db.executeScript('''
     DROP TRIGGER IF EXISTS sync_goals_update;
+    DROP TRIGGER IF EXISTS sync_goal_subtasks_update;
     ${[for (final t in _goalMapTables) 'DROP TABLE $t;'].join('\n')}
     ${[for (final c in goalMapGoalColumns) 'ALTER TABLE goals DROP COLUMN $c;'].join('\n')}
+    ALTER TABLE goal_subtasks DROP COLUMN length_minutes;
   ''');
   if (trigger != null) {
     var old = trigger;
@@ -61,6 +69,11 @@ void rewindGoalMap(Database db) {
       old = old.replaceAll(' OR OLD.$c IS NOT NEW.$c', '');
     }
     db.executeScript('$old;');
+  }
+  if (subTrigger != null) {
+    db.executeScript(
+      "${subTrigger.replaceAll(' OR OLD.length_minutes IS NOT NEW.length_minutes', '')};",
+    );
   }
   final saved = db.queryOne(
     "SELECT value FROM sync_meta WHERE key = 'triggers'",
@@ -72,7 +85,9 @@ void rewindGoalMap(Database db) {
     for (final t in _goalMapTables) {
       old = old.replaceAll(RegExp(';$t:[^;]*'), '');
     }
-    old = old.replaceAll(',${goalMapGoalColumns.join(',')}', '');
+    old = old
+        .replaceAll(',${goalMapGoalColumns.join(',')}', '')
+        .replaceAll(',length_minutes', '');
     db.execute("UPDATE sync_meta SET value = ? WHERE key = 'triggers'", [old]);
   }
   final hasOutbox = db.queryOne(
