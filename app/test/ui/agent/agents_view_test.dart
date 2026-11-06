@@ -34,12 +34,20 @@ Future<void> pumpAgents(
   AppStore store, {
   Size size = const Size(1100, 900),
   AgentFilePicker? pickFile,
+  AgentPathOpener? openFile,
+  AgentPathOpener? showFolder,
 }) async {
   tester.view.physicalSize = size;
   tester.view.devicePixelRatio = 1;
   addTearDown(tester.view.reset);
   await tester.pumpWidget(
-    StoreApp(key: UniqueKey(), store: store, pickAgentFile: pickFile),
+    StoreApp(
+      key: UniqueKey(),
+      store: store,
+      pickAgentFile: pickFile,
+      openAgentFile: openFile,
+      showAgentFolder: showFolder,
+    ),
   );
   addTearDown(() => tester.pumpWidget(const SizedBox()));
   await tester.pumpAndSettle();
@@ -146,7 +154,7 @@ void main() {
     final store = agentsStore();
     await pumpAgents(tester, store);
     await tester.enterText(keyed('agents-text'), 'Find a hotel in Rome');
-    await tapKey(tester, 'agents-email');
+    await tapKey(tester, 'agents-services');
     await tapKey(tester, 'agents-send');
     final job = store.agentJobs().single;
     expect(job.instructions, 'Find a hotel in Rome');
@@ -157,7 +165,7 @@ void main() {
     expect(find.text('Find a hotel in Rome'), findsWidgets);
     expect(find.text('Waiting'), findsOneWidget);
     expect(
-      find.text(AgentsView.rules(plan: false, email: true)),
+      find.text(AgentsView.rules(plan: false, services: true)),
       findsOneWidget,
     );
     expect(find.text(AgentDialog.turnOnRunner), findsOneWidget);
@@ -230,6 +238,172 @@ void main() {
     expect(store.agentFileHere(link), isTrue);
     // The chat shows the file, here on its own computer.
     expect(find.text('plan.pdf'), findsOneWidget);
+  });
+
+  group('the files the agent saved', () {
+    const id = '0b9f6a52-1c2d-4e3f-8a9b-0c1d2e3f4a5b';
+    const result = AgentResult(summary: 'Here is your page.');
+
+    void addDone(AppStore store, {List<String> files = const []}) {
+      addChat(store, id: id, status: AgentStatus.done, result: result);
+      addLine(
+        store,
+        id,
+        AgentEventKind.result,
+        body: jsonEncode({
+          ...result.toJson(),
+          if (files.isNotEmpty) 'grove_files': files,
+        }),
+      );
+      store.showAgentJob(id);
+    }
+
+    testWidgets('on the computer that ran it: a text file opens, any other '
+        'file shows its folder, the linked files are not listed', (
+      tester,
+    ) async {
+      final dir = Directory.systemTemp.createTempSync('grove-agents-ui-');
+      addTearDown(() => dir.deleteSync(recursive: true));
+      final store = agentsStore(
+        runner: FakeAgentRunner(exe: null),
+        dataDir: dir.path,
+      );
+      addDone(store);
+      final folder = store.agentFolder(id)!;
+      final sep = Platform.pathSeparator;
+      File('$folder${sep}notes.md')
+        ..createSync(recursive: true)
+        ..writeAsStringSync('# Notes');
+      File('$folder${sep}site${sep}index.html')
+        ..createSync(recursive: true)
+        ..writeAsStringSync('<p>Hi</p>');
+      File('$folder${sep}inputs${sep}x.pdf')
+        ..createSync(recursive: true)
+        ..writeAsStringSync('PDF');
+      final opened = <String>[], shown = <String>[];
+      await pumpAgents(
+        tester,
+        store,
+        openFile: (path) async {
+          opened.add(path);
+          return true;
+        },
+        showFolder: (path) async {
+          shown.add(path);
+          return true;
+        },
+      );
+      expect(find.text('Here is your page.'), findsOneWidget);
+      expect(keyed('agents-file-notes.md'), findsOneWidget);
+      expect(keyed('agents-file-site/index.html'), findsOneWidget);
+      expect(keyed('agents-file-inputs/x.pdf'), findsNothing);
+
+      await tapKey(tester, 'agents-file-notes.md');
+      expect(opened, ['$folder${sep}notes.md']);
+      expect(shown, isEmpty);
+
+      // A page is never opened: it could run. The folder of the chat shows
+      // instead; never a folder the agent named (a "x.app" would start).
+      await tapKey(tester, 'agents-file-site/index.html');
+      expect(opened, hasLength(1));
+      expect(shown, [folder]);
+
+      await tapKey(tester, 'agents-show-folder');
+      expect(shown.last, folder);
+    });
+
+    testWidgets('a system that cannot open the file says so', (tester) async {
+      final dir = Directory.systemTemp.createTempSync('grove-agents-ui-');
+      addTearDown(() => dir.deleteSync(recursive: true));
+      final store = agentsStore(
+        runner: FakeAgentRunner(exe: null),
+        dataDir: dir.path,
+      );
+      addDone(store);
+      File('${store.agentFolder(id)!}${Platform.pathSeparator}a.txt')
+        ..createSync(recursive: true)
+        ..writeAsStringSync('A');
+      await pumpAgents(
+        tester,
+        store,
+        openFile: (_) async => false,
+        showFolder: (_) async => false,
+      );
+      await tapKey(tester, 'agents-file-a.txt');
+      expect(find.text(AgentsView.couldNotOpenFile), findsOneWidget);
+    });
+
+    testWidgets('no folder made: no Files part', (tester) async {
+      final dir = Directory.systemTemp.createTempSync('grove-agents-ui-');
+      addTearDown(() => dir.deleteSync(recursive: true));
+      final store = agentsStore(
+        runner: FakeAgentRunner(exe: null),
+        dataDir: dir.path,
+      );
+      addDone(store);
+      await pumpAgents(tester, store, showFolder: (_) async => true);
+      expect(keyed('agents-files'), findsNothing);
+      expect(keyed('agents-show-folder'), findsNothing);
+    });
+
+    testWidgets('on another computer: no folder here, so the names from the '
+        'result, as plain text (review, 2026-10-27)', (tester) async {
+      final dir = Directory.systemTemp.createTempSync('grove-agents-ui-');
+      addTearDown(() => dir.deleteSync(recursive: true));
+      final store = agentsStore(
+        runner: FakeAgentRunner(exe: null),
+        dataDir: dir.path,
+      );
+      // The chat ran on "mac"; this computer is another one.
+      store.prefs.set('agent.device', 'pc');
+      addDone(store, files: ['notes.md', 'site/index.html']);
+      await pumpAgents(
+        tester,
+        store,
+        openFile: (_) async => true,
+        showFolder: (_) async => true,
+      );
+      expect(
+        find.text(AgentsView.filesElsewhere(['notes.md', 'site/index.html'])),
+        findsOneWidget,
+      );
+      expect(keyed('agents-file-notes.md'), findsNothing);
+      expect(keyed('agents-show-folder'), findsNothing);
+    });
+
+    testWidgets('on the computer that ran it, with its files deleted: no '
+        'Files part, it does not say they are elsewhere', (tester) async {
+      final dir = Directory.systemTemp.createTempSync('grove-agents-ui-');
+      addTearDown(() => dir.deleteSync(recursive: true));
+      final store = agentsStore(
+        runner: FakeAgentRunner(exe: null),
+        dataDir: dir.path,
+      );
+      store.prefs.set('agent.device', 'mac');
+      addDone(store, files: ['notes.md']);
+      await pumpAgents(tester, store, showFolder: (_) async => true);
+      expect(keyed('agents-files'), findsNothing);
+    });
+
+    testWidgets('on a phone: the names, from the result, as plain text', (
+      tester,
+    ) async {
+      final store = agentsStore();
+      addDone(store, files: ['notes.md', 'site/index.html']);
+      await pumpAgents(
+        tester,
+        store,
+        openFile: (_) async => true,
+        showFolder: (_) async => true,
+      );
+      expect(keyed('agents-files'), findsOneWidget);
+      expect(
+        find.text(AgentsView.filesElsewhere(['notes.md', 'site/index.html'])),
+        findsOneWidget,
+      );
+      expect(keyed('agents-file-notes.md'), findsNothing);
+      expect(keyed('agents-show-folder'), findsNothing);
+    });
   });
 
   testWidgets('the steps show as they come; a click shows all', (tester) async {

@@ -59,6 +59,8 @@ Future<void> main() async {
       openLink: openInBrowser,
       openDraft: openDraftApp,
       pickAgentFile: pickAgentFile,
+      openAgentFile: openAgentFile,
+      showAgentFolder: showAgentFolder,
     ),
   );
 }
