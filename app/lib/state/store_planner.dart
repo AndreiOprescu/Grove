@@ -648,6 +648,146 @@ extension AppStorePlanner on AppStore {
     commit(m);
   }
 
+  // Task or activity
+
+  /// What the block [eventId] can turn into: [EventKind.activity] for the
+  /// block of an open task, [EventKind.block] for an activity. Null for
+  /// anything else: a plain event, a goal block, a deadline, an all-day or
+  /// repeating event, a block that is done, a done or repeating task, the
+  /// only block of a task the agent works on (its job and chat would go with
+  /// the task, and undo cannot bring them back), an activity that still has
+  /// block subtasks.
+  EventKind? kindSwitch(String eventId) {
+    if (OccurrenceId.parse(eventId) != null) return null;
+    final e = event(eventId);
+    if (e == null ||
+        e.allDay ||
+        e.isDeadline ||
+        e.goalId != null ||
+        e.seriesId != null ||
+        e.recurrence != null ||
+        e.doneAt != null ||
+        e.start.day != e.end.day) {
+      return null;
+    }
+    switch (e.kind) {
+      case EventKind.activity:
+        // Block subtasks (of a goal block whose goal was deleted) would be
+        // hidden on a task block, which shows the subtasks of its task.
+        if (blockSubtasks(eventId).isNotEmpty) return null;
+        return EventKind.block;
+      case EventKind.block:
+        final taskId = e.taskId;
+        final t = taskId == null ? null : task(taskId);
+        if (t == null || t.status != TaskStatus.open) return null;
+        if (t.recurrence != null) return null;
+        if (blocksOfTask(t.id).length <= 1 && agentJobFor(t.id) != null) {
+          return null;
+        }
+        return EventKind.activity;
+      case EventKind.event:
+        return null;
+    }
+  }
+
+  /// What goes away when the task block [eventId] turns into an activity:
+  /// its task has no other block, and that task has subtasks or points.
+  /// Null when nothing of that is lost, so the planner need not ask.
+  ({int subtasks, int rewards})? kindSwitchLoss(String eventId) {
+    if (kindSwitch(eventId) != EventKind.activity) return null;
+    final t = task(event(eventId)!.taskId!)!;
+    if (blocksOfTask(t.id).length > 1) return null;
+    var count = 0;
+    final queue = [t.id];
+    while (queue.isNotEmpty) {
+      final kids = subtasks(queue.removeLast());
+      count += kids.length;
+      queue.addAll(kids.map((k) => k.id));
+    }
+    final rewards = taskRewards(t.id).length;
+    if (count == 0 && rewards == 0) return null;
+    return (subtasks: count, rewards: rewards);
+  }
+
+  /// Turns a task block into an activity, or an activity into a task, in one
+  /// undo step. The block keeps its id, time and colour, so its meeting note
+  /// stays linked.
+  ///
+  /// Task to activity: the notes of the task go into the activity. A task
+  /// with no other block goes away, with its subtasks; a task with more
+  /// blocks stays, and only this block changes.
+  /// Activity to task: a new task for that day, as long as the block, with
+  /// the notes of the activity.
+  void toggleKind(String eventId) {
+    final to = kindSwitch(eventId);
+    final e = event(eventId);
+    if (to == null || e == null) return;
+    if (to == EventKind.activity) {
+      final t = task(e.taskId!)!;
+      final alone = blocksOfTask(t.id).length <= 1;
+      // The block showed the colour of its task, so the activity takes it.
+      final after = e.copyWith(
+        kind: EventKind.activity,
+        taskId: null,
+        title: t.title,
+        color: t.color.isNotEmpty ? t.color : e.color,
+        notes: alone
+            ? [
+                e.notes,
+                t.summary,
+                t.notes,
+              ].where((s) => s.trim().isNotEmpty).join('\n\n')
+            : e.notes,
+      );
+      final Mutation m;
+      if (alone) {
+        m = taskDeletion(t.id, name: 'Turn into Activity')!;
+        // The block is saved, not deleted: before the task goes, so the
+        // database does not take it along with the task.
+        final i = m.events.indexWhere((c) => c.before?.id == e.id);
+        if (i < 0) {
+          m.events.add((before: e, after: after));
+        } else {
+          m.events[i] = (before: e, after: after);
+        }
+      } else {
+        m = Mutation('Turn into Activity')
+          ..events.add((before: e, after: after));
+      }
+      // The meeting note has the name of the event, which is the name the
+      // task had when it was planned. It takes the name of the activity.
+      final note = meetingNote(e);
+      if (note != null && note.title != MeetingNote.title(after)) {
+        m.notes.add((
+          before: note,
+          after: note.copyWith(title: MeetingNote.title(after)),
+        ));
+      }
+      final gone = {for (final c in m.tasks) ?c.before?.id};
+      if (!commit(m)) return;
+      if (gone.contains(selectedTaskId)) selectedTaskId = null;
+      selection = {e.id};
+      return;
+    }
+    final t = TaskItem(
+      title: e.title,
+      notes: e.notes,
+      bucket: TaskBucket.day,
+      planDate: e.start.day,
+      estimateMin: e.durationMinutes,
+    );
+    final m = Mutation('Turn into Task')
+      ..tasks.add((before: null, after: t))
+      ..events.add((
+        before: e,
+        after: e.copyWith(kind: EventKind.block, taskId: t.id, notes: ''),
+      ));
+    if (!commit(m)) return;
+    if (editingEvent?.item.id == e.id) closeEditor();
+    selection = {e.id};
+    selectedTaskId = t.id;
+  }
+
   int? nextFreeSlot({
     required DayKey day,
     required int length,
