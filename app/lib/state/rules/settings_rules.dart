@@ -91,7 +91,7 @@ abstract final class SettingsRules {
       'Closing the window keeps Grove in the menu bar, so it can learn when '
       'you sleep. Quit it from the menu bar.';
 
-  // The agent (ADR 0004)
+  // The agent (ADR 0004, ADR 0008)
 
   /// Under "This device runs agent tasks" on a phone.
   static const agentNoRunner =

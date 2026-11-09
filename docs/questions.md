@@ -272,3 +272,10 @@ In "Reorganise rest of day", a task that does not fit today: where should it go?
 A) Today's list — it keeps today as its day, loses its block, and shows as a sticky note under today on the timeline.   ← my pick: you can still do it today if time frees up, and Plan my day and the next Reorganise see it.
 B) The "Unscheduled" list of the Tasks panel — it loses today as its day and goes to the inbox.
 If no answer: A stays. It is built.
+
+## Q-58 · ANSWERED A (owner, 2026-10-27) · DEFAULT · blocks feat/agent-scope-tools · 2026-10-27
+In a chat with services on, may the agent still search the web?
+A) Keep web search on — the agent can look things up for the task; an email it reads could put private words into a search query, which leaves the computer.   ← my pick: it is in the plan you approved, web pages stay off, and searching is most of what "get a task ready" needs.
+B) Turn web search off in a chat with services — nothing it reads can leave by a search; the agent cannot look anything up in those chats.
+If no answer: A stays. B is a one-line change in `AgentPolicy.args` (`app/lib/core/agent/agent_policy.dart`).
+(Q-57 is left for the planner branch made the same day.)

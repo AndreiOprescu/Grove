@@ -2,6 +2,8 @@
 
 Status: Proposed (2026-10-19; the owner said yes to it in the plan of 2026-10-19, the owner marks it Accepted)
 
+Changed by [ADR 0008](0008-agent-folder-and-services.md) (2026-10-27): the agent now works in a folder of its own and may write files there, and it may read with any service the person turns on, not only Gmail. The parts below that say otherwise are history.
+
 ## Context
 The owner wants to hand a Grove task to an AI agent. Tasks may need the agent to read email, write a document, or write an email or a text message.
 The agent must be reliable and safe ("better safe than sorry").
@@ -10,7 +12,7 @@ Some people have no agent, so the feature is off at first.
 The owner wants to delegate from any device, also the phone, and see the results on every device.
 
 ## Decision
-- **Where it runs.** On a desktop that has Claude Code (the `claude` command) and is logged in with the person's own Claude plan. The Mac acts as the server: any device makes a job, the job syncs, and the desktop with "This device runs agent tasks" on runs it. One job at a time. A job stops after 10 minutes.
+- **Where it runs.** On a desktop that has Claude Code (the `claude` command) and is logged in with the person's own Claude plan. The Mac acts as the server: any device makes a job, the job syncs, and the desktop with "This device runs agent tasks" on runs it. One job at a time. A job stops after 30 minutes (it was 10 minutes at first; the Agents screen, ADR 0005, made it 30).
 - **Read and draft only.** The agent can never send, never run commands, never write files. It returns structured JSON: a summary, its steps, an optional document, an optional email draft, an optional text draft, open questions and sources. Grove saves that as notes linked to the task. The person opens a draft in Mail or Messages (`mailto:`, `sms:`) and presses Send there.
 - **Switches, all off at first, kept per device:** `agent.enabled` (show "Ask the agent…"), `agent.runner` (this desktop runs jobs), `agent.email` (this runner may read email). Email is read only when the job asks for it and the runner allows it.
 - **Data.** A synced table `agent_jobs` holds the job, its status and the result. The result notes sync like every note. Raw emails are never stored; only the agent's summary and drafts are.
@@ -18,7 +20,7 @@ The owner wants to delegate from any device, also the phone, and see the results
 
 ## How Grove calls `claude` (spike of 2026-10-19, Claude Code 2.1.302)
 - `claude -p` with the prompt on stdin, in a new empty temp folder, without a shell.
-- Always: `--output-format json --json-schema <schema> --no-session-persistence --permission-mode dontAsk --max-turns <n>`. The answer is in the field `structured_output`; `is_error`, `subtype` and `permission_denials` tell how it went. `--max-turns` works, though `--help` does not list it.
+- Always: `--output-format stream-json --verbose --json-schema <schema> --no-session-persistence --permission-mode dontAsk --max-turns <n>`. It was `--output-format json` at first; since the Agents screen (ADR 0005) Grove reads the steps live from the stream, and the last line holds the answer. The answer is in the field `structured_output`; `is_error`, `subtype` and `permission_denials` tell how it went. `--max-turns` works, though `--help` does not list it.
 - `--tools` lists the built-in tools that exist at all. Grove passes only `WebSearch` (and `WebFetch` when email is off). Bash, Write and Edit do not exist in the run, so no allow rule can turn them on.
 - **Email off:** `--setting-sources "" --strict-mcp-config`. No connector, no hook and no allow rule of the person loads.
 - **Email on:** the claude.ai connectors (Gmail) load only with the person's user settings (`--setting-sources user`). So:

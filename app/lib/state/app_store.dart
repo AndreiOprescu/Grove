@@ -11,6 +11,8 @@ import '../core/agent/agent_context.dart';
 import '../core/agent/agent_models.dart';
 import '../core/agent/agent_policy.dart';
 import '../core/agent/agent_runner.dart';
+import '../core/agent/agent_scope.dart';
+import '../core/agent/agent_services.dart';
 import '../core/model/block_subtask.dart';
 import '../core/model/day_key.dart';
 import '../core/model/event.dart';

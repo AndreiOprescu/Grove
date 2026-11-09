@@ -113,9 +113,9 @@ class AgentsView extends StatefulWidget {
       : 'Good evening';
 
   /// The guardrails of a chat, in one line.
-  static String rules({required bool plan, required bool email}) =>
+  static String rules({required bool plan, required bool services}) =>
       'Reads and drafts only · Plan ${plan ? 'on' : 'off'} · '
-      'Email ${email ? 'on' : 'off'} · Stops after 30 min';
+      'Services ${services ? 'on' : 'off'} · Stops after 30 min';
 
   static String statusLabel(AgentStatus status) => switch (status) {
     AgentStatus.queued => 'Waiting',
@@ -131,6 +131,12 @@ class AgentsView extends StatefulWidget {
       'Grove could not apply this. The task may be '
       'gone or done.';
   static const fileElsewhere = 'on another computer';
+  static const couldNotOpenFile = 'Grove could not open the file.';
+  static const couldNotShowFolder = 'Grove could not show the folder.';
+
+  /// The files the agent made, on a device that did not run it.
+  static String filesElsewhere(List<String> names) =>
+      'Saved on the computer that ran the agent: ${names.join(', ')}';
 
   @override
   State<AgentsView> createState() => _AgentsViewState();
@@ -339,12 +345,12 @@ class _AgentsViewState extends State<AgentsView> {
           placeholder: 'Ask the agent…',
           minLines: 4,
           helpers: AgentsView.helpers,
-          onSend: (text, links, {required plan, required email}) {
+          onSend: (text, links, {required plan, required services}) {
             final id = _store.startAgentChat(
               text,
               links: links,
               plan: plan,
-              email: email,
+              email: services,
             );
             if (id.isEmpty) return false;
             _show(id);
@@ -392,7 +398,7 @@ class _AgentsViewState extends State<AgentsView> {
           ],
         ),
         Text(
-          AgentsView.rules(plan: job.planAccess, email: job.emailAccess),
+          AgentsView.rules(plan: job.planAccess, services: job.emailAccess),
           key: const ValueKey('agents-rules'),
           style: small,
         ),
@@ -406,6 +412,7 @@ class _AgentsViewState extends State<AgentsView> {
           item is List<AgentEvent>
               ? _steps(context, job, item)
               : _line(context, item as AgentEvent),
+        ?_files(context, job, events),
         if (!job.status.isFinished) ..._working(context, job),
         if (message != null)
           Text(message, key: const ValueKey('agents-message'), style: small),
@@ -417,20 +424,127 @@ class _AgentsViewState extends State<AgentsView> {
             placeholder: 'Reply to the agent…',
             minLines: 2,
             plan: job.planAccess,
-            email: job.emailAccess,
-            onSend: (text, links, {required plan, required email}) {
+            services: job.emailAccess,
+            onSend: (text, links, {required plan, required services}) {
               setState(() => _message = null);
               return _store.askAgentAgain(
                 jobId,
                 text,
                 links: links,
                 plan: plan,
-                email: email,
+                email: services,
               );
             },
           ),
       ],
     );
+  }
+
+  /// The files the agent saved in the folder of the chat (ADR 0008). On
+  /// the computer that ran it: each one, a text file opens, any other file
+  /// shows the folder of the chat (Grove never runs a file of the agent, and
+  /// never shows a folder the agent named: "x.app" would start). On a phone,
+  /// or a computer with no file of it that did not run it: the names of the
+  /// newest result, as text. Null when there is none.
+  Widget? _files(BuildContext context, AgentJob job, List<AgentEvent> events) {
+    final theme = GroveTheme.of(context);
+    final small = theme.body(11).copyWith(color: theme.muted);
+    final jobId = job.id;
+    final folder = _store.agentFolder(jobId);
+    final names = folder == null
+        ? const <String>[]
+        : _store.agentFilesMade(jobId);
+    if (folder == null || names.isEmpty) {
+      // Its own files deleted on the computer that ran it: nothing to show.
+      if (folder != null && _store.agentRanHere(job)) return null;
+      final results = events.where((e) => e.kind == AgentEventKind.result);
+      final made = results.isEmpty
+          ? const <String>[]
+          : _store.agentEventFiles(results.last);
+      if (made.isEmpty) return null;
+      return Text(
+        AgentsView.filesElsewhere(made),
+        key: const ValueKey('agents-files'),
+        style: small,
+      );
+    }
+    final tools = AgentTools.maybeOf(context);
+    final show = tools?.showFolder, open = tools?.openFile;
+    return Column(
+      key: const ValueKey('agents-files'),
+      crossAxisAlignment: CrossAxisAlignment.start,
+      spacing: 6,
+      children: [
+        Row(
+          spacing: 10,
+          children: [
+            Text('Files the agent saved', style: small),
+            if (show != null)
+              TextTap(
+                key: const ValueKey('agents-show-folder'),
+                label: 'Show folder',
+                onTap: () => unawaited(_showPath(show, folder)),
+              ),
+          ],
+        ),
+        Wrap(
+          spacing: 6,
+          runSpacing: 6,
+          children: [
+            for (final name in names)
+              _Chip(
+                key: ValueKey('agents-file-$name'),
+                icon: AgentScope.canOpen(name)
+                    ? Icons.description_outlined
+                    : Icons.folder_outlined,
+                label: name,
+                color: theme.ink,
+                onTap: show == null && open == null
+                    ? null
+                    : () => unawaited(_openMade(jobId, name, open, show)),
+              ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  /// Opens a text file the agent made, or shows the folder of the chat.
+  Future<void> _openMade(
+    String jobId,
+    String name,
+    AgentPathOpener? open,
+    AgentPathOpener? show,
+  ) async {
+    final path = _store.agentFilePath(jobId, name);
+    if (path == null) return;
+    if (open != null && AgentScope.canOpen(name)) {
+      final bool ok;
+      try {
+        ok = await open(path);
+      } on Object {
+        if (mounted) setState(() => _message = AgentsView.couldNotOpenFile);
+        return;
+      }
+      if (mounted) {
+        setState(() => _message = ok ? null : AgentsView.couldNotOpenFile);
+      }
+      return;
+    }
+    final folder = _store.agentFolder(jobId);
+    if (show != null && folder != null) await _showPath(show, folder);
+  }
+
+  Future<void> _showPath(AgentPathOpener show, String path) async {
+    bool ok;
+    try {
+      ok = await show(path);
+    } on Object {
+      ok = false;
+    }
+    if (mounted) {
+      setState(() => _message = ok ? null : AgentsView.couldNotShowFolder);
+    }
   }
 
   /// The lines of a chat, with the steps in a row kept together.
@@ -794,11 +908,11 @@ typedef AgentSend = bool Function(
   String text,
   List<AgentLink> links, {
   required bool plan,
-  required bool email,
+  required bool services,
 });
 
 /// The text box of a chat: "+" to link notes, tasks and files, the plan
-/// and email switches, and Send.
+/// and services switches, and Send.
 class AgentComposer extends StatefulWidget {
   const AgentComposer({
     super.key,
@@ -808,7 +922,7 @@ class AgentComposer extends StatefulWidget {
     required this.onSend,
     this.minLines = 3,
     this.plan = false,
-    this.email = false,
+    this.services = false,
     this.helpers = const [],
   });
 
@@ -822,7 +936,7 @@ class AgentComposer extends StatefulWidget {
 
   /// The switches at first.
   final bool plan;
-  final bool email;
+  final bool services;
 
   /// Ready-made messages under the box. A click puts one in the box.
   final List<AgentHelper> helpers;
@@ -835,7 +949,7 @@ class _AgentComposerState extends State<AgentComposer> {
   final _text = TextEditingController();
   final _links = <AgentLink>[];
   late bool _plan = widget.plan;
-  late bool _email = widget.email;
+  late bool _services = widget.services;
 
   AppStore get _store => widget.store;
   String get _k => widget.keyName;
@@ -851,7 +965,7 @@ class _AgentComposerState extends State<AgentComposer> {
       _text.text,
       List.of(_links),
       plan: _plan,
-      email: _email,
+      services: _services,
     );
     if (!ok || !mounted) return;
     setState(() {
@@ -952,11 +1066,13 @@ class _AgentComposerState extends State<AgentComposer> {
                       onTap: () => setState(() => _plan = !_plan),
                     ),
                     _Switch(
-                      key: ValueKey('$_k-email'),
-                      label: 'Email',
-                      tooltip: 'The agent may read your email.',
-                      isOn: _email,
-                      onTap: () => setState(() => _email = !_email),
+                      key: ValueKey('$_k-services'),
+                      label: 'Services',
+                      tooltip:
+                          'The agent may read with your services '
+                          '(Settings → Agent).',
+                      isOn: _services,
+                      onTap: () => setState(() => _services = !_services),
                     ),
                     const Spacer(),
                     DialogButton(
@@ -971,8 +1087,8 @@ class _AgentComposerState extends State<AgentComposer> {
             ),
           ),
         ),
-        if (_email && !_store.agentEmailOn)
-          Text(AgentDialog.emailOffHere, style: small),
+        if (_services && !_store.agentServicesOn)
+          Text(AgentDialog.servicesOffHere, style: small),
         if (widget.helpers.isNotEmpty)
           Wrap(
             alignment: WrapAlignment.center,
