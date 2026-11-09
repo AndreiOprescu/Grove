@@ -281,12 +281,13 @@ void main() {
     expect(block.endMinute, 13 * 60);
   });
 
-  testWidgets('day lines: "+" adds the wake-up line, a drag moves it, a tap '
-      'takes it away', (tester) async {
+  testWidgets('day lines: the day menu adds the wake-up line, a drag moves '
+      'it, a tap takes it away', (tester) async {
     final store = _store();
     await _open(tester, store);
 
-    await tester.tap(_key('day-marker-add'));
+    // A long press on the day name opens the day menu on every device.
+    await tester.longPress(_key('day-header-${wednesday.string}'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Add wake-up line'));
     await tester.pumpAndSettle();
