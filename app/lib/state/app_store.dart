@@ -11,6 +11,8 @@ import '../core/agent/agent_context.dart';
 import '../core/agent/agent_models.dart';
 import '../core/agent/agent_policy.dart';
 import '../core/agent/agent_runner.dart';
+import '../core/agent/agent_scope.dart';
+import '../core/agent/agent_services.dart';
 import '../core/model/block_subtask.dart';
 import '../core/model/day_key.dart';
 import '../core/model/event.dart';
@@ -978,8 +980,12 @@ class AppStore extends ChangeNotifier {
       if (now.kind == EventKind.block) {
         // A task block or a goal block holds no text. But a note can link to
         // it (its meeting note): a block that was brought back gets the link
-        // again.
+        // again. An activity that turned into a task block gives its text to
+        // the task, so the links of that text go.
         if (was == null) repos.refs.rebuildIncoming(ref);
+        if (was != null && was.notes != now.notes) {
+          repos.refs.reindex(ref, now.notes);
+        }
         continue;
       }
       if (was == null || was.notes != now.notes) {

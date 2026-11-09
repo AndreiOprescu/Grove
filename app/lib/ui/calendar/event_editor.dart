@@ -17,6 +17,7 @@ import 'package:grove/core/recurrence/recurrence_engine.dart';
 import 'package:grove/state/state.dart' hide MotionRules;
 
 import '../editor/rich_text_field.dart';
+import '../planner/kind_switch.dart';
 import '../planner/planner_dialogs.dart' show showRecurringQuestion;
 import '../tasks/task_widgets.dart';
 import '../shell/shell_layout.dart';
@@ -323,6 +324,29 @@ class _EventEditorState extends State<EventEditor> {
     }
   }
 
+  /// An activity that is saved can turn into a task: the "Task" chip.
+  bool get _canBeTask =>
+      !_editing.isNew &&
+      _draft.isActivity &&
+      _store.kindSwitch(_editing.item.id) == EventKind.block;
+
+  /// Saves the changes of the card first, then makes the activity a task.
+  /// The card closes and the task panel opens.
+  void _turnIntoTask() {
+    final id = _editing.item.id;
+    final original = _original;
+    if (_isDirty && original != null) _store.saveEvent(_draft, from: original);
+    if (_store.kindSwitch(id) != EventKind.block) {
+      _store.closeEditor();
+      _store.showToast(
+        'This activity cannot be a task: it repeats, is all day or goes past '
+        'midnight.',
+      );
+      return;
+    }
+    _store.toggleKind(id);
+  }
+
   // Build
 
   @override
@@ -389,6 +413,18 @@ class _EventEditorState extends State<EventEditor> {
                           onSubmitted: (_) => _save(),
                           onEscape: _store.closeEditor,
                         ),
+                        if (_canBeTask)
+                          _row(
+                            theme,
+                            'Type',
+                            KindChips(
+                              keyPrefix: 'event-kind',
+                              activity: true,
+                              onPick: (activity) {
+                                if (!activity) _turnIntoTask();
+                              },
+                            ),
+                          ),
                         Row(
                           spacing: 20,
                           children: [

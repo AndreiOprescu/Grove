@@ -643,13 +643,9 @@ void main() {
       final store = spreadStore();
       store.quickAdd('Call the bank', placement: TaskPlacement.day(thursday));
       await pumpPlanner(tester, store, size: wide);
-      expect(
-        find.byTooltip(
-          "Plan my day: fit today's unscheduled tasks into free "
-          'working hours',
-        ),
-        findsOneWidget,
-      );
+      // Today has "Reorganise rest of day" in its place.
+      expect(key('plan-my-day'), findsNothing);
+      expect(key('replan-day'), findsOneWidget);
 
       await showTomorrow(tester);
       expect(

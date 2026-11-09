@@ -1,5 +1,5 @@
-// The header of the planner with the "+" of the wake-up line and the sleep
-// line in it. It must fit at each width.
+// The header of the planner. It must fit at each width, and it has no "+"
+// for the wake-up line and the sleep line: the day menu adds them.
 //
 // The other tests draw text in the test font, where each letter is a
 // square: "Plan my day" is much wider there than in the app. This file
@@ -58,16 +58,16 @@ void main() {
         await tester.pumpAndSettle();
         final error = tester.takeException();
         if (error != null) bad.add('$width: $error');
-        expect(find.byKey(const ValueKey('day-marker-add')), findsOneWidget);
+        expect(find.byKey(const ValueKey('day-marker-add')), findsNothing);
       }
       expect(bad, isEmpty);
     });
   }
 
-  // The "+" must not take room from the dates of the week. In these two
-  // themes the dates were whole from this width on before the "+" came.
+  // The buttons must not take room from the dates of the week. In these two
+  // themes the dates are whole from this width on.
   for (final themeId in [ThemeId.grove, ThemeId.minimal]) {
-    testWidgets('the "+" does not cut the dates of the week in the '
+    testWidgets('the buttons do not cut the dates of the week in the '
         '${themeId.name} theme', (tester) async {
       final store = plannerStore();
       // The week with the longest dates: 28 Sep to 4 Oct.
