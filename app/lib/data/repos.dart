@@ -15,6 +15,7 @@ import 'agent_event_repo.dart';
 import 'agent_job_repo.dart';
 import 'attachment_repo.dart';
 import 'database.dart';
+import 'goal_square_repo.dart';
 import 'notebook_repo.dart';
 import 'persona_repo.dart';
 import 'reference_indexer.dart';
@@ -448,6 +449,11 @@ class GoalRepo {
     'updated_at',
     'kind',
     'target_count',
+    'type',
+    'done_when',
+    'work_minutes',
+    'due_day',
+    'why',
   ];
   static final _select = 'SELECT ${_cols.join(',')} FROM goals';
   static final _upsert = _upsertSql('goals', _cols);
@@ -464,6 +470,11 @@ class GoalRepo {
     updatedAt: r.text(8),
     kind: _enumOr(GoalKind.values, r.text(9), GoalKind.hours),
     targetCount: r.asInt(10),
+    type: _enumOr(GoalType.values, r.optText(11) ?? '', GoalType.habit),
+    doneWhen: r.optText(12) ?? '',
+    workMinutes: r.optInt(13),
+    dueDay: _day(r.optText(14)),
+    why: r.optText(15) ?? '',
   );
 
   /// Insert or update. Refreshes `updatedAt`.
@@ -481,6 +492,11 @@ class GoalRepo {
       g.updatedAt,
       g.kind.name,
       g.targetCount,
+      g.type.name,
+      g.doneWhen,
+      g.workMinutes,
+      g.dueDay?.string,
+      g.why,
     ]);
   }
 
@@ -517,6 +533,52 @@ class GoalRepo {
   }) {
     var sum = 0;
     for (final (s, e) in _blockTimes(goalId, from, to, doneOnly)) {
+      final start = WallTime.parse(s), end = WallTime.parse(e);
+      if (start == null || end == null) continue;
+      sum += EventItem(title: '', start: start, end: end).durationMinutes;
+    }
+    return sum;
+  }
+
+  /// The lengths of the goal's ticked steps (squares and goal subtasks) that
+  /// no ticked block holds: a ticked block counts that time already. With a
+  /// range, only steps ticked on a day of it.
+  int stepMinutes(String goalId, {DayKey? from, DayKey? to}) {
+    final rows = db.query(
+      'SELECT COALESCE(SUM(length_minutes), 0) FROM ('
+      ' SELECT s.length_minutes, s.done_at FROM goal_squares s'
+      ' WHERE s.goal_id = ? AND s.done_at IS NOT NULL'
+      " AND s.id <> 'root:' || s.goal_id AND NOT EXISTS ("
+      '  SELECT 1 FROM square_blocks b JOIN events e ON e.id = b.event_id'
+      '  WHERE b.square_id = s.id AND e.done_at IS NOT NULL)'
+      ' UNION ALL'
+      ' SELECT t.length_minutes, t.done_at FROM goal_subtasks t'
+      ' WHERE t.goal_id = ? AND t.done_at IS NOT NULL AND NOT EXISTS ('
+      '  SELECT 1 FROM events e WHERE e.id = t.event_id'
+      '  AND e.done_at IS NOT NULL)'
+      ') WHERE length_minutes IS NOT NULL AND done_at >= ? AND done_at < ?',
+      [
+        goalId,
+        goalId,
+        from == null ? '' : _dayStart(from),
+        to == null ? '~' : _dayStart(to.adding(days: 1)),
+      ],
+      (r) => r.optInt(0) ?? 0,
+    );
+    return rows.firstOrNull ?? 0;
+  }
+
+  /// The minutes of all the goal's blocks, on any day. [doneOnly] counts only
+  /// the blocks that are ticked done.
+  int totalMinutes(String goalId, {bool doneOnly = false}) {
+    final rows = db.query(
+      'SELECT start, end FROM events WHERE goal_id = ?'
+      '${doneOnly ? ' AND done_at IS NOT NULL' : ''}',
+      [goalId],
+      (r) => (r.text(0), r.text(1)),
+    );
+    var sum = 0;
+    for (final (s, e) in rows) {
       final start = WallTime.parse(s), end = WallTime.parse(e);
       if (start == null || end == null) continue;
       sum += EventItem(title: '', start: start, end: end).durationMinutes;
@@ -648,6 +710,7 @@ class GoalSubtaskRepo {
     'created_at',
     'updated_at',
     'event_id',
+    'length_minutes',
   ];
   static final _select = 'SELECT ${_cols.join(',')} FROM goal_subtasks';
   static const _order = 'ORDER BY sort, created_at, rowid';
@@ -662,6 +725,7 @@ class GoalSubtaskRepo {
     createdAt: r.text(5),
     updatedAt: r.text(6),
     eventId: r.optText(7),
+    lengthMinutes: r.optInt(8),
   );
 
   /// Insert or update. Refreshes `updatedAt`. Throws when the goal or the
@@ -677,6 +741,7 @@ class GoalSubtaskRepo {
       s.createdAt,
       s.updatedAt,
       s.eventId,
+      s.lengthMinutes,
     ]);
   }
 
@@ -1163,7 +1228,8 @@ class Repos {
       earnings = EarningRepo(db),
       agentJobs = AgentJobRepo(db),
       agentEvents = AgentEventRepo(db),
-      notebooks = NotebookRepo(db) {
+      notebooks = NotebookRepo(db),
+      goalSquares = GoalSquareRepo(db) {
     tasks = TaskRepo(db, search);
     events = EventRepo(db, search);
     notes = NoteRepo(db, search);
@@ -1185,6 +1251,7 @@ class Repos {
   final GoalRepo goals;
   final BlockSubtaskRepo blockSubtasks;
   final GoalSubtaskRepo goalSubtasks;
+  final GoalSquareRepo goalSquares;
   final ListRepo lists;
   final TagRepo tags;
   final LinkRepo links;

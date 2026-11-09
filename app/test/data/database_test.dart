@@ -39,20 +39,23 @@ void main() {
         'goals',
         'block_subtasks',
         'goal_subtasks',
+        'goal_squares',
+        'square_links',
+        'square_blocks',
       ]) {
         expect(tables, contains(t), reason: 'missing table $t');
       }
     });
 
-    test('there are fourteen migrations: the seven of the Mac app, and seven '
+    test('there are fifteen migrations: the seven of the Mac app, and eight '
         'of this app only', () {
       // The export file carries this number. The Mac app refuses a higher
       // one, so it does not read a file of this app (migration 8, the
       // subtasks of a goal, migration 9, the block of such a subtask,
       // migration 10, the persona, migration 11, deadlines, migration 12,
-      // the agent, migration 13, the chats of the agent, and migration 14,
-      // the notebooks, are not in the Mac app).
-      expect(Migrations.all.length, 14);
+      // the agent, migration 13, the chats of the agent, migration 14, the
+      // notebooks, and migration 15, the goal maps, are not in the Mac app).
+      expect(Migrations.all.length, 15);
     });
 
     test('migrations are idempotent', () {

@@ -99,4 +99,38 @@ void main() {
     // The panel is 320 points wide here: the phone layout.
     expect(store.leftPane, isNull);
   });
+
+  group('a project with a date', () {
+    testWidgets('shows with its date, and a tap opens the map', (tester) async {
+      final store = paneStore();
+      final goal = store.addProject(title: 'Move', dueDay: d('2026-10-10'))!;
+      store.addProject(title: 'No date');
+      store.leftPane = LeftPane.deadlines;
+      await pumpPane(tester, DeadlinesPane(store: store));
+
+      expect(find.text('Move'), findsOneWidget);
+      expect(find.text('No date'), findsNothing);
+      expect(find.textContaining('In 3 days'), findsOneWidget);
+
+      await tester.tap(byKey('deadline-project-${goal.id}'));
+      await tester.pumpAndSettle();
+      expect(store.screen, Screen.goals);
+      expect(store.shownMapGoal?.id, goal.id);
+    });
+
+    testWidgets('a finished project is gone from the panel', (tester) async {
+      final store = paneStore();
+      final goal = store.addProject(title: 'Move', dueDay: d('2026-10-10'))!;
+      store.toggleSquareDone(GoalSquare.rootIdOf(goal.id));
+      await pumpPane(tester, DeadlinesPane(store: store));
+      expect(find.text('Move'), findsNothing);
+    });
+
+    testWidgets('a date in the past says it is late', (tester) async {
+      final store = paneStore();
+      store.addProject(title: 'Move', dueDay: d('2026-10-05'));
+      await pumpPane(tester, DeadlinesPane(store: store));
+      expect(find.textContaining('2 days late'), findsOneWidget);
+    });
+  });
 }

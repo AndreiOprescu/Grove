@@ -61,6 +61,7 @@ void main() {
         'Today',
         'Planner',
         'Calendar',
+        'Goals',
         'Notes',
         'Garden',
         'Persona',

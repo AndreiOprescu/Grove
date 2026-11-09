@@ -221,7 +221,7 @@ class _BlockSubtaskEditorState extends State<BlockSubtaskEditor> {
               for (final sub in free)
                 FreeSubtaskLine(
                   key: ValueKey('block-goal-subtask-free-${sub.id}'),
-                  sub: sub,
+                  title: sub.title,
                   onTap: () =>
                       _store.assignGoalSubtask(sub.id, to: widget.eventId),
                 ),

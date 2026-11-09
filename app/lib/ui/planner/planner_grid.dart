@@ -14,6 +14,8 @@ import 'package:grove/core/planner/planner_math.dart';
 // The store has its own `MotionRules`, for the garden.
 import 'package:grove/state/state.dart' hide MotionRules;
 
+import '../goal_map/block_tick_question.dart';
+
 import '../agent/agent_dialog.dart';
 import '../theme/grove_theme.dart';
 import '../theme/named_colors.dart';
@@ -397,7 +399,7 @@ class PlannerGridState extends State<PlannerGrid> {
     if (taskId != null) {
       _store.toggleDone(taskId: taskId);
     } else if (block.isGoalBlock) {
-      _store.toggleGoalBlockDone(eventId: block.id);
+      unawaited(tickGoalBlock(context, _store, block.id));
     } else if (block.isDeadline) {
       _store.toggleDeadlineDone(block.id);
     }
@@ -830,6 +832,7 @@ class PlannerGridState extends State<PlannerGrid> {
       DragPayload.noteId(raw) != null ||
       DragPayload.goalId(raw) != null ||
       DragPayload.goalSubtaskId(raw) != null ||
+      DragPayload.squareId(raw) != null ||
       raw.startsWith(DragPayload.taskPrefix);
 
   void _drop(String raw, DayKey day, Offset global) {
@@ -845,6 +848,8 @@ class PlannerGridState extends State<PlannerGrid> {
       _store.dropGoalOnPlanner(raw: raw, day: day, minute: minute);
     } else if (DragPayload.goalSubtaskId(raw) != null) {
       _store.dropGoalSubtaskOnPlanner(raw: raw, day: day, minute: minute);
+    } else if (DragPayload.squareId(raw) != null) {
+      _store.dropSquareOnPlanner(raw: raw, day: day, minute: minute);
     } else if (raw.startsWith(DragPayload.taskPrefix)) {
       _store.schedule(
         taskId: raw.substring(DragPayload.taskPrefix.length),
@@ -1124,7 +1129,7 @@ class PlannerGridState extends State<PlannerGrid> {
       if (block.isGoalBlock)
         _item(
           block.isDone ? 'Mark Not Done' : 'Mark Done',
-          () => store.toggleGoalBlockDone(eventId: block.id),
+          () => unawaited(tickGoalBlock(context, store, block.id)),
         ),
       // A task block has the subtasks of its task: the task panel edits
       // them. A goal block has the subtasks of its goal: the goal panel

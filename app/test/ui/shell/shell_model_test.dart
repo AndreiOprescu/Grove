@@ -13,6 +13,7 @@ void main() {
         Screen.today,
         Screen.planner,
         Screen.calendar,
+        Screen.goals,
         Screen.notes,
         Screen.garden,
         Screen.persona,
@@ -22,13 +23,14 @@ void main() {
         'Today',
         'Planner',
         'Calendar',
+        'Goals',
         'Notes',
         'Garden',
         'Persona',
         'Agents',
       ]);
       // Agents shows only while the agent is on.
-      expect(Screen.always, Screen.values.take(6));
+      expect(Screen.always, Screen.values.take(7));
       expect(LocalShellModel().screens, Screen.always);
     });
 

@@ -11,6 +11,17 @@ extension AppStoreDeadlines on AppStore {
     now: clockNow(),
   );
 
+  /// The open projects with a by-when date, soonest first. Tapping one opens
+  /// its map. A finished project does not show.
+  List<GoalItem> get dueProjects {
+    final out = [
+      for (final g in goals())
+        if (g.isProject && g.dueDay != null && !isProjectFinished(g.id)) g,
+    ];
+    out.sort((a, b) => a.dueDay!.compareTo(b.dueDay!));
+    return out;
+  }
+
   /// Ticks a deadline done at the time now, or takes the tick away. The time
   /// of the tick says how early or late it was done. One undo step.
   void toggleDeadlineDone(String eventId) {

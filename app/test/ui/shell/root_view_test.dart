@@ -172,6 +172,25 @@ void main() {
       expect(content(Screen.garden), findsOneWidget);
     });
 
+    testWidgets('with no room for all words, only the selected tab has one', (
+      tester,
+    ) async {
+      final m = still();
+      await pumpApp(tester, m, size: const Size(320, 700));
+      m.screen = Screen.goals;
+      await tester.pumpAndSettle();
+      final bar = find.byType(PhoneNavBar);
+      expect(
+        find.descendant(of: bar, matching: find.text(Screen.goals.title)),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(of: bar, matching: find.text(Screen.today.title)),
+        findsNothing,
+      );
+      expect(tester.takeException(), isNull);
+    });
+
     testWidgets('a nav button is big enough for a finger', (tester) async {
       await pumpApp(tester, still(), size: phoneSize);
       for (final s in Screen.always) {

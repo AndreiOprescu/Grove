@@ -8,6 +8,7 @@ export 'backup.dart';
 export 'data_export.dart';
 export 'database.dart';
 export 'first_run.dart';
+export 'goal_square_repo.dart';
 export 'migrations.dart';
 export 'notebook_repo.dart';
 export 'persona_repo.dart';

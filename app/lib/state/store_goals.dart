@@ -43,12 +43,15 @@ extension AppStoreGoals on AppStore {
     int tally({required bool doneOnly}) =>
         _try(
           () => switch (g.kind) {
-            GoalKind.hours => repos.goals.minutes(
-              id,
-              from: week.first,
-              to: week.last,
-              doneOnly: doneOnly,
-            ),
+            // A ticked step outside a ticked block adds its length.
+            GoalKind.hours =>
+              repos.goals.minutes(
+                    id,
+                    from: week.first,
+                    to: week.last,
+                    doneOnly: doneOnly,
+                  ) +
+                  repos.goals.stepMinutes(id, from: week.first, to: week.last),
             GoalKind.sessions => repos.goals.sessions(
               id,
               from: week.first,

@@ -181,8 +181,8 @@ void main() {
 
     db = Database.open(path);
     addTearDown(db.close);
-    expect(db.userVersion, 14);
-    expect(db.syncVersion, 8);
+    expect(db.userVersion, Migrations.all.length);
+    expect(db.syncVersion, SyncMigrations.all.length);
     expect(required(db), isFalse);
     final r = Repos(db);
     final j = r.agentJobs.get('J1')!;

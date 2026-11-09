@@ -3,6 +3,7 @@ enum Screen {
   today('Today'),
   planner('Planner'),
   calendar('Calendar'),
+  goals('Goals'),
   notes('Notes'),
   garden('Garden'),
   persona('Persona'),
@@ -17,5 +18,13 @@ enum Screen {
   final String title;
 
   /// The screens that always show, in the order of the switch.
-  static const always = [today, planner, calendar, notes, garden, persona];
+  static const always = [
+    today,
+    planner,
+    calendar,
+    goals,
+    notes,
+    garden,
+    persona,
+  ];
 }

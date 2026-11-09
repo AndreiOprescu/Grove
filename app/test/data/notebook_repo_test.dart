@@ -24,8 +24,7 @@ List<String> ids(Iterable<Object> items) => [
 
 void main() {
   group('migration 14', () {
-    test('it is the newest migration', () {
-      expect(Migrations.all.length, 14);
+    test('it makes the notebook tables', () {
       expect(Migrations.all[13], contains('CREATE TABLE notebooks'));
       expect(Migrations.all[13], contains('CREATE TABLE notebook_sections'));
     });
@@ -44,7 +43,7 @@ void main() {
       );
       final db = Database.open(path);
       addTearDown(db.close);
-      expect(db.userVersion, 14);
+      expect(db.userVersion, Migrations.all.length);
       final cols = db.query(
         'PRAGMA table_info(notes)',
         const [],

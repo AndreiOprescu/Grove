@@ -17,6 +17,7 @@ import 'auth/first_sync_dialog.dart';
 import 'calendar/event_editor.dart';
 import 'editor/editor_tools.dart';
 import 'garden/garden_view.dart';
+import 'goal_map/goals_screen.dart';
 import 'notes/notes_view.dart';
 import 'persona/level_up_layer.dart';
 import 'persona/persona_view.dart';
@@ -190,6 +191,7 @@ class _StoreAppState extends State<StoreApp> {
       ),
       // The Day Spread has its own place for the panel of the chosen task.
       Screen.today => DaySpreadView(store: store),
+      Screen.goals => GoalsScreen(store: store),
       Screen.calendar => InspectorHost(
         store: store,
         child: PlannerView(store: store, kind: PlannerKind.month),

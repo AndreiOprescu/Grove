@@ -57,70 +57,11 @@ class GoalRow extends StatelessWidget {
   /// hides it.
   final VoidCallback onEdit;
 
-  Future<void> _confirmDelete(BuildContext context) async {
-    final delete = await showDialog<bool>(
-      context: context,
-      builder: (context) {
-        final theme = GroveTheme.of(context);
-        return Dialog(
-          backgroundColor: theme.solidSurface,
-          insetPadding: const EdgeInsets.all(20),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(theme.radius),
-            side: BorderSide(color: theme.line),
-          ),
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 360),
-            // The text style of the app, not the Material one of a dialog
-            // (that one adds a gap between letters).
-            child: DefaultTextStyle(
-              style: theme.body(13).copyWith(color: theme.ink),
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.all(20),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  spacing: 12,
-                  children: [
-                    ThemedHeading('Delete “${goal.title}”?', 18),
-                    Text(
-                      'Its blocks stay in the planner as plain blocks and no '
-                      'longer count. You can undo this.',
-                      style: theme.body(13).copyWith(color: theme.muted),
-                    ),
-                    Wrap(
-                      alignment: WrapAlignment.end,
-                      spacing: 8,
-                      runSpacing: 8,
-                      children: [
-                        DialogButton(
-                          label: 'Cancel',
-                          onTap: () => Navigator.of(context).pop(false),
-                        ),
-                        DialogButton(
-                          key: const ValueKey('goal-delete-confirm'),
-                          label: 'Delete Goal',
-                          primary: true,
-                          onTap: () => Navigator.of(context).pop(true),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-        );
-      },
-    );
-    if (delete ?? false) store.deleteGoal(goal.id);
-  }
-
   void _menu(BuildContext context, Offset global) =>
       showGroveMenu(context, global, [
         MenuLine(isOpen && isEditing ? 'Close Editor' : 'Edit…', onEdit),
         const MenuLine.divider(),
-        MenuLine('Delete Goal…', () => _confirmDelete(context)),
+        MenuLine('Delete Goal…', () => confirmDeleteGoal(context, store, goal)),
       ]);
 
   /// The part that is always there. A click opens or closes the goal; a
@@ -538,4 +479,68 @@ class TargetStepper extends StatelessWidget {
       ],
     );
   }
+}
+
+/// Asks before a goal goes. Its blocks stay, and undo brings it back.
+Future<void> confirmDeleteGoal(
+  BuildContext context,
+  AppStore store,
+  GoalItem goal,
+) async {
+  final delete = await showDialog<bool>(
+    context: context,
+    builder: (context) {
+      final theme = GroveTheme.of(context);
+      return Dialog(
+        backgroundColor: theme.solidSurface,
+        insetPadding: const EdgeInsets.all(20),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(theme.radius),
+          side: BorderSide(color: theme.line),
+        ),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 360),
+          // The text style of the app, not the Material one of a dialog
+          // (that one adds a gap between letters).
+          child: DefaultTextStyle(
+            style: theme.body(13).copyWith(color: theme.ink),
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                spacing: 12,
+                children: [
+                  ThemedHeading('Delete “${GoalRules.titleOf(goal)}”?', 18),
+                  Text(
+                    'Its blocks stay in the planner as plain blocks and no '
+                    'longer count. You can undo this.',
+                    style: theme.body(13).copyWith(color: theme.muted),
+                  ),
+                  Wrap(
+                    alignment: WrapAlignment.end,
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      DialogButton(
+                        label: 'Cancel',
+                        onTap: () => Navigator.of(context).pop(false),
+                      ),
+                      DialogButton(
+                        key: const ValueKey('goal-delete-confirm'),
+                        label: 'Delete Goal',
+                        primary: true,
+                        onTap: () => Navigator.of(context).pop(true),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+    },
+  );
+  if (delete ?? false) store.deleteGoal(goal.id);
 }

@@ -401,6 +401,7 @@ void main() {
         'created_at',
         'updated_at',
         'event_id',
+        'length_minutes',
       });
     });
 
