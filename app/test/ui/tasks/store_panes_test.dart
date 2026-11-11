@@ -1,6 +1,7 @@
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:grove/ui/goals/goal_panel.dart';
 import 'package:grove/ui/goals/goals_pane.dart';
 import 'package:grove/ui/planner/planner_grid.dart';
 import 'package:grove/ui/tasks/task_inspector.dart';
@@ -150,6 +151,49 @@ void main() {
       await pumpPlanner(tester, store);
       expect(inspector, findsOneWidget);
       expect(find.byType(PlannerGrid), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('only the Planner and Today screens show the panel', (
+      tester,
+    ) async {
+      final store = plannerStore();
+      addTask(store, 'Write report', id: 'report', bucket: TaskBucket.inbox);
+      store
+        ..leftPane = LeftPane.tasks
+        ..selectedTaskId = 'report';
+      await pumpPlanner(tester, store);
+      expect(inspector, findsOneWidget);
+
+      for (final screen in Screen.values) {
+        store.screen = screen;
+        await tester.pumpAndSettle();
+        final shows = screen == Screen.planner || screen == Screen.today;
+        expect(
+          inspector,
+          shows ? findsOneWidget : findsNothing,
+          reason: '$screen',
+        );
+      }
+
+      // The task stays chosen. The Planner shows its panel again.
+      store.screen = Screen.planner;
+      await tester.pumpAndSettle();
+      expect(inspector, findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('only the Planner and Today screens show the goal panel', (
+      tester,
+    ) async {
+      final store = plannerStore();
+      store.openGoalPanel(goalBlock(store));
+      await pumpPlanner(tester, store);
+      expect(find.byType(GoalPanel), findsOneWidget);
+
+      store.screen = Screen.notes;
+      await tester.pumpAndSettle();
+      expect(find.byType(GoalPanel), findsNothing);
       expect(tester.takeException(), isNull);
     });
   });

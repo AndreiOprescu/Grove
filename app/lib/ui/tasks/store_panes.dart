@@ -30,8 +30,10 @@ Widget? storePane(BuildContext context, AppStore store, LeftPane pane) =>
     };
 
 /// The panel at the right: the panel of the chosen task, or the goal
-/// panel of the chosen goal block. null when nothing is chosen.
+/// panel of the chosen goal block. null when nothing is chosen, and on a
+/// screen other than Planner and Today.
 Widget? selectedPanel(AppStore store) {
+  if (!store.showsSelectedPanel) return null;
   final taskId = store.selectedTaskId;
   if (taskId != null) return TaskInspector(store: store, taskId: taskId);
   final blockId = store.selectedGoalBlockId;

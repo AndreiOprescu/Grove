@@ -413,6 +413,11 @@ class AppStore extends ChangeNotifier {
     _changed();
   }
 
+  /// Only the Planner and Today screens show the panel of the chosen task
+  /// or goal block. The other screens hide it, and the choice stays.
+  bool get showsSelectedPanel =>
+      _screen == Screen.planner || _screen == Screen.today;
+
   /// The goal block (an event id) shown in the goal panel, or null. Set
   /// through `openGoalPanel` (see `store_goal_panel.dart`).
   String? _selectedGoalBlockId;

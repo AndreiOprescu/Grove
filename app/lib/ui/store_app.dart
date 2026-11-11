@@ -157,6 +157,8 @@ class _StoreAppState extends State<StoreApp> {
       const SingleActivator(LogicalKeyboardKey.escape): () {
         if (store.paletteOpen) {
           store.paletteOpen = false;
+        } else if (!store.showsSelectedPanel) {
+          return;
         } else if (store.selectedTaskId != null) {
           store.selectedTaskId = null;
         } else if (store.selectedGoalBlockId != null) {
@@ -184,7 +186,8 @@ class _StoreAppState extends State<StoreApp> {
   Widget? _view(Screen screen) {
     final store = widget.store;
     return switch (screen) {
-      // The panel of the chosen task is at the side of each screen (F8).
+      // The panel of the chosen task is at the side of the Planner (F8).
+      // Only the Planner and Today screens show it.
       Screen.planner => InspectorHost(
         store: store,
         child: PlannerView(store: store, kind: PlannerKind.week),
@@ -192,14 +195,8 @@ class _StoreAppState extends State<StoreApp> {
       // The Day Spread has its own place for the panel of the chosen task.
       Screen.today => DaySpreadView(store: store),
       Screen.goals => GoalsScreen(store: store),
-      Screen.calendar => InspectorHost(
-        store: store,
-        child: PlannerView(store: store, kind: PlannerKind.month),
-      ),
-      Screen.notes => InspectorHost(
-        store: store,
-        child: NotesView(store: store),
-      ),
+      Screen.calendar => PlannerView(store: store, kind: PlannerKind.month),
+      Screen.notes => NotesView(store: store),
       Screen.garden => GardenView(store: store),
       Screen.persona => PersonaView(store: store),
       Screen.agents => AgentsView(store: store),
