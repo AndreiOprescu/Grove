@@ -242,6 +242,34 @@ extension AppStorePersona on AppStore {
       }
     }
 
+    // A routine pays for each done day. Taking a done day away takes its
+    // points back; deleting the task keeps them, as for any task.
+    final goneTasks = {
+      for (final t in m.tasks)
+        if (t.after == null) ?t.before?.id,
+    };
+    final doneDays = <RoutineDone>[];
+    for (final c in m.routineDones) {
+      final (before, after) = (c.before, c.after);
+      if (before == null && after != null) doneDays.add(after);
+      if (before != null &&
+          after == null &&
+          !goneTasks.contains(before.taskId)) {
+        takeBack(EarningSource.routineDone, before.id);
+      }
+    }
+    if (doneDays.isNotEmpty) {
+      final rewards =
+          _try(() => repos.rewards.forTasks(doneDays.map((x) => x.taskId))) ??
+          const {};
+      for (final x in doneDays) {
+        final title = task(x.taskId)?.title ?? '';
+        for (final r in rewards[x.taskId] ?? const <RewardItem>[]) {
+          pay(EarningSource.routineDone, x.id, title, r, r.points);
+        }
+      }
+    }
+
     for (final e in m.events) {
       final (before, after) = (e.before, e.after);
       if (before == null || after == null) continue;

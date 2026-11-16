@@ -31,6 +31,51 @@ String oldDatabase(Directory dir, int version, String seed) {
   return path;
 }
 
+/// The columns that shared migration 16 put on `tasks`.
+const routineTaskColumns = ['routine', 'routine_since'];
+
+/// Takes the database back from shared schema 16 and sync schema 10: no
+/// `routine_done` table and no routine columns on `tasks`.
+void rewindRoutines(Database db) {
+  final trigger = db.queryOne(
+    "SELECT sql FROM sqlite_master WHERE name = 'sync_tasks_update'",
+    const [],
+    (r) => r.text(0),
+  );
+  db.executeScript('''
+    DROP TRIGGER IF EXISTS sync_tasks_update;
+    DROP TABLE routine_done;
+    ${[for (final c in routineTaskColumns) 'ALTER TABLE tasks DROP COLUMN $c;'].join('\n')}
+  ''');
+  if (trigger != null) {
+    var old = trigger;
+    for (final c in routineTaskColumns) {
+      old = old.replaceAll(' OR OLD.$c IS NOT NEW.$c', '');
+    }
+    db.executeScript('$old;');
+  }
+  final saved = db.queryOne(
+    "SELECT value FROM sync_meta WHERE key = 'triggers'",
+    const [],
+    (r) => r.text(0),
+  );
+  if (saved != null) {
+    final old = saved
+        .replaceAll(RegExp(r';routine_done:[^;]*'), '')
+        .replaceAll(',${routineTaskColumns.join(',')}', '');
+    db.execute("UPDATE sync_meta SET value = ? WHERE key = 'triggers'", [old]);
+  }
+  final hasOutbox = db.queryOne(
+    "SELECT 1 FROM sqlite_master WHERE name = 'outbox'",
+    const [],
+    (r) => r.asInt(0),
+  );
+  if (hasOutbox != null) {
+    db.execute("DELETE FROM outbox WHERE tbl = 'routine_done'");
+    db.execute("UPDATE sync_meta SET value = '9' WHERE key = 'schema'");
+  }
+}
+
 /// The columns that shared migration 15 put on `goals`.
 const goalMapGoalColumns = [
   'type',
@@ -44,8 +89,9 @@ const _goalMapTables = ['square_blocks', 'square_links', 'goal_squares'];
 
 /// Takes the database back from shared schema 15 and sync schema 9: no goal
 /// map tables, no project columns on `goals` and no step length on
-/// `goal_subtasks`.
+/// `goal_subtasks`. Routines came later, so they go first.
 void rewindGoalMap(Database db) {
+  rewindRoutines(db);
   final trigger = db.queryOne(
     "SELECT sql FROM sqlite_master WHERE name = 'sync_goals_update'",
     const [],

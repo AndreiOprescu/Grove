@@ -2,9 +2,9 @@ import 'database.dart';
 import 'sync_schema.dart';
 
 /// Ordered schema migrations. Index N takes the database from user_version N to N+1.
-/// 1 to 7 are the Mac app's migrations, word for word. 8 to 14 are in this
+/// 1 to 7 are the Mac app's migrations, word for word. 8 to 16 are in this
 /// app only (the Mac app has no subtasks of a goal, no persona, no
-/// deadlines, no agent and no notebooks). The
+/// deadlines, no agent, no notebooks, no goal map and no routines). The
 /// export file carries the number, and an app refuses a file with a higher
 /// number than its own: the Mac app does not read a file of this app. Never
 /// edit a shipped migration; append a new one.
@@ -324,6 +324,24 @@ abstract final class Migrations {
     );
     CREATE INDEX square_blocks_event ON square_blocks(event_id);
     ''',
+    // 16 — routines (2026-11-16): a task that comes back a set time after
+    // the day it was last done. `routine` holds the rule as JSON and
+    // `routine_since` the day it was turned on. Every done day is a row of
+    // `routine_done`, which goes with its task. `event_id` is the planner
+    // block that was ticked, with no foreign key: the row stays when the
+    // block goes. Not in the Mac app.
+    '''
+    ALTER TABLE tasks ADD COLUMN routine TEXT;
+    ALTER TABLE tasks ADD COLUMN routine_since TEXT;
+    CREATE TABLE routine_done (
+      id TEXT PRIMARY KEY,
+      task_id TEXT NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+      day TEXT NOT NULL,
+      event_id TEXT,
+      done_at TEXT NOT NULL
+    );
+    CREATE INDEX routine_done_task ON routine_done(task_id, day);
+    ''',
   ];
 
   /// Steps in Dart that run right before the migration at the same index,
@@ -388,7 +406,7 @@ abstract final class SyncMigrations {
   /// this order. `goal_subtasks` points at `goals` and at `events`;
   /// `goal_squares` at `goals`; `square_links` at `goal_squares`;
   /// `square_blocks` at `goal_squares` and at `events`;
-  /// `agent_jobs` at `tasks` and at `notes`; `agent_events` at
+  /// `routine_done` at `tasks`; `agent_jobs` at `tasks` and at `notes`; `agent_events` at
   /// `agent_jobs`; `notes` at `notebooks` and at `notebook_sections`.
   static const syncedTables = [
     'lists',
@@ -403,6 +421,7 @@ abstract final class SyncMigrations {
     'goal_squares',
     'square_links',
     'square_blocks',
+    'routine_done',
     'skills',
     'rewards',
     'earnings',
@@ -494,6 +513,9 @@ abstract final class SyncMigrations {
         SyncSchema.addTable(db, t);
       }
     },
+    // 10 — `routine_done` (shared migration 16) joins the sync, in the same
+    // way. The new columns of `tasks` need nothing here.
+    (db) => SyncSchema.addTable(db, 'routine_done'),
   ];
 
   static const _key = 'schema';

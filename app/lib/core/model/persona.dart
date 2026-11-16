@@ -102,7 +102,10 @@ class RewardItem {
 /// What was ticked done to pay an earning.
 enum EarningSource {
   task('task'),
-  goalBlock('goal_block');
+  goalBlock('goal_block'),
+
+  /// One done day of a routine task. The source id is the routine done id.
+  routineDone('routine_done');
 
   const EarningSource(this.code);
 

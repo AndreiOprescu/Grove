@@ -263,4 +263,45 @@ void main() {
       expect(ReminderPlanner.defaultLead, 5);
     });
   });
+
+  group('Routines', () {
+    final tomorrow = day.adding(days: 1);
+
+    test('one reminder at 09:00 on the due day', () {
+      final out = ReminderPlanner.routines(
+        due: [(id: 't1', title: 'Water plants', due: tomorrow)],
+        now: at(600),
+      );
+      expect(out, [
+        Reminder(
+          id: 'routine-t1-${tomorrow.string}',
+          title: 'Water plants',
+          body: 'Due today',
+          fireAt: at(540, tomorrow),
+          day: tomorrow,
+          ref: const ItemRef(ItemType.task, 't1'),
+        ),
+      ]);
+    });
+
+    test('none once 09:00 of the due day has passed, and none after', () {
+      expect(
+        ReminderPlanner.routines(
+          due: [
+            (id: 'a', title: 'Today', due: day),
+            (id: 'b', title: 'Late', due: day.adding(days: -2)),
+          ],
+          now: at(541),
+        ),
+        isEmpty,
+      );
+      expect(
+        ReminderPlanner.routines(
+          due: [(id: 'a', title: 'Today', due: day)],
+          now: at(480),
+        ).single.fireAt,
+        at(540),
+      );
+    });
+  });
 }
