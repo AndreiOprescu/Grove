@@ -225,9 +225,10 @@ void main() {
       expect(find.text('Chapter 4'), findsNothing);
       expect(moreLine(read), findsOneWidget);
       expect(find.text('+2 more'), findsOneWidget);
-      // A closed goal has no line to add and no fields.
+      // A closed goal has no line to add and no fields. The panel has no
+      // field of its own either.
       expect(addField(read), findsNothing);
-      expect(find.byType(EditableText), findsOneWidget);
+      expect(find.byType(EditableText), findsNothing);
     });
 
     testWidgets('a click shows all five, a second click three again', (

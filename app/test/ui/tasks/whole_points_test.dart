@@ -81,7 +81,11 @@ void main() {
 
   testWidgets('a text field has no gap between its letters', (tester) async {
     final store = paneStore();
+    final read = store.addGoal(title: 'Read')!;
     await pumpPane(tester, GoalsPane(store: store));
+    // An open habit has a line to add a subtask.
+    await tester.tap(find.byKey(ValueKey('goal-${read.id}')));
+    await tester.pumpAndSettle();
     final fields = tester.widgetList<EditableText>(find.byType(EditableText));
     expect(fields, isNotEmpty);
     for (final field in fields) {
