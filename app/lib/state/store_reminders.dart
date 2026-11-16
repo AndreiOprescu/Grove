@@ -19,15 +19,23 @@ extension AppStoreReminders on AppStore {
       if (t != null && t.status != TaskStatus.open) finished.add(id);
     }
     final bedtime = _bedtimeReminders(now);
+    final routines = ReminderPlanner.routines(
+      due: _routineDueDays(),
+      now: now,
+      limit: ReminderPlanner.limit - bedtime.length,
+    );
+    final others = ReminderPlanner.plan(
+      events: events,
+      dueTasks: _try(repos.tasks.openWithTimedDue) ?? const [],
+      finishedTaskIds: finished,
+      now: now,
+      lead: notifyLead,
+      limit: ReminderPlanner.limit - bedtime.length,
+    );
+    // The soonest ones win when there are too many.
+    final joined = ReminderPlanner.joined(others, routines);
     return ReminderPlanner.joined(
-      ReminderPlanner.plan(
-        events: events,
-        dueTasks: _try(repos.tasks.openWithTimedDue) ?? const [],
-        finishedTaskIds: finished,
-        now: now,
-        lead: notifyLead,
-        limit: ReminderPlanner.limit - bedtime.length,
-      ),
+      joined.take(ReminderPlanner.limit - bedtime.length).toList(),
       bedtime,
     );
   }

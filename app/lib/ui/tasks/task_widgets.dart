@@ -791,9 +791,24 @@ class ColourDots extends StatelessWidget {
 
 /// A thin bar. The filled part is `fraction` of it.
 class ProgressBar extends StatelessWidget {
-  const ProgressBar({super.key, required this.fraction});
+  const ProgressBar({
+    super.key,
+    required this.fraction,
+    this.color,
+    this.track,
+    this.label = 'Progress',
+  });
 
   final double fraction;
+
+  /// The full part. The accent colour when null.
+  final Color? color;
+
+  /// The empty part. `surface2` when null.
+  final Color? track;
+
+  /// What a screen reader says.
+  final String label;
 
   @override
   Widget build(BuildContext context) {
@@ -801,13 +816,13 @@ class ProgressBar extends StatelessWidget {
     final part = fraction.clamp(0.0, 1.0);
     return Semantics(
       container: true,
-      label: 'Progress',
+      label: label,
       value: '${(part * 100).round()} percent',
       child: SizedBox(
         height: 6,
         child: DecoratedBox(
           decoration: ShapeDecoration(
-            color: theme.surface2,
+            color: track ?? theme.surface2,
             shape: const StadiumBorder(),
           ),
           child: FractionallySizedBox(
@@ -815,7 +830,7 @@ class ProgressBar extends StatelessWidget {
             widthFactor: part,
             child: DecoratedBox(
               decoration: ShapeDecoration(
-                color: theme.accent,
+                color: color ?? theme.accent,
                 shape: const StadiumBorder(),
               ),
             ),

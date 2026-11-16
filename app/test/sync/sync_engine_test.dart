@@ -133,6 +133,21 @@ void fill(Device d) {
       body: 'Find a cheap broom',
     ),
   );
+  // The task is a routine too, done once in its block.
+  r.tasks.save(
+    task.copyWith(
+      routine: RoutineRule(every: 2, unit: RoutineUnit.days),
+      routineSince: DayKey('2026-10-01'),
+    ),
+  );
+  r.routineDones.save(
+    RoutineDone(
+      taskId: task.id,
+      day: DayKey('2026-10-03'),
+      eventId: block.id,
+      doneAt: '2026-10-03T08:00:00',
+    ),
+  );
   r.attachments.add(
     mime: 'image/png',
     data: Uint8List.fromList([137, 80, 78, 71, 0, 255]),
@@ -329,6 +344,7 @@ void main() {
       await b.sync();
 
       expect(b.repos.tasks.all(), isEmpty);
+      expect(b.repos.routineDones.forTask(task.id), isEmpty);
       // The block of the task went with it. The goal block has no task: it
       // stays, with its subtask.
       final left = b.repos.events.all();

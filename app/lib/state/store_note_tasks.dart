@@ -34,7 +34,8 @@ extension AppStoreNoteTasks on AppStore {
       final id = box.taskId;
       if (id == null) continue;
       final t = task(id);
-      if (t == null || t.isDone == box.checked) continue;
+      // A routine is never done for good, so its box does not tick it.
+      if (t == null || t.isRoutine || t.isDone == box.checked) continue;
       toggleDone(taskId: id);
     }
     // Finishing a task can change the text of notes. Read this one again.

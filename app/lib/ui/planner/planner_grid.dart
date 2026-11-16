@@ -392,11 +392,14 @@ class PlannerGridState extends State<PlannerGrid> {
     }
   }
 
-  /// The check box and the space bar. A task block ticks its task. A goal
-  /// block adds to the done count of its goal.
+  /// The check box and the space bar. A task block ticks its task, and the
+  /// block of a routine adds a done day. A goal block adds to the done count
+  /// of its goal.
   void _toggleDone(PlannerBlock block) {
     final taskId = block.taskId;
-    if (taskId != null) {
+    if (taskId != null && (_store.task(taskId)?.isRoutine ?? false)) {
+      _store.toggleRoutineBlock(block.id);
+    } else if (taskId != null) {
       _store.toggleDone(taskId: taskId);
     } else if (block.isGoalBlock) {
       unawaited(tickGoalBlock(context, _store, block.id));
@@ -1146,7 +1149,9 @@ class PlannerGridState extends State<PlannerGrid> {
       if (taskId != null) ...[
         _item(
           block.isDone ? 'Mark Not Done' : 'Mark Done',
-          () => store.toggleDone(taskId: taskId),
+          () => (store.task(taskId)?.isRoutine ?? false)
+              ? store.toggleRoutineBlock(block.id)
+              : store.toggleDone(taskId: taskId),
         ),
         if (store.focus?.blockId == block.id)
           _item('Stop Focus', store.stopFocus)

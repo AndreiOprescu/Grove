@@ -48,12 +48,16 @@ abstract final class AllTasksRules {
   /// `overdue`: tasks planned for a day before [today], earliest day first.
   /// `unscheduled`: tasks with no day, in the order of `split(...).noDay`.
   /// A task planned for [today] or a later day is in neither list.
-  /// A week task is never overdue.
+  /// A week task is never overdue. A routine is in neither list: it has its
+  /// own part at the top.
   static ({List<TaskItem> overdue, List<TaskItem> unscheduled}) unscheduled(
     List<TaskItem> tasks, {
     required DayKey today,
   }) {
-    final parts = split(tasks);
+    final parts = split([
+      for (final t in tasks)
+        if (t.routine == null) t,
+    ]);
     return (
       overdue: [
         for (final t in parts.byDay)

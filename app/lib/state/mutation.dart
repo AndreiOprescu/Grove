@@ -7,6 +7,7 @@ import '../core/model/goal_subtask.dart';
 import '../core/model/note.dart';
 import '../core/model/notebook.dart';
 import '../core/model/persona.dart';
+import '../core/model/routine.dart';
 import '../core/model/task.dart';
 
 /// One item before and after a change. A null `before` means "created". A
@@ -80,6 +81,9 @@ class Mutation {
   /// Sections of the notebooks.
   final List<Change<NotebookSection>> notebookSections = [];
 
+  /// Done days of routine tasks.
+  final List<Change<RoutineDone>> routineDones = [];
+
   /// Typing makes many small changes. Changes with the same key, close in
   /// time, become one undo step.
   String? mergeKey;
@@ -102,7 +106,8 @@ class Mutation {
       rewards.isEmpty &&
       earnings.isEmpty &&
       notebooks.isEmpty &&
-      notebookSections.isEmpty;
+      notebookSections.isEmpty &&
+      routineDones.isEmpty;
 
   Mutation _copy() => Mutation(name, mergeKey: mergeKey, at: at)..append(this);
 
@@ -142,7 +147,9 @@ class Mutation {
         notebooks.isNotEmpty ||
         next.notebooks.isNotEmpty ||
         notebookSections.isNotEmpty ||
-        next.notebookSections.isNotEmpty) {
+        next.notebookSections.isNotEmpty ||
+        routineDones.isNotEmpty ||
+        next.routineDones.isNotEmpty) {
       return null;
     }
     final m = _copy();
@@ -184,5 +191,6 @@ class Mutation {
     earnings.addAll(other.earnings);
     notebooks.addAll(other.notebooks);
     notebookSections.addAll(other.notebookSections);
+    routineDones.addAll(other.routineDones);
   }
 }
