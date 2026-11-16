@@ -1,11 +1,9 @@
 // Port of Sources/Grove/Goals/GoalsPane.swift.
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
-import 'package:grove/core/model/goal.dart';
 import 'package:grove/state/state.dart' hide MotionRules;
 
 import '../goal_map/project_form.dart';
-import '../planner/inline_title_field.dart' show BlurAction, InlineTitleRules;
 import '../shell/shell_layout.dart';
 import '../tasks/task_widgets.dart';
 import '../theme/grove_theme.dart';
@@ -13,7 +11,8 @@ import '../theme/panel.dart';
 import 'goal_row.dart';
 import 'project_row.dart';
 
-/// The Goals panel: habits and projects. A habit is recurring work with a
+/// The Goals panel: projects in the top half, habits in the bottom half. Each
+/// half has its own "+" and scrolls on its own. A habit is recurring work with a
 /// weekly target of hours or sessions, and no date. Drag a habit into a day to
 /// plan a block of it. Every block in the week is planned time; a block ticked
 /// done in the planner is done time. A habit is never done: it stays every
@@ -21,7 +20,8 @@ import 'project_row.dart';
 /// numbers are for the week that holds the selected day, the week the
 /// Planner shows. A goal has subtasks under it; every block of the goal has
 /// that one list. One goal at a time can be open: it shows all its
-/// subtasks, and its editor when asked.
+/// subtasks, and its editor when asked. The one open goal is kept here, for
+/// both halves.
 class GoalsPane extends StatefulWidget {
   const GoalsPane({super.key, required this.store});
 
@@ -89,21 +89,38 @@ class _GoalsPaneState extends State<GoalsPane> {
     _openGoal = id;
   });
 
-  Widget _emptyState(GroveTheme theme) => Center(
-    child: Column(
-      mainAxisSize: MainAxisSize.min,
-      spacing: 8,
-      children: [
-        Icon(Icons.track_changes, size: 22, color: theme.accent),
-        Text(
-          'No goals yet. A goal is something you want to give hours or '
-          'sessions to each week.',
-          textAlign: TextAlign.center,
-          style: theme.body(12).copyWith(color: theme.muted),
-        ),
-      ],
-    ),
-  );
+  /// The "+" of the Projects half: the form of a project, then its map.
+  Future<void> _newProject() async {
+    final phone =
+        ShellRules.layoutFor(MediaQuery.sizeOf(context).width) ==
+        ShellLayout.phone;
+    final goal = await showNewGoalForm(
+      context,
+      _store,
+      project: true,
+      lockType: true,
+    );
+    if (goal == null) return;
+    if (phone) _store.leftPane = null;
+    _store.openGoalMap(goal.id);
+  }
+
+  /// The "+" of the Habits half: the form of a habit. The new habit is the
+  /// open goal. It has no subtasks, so its add line takes the keys, and that
+  /// brings it into view at the end of the list.
+  Future<void> _newHabit() async {
+    final goal = await showNewGoalForm(
+      context,
+      _store,
+      project: false,
+      lockType: true,
+    );
+    if (goal == null || !mounted) return;
+    setState(() {
+      _openGoal = goal.id;
+      _editing = false;
+    });
+  }
 
   @override
   Widget build(BuildContext context) => StoreBuilder(
@@ -114,7 +131,15 @@ class _GoalsPaneState extends State<GoalsPane> {
       final sundayFirst = _store.weekStartsSunday;
       final week = GoalRules.week(day, sundayFirst: sundayFirst);
       final goals = _store.goals();
-      final subtasks = _store.goalSubtasksOf([for (final g in goals) g.id]);
+      final projects = [
+        for (final g in goals)
+          if (g.isProject) g,
+      ];
+      final habits = [
+        for (final g in goals)
+          if (!g.isProject) g,
+      ];
+      final subtasks = _store.goalSubtasksOf([for (final g in habits) g.id]);
       final marks = _store.goalSubtaskMarks(subtasks.values.expand((s) => s));
       return Panel(
         child: Padding(
@@ -134,49 +159,54 @@ class _GoalsPaneState extends State<GoalsPane> {
                   ),
                 ],
               ),
-              GoalAddRow(store: _store),
-              _NewProjectLine(store: _store),
               Expanded(
-                child: goals.isEmpty
-                    ? _emptyState(theme)
-                    : ScrollConfiguration(
-                        behavior: ScrollConfiguration.of(context)
-                            .copyWith(scrollbars: false),
-                        child: SingleChildScrollView(
-                          padding: const EdgeInsets.only(bottom: 8),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
-                            mainAxisSize: MainAxisSize.min,
-                            spacing: 6,
-                            children: [
-                              for (final goal in goals)
-                                if (goal.isProject)
-                                  ProjectRow(
-                                    key: ValueKey('goal-row-${goal.id}'),
-                                    store: _store,
-                                    goal: goal,
-                                  )
-                                else
-                                  GoalRow(
-                                    key: ValueKey('goal-row-${goal.id}'),
-                                    store: _store,
-                                    goal: goal,
-                                    progress: _store.goalProgress(
-                                      goal.id,
-                                      weekOf: day,
-                                      sundayFirst: sundayFirst,
-                                    ),
-                                    subtasks: subtasks[goal.id] ?? const [],
-                                    subtaskMarks: marks,
-                                    isOpen: _openGoal == goal.id,
-                                    isEditing: _openGoal == goal.id && _editing,
-                                    onToggle: () => _toggle(goal.id),
-                                    onEdit: () => _edit(goal.id),
-                                  ),
-                            ],
-                          ),
-                        ),
+                child: _GoalSection(
+                  key: const ValueKey('goal-section-projects'),
+                  title: 'Projects',
+                  count: projects.length,
+                  addKey: const ValueKey('goal-new-project'),
+                  addLabel: 'New project',
+                  onAdd: _newProject,
+                  emptyText: 'No projects yet',
+                  children: [
+                    for (final goal in projects)
+                      ProjectRow(
+                        key: ValueKey('goal-row-${goal.id}'),
+                        store: _store,
+                        goal: goal,
                       ),
+                  ],
+                ),
+              ),
+              Expanded(
+                child: _GoalSection(
+                  key: const ValueKey('goal-section-habits'),
+                  title: 'Habits',
+                  count: habits.length,
+                  addKey: const ValueKey('goal-new-habit'),
+                  addLabel: 'New habit',
+                  onAdd: _newHabit,
+                  emptyText: 'No habits yet',
+                  children: [
+                    for (final goal in habits)
+                      GoalRow(
+                        key: ValueKey('goal-row-${goal.id}'),
+                        store: _store,
+                        goal: goal,
+                        progress: _store.goalProgress(
+                          goal.id,
+                          weekOf: day,
+                          sundayFirst: sundayFirst,
+                        ),
+                        subtasks: subtasks[goal.id] ?? const [],
+                        subtaskMarks: marks,
+                        isOpen: _openGoal == goal.id,
+                        isEditing: _openGoal == goal.id && _editing,
+                        onToggle: () => _toggle(goal.id),
+                        onEdit: () => _edit(goal.id),
+                      ),
+                  ],
+                ),
               ),
             ],
           ),
@@ -186,153 +216,111 @@ class _GoalsPaneState extends State<GoalsPane> {
   );
 }
 
-/// Opens the form of a new project, and then its map.
-class _NewProjectLine extends StatelessWidget {
-  const _NewProjectLine({required this.store});
+/// One half of the Goals panel: a header with the count and a "+", and its
+/// own scroll of rows. With no rows it says so.
+class _GoalSection extends StatelessWidget {
+  const _GoalSection({
+    super.key,
+    required this.title,
+    required this.count,
+    required this.addKey,
+    required this.addLabel,
+    required this.onAdd,
+    required this.emptyText,
+    required this.children,
+  });
 
-  final AppStore store;
-
-  Future<void> _open(BuildContext context) async {
-    final phone =
-        ShellRules.layoutFor(MediaQuery.sizeOf(context).width) ==
-        ShellLayout.phone;
-    final goal = await showNewGoalForm(context, store, project: true);
-    if (goal == null) return;
-    if (phone) store.leftPane = null;
-    store.openGoalMap(goal.id);
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = GroveTheme.of(context);
-    return Semantics(
-      container: true,
-      button: true,
-      label: 'New project',
-      onTap: () => _open(context),
-      excludeSemantics: true,
-      child: MouseRegion(
-        cursor: SystemMouseCursors.click,
-        child: GestureDetector(
-          key: const ValueKey('goal-new-project'),
-          behavior: HitTestBehavior.opaque,
-          onTap: () => _open(context),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
-            child: Row(
-              spacing: 6,
-              children: [
-                Icon(
-                  Icons.account_tree_outlined,
-                  size: 14,
-                  color: theme.accent,
-                ),
-                Text(
-                  'New project…',
-                  style: theme.body(12).copyWith(color: theme.accent),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-/// One line to add a goal: a name, Hours or Sessions, and the target per
-/// week. Return adds it. Leaving the field with a name in it adds it too.
-class GoalAddRow extends StatefulWidget {
-  const GoalAddRow({super.key, required this.store});
-
-  final AppStore store;
-
-  @override
-  State<GoalAddRow> createState() => _GoalAddRowState();
-}
-
-class _GoalAddRowState extends State<GoalAddRow> {
-  final _text = TextEditingController();
-  final _focus = FocusNode();
-  GoalKind _kind = GoalKind.hours;
-  int _target = GoalRules.defaultTarget;
-
-  @override
-  void initState() {
-    super.initState();
-    _focus.addListener(_focusChanged);
-  }
-
-  @override
-  void dispose() {
-    _focus.removeListener(_focusChanged);
-    _focus.dispose();
-    _text.dispose();
-    super.dispose();
-  }
-
-  void _focusChanged() {
-    if (!_focus.hasFocus &&
-        InlineTitleRules.onBlur(_text.text) == BlurAction.commit) {
-      _save();
-    }
-  }
-
-  /// Adds the goal and clears the field. The target goes back to the
-  /// default of the kind for the next one. The kind stays, so several
-  /// goals of one kind are quick to add.
-  bool _save() {
-    final goal = widget.store.addGoal(
-      title: _text.text,
-      kind: _kind,
-      target: _target,
-    );
-    if (goal == null) return false;
-    _text.clear();
-    if (mounted) {
-      setState(() => _target = GoalRules.defaultTargetFor(_kind));
-    }
-    return true;
-  }
+  final String title;
+  final int count;
+  final Key addKey;
+  final String addLabel;
+  final VoidCallback onAdd;
+  final String emptyText;
+  final List<Widget> children;
 
   @override
   Widget build(BuildContext context) {
     final theme = GroveTheme.of(context);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
-      mainAxisSize: MainAxisSize.min,
       spacing: 6,
       children: [
-        GroveField(
-          key: const ValueKey('goal-add'),
-          controller: _text,
-          focusNode: _focus,
-          placeholder: 'Add a goal…',
-          boxed: true,
-          radius: 10,
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-          leading: Icon(Icons.add_circle, size: 16, color: theme.accent),
-          keepFocus: true,
-          onSubmitted: (_) => _save(),
-          onEscape: () {
-            _text.clear();
-            _focus.unfocus();
-          },
+        Row(
+          children: [
+            Expanded(
+              child: Row(
+                spacing: 6,
+                children: [
+                  Flexible(
+                    child: ThemedHeading(title, 12, weight: FontWeight.w700),
+                  ),
+                  if (count > 0)
+                    Text(
+                      '$count',
+                      style: theme
+                          .body(10, weight: FontWeight.w600)
+                          .copyWith(color: theme.muted),
+                    ),
+                ],
+              ),
+            ),
+            IconTap(
+              key: addKey,
+              icon: Icons.add,
+              label: addLabel,
+              color: theme.accent,
+              size: 16,
+              minSide: 28,
+              onTap: onAdd,
+            ),
+          ],
         ),
-        GoalKindPicker(
-          kind: _kind,
-          onChange: (k) => setState(() {
-            _kind = k;
-            _target = GoalRules.defaultTargetFor(k);
-          }),
-        ),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 4),
-          child: TargetStepper(
-            kind: _kind,
-            value: _target,
-            onChange: (v) => setState(() => _target = v),
-          ),
+        Expanded(
+          child: children.isEmpty
+              ? Align(
+                  alignment: Alignment.topCenter,
+                  child: DashedBorder(
+                    color: theme.line,
+                    radius: 10,
+                    dash: 4,
+                    gap: 3,
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(
+                        minHeight: 34,
+                        minWidth: double.infinity,
+                      ),
+                      // On the left: a centred text can fall between two
+                      // pixels and look blurred.
+                      child: Align(
+                        alignment: Alignment.centerLeft,
+                        heightFactor: 1,
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 6,
+                          ),
+                          child: Text(
+                            emptyText,
+                            style: theme.body(11).copyWith(color: theme.muted),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                )
+              : ScrollConfiguration(
+                  behavior: ScrollConfiguration.of(context)
+                      .copyWith(scrollbars: false),
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      mainAxisSize: MainAxisSize.min,
+                      spacing: 6,
+                      children: children,
+                    ),
+                  ),
+                ),
         ),
       ],
     );

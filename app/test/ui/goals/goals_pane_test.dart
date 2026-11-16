@@ -1,14 +1,22 @@
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:grove/ui/goals/goal_row.dart';
 import 'package:grove/ui/goals/goals_pane.dart';
+import 'package:grove/ui/theme/panel.dart' show DashedBorder;
 
 import '../tasks/tasks_support.dart';
 
 Finder byKey(String key) => find.byKey(ValueKey(key));
 
-final addField = byKey('goal-add');
+/// The top half of the panel, and the bottom half.
+final projects = byKey('goal-section-projects');
+final habits = byKey('goal-section-habits');
+
+/// The "+" of each half.
+final newProject = byKey('goal-new-project');
+final newHabit = byKey('goal-new-habit');
 
 Finder input(Finder field) =>
     find.descendant(of: field, matching: find.byType(EditableText));
@@ -24,8 +32,6 @@ Finder step(Finder scope, {required bool up}) => find.descendant(
   matching: byKey(up ? 'target-more' : 'target-less'),
 );
 
-final adder = find.byType(GoalAddRow);
-
 /// "Edit goal…" in an open goal.
 Finder editLine(GoalItem goal) => byKey('goal-edit-${goal.id}');
 
@@ -33,6 +39,14 @@ Future<void> tapOn(WidgetTester tester, Finder finder) async {
   await tester.ensureVisible(finder);
   await tester.pumpAndSettle();
   await tester.tap(finder);
+  await tester.pumpAndSettle();
+}
+
+/// A turn of the mouse wheel over the middle of `scope`.
+Future<void> wheel(WidgetTester tester, Finder scope, double dy) async {
+  final mouse = TestPointer(1, PointerDeviceKind.mouse);
+  await tester.sendEventToBinding(mouse.hover(tester.getCenter(scope)));
+  await tester.sendEventToBinding(mouse.scroll(Offset(0, dy)));
   await tester.pumpAndSettle();
 }
 
@@ -49,13 +63,117 @@ Future<AppStore> pumpGoals(
 
 void main() {
   group('the panel', () {
-    testWidgets('an empty panel says what a goal is', (tester) async {
+    testWidgets('an empty panel has a Projects half and a Habits half', (
+      tester,
+    ) async {
       await pumpGoals(tester);
       expect(find.text('Goals'), findsOneWidget);
       expect(find.text('This week'), findsOneWidget);
-      expect(find.textContaining('No goals yet.'), findsOneWidget);
-      expect(find.text('5 h / week'), findsOneWidget);
+      expect(
+        find.descendant(of: projects, matching: find.text('Projects')),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(of: habits, matching: find.text('Habits')),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(of: projects, matching: find.text('No projects yet')),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(of: habits, matching: find.text('No habits yet')),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(of: projects, matching: newProject),
+        findsOneWidget,
+      );
+      expect(find.descendant(of: habits, matching: newHabit), findsOneWidget);
+      // The box of an empty half is one line high, not the whole half.
+      final empty = find.ancestor(
+        of: find.text('No projects yet'),
+        matching: find.byType(DashedBorder),
+      );
+      expect(tester.getSize(empty).height, lessThan(60));
+      // The old add line is gone.
+      expect(byKey('goal-add'), findsNothing);
       expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('the Projects half is on top, and the halves are the same '
+        'height', (tester) async {
+      // A count beside one heading and none beside the other.
+      await pumpGoals(tester, before: (store) => store.addGoal(title: 'Read'));
+      final top = tester.getRect(projects);
+      final bottom = tester.getRect(habits);
+      expect(top.bottom, lessThanOrEqualTo(bottom.top));
+      expect(top.height, closeTo(bottom.height, 1));
+      // The two "+" sit one over the other, at the right.
+      expect(tester.getCenter(newProject).dx, tester.getCenter(newHabit).dx);
+    });
+
+    testWidgets('a project is in the top half, a habit in the bottom half', (
+      tester,
+    ) async {
+      late GoalItem trip;
+      late GoalItem read;
+      await pumpGoals(
+        tester,
+        before: (store) {
+          read = store.addGoal(title: 'Read')!;
+          trip = store.addProject(title: 'Trip')!;
+        },
+      );
+      expect(
+        find.descendant(of: projects, matching: goalRow(trip)),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(of: habits, matching: goalRow(read)),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(of: habits, matching: goalRow(trip)),
+        findsNothing,
+      );
+      expect(
+        find.descendant(of: projects, matching: goalRow(read)),
+        findsNothing,
+      );
+      expect(find.text('No projects yet'), findsNothing);
+      expect(find.text('No habits yet'), findsNothing);
+    });
+
+    testWidgets('each half scrolls on its own', (tester) async {
+      await pumpGoals(
+        tester,
+        before: (store) {
+          for (var i = 0; i < 8; i++) {
+            store.addProject(title: 'Project $i');
+          }
+          for (var i = 0; i < 15; i++) {
+            store.addGoal(title: 'Habit $i');
+          }
+        },
+      );
+      ScrollPosition positionOf(Finder half) => tester
+          .state<ScrollableState>(
+            find.descendant(of: half, matching: find.byType(Scrollable)).first,
+          )
+          .position;
+
+      expect(positionOf(projects).maxScrollExtent, greaterThan(0));
+      expect(positionOf(habits).maxScrollExtent, greaterThan(0));
+
+      await wheel(tester, habits, 200);
+      expect(positionOf(habits).pixels, greaterThan(0));
+      expect(positionOf(projects).pixels, 0);
+
+      await wheel(tester, projects, 120);
+      expect(positionOf(projects).pixels, greaterThan(0));
+      // The habits stay where they were.
+      expect(positionOf(habits).pixels, greaterThan(0));
     });
 
     testWidgets('the header names the week of the selected day', (
@@ -119,79 +237,111 @@ void main() {
     });
   });
 
-  group('the line to add a goal', () {
-    testWidgets('Return adds a goal of 5 hours a week', (tester) async {
-      final store = await pumpGoals(tester);
-      await typeLine(tester, addField, 'Deep work');
-
-      final goal = store.goals().single;
-      expect(goal.title, 'Deep work');
-      expect(goal.kind, GoalKind.hours);
-      expect(goal.targetMin, 300);
-      expect(find.text('0 / 5 h done'), findsOneWidget);
-      expect(tester.widget<EditableText>(input(addField)).controller.text, '');
+  group('the + of the Projects half', () {
+    testWidgets('it opens the form of a project, with no choice of type', (
+      tester,
+    ) async {
+      await pumpGoals(tester);
+      await tapOn(tester, newProject);
+      expect(find.text('New project'), findsOneWidget);
+      expect(byKey('form-type-project'), findsNothing);
+      expect(byKey('form-type-habit'), findsNothing);
+      expect(byKey('form-done-when'), findsOneWidget);
     });
 
-    testWidgets('the stepper sets the hours', (tester) async {
+    testWidgets('Create makes a project and opens its map', (tester) async {
       final store = await pumpGoals(tester);
-      await tapOn(tester, step(adder, up: true));
-      await tapOn(tester, step(adder, up: true));
-      expect(find.text('6 h / week'), findsOneWidget);
-      await tapOn(tester, step(adder, up: false));
-      expect(find.text('5.5 h / week'), findsOneWidget);
+      await tapOn(tester, newProject);
+      await tester.enterText(byKey('form-title'), 'Trip');
+      await tester.pump();
+      await tapOn(tester, byKey('form-save'));
 
-      await typeLine(tester, addField, 'Read');
-      expect(store.goals().single.targetMin, 330);
-      // The next goal starts from the default again.
+      final goal = store.goals().single;
+      expect(goal.isProject, isTrue);
+      expect(goal.title, 'Trip');
+      expect(store.screen, Screen.goals);
+      expect(store.shownMapGoal?.id, goal.id);
+    });
+
+    testWidgets('Cancel makes nothing', (tester) async {
+      final store = await pumpGoals(tester);
+      await tapOn(tester, newProject);
+      await tapOn(tester, find.text('Cancel'));
+      expect(store.goals(), isEmpty);
+    });
+  });
+
+  group('the + of the Habits half', () {
+    testWidgets('it opens the form of a habit, with no choice of type', (
+      tester,
+    ) async {
+      await pumpGoals(tester);
+      await tapOn(tester, newHabit);
+      expect(find.text('New habit'), findsOneWidget);
+      expect(byKey('form-type-project'), findsNothing);
+      expect(byKey('form-type-habit'), findsNothing);
+      expect(byKey('form-done-when'), findsNothing);
       expect(find.text('5 h / week'), findsOneWidget);
     });
 
-    testWidgets('a goal of sessions', (tester) async {
+    testWidgets('Create makes a habit and opens it', (tester) async {
       final store = await pumpGoals(tester);
-      await tapOn(
-        tester,
-        find.descendant(of: adder, matching: find.text('Sessions')),
-      );
-      expect(find.text('3 sessions / week'), findsOneWidget);
-      await tapOn(tester, step(adder, up: false));
-      await tapOn(tester, step(adder, up: false));
-      expect(find.text('1 session / week'), findsOneWidget);
-      // One is the least.
-      await tapOn(tester, step(adder, up: false));
-      expect(find.text('1 session / week'), findsOneWidget);
+      await tapOn(tester, newHabit);
+      await tester.enterText(byKey('form-title'), 'Gym');
+      await tapOn(tester, find.text('Sessions'));
+      await tapOn(tester, byKey('target-less'));
+      await tapOn(tester, byKey('form-save'));
 
-      await typeLine(tester, addField, 'Gym');
       final goal = store.goals().single;
+      expect(goal.isProject, isFalse);
+      expect(goal.title, 'Gym');
       expect(goal.kind, GoalKind.sessions);
-      expect(goal.targetCount, 1);
-      // The kind stays for the next goal. The target starts again.
-      expect(find.text('3 sessions / week'), findsOneWidget);
+      expect(goal.targetCount, 2);
+      // The new habit is open in the bottom half, without its editor.
+      expect(
+        find.descendant(of: habits, matching: editLine(goal)),
+        findsOneWidget,
+      );
+      expect(find.byType(GoalEditor), findsNothing);
+      expect(store.screen, isNot(Screen.goals));
     });
 
-    testWidgets('a name that is typed is added when the field loses the keys', (
+    testWidgets('a new habit at the end of a long list is shown', (
       tester,
     ) async {
-      final store = await pumpGoals(tester);
-      await tester.tap(addField);
-      await tester.enterText(input(addField), 'Read');
-      FocusManager.instance.primaryFocus?.unfocus();
-      await tester.pumpAndSettle();
-      expect(store.goals().single.title, 'Read');
+      final store = await pumpGoals(
+        tester,
+        before: (store) {
+          for (var i = 0; i < 15; i++) {
+            store.addGoal(title: 'Habit $i');
+          }
+        },
+      );
+      await tapOn(tester, newHabit);
+      await tester.enterText(byKey('form-title'), 'Last');
+      await tester.pump();
+      await tapOn(tester, byKey('form-save'));
+      final goal = store.goals().last;
+      expect(goal.title, 'Last');
+      final half = tester.getRect(habits);
+      final row = tester.getRect(goalRow(goal));
+      expect(row.top, greaterThanOrEqualTo(half.top));
+      expect(row.bottom, lessThanOrEqualTo(half.bottom));
     });
 
-    testWidgets('Esc clears the field and adds nothing', (tester) async {
+    testWidgets('a habit needs a name', (tester) async {
       final store = await pumpGoals(tester);
-      await tester.tap(addField);
-      await tester.enterText(input(addField), 'Read');
-      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      await tapOn(tester, newHabit);
+      await tester.tap(byKey('form-save'), warnIfMissed: false);
       await tester.pumpAndSettle();
       expect(store.goals(), isEmpty);
-      expect(tester.widget<EditableText>(input(addField)).controller.text, '');
+      expect(byKey('form-save'), findsOneWidget);
     });
 
-    testWidgets('an empty name adds nothing', (tester) async {
+    testWidgets('Cancel makes nothing', (tester) async {
       final store = await pumpGoals(tester);
-      await typeLine(tester, addField, '   ');
+      await tapOn(tester, newHabit);
+      await tapOn(tester, find.text('Cancel'));
       expect(store.goals(), isEmpty);
     });
   });
@@ -238,6 +388,33 @@ void main() {
       expect(nameField(read), findsNothing);
       expect(editLine(read), findsNothing);
       expect(nameField(gym), findsOneWidget);
+    });
+
+    testWidgets('one goal is open at a time, with projects in the panel too', (
+      tester,
+    ) async {
+      final store = await pumpGoals(
+        tester,
+        size: const Size(320, 800),
+        before: (store) {
+          store.addProject(title: 'Trip');
+          read = store.addGoal(title: 'Read')!;
+          gym = store.addGoal(title: 'Gym')!;
+        },
+      );
+      await tapOn(tester, goalRow(read));
+      expect(editLine(read), findsOneWidget);
+      await tapOn(tester, goalRow(gym));
+      expect(editLine(read), findsNothing);
+      expect(editLine(gym), findsOneWidget);
+      // A new habit made with the "+" is the one open goal.
+      await tapOn(tester, newHabit);
+      await tester.enterText(byKey('form-title'), 'Walk');
+      await tester.pump();
+      await tapOn(tester, byKey('form-save'));
+      final walk = store.goals().firstWhere((g) => g.title == 'Walk');
+      expect(editLine(gym), findsNothing);
+      expect(editLine(walk), findsOneWidget);
     });
 
     testWidgets('Return saves the name and closes the editor', (tester) async {
@@ -357,7 +534,7 @@ void main() {
 
       expect(store.goals(), isEmpty);
       expect(store.repos.events.all().single.goalId, isNull);
-      expect(find.textContaining('No goals yet.'), findsOneWidget);
+      expect(find.text('No habits yet'), findsOneWidget);
 
       store.undo();
       await tester.pumpAndSettle();
@@ -386,4 +563,45 @@ void main() {
     expect(nameField(goal), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
+
+  for (final (name, size) in [
+    ('a phone', phoneSize),
+    ('a short window', paneSize),
+  ]) {
+    testWidgets('on $name each half shows its "+" and a row or more', (
+      tester,
+    ) async {
+      late GoalItem firstProject;
+      late GoalItem firstHabit;
+      await pumpGoals(
+        tester,
+        size: size,
+        before: (store) {
+          firstProject = store.addProject(title: 'Project 0')!;
+          for (var i = 1; i < 6; i++) {
+            store.addProject(title: 'Project $i');
+          }
+          firstHabit = store.addGoal(title: 'Habit 0')!;
+          for (var i = 1; i < 12; i++) {
+            store.addGoal(title: 'Habit $i');
+          }
+        },
+      );
+      expect(tester.takeException(), isNull);
+      for (final (half, plus, row) in [
+        (projects, newProject, goalRow(firstProject)),
+        (habits, newHabit, goalRow(firstHabit)),
+      ]) {
+        final box = tester.getRect(half);
+        expect(box.height, greaterThan(100));
+        for (final part in [plus, row]) {
+          final rect = tester.getRect(part);
+          expect(rect.top, greaterThanOrEqualTo(box.top));
+          expect(rect.bottom, lessThanOrEqualTo(box.bottom));
+        }
+        // The "+" takes a tap where it is drawn.
+        expect(plus.hitTestable(), findsOneWidget);
+      }
+    });
+  }
 }
