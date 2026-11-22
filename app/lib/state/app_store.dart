@@ -25,6 +25,7 @@ import '../core/model/link.dart';
 import '../core/model/note.dart';
 import '../core/model/notebook.dart';
 import '../core/model/recurrence.dart';
+import '../core/model/routine.dart';
 import '../core/model/task.dart';
 import '../core/model/task_color.dart';
 import '../core/parsing/at_date.dart';
@@ -39,6 +40,7 @@ import '../core/services/focus_rules.dart';
 import '../core/services/persona.dart';
 import '../core/services/bedtime_planner.dart';
 import '../core/services/reminder_planner.dart';
+import '../core/services/routine_rules.dart';
 import '../core/sleep/activity.dart';
 import '../core/sleep/sleep_night.dart';
 import '../core/sleep/sleep_stats.dart';
@@ -105,6 +107,7 @@ part 'store_persona.dart';
 part 'store_planner.dart';
 part 'store_reminders.dart';
 part 'store_roll_over.dart';
+part 'store_routines.dart';
 part 'store_sleep.dart';
 part 'store_step_length.dart';
 part 'store_sync.dart';
@@ -654,6 +657,7 @@ class AppStore extends ChangeNotifier {
     _unplanSubtasksOfDeletedBlocks(m);
     _addMapRowsOfDeletions(m);
     _addRewardsOfDeletedOwners(m);
+    _addRoutineDonesOfDeletedTasks(m);
     _addEarnings(m);
     final days = _plannedDays(m);
     final before = {for (final d in days) d: plannedMinutes(d)};
@@ -688,6 +692,25 @@ class AppStore extends ChangeNotifier {
     for (final id in deleted) {
       for (final sub in subs[id] ?? const <BlockSubtaskItem>[]) {
         if (listed.add(sub.id)) m.blockSubtasks.add((before: sub, after: null));
+      }
+    }
+  }
+
+  /// Deleting a task also deletes its routine done days (the database does
+  /// that). This puts them in the change, so undo brings them back and the
+  /// sync sends the deletes.
+  void _addRoutineDonesOfDeletedTasks(Mutation m) {
+    final deleted = [
+      for (final t in m.tasks)
+        if (t.after == null) ?t.before?.id,
+    ];
+    if (deleted.isEmpty) return;
+    final dones = _try(() => repos.routineDones.forTasks(deleted));
+    if (dones == null || dones.isEmpty) return;
+    final listed = {for (final c in m.routineDones) ?(c.before ?? c.after)?.id};
+    for (final id in deleted) {
+      for (final x in dones[id] ?? const <RoutineDone>[]) {
+        if (listed.add(x.id)) m.routineDones.add((before: x, after: null));
       }
     }
   }
@@ -808,6 +831,11 @@ class AppStore extends ChangeNotifier {
           final x = target(e);
           if (x != null) repos.events.save(x);
         }
+        // After the tasks: a done day needs its task.
+        for (final c in m.routineDones) {
+          final x = target(c);
+          if (x != null) repos.routineDones.save(x);
+        }
         // After the events: a subtask needs its block.
         for (final b in m.blockSubtasks) {
           final x = target(b);
@@ -908,6 +936,10 @@ class AppStore extends ChangeNotifier {
         for (final b in m.blockSubtasks) {
           final id = source(b)?.id;
           if (target(b) == null && id != null) repos.blockSubtasks.delete(id);
+        }
+        for (final c in m.routineDones) {
+          final id = source(c)?.id;
+          if (target(c) == null && id != null) repos.routineDones.delete(id);
         }
         for (final s in m.squares) {
           final id = source(s)?.id;

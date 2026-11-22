@@ -68,6 +68,14 @@ _Avoid_: Goal inspector, goal sheet
 The panel on the right that shows a task's details when the user taps that task or its block.
 _Avoid_: Task inspector
 
+**Routine**:
+A task that comes back a set time (every N days, weeks or months) after the day it was last done. It never closes when ticked, it has no due date and no repeat, and it lives in the Routines list at the top of the Tasks panel.
+_Avoid_: Recurring task, repeat (a repeat makes a new copy of a task on fixed dates)
+
+**Routine done**:
+One day on which a routine was ticked, in the list or on a planner block. Every one is kept; the newest one starts the clock again. Un-ticking removes it, and the clock goes back to the one before.
+_Avoid_: Completion, check-in
+
 ### Text editor
 
 **Rich text box**:

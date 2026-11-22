@@ -8,6 +8,7 @@ import '../core/model/goal_subtask.dart';
 import '../core/model/link.dart';
 import '../core/model/note.dart';
 import '../core/model/recurrence.dart';
+import '../core/model/routine.dart';
 import '../core/model/task.dart';
 import '../core/parsing/note_parser.dart';
 import '../core/parsing/reference_parser.dart';
@@ -19,6 +20,7 @@ import 'goal_square_repo.dart';
 import 'notebook_repo.dart';
 import 'persona_repo.dart';
 import 'reference_indexer.dart';
+import 'routine_done_repo.dart';
 import 'search_index.dart';
 
 /// Builds `INSERT … ON CONFLICT(id) DO UPDATE` so a save never deletes and
@@ -66,6 +68,8 @@ class TaskRepo {
     'completed_at',
     'summary',
     'color',
+    'routine',
+    'routine_since',
   ];
   static final _select = 'SELECT ${_cols.join(',')} FROM tasks';
   static final _upsert = _upsertSql('tasks', _cols);
@@ -91,6 +95,8 @@ class TaskRepo {
     completedAt: r.optText(17),
     summary: r.text(18),
     color: r.text(19),
+    routine: RoutineRule.fromJson(r.optText(20)),
+    routineSince: DayKey.parse(r.optText(21) ?? ''),
   );
 
   List<TaskItem> _where(String clause, [List<Object?> args = const []]) =>
@@ -121,6 +127,8 @@ class TaskRepo {
         t.completedAt,
         t.summary,
         t.color,
+        t.routine?.json(),
+        t.routineSince?.string,
       ]);
       search.upsert(ItemType.task, t.id, t.title, searchBody(t));
     });
@@ -198,6 +206,12 @@ class TaskRepo {
   /// Every open top-level task, whatever its bucket. The Planner screen's task list.
   List<TaskItem> openTopLevel() => _where(
     "WHERE status = 'open' AND parent_id IS NULL "
+    'ORDER BY sort, created_at, rowid',
+  );
+
+  /// The open top-level routines.
+  List<TaskItem> routines() => _where(
+    "WHERE routine IS NOT NULL AND status = 'open' AND parent_id IS NULL "
     'ORDER BY sort, created_at, rowid',
   );
 
@@ -1229,7 +1243,8 @@ class Repos {
       agentJobs = AgentJobRepo(db),
       agentEvents = AgentEventRepo(db),
       notebooks = NotebookRepo(db),
-      goalSquares = GoalSquareRepo(db) {
+      goalSquares = GoalSquareRepo(db),
+      routineDones = RoutineDoneRepo(db) {
     tasks = TaskRepo(db, search);
     events = EventRepo(db, search);
     notes = NoteRepo(db, search);
@@ -1252,6 +1267,7 @@ class Repos {
   final BlockSubtaskRepo blockSubtasks;
   final GoalSubtaskRepo goalSubtasks;
   final GoalSquareRepo goalSquares;
+  final RoutineDoneRepo routineDones;
   final ListRepo lists;
   final TagRepo tags;
   final LinkRepo links;

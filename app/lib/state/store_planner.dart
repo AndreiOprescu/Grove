@@ -92,6 +92,16 @@ extension AppStorePlanner on AppStore {
           ]),
         ) ??
         const <String, List<GoalSquare>>{};
+    // The ticked blocks of routines: a routine task stays open, so its
+    // block is done when a done day points at it.
+    final routineTicks =
+        _try(
+          () => repos.routineDones.forEvents([
+            for (final e in events)
+              if (e.taskId != null && !e.allDay) e.id,
+          ]),
+        ) ??
+        const <String, RoutineDone>{};
     // The blocks with a linked note (their meeting note), in one query.
     final noted = withMeetingNote(events.where((e) => !e.allDay));
     for (final e in events) {
@@ -144,6 +154,8 @@ extension AppStorePlanner on AppStore {
           taskId: e.taskId,
           isDone: e.goalId != null || e.isDeadline
               ? e.doneAt != null
+              : task?.routine != null
+              ? routineTicks.containsKey(e.id)
               : (task?.isDone ?? false),
           color: taskColor ?? e.color,
           isRecurring: e.seriesId != null,
@@ -300,9 +312,11 @@ extension AppStorePlanner on AppStore {
     color: 'accent',
   );
 
-  /// A task moved onto a day: bucket day, plan date set.
-  TaskItem planned(TaskItem task, {required DayKey on}) =>
-      task.copyWith(bucket: TaskBucket.day, planDate: on, planWeek: null);
+  /// A task moved onto a day: bucket day, plan date set. A routine is never
+  /// planned: it keeps no day, only its blocks.
+  TaskItem planned(TaskItem task, {required DayKey on}) => task.isRoutine
+      ? task
+      : task.copyWith(bucket: TaskBucket.day, planDate: on, planWeek: null);
 
   /// Adds the removal of the time blocks of a task to [into], so a task that
   /// is put on a day or time has one block only. [except] is the id of a
@@ -310,6 +324,17 @@ extension AppStorePlanner on AppStore {
   void removeBlocks(String taskId, {String? except, required Mutation into}) {
     for (final b in blocksOfTask(taskId)) {
       if (b.id != except) into.events.add((before: b, after: null));
+    }
+  }
+
+  /// Adds the removal of the blocks of a routine that no done day points at.
+  void _removeOpenRoutineBlocks(String taskId, {required Mutation into}) {
+    final blocks = blocksOfTask(taskId);
+    final ticked =
+        _try(() => repos.routineDones.forEvents(blocks.map((b) => b.id))) ??
+        const <String, RoutineDone>{};
+    for (final b in blocks) {
+      if (!ticked.containsKey(b.id)) into.events.add((before: b, after: null));
     }
   }
 
@@ -363,9 +388,15 @@ extension AppStorePlanner on AppStore {
     final len = PlannerMath.blockLength(length ?? t.estimateMin);
     final s = PlannerMath.clampMove(start: start, length: len);
     final m = Mutation('Schedule Task');
-    m.tasks.add((before: t, after: planned(t, on: day)));
-    // One block only: the old time is gone.
-    removeBlocks(t.id, into: m);
+    if (t.isRoutine) {
+      // A routine keeps the blocks it was done in: they are its history.
+      // Only an open block moves to the new time.
+      _removeOpenRoutineBlocks(t.id, into: m);
+    } else {
+      m.tasks.add((before: t, after: planned(t, on: day)));
+      // One block only: the old time is gone.
+      removeBlocks(t.id, into: m);
+    }
     final e = blockEvent(t, day: day, start: s, end: s + len);
     m.events.add((before: null, after: e));
     if (commit(m)) selection = {e.id};
@@ -417,6 +448,8 @@ extension AppStorePlanner on AppStore {
     );
     final out = <PlanStep>[];
     for (final t in unscheduled(day)) {
+      // A routine is planned by hand.
+      if (t.isRoutine) continue;
       final len = PlannerMath.blockLength(t.estimateMin);
       final slot = PlannerMath.firstFreeSlot(
         length: len,
@@ -852,7 +885,8 @@ extension AppStorePlanner on AppStore {
       final tid = e.taskId;
       if (open && tid != null) {
         final t = found.putIfAbsent(tid, () => task(tid));
-        if (t != null && t.status == TaskStatus.open) {
+        // A routine block stays where it is.
+        if (t != null && t.status == TaskStatus.open && !t.isRoutine) {
           tasks[tid] = t;
           (taskBlocks[tid] ??= []).add(e);
           continue;

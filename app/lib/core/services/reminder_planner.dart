@@ -16,7 +16,7 @@ class Reminder {
   });
 
   /// `ev-<event id>-<start>` for an event or a block, `due-<task id>-<due>`
-  /// for a due time. The same thing at the same time always has the same id.
+  /// for a due time, `routine-<task id>-<due day>` for a routine. The same thing at the same time always has the same id.
   final String id;
   final String title;
   final String body;
@@ -114,6 +114,32 @@ abstract final class ReminderPlanner {
     final future = all.where((r) => r.fireAt.compareTo(now) > 0).toList()
       ..sort(_byTime);
     return future.take(limit).toList();
+  }
+
+  /// The minute of the due day a routine reminds: 09:00.
+  static const routineMinute = 9 * 60;
+
+  /// One reminder for each routine, at 09:00 on its due day. A routine that
+  /// is late, or whose 09:00 has passed, has none: Grove reminds one time.
+  /// [due] holds the task id, its title and the day it is due.
+  static List<Reminder> routines({
+    required List<({String id, String title, DayKey due})> due,
+    required WallTime now,
+    int limit = ReminderPlanner.limit,
+  }) {
+    final out = <Reminder>[
+      for (final r in due)
+        if (WallTime(day: r.due, minute: routineMinute).compareTo(now) > 0)
+          Reminder(
+            id: 'routine-${r.id}-${r.due.string}',
+            title: r.title,
+            body: 'Due today',
+            fireAt: WallTime(day: r.due, minute: routineMinute),
+            day: r.due,
+            ref: ItemRef(ItemType.task, r.id),
+          ),
+    ]..sort(_byTime);
+    return out.take(limit).toList();
   }
 
   /// Two lists in one, in time order; the same time sorts by id. Plan the

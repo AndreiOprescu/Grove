@@ -12,6 +12,7 @@ import 'package:grove/state/state.dart' hide MotionRules;
 import '../editor/rich_text_field.dart';
 import '../persona/reward_editor.dart';
 import '../planner/kind_switch.dart';
+import '../settings/settings_parts.dart' show GroveSwitch;
 import '../theme/check_box.dart';
 import '../theme/grove_theme.dart';
 import '../theme/panel.dart';
@@ -369,6 +370,95 @@ class _TaskInspectorState extends State<TaskInspector> {
     ]);
   }
 
+  /// The Routine switch: the task comes back a set time after the day it
+  /// was last done. Only a top-level task can be a routine.
+  Widget? _routine(GroveTheme theme, TaskItem task) {
+    if (task.parentId != null) return null;
+    if (!task.isRoutine && task.status != TaskStatus.open) return null;
+    final rule = task.routine;
+    final done = rule == null ? null : _store.routineDones(task.id);
+    final status = done == null ? null : _store.routineStatus(task, done: done);
+    void set(RoutineRule r) => _store.setRoutine(task.id, r);
+    return _section(theme, 'Routine', [
+      _row(
+        theme,
+        'Routine',
+        GroveSwitch(
+          key: const ValueKey('inspector-routine'),
+          value: rule != null,
+          label: 'Routine',
+          onChanged: (on) =>
+              _store.setRoutine(task.id, on ? (rule ?? RoutineRule()) : null),
+        ),
+      ),
+      if (rule != null && status != null && done != null) ...[
+        _row(
+          theme,
+          'Every',
+          Row(
+            key: const ValueKey('inspector-routine-every'),
+            mainAxisSize: MainAxisSize.min,
+            spacing: 6,
+            children: [
+              IconTap(
+                key: const ValueKey('inspector-routine-less'),
+                icon: Icons.remove_circle_outline,
+                label: 'Shorter time between',
+                tip: 'Shorter time between',
+                color: theme.muted,
+                onTap: rule.every <= 1
+                    ? null
+                    : () => set(rule.copyWith(every: rule.every - 1)),
+              ),
+              Text(
+                '${rule.every}',
+                style: theme
+                    .body(12, weight: FontWeight.w600)
+                    .copyWith(color: theme.ink),
+              ),
+              IconTap(
+                key: const ValueKey('inspector-routine-more'),
+                icon: Icons.add_circle_outline,
+                label: 'Longer time between',
+                tip: 'Longer time between',
+                color: theme.muted,
+                onTap: rule.every >= RoutineRule.maxEvery
+                    ? null
+                    : () => set(rule.copyWith(every: rule.every + 1)),
+              ),
+              MenuPick<RoutineUnit>(
+                key: const ValueKey('inspector-routine-unit'),
+                value: rule.unit,
+                values: RoutineUnit.values,
+                name: (u) => rule.every == 1
+                    ? u.name.substring(0, u.name.length - 1)
+                    : u.name,
+                label: 'Every',
+                onPick: (u) => set(rule.copyWith(unit: u)),
+              ),
+            ],
+          ),
+        ),
+        _row(
+          theme,
+          'Next',
+          Text(
+            status.label,
+            key: const ValueKey('inspector-routine-left'),
+            style: theme
+                .body(12)
+                .copyWith(color: status.late ? theme.accent2 : theme.ink),
+          ),
+        ),
+        Text(
+          RoutineRules.historyLabel([for (final x in done) x.day]),
+          key: const ValueKey('inspector-routine-history'),
+          style: theme.body(11).copyWith(color: theme.muted),
+        ),
+      ],
+    ]);
+  }
+
   Widget _details(GroveTheme theme, TaskItem task, List<ListItem> lists) {
     final dueDay = InspectorOptions.dueDay(task.due);
     final repeat = RepeatPreset.of(task.recurrence);
@@ -423,77 +513,86 @@ class _TaskInspectorState extends State<TaskInspector> {
           ),
         ),
       ),
-      _row(
-        theme,
-        'Due',
-        dueDay != null
-            ? Row(
-                mainAxisSize: MainAxisSize.min,
-                spacing: 6,
-                children: [
-                  DayPick(
-                    key: const ValueKey('inspector-due'),
-                    day: dueDay,
-                    label: 'Due',
-                    onPick: (d) => _store.editTask(
-                      task.id,
-                      (t) => t.copyWith(
-                        due: InspectorOptions.dueString(
-                          d,
-                          keepingTimeOf: t.due,
+      // A routine has no due date and no repeat: it comes back by itself.
+      if (!task.isRoutine)
+        _row(
+          theme,
+          'Due',
+          dueDay != null
+              ? Row(
+                  mainAxisSize: MainAxisSize.min,
+                  spacing: 6,
+                  children: [
+                    DayPick(
+                      key: const ValueKey('inspector-due'),
+                      day: dueDay,
+                      label: 'Due',
+                      onPick: (d) => _store.editTask(
+                        task.id,
+                        (t) => t.copyWith(
+                          due: InspectorOptions.dueString(
+                            d,
+                            keepingTimeOf: t.due,
+                          ),
                         ),
+                        name: 'Set Due Date',
                       ),
-                      name: 'Set Due Date',
                     ),
-                  ),
-                  IconTap(
-                    key: const ValueKey('inspector-due-clear'),
-                    icon: Icons.cancel,
-                    label: 'Remove the due date',
-                    tip: 'Remove the due date',
-                    color: theme.muted,
-                    onTap: () => _store.editTask(
-                      task.id,
-                      (t) => t.copyWith(due: null),
-                      name: 'Clear Due Date',
+                    IconTap(
+                      key: const ValueKey('inspector-due-clear'),
+                      icon: Icons.cancel,
+                      label: 'Remove the due date',
+                      tip: 'Remove the due date',
+                      color: theme.muted,
+                      onTap: () => _store.editTask(
+                        task.id,
+                        (t) => t.copyWith(due: null),
+                        name: 'Clear Due Date',
+                      ),
                     ),
+                  ],
+                )
+              : TextTap(
+                  key: const ValueKey('inspector-due-add'),
+                  label: 'Add a due date',
+                  onTap: () => _store.editTask(
+                    task.id,
+                    (t) => t.copyWith(
+                      due: (task.planDate ?? _store.selectedDay).string,
+                    ),
+                    name: 'Set Due Date',
                   ),
-                ],
-              )
-            : TextTap(
-                key: const ValueKey('inspector-due-add'),
-                label: 'Add a due date',
-                onTap: () => _store.editTask(
-                  task.id,
-                  (t) => t.copyWith(
-                    due: (task.planDate ?? _store.selectedDay).string,
-                  ),
-                  name: 'Set Due Date',
                 ),
-              ),
-      ),
-      _row(
-        theme,
-        'Repeat',
-        MenuPick<RepeatPreset>(
-          key: const ValueKey('inspector-repeat'),
-          value: repeat,
-          values: [
-            for (final p in RepeatPreset.values)
-              if (p != RepeatPreset.custom || repeat == RepeatPreset.custom) p,
-          ],
-          name: (p) => p.label,
-          label: 'Repeat',
-          onPick: (p) {
-            if (p == RepeatPreset.custom) return;
-            _store.editTask(
-              task.id,
-              (t) => t.copyWith(recurrence: p.rule),
-              name: 'Set Repeat',
-            );
-          },
         ),
-      ),
+      if (!task.isRoutine)
+        _row(
+          theme,
+          'Repeat',
+          MenuPick<RepeatPreset>(
+            key: const ValueKey('inspector-repeat'),
+            value: repeat,
+            values: [
+              for (final p in RepeatPreset.values)
+                if (p != RepeatPreset.custom || repeat == RepeatPreset.custom)
+                  p,
+            ],
+            name: (p) => p.label,
+            label: 'Repeat',
+            onPick: (p) {
+              if (p == RepeatPreset.custom) return;
+              // Repeat and Routine never go together.
+              _store.editTask(
+                task.id,
+                (t) => t.copyWith(
+                  recurrence: p.rule,
+                  routine: p.rule == null ? t.routine : null,
+                  routineSince: p.rule == null ? t.routineSince : null,
+                ),
+                name: 'Set Repeat',
+              );
+            },
+          ),
+        ),
       _row(
         theme,
         'List',
@@ -749,7 +848,9 @@ class _TaskInspectorState extends State<TaskInspector> {
                 ),
               ),
             ]),
-            _plan(theme, task),
+            // A routine has no plan day.
+            if (!task.isRoutine) _plan(theme, task),
+            ?_routine(theme, task),
             _details(theme, task, lists),
             RewardEditor.task(store: _store, ownerId: task.id),
             _tags(theme, task),

@@ -1,6 +1,7 @@
 import 'day_key.dart';
 import 'ids.dart';
 import 'recurrence.dart';
+import 'routine.dart';
 
 enum TaskStatus { open, done, cancelled }
 
@@ -29,6 +30,8 @@ class TaskItem {
     String? createdAt,
     String? updatedAt,
     this.completedAt,
+    this.routine,
+    this.routineSince,
   }) : id = id ?? newId(),
        createdAt = createdAt ?? updatedAt ?? Stamp.now(),
        updatedAt = updatedAt ?? createdAt ?? Stamp.now();
@@ -68,7 +71,16 @@ class TaskItem {
   final String updatedAt;
   final String? completedAt;
 
+  /// Set for a routine: a task that comes back a set time after the day it
+  /// was last done. A routine has no repeat, no due date and no plan day.
+  final RoutineRule? routine;
+
+  /// The day the routine was turned on. Its clock starts here until it is
+  /// done for the first time.
+  final DayKey? routineSince;
+
   bool get isDone => status == TaskStatus.done;
+  bool get isRoutine => routine != null;
 
   TaskItem copyWith({
     String? id,
@@ -91,6 +103,8 @@ class TaskItem {
     String? createdAt,
     String? updatedAt,
     Object? completedAt = keep,
+    Object? routine = keep,
+    Object? routineSince = keep,
   }) => TaskItem(
     id: id ?? this.id,
     title: title ?? this.title,
@@ -118,6 +132,10 @@ class TaskItem {
     completedAt: identical(completedAt, keep)
         ? this.completedAt
         : completedAt as String?,
+    routine: identical(routine, keep) ? this.routine : routine as RoutineRule?,
+    routineSince: identical(routineSince, keep)
+        ? this.routineSince
+        : routineSince as DayKey?,
   );
 
   List<Object?> get _props => [
@@ -141,6 +159,8 @@ class TaskItem {
     createdAt,
     updatedAt,
     completedAt,
+    routine,
+    routineSince,
   ];
 
   @override

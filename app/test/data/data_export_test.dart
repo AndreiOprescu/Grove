@@ -247,6 +247,16 @@ void main() {
             [null, null, null, null, null],
           );
         }
+        // Routines are in this app only: a task from a Mac file is no
+        // routine.
+        expect(b.remove('routine_done'), isEmpty);
+        for (final t in b['tasks'] as List) {
+          final m = t as Map;
+          expect(
+            [m.remove('routine'), m.remove('routine_since')],
+            [null, null],
+          );
+        }
         expect(b.keys.toSet(), a.keys.toSet());
         for (final name in a.keys) {
           final macRows = a[name] as List;

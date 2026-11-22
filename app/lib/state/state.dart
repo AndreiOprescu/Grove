@@ -3,6 +3,8 @@
 library;
 
 export '../core/grove_core.dart';
+export '../core/model/routine.dart';
+export '../core/services/routine_rules.dart';
 export '../core/update/update_rules.dart';
 export '../core/weather/weather_rules.dart';
 export '../core/agent/agent_models.dart';

@@ -117,6 +117,19 @@ class _TasksPaneState extends State<TasksPane> {
         if (t.parentId == null && !_store.lingering.contains(t.id)) t,
     ];
     return [
+      // Routines come back by themselves: always shown, late first. They
+      // are in none of the lists below.
+      TaskSection(
+        key: const ValueKey('part-routines'),
+        store: _store,
+        title: 'Routines',
+        placement: null,
+        tasks: [for (final r in _store.routineEntries()) r.task],
+        emptyText: 'No routines yet.',
+        lists: lists,
+        expanded: _expanded,
+        onToggle: _toggle,
+      ),
       if (waiting.overdue.isNotEmpty)
         TaskSection(
           key: const ValueKey('part-overdue'),

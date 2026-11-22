@@ -60,6 +60,12 @@ class _TaskRowState extends State<TaskRow> with AutomaticKeepAliveClientMixin {
   bool _renaming = false;
   bool _targeted = false;
 
+  /// Where the task stands when it is a routine, from the last build.
+  RoutineStatus? _routine;
+
+  /// A routine with a done day today shows a ticked box.
+  bool _doneToday = false;
+
   AppStore get _store => widget.store;
   TaskItem get _task => widget.task;
 
@@ -141,26 +147,30 @@ class _TaskRowState extends State<TaskRow> with AutomaticKeepAliveClientMixin {
     final id = _task.id;
     final today = _store.clockToday;
     void move(TaskPlacement to) => _store.moveTask(id, to: to);
+    final ticked = _routine != null ? _doneToday : _task.isDone;
     showGroveMenu(context, global, [
       MenuLine(
-        _task.isDone ? 'Mark Not Done' : 'Mark Done',
+        ticked ? 'Mark Not Done' : 'Mark Done',
         () => _store.toggleDone(taskId: id),
       ),
       const MenuLine.divider(),
-      const MenuLine.title('Move To'),
-      MenuLine('Today', () => move(TaskPlacement.day(today))),
-      MenuLine(
-        'Tomorrow',
-        () => move(TaskPlacement.day(today.adding(days: 1))),
-      ),
-      MenuLine('This Week', () => move(TaskPlacement.week(today))),
-      MenuLine(
-        'Next Week',
-        () => move(TaskPlacement.week(today.weekStart().adding(days: 7))),
-      ),
-      MenuLine('Inbox', () => move(TaskPlacement.inbox)),
-      MenuLine('Someday', () => move(TaskPlacement.someday)),
-      const MenuLine.divider(),
+      // A routine has no plan day: it comes back by itself.
+      if (_routine == null) ...[
+        const MenuLine.title('Move To'),
+        MenuLine('Today', () => move(TaskPlacement.day(today))),
+        MenuLine(
+          'Tomorrow',
+          () => move(TaskPlacement.day(today.adding(days: 1))),
+        ),
+        MenuLine('This Week', () => move(TaskPlacement.week(today))),
+        MenuLine(
+          'Next Week',
+          () => move(TaskPlacement.week(today.weekStart().adding(days: 7))),
+        ),
+        MenuLine('Inbox', () => move(TaskPlacement.inbox)),
+        MenuLine('Someday', () => move(TaskPlacement.someday)),
+        const MenuLine.divider(),
+      ],
       const MenuLine.title('Priority'),
       for (final (value, name) in const [
         (0, 'None'),
@@ -194,15 +204,23 @@ class _TaskRowState extends State<TaskRow> with AutomaticKeepAliveClientMixin {
 
   // MARK: Pieces
 
-  Widget _checkbox(TaskItem t, {double size = 17, bool linger = false}) {
-    final label = t.isDone
-        ? 'Mark ${t.title} as not done'
-        : 'Mark ${t.title} as done';
+  /// [on] is the tick of a routine: done today.
+  Widget _checkbox(
+    TaskItem t, {
+    double size = 17,
+    bool linger = false,
+    bool? on,
+  }) {
+    final ticked = on ?? t.isDone;
+    final today = on == null ? '' : ' today';
+    final label = ticked
+        ? 'Mark ${t.title} as not done$today'
+        : 'Mark ${t.title} as done$today';
     void toggle() => _store.toggleDone(taskId: t.id, linger: linger);
     return Semantics(
       container: true,
       button: true,
-      checked: t.isDone,
+      checked: ticked,
       label: label,
       onTap: toggle,
       child: MouseRegion(
@@ -211,7 +229,7 @@ class _TaskRowState extends State<TaskRow> with AutomaticKeepAliveClientMixin {
           key: ValueKey('check-${t.id}'),
           behavior: HitTestBehavior.opaque,
           onTap: toggle,
-          child: CheckBox(isOn: t.isDone, size: size),
+          child: CheckBox(isOn: ticked, size: size),
         ),
       ),
     );
@@ -248,12 +266,17 @@ class _TaskRowState extends State<TaskRow> with AutomaticKeepAliveClientMixin {
   Widget _labels(GroveTheme theme) {
     final today = _store.clockToday;
     final tags = _store.tagNames(_task.id);
-    final blocks = [..._store.blocksOfTask(_task.id)]
-      ..sort((a, b) => a.start.compareTo(b.start));
+    final routine = _routine != null;
+    // The old blocks of a routine are its history: only the coming ones
+    // show.
+    final blocks = [
+      for (final b in _store.blocksOfTask(_task.id))
+        if (!routine || b.start.day >= today) b,
+    ]..sort((a, b) => a.start.compareTo(b.start));
     final shown =
         blocks.where((b) => b.start.day == widget.contextDay).firstOrNull ??
         blocks.firstOrNull;
-    final place = widget.showDate
+    final place = widget.showDate && !routine
         ? TaskFormat.planLabel(_task, today: today)
         : null;
     final planDate = _task.planDate;
@@ -300,7 +323,7 @@ class _TaskRowState extends State<TaskRow> with AutomaticKeepAliveClientMixin {
             tint: d.late ? theme.accent2 : null,
           );
         }(),
-      if (_task.recurrence != null)
+      if (_task.recurrence != null && !routine)
         const TaskChip('Repeats', icon: Icons.repeat),
       if (list != null) TaskChip(list.name, icon: Icons.folder_outlined),
       if (_task.notes.isNotEmpty) const TaskChip('Notes', icon: Icons.notes),
@@ -314,6 +337,32 @@ class _TaskRowState extends State<TaskRow> with AutomaticKeepAliveClientMixin {
     ];
     if (chips.isEmpty) return const SizedBox.shrink();
     return Wrap(spacing: 4, runSpacing: 4, children: chips);
+  }
+
+  /// The bar of a routine: it fills as the time runs out, and is red when
+  /// the routine is late.
+  Widget _routineBar(GroveTheme theme, RoutineStatus status) {
+    final tint = status.late ? theme.accent2 : theme.accent;
+    return Row(
+      spacing: 8,
+      children: [
+        Expanded(
+          child: ProgressBar(
+            key: ValueKey('routine-bar-${_task.id}'),
+            fraction: status.fraction,
+            color: tint,
+            track: theme.line,
+            label: 'Time to ${_task.title}',
+          ),
+        ),
+        Text(
+          status.label,
+          style: theme
+              .body(10, weight: FontWeight.w600)
+              .copyWith(color: status.late ? theme.accent2 : theme.muted),
+        ),
+      ],
+    );
   }
 
   Widget _subtaskToggle(GroveTheme theme, List<TaskItem> subtasks) {
@@ -430,19 +479,34 @@ class _TaskRowState extends State<TaskRow> with AutomaticKeepAliveClientMixin {
     final tint = TaskPalette.color(_task.color);
     final priority = _task.isDone ? null : PriorityColors.color(_task.priority);
     final corners = BorderRadius.circular(10);
+    final dones = _task.isRoutine ? _store.routineDones(_task.id) : null;
+    final routine = dones == null
+        ? null
+        : _store.routineStatus(_task, done: dones);
+    final today = _store.clockToday;
+    _routine = routine;
+    _doneToday = dones?.any((x) => x.day == today) ?? false;
 
     // The part that drags: the check box, the title and the labels.
     final top = Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       spacing: 8,
       children: [
-        _checkbox(_task, linger: _motionOn),
+        _checkbox(
+          _task,
+          linger: _motionOn,
+          on: routine == null ? null : _doneToday,
+        ),
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min,
             spacing: 4,
-            children: [_title(theme), if (!_task.isDone) _labels(theme)],
+            children: [
+              _title(theme),
+              if (!_task.isDone) _labels(theme),
+              if (routine != null && !_task.isDone) _routineBar(theme, routine),
+            ],
           ),
         ),
         if (subtasks.isNotEmpty || widget.isExpanded)

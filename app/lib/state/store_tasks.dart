@@ -79,29 +79,31 @@ extension AppStoreTasks on AppStore {
           0) +
       1;
 
-  TaskItem placed(TaskItem task, TaskPlacement placement) =>
-      switch (placement) {
-        InboxPlacement() => task.copyWith(
-          bucket: TaskBucket.inbox,
-          planDate: null,
-          planWeek: null,
-        ),
-        SomedayPlacement() => task.copyWith(
-          bucket: TaskBucket.someday,
-          planDate: null,
-          planWeek: null,
-        ),
-        DayPlacement(:final day) => task.copyWith(
-          bucket: TaskBucket.day,
-          planDate: day,
-          planWeek: null,
-        ),
-        WeekPlacement(:final day) => task.copyWith(
-          bucket: TaskBucket.week,
-          planDate: null,
-          planWeek: day.weekStart(),
-        ),
-      };
+  /// [task] in [placement]. A routine stays in no place: it keeps no day.
+  TaskItem placed(TaskItem task, TaskPlacement placement) => task.isRoutine
+      ? task.copyWith(bucket: TaskBucket.inbox, planDate: null, planWeek: null)
+      : switch (placement) {
+          InboxPlacement() => task.copyWith(
+            bucket: TaskBucket.inbox,
+            planDate: null,
+            planWeek: null,
+          ),
+          SomedayPlacement() => task.copyWith(
+            bucket: TaskBucket.someday,
+            planDate: null,
+            planWeek: null,
+          ),
+          DayPlacement(:final day) => task.copyWith(
+            bucket: TaskBucket.day,
+            planDate: day,
+            planWeek: null,
+          ),
+          WeekPlacement(:final day) => task.copyWith(
+            bucket: TaskBucket.week,
+            planDate: null,
+            planWeek: day.weekStart(),
+          ),
+        };
 
   // Quick add
 
@@ -192,6 +194,8 @@ extension AppStoreTasks on AppStore {
   void toggleDone({required String taskId, bool linger = false}) {
     final old = task(taskId);
     if (old == null) return;
+    // A routine stays open: the tick is a done day.
+    if (old.isRoutine && !old.isDone) return toggleRoutineToday(taskId);
     if (linger && !old.isDone) _holdInList(taskId);
     if (old.isDone) {
       final t = old.copyWith(status: TaskStatus.open, completedAt: null);
@@ -433,7 +437,9 @@ extension AppStoreTasks on AppStore {
     }
     m.tasks.add((before: old, after: t));
 
-    if (!keepingBlocks) {
+    if (old.isRoutine) {
+      // A routine keeps its blocks: they are its history.
+    } else if (!keepingBlocks) {
       removeBlocks(id, into: m);
     } else {
       for (final b in blocksOfTask(id)) {

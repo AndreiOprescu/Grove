@@ -118,7 +118,9 @@ extension AppStoreFocus on AppStore {
     final f = _focus;
     if (f == null) return;
     final id = f.taskId;
-    if (id != null && task(id)?.status == TaskStatus.open) {
+    if (id != null && (task(id)?.isRoutine ?? false)) {
+      markRoutineDone(id, eventId: f.blockId);
+    } else if (id != null && task(id)?.status == TaskStatus.open) {
       toggleDone(taskId: id);
     }
     stopFocus();
@@ -126,7 +128,11 @@ extension AppStoreFocus on AppStore {
 
   /// The "Mark done" button on the notification.
   void focusDoneFromNotification(String taskId) {
-    if (task(taskId)?.status == TaskStatus.open) toggleDone(taskId: taskId);
+    if (task(taskId)?.isRoutine ?? false) {
+      markRoutineDone(taskId, eventId: _focus?.blockId);
+    } else if (task(taskId)?.status == TaskStatus.open) {
+      toggleDone(taskId: taskId);
+    }
     if (_focus?.taskId == taskId) stopFocus();
   }
 }
