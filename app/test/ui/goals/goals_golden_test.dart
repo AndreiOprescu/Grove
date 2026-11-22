@@ -98,7 +98,12 @@ Future<void> _open(WidgetTester tester, String goal) async {
 /// The open goal with its editor too.
 Future<void> _openEditor(WidgetTester tester, String goal) async {
   await _open(tester, goal);
-  await tester.tap(find.byKey(ValueKey('goal-edit-$goal')));
+  // The open goal can reach past the bottom of its half of the panel:
+  // scroll the edit button into view, or the tap misses it.
+  final edit = find.byKey(ValueKey('goal-edit-$goal'));
+  await tester.ensureVisible(edit);
+  await tester.pumpAndSettle();
+  await tester.tap(edit);
   await tester.pumpAndSettle();
 }
 

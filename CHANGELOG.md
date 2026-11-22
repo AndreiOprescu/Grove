@@ -16,6 +16,7 @@ makes the next version. Each line is one feature. The newest version is first.
 - **Notes panel removed from the dock:** the dock at the top left now has Tasks, Goals and Deadlines. Notes live on the Notes screen.
 - **Agent folder:** each agent chat has its own folder on the computer that runs the agent. The agent can save files there, like notes or a draft page, and it cannot change files anywhere else. The chat lists the files it saved. Settings ▸ Agent shows the folder and can delete all agent files.
 - **Task panel stays on the Planner:** the panel of an open task or goal block now shows only on the Planner and Today screens. Notes, Calendar and the other screens hide it. Go back to the Planner and it is there again.
+- **Goals panel in two halves:** the Goals panel in the dock now has Projects on top and Habits below, each half the height, each with its own scroll and its own "+". The "+" opens the form of that type at once. The old "Add a goal…" line is gone.
 - **Agent services:** turn on the services of your Claude Code (Gmail, Google Drive, Notion and more) one by one in Settings ▸ Agent. The agent only gets their tools that read, and never runs commands. The "Email" switch of a chat is now "Services".
 
 ## 1.2.0 · 2026-10-21
