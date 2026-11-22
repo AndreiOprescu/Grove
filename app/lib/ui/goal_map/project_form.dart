@@ -1,5 +1,5 @@
-// The form of a goal. A new goal picks Project or Habit. No field of a project
-// is needed.
+// The form of a goal. A new goal picks Project or Habit, unless the type is
+// set by the place it was asked from. No field of a project is needed.
 import 'package:flutter/material.dart';
 import 'package:grove/core/model/day_key.dart';
 import 'package:grove/core/model/goal.dart';
@@ -12,13 +12,17 @@ import '../theme/grove_theme.dart';
 import '../theme/panel.dart';
 
 /// The form of a new goal. Gives the goal, or null when the user cancelled.
+/// `lockType`: the form makes only the type of `project`, with no choice of
+/// type (the "+" of the Projects or the Habits half of the Goals panel).
 Future<GoalItem?> showNewGoalForm(
   BuildContext context,
   AppStore store, {
   bool project = true,
+  bool lockType = false,
 }) => showDialog<GoalItem>(
   context: context,
-  builder: (_) => _GoalForm(store: store, startAsProject: project),
+  builder: (_) =>
+      _GoalForm(store: store, startAsProject: project, lockType: lockType),
 );
 
 /// The form of a project that exists.
@@ -32,13 +36,21 @@ Future<void> showProjectForm(
 );
 
 class _GoalForm extends StatefulWidget {
-  const _GoalForm({required this.store, this.goal, this.startAsProject = true});
+  const _GoalForm({
+    required this.store,
+    this.goal,
+    this.startAsProject = true,
+    this.lockType = false,
+  });
 
   final AppStore store;
 
   /// Null: a new goal.
   final GoalItem? goal;
   final bool startAsProject;
+
+  /// A new goal of one type: no choice of type.
+  final bool lockType;
 
   @override
   State<_GoalForm> createState() => _GoalFormState();
@@ -219,11 +231,19 @@ class _GoalFormState extends State<_GoalForm> {
   Widget build(BuildContext context) {
     final theme = GroveTheme.of(context);
     final isNew = _old == null;
+    final locked = isNew && widget.lockType;
+    final heading = !isNew
+        ? 'Edit project'
+        : !locked
+        ? 'New goal'
+        : _project
+        ? 'New project'
+        : 'New habit';
     return PlannerSheet(
       width: 440,
       children: [
-        ThemedHeading(isNew ? 'New goal' : 'Edit project', 20),
-        if (isNew) _typePicker(),
+        ThemedHeading(heading, 20),
+        if (isNew && !locked) _typePicker(),
         _field(theme, 'form-title', _title, 'Name', autofocus: true),
         if (_project) ...[
           _field(
